@@ -107,11 +107,20 @@ app.post('/api', async (req, res) => {
     return res.json({ success: false, error: err.message });
   }
 });
-
+app.get('/ping', (req, res) => res.send('pong'));
 // ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Puro Bite API running on port ${PORT}`));
-
+// SELF PING — Render ko jagte rakhta hai
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000';
+setInterval(async () => {
+  try {
+    await fetch(${SELF_URL}/ping);
+    console.log([KeepAlive] Pinged at ${new Date().toISOString()});
+  } catch (e) {
+    console.error('[KeepAlive] Ping failed:', e.message);
+  }
+}, 14 * 60 * 1000);
 //──────────────────────────────────────────────────────────────
 // HELPERS
 //──────────────────────────────────────────────────────────────
