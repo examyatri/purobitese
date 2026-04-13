@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Puro Bite – Rider</title>
+<meta name="description" content="Puro Bite Delivery Partner Portal">
+<meta name="theme-color" content="#e63946">
+<meta name="robots" content="noindex,nofollow">
+<!-- PWA Manifest -->
+<link rel="manifest" href="./manifest-rider.json">
+<!-- iOS PWA -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PB Rider">
+<link rel="apple-touch-icon" href="./icons/icon-rider-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-rider-192.png">
+<link rel="shortcut icon" href="./icons/icon-rider-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -64,6 +77,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
 
 /* ── SPINNER / TOAST ── */
 .spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
+.icon-spin{animation:sp .7s linear infinite;display:inline-block}
 @keyframes sp{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--tx);color:#fff;padding:11px 20px;border-radius:30px;font-weight:700;font-size:13px;z-index:9999;opacity:0;transition:all .28s;pointer-events:none;white-space:nowrap;font-family:var(--ff)}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -106,21 +120,22 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
 .tab-count{background:rgba(255,255,255,.25);border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800}
 .tab-btn:not(.act) .tab-count{background:var(--lt);color:var(--mu)}
 
-/* ── FILTER (for Delivered tab) ── */
-.filter-wrap{background:#fff;margin:8px 14px;border-radius:13px;box-shadow:var(--sh);overflow:hidden}
-.filter-toggle{width:100%;background:none;border:none;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);touch-action:manipulation}
-.filter-toggle .arr{transition:transform .2s;color:var(--mu);font-size:12px}
-.filter-toggle.open .arr{transform:rotate(180deg)}
-.filter-body{padding:0 14px 14px;border-top:1px solid var(--lt)}
-.filter-row{display:flex;gap:8px;align-items:center;margin-top:10px}
-.f-label{font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap;min-width:40px}
-.f-select,.f-date{flex:1;background:var(--bg);border:1.5px solid var(--lt);border-radius:9px;color:var(--tx);font-family:var(--fb);font-weight:600;font-size:13px;padding:8px 10px;outline:none;-webkit-appearance:none}
-.f-select:focus,.f-date:focus{border-color:var(--p)}
-.f-clr{background:none;border:none;color:var(--mu);font-size:14px;cursor:pointer;padding:6px}
-.filter-acts{display:flex;gap:8px;margin-top:12px}
-.f-reset{background:var(--lt);color:var(--tx);border:none;border-radius:9px;padding:10px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--ff)}
+/* ── DATE SECTION HEADERS (Today / Yesterday) ── */
+.date-section{margin:12px 0 0}
+.date-section-hdr{display:flex;align-items:center;gap:10px;padding:10px 14px 6px;cursor:pointer;user-select:none;touch-action:manipulation}
+.date-section-hdr:active{opacity:.75}
+.date-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-family:var(--ff);font-size:12px;font-weight:800;letter-spacing:.2px}
+.pill-today{background:linear-gradient(135deg,#fff0f0,#fde8ea);color:var(--p);border:1.5px solid #f5c6c9}
+.pill-yesterday{background:#f3f4f6;color:#4b5563;border:1.5px solid #d1d5db}
+.date-section-cnt{font-size:11px;font-weight:600;color:var(--mu)}
+.date-section-arr{margin-left:auto;color:var(--mu);font-size:11px;transition:transform .22s}
+.date-section-arr.open{transform:rotate(180deg)}
+.date-section-body{overflow:hidden}
+.date-section-body.collapsed{display:none}
 
-/* ── GROUP HEADER ── */
+/* ── GROUP HEADER (Morning / Evening — inside date section) ── */
+
+/* ── GROUP HEADER (Morning / Evening — inside date section) ── */
 .group-hdr{display:flex;align-items:center;gap:9px;padding:14px 14px 6px}
 .group-pill{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;font-family:var(--ff);font-size:12px;font-weight:800}
 .pill-day{background:var(--dayb);color:var(--day);border:1.5px solid var(--daybd)}
@@ -236,7 +251,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
     </div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-ghost btn-sm" onclick="exportPDF()" title="Export PDF"><i class="fa-solid fa-file-pdf"></i></button>
-      <button class="btn btn-ghost btn-sm" onclick="loadOrders()" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+      <button class="btn btn-ghost btn-sm" id="rider-refresh-btn" onclick="manualRiderRefresh()" title="Auto-refresh in 120s"><i class="fa-solid fa-rotate"></i></button>
       <button class="btn btn-ghost btn-sm" onclick="doLogout()" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
     </div>
   </nav>
@@ -282,60 +297,8 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
     </button>
   </div>
 
-  <!-- Active Tab Filters -->
-  <div class="filter-wrap" id="active-filters">
-    <button class="filter-toggle" id="ftbtn-active" onclick="toggleFilters('active')">
-      <span><i class="fa-solid fa-sliders" style="color:var(--p);margin-right:7px"></i>Filter Active Orders</span>
-      <i class="fa-solid fa-chevron-down arr"></i>
-    </button>
-    <div class="filter-body hide" id="fbody-active">
-      <div class="filter-row">
-        <span class="f-label">📅 Date</span>
-        <input type="date" class="f-date" id="active-filter-date" onchange="renderActive()">
-        <button class="f-clr" onclick="doc('active-filter-date').value='';renderActive()">✕</button>
-      </div>
-      <div class="filter-row">
-        <span class="f-label">🕐 Slot</span>
-        <select class="f-select" id="active-filter-slot" onchange="renderActive()">
-          <option value="all">All Slots</option>
-          <option value="day">☀️ Morning</option>
-          <option value="night">🌙 Evening</option>
-        </select>
-      </div>
-      <div class="filter-acts">
-        <button class="f-reset" onclick="doc('active-filter-date').value='';doc('active-filter-slot').value='all';renderActive()">Reset Filters</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Delivered Tab Filters (hidden when on active tab) -->
-  <div class="filter-wrap hide" id="delivered-filters">
-    <button class="filter-toggle" id="ftbtn-delivered" onclick="toggleFilters('delivered')">
-      <span><i class="fa-solid fa-sliders" style="color:var(--p);margin-right:7px"></i>Filter Delivered Orders</span>
-      <i class="fa-solid fa-chevron-down arr"></i>
-    </button>
-    <div class="filter-body hide" id="fbody-delivered">
-      <div class="filter-row">
-        <span class="f-label">📅 Date</span>
-        <input type="date" class="f-date" id="filter-date" onchange="renderDelivered()">
-        <button class="f-clr" onclick="doc('filter-date').value='';renderDelivered()">✕</button>
-      </div>
-      <div class="filter-row">
-        <span class="f-label">🕐 Slot</span>
-        <select class="f-select" id="filter-slot" onchange="renderDelivered()">
-          <option value="all">All Slots</option>
-          <option value="day">☀️ Morning</option>
-          <option value="night">🌙 Evening</option>
-        </select>
-      </div>
-      <div class="filter-acts">
-        <button class="f-reset" onclick="doc('filter-date').value='';doc('filter-slot').value='all';renderDelivered()">Reset Filters</button>
-      </div>
-    </div>
-  </div>
-
   <div class="ord-hdr">
-    <h3 id="section-title">Active Deliveries</h3>
+    <h3 id="section-title"></h3>
     <span class="ord-count-tag" id="ord-count-badge"></span>
   </div>
 
@@ -371,15 +334,30 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
   };
 
 
-async function api(action,data={}){
-  const ctrl=new AbortController();
-  const timer=setTimeout(()=>ctrl.abort(),20000);
-  try{
-    const r=await fetch(CFG.GAS,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action,data,apiKey:CFG.KEY}),signal:ctrl.signal});
-    clearTimeout(timer);const res=await r.json();
-    if(!res.success) throw new Error(res.error||'API error');
+async function api(action, data={}, _retry=1){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 22000);
+  try {
+    const r = await fetch(CFG.GAS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data, apiKey: CFG.KEY }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    const res = await r.json();
+    if (!res.success) throw new Error(res.error || 'API error');
     return res.data;
-  }catch(e){clearTimeout(timer);if(e.name==='AbortError') throw new Error('Request timed out.');throw e;}
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('Request timed out. Check internet connection.');
+    // Retry once on transient network errors (not auth errors)
+    if (_retry > 0 && e.message !== 'Invalid credentials' && !e.message.includes('required')) {
+      await new Promise(r => setTimeout(r, 1200));
+      return api(action, data, _retry - 1);
+    }
+    throw e;
+  }
 }
 
 // ══ AUTH ══
@@ -390,11 +368,11 @@ const RCreds={
   get:()=>{try{return JSON.parse(localStorage.getItem('pb_rider_creds'));}catch{return null;}}
 };
 
-// sessionStorage for rider — survives F5, fixes frequent logout
+// localStorage for rider — survives tab close, app switch (Maps/WhatsApp), and background kill on mobile
 const RSess={
-  save:(r)=>{try{sessionStorage.setItem('pb_rider_sess',JSON.stringify(r));}catch{}},
-  get:()=>{try{return JSON.parse(sessionStorage.getItem('pb_rider_sess'));}catch{return null;}},
-  clear:()=>{try{sessionStorage.removeItem('pb_rider_sess');}catch{}}
+  save:(r)=>{try{localStorage.setItem('pb_rider_sess',JSON.stringify(r));}catch{}},
+  get:()=>{try{return JSON.parse(localStorage.getItem('pb_rider_sess'));}catch{return null;}},
+  clear:()=>{try{localStorage.removeItem('pb_rider_sess');}catch{}}
 };
 
 function togglePw(id,btn){
@@ -411,23 +389,31 @@ function autofillRiderCreds(){
 }
 
 async function doLogin(){
-  const em=doc('r-em').value.trim(),pw=doc('r-pw').value;
-  if(!em||!pw) return toast('Email aur password daalein');
-  const btn=doc('login-btn');
-  btn.innerHTML='<span class="spin"></span> Logging in...';btn.disabled=true;
-  try{
-    _rider=await api('riderLogin',{email:em,password:pw});
-    RCreds.save(em,pw);
+  const em = doc('r-em').value.trim().toLowerCase();
+  const pw = doc('r-pw').value.trim(); // trim: mobile keyboards often add trailing space
+  if(!em || !pw) return toast('Email aur password daalein');
+  const btn = doc('login-btn');
+  btn.innerHTML = '<span class="spin"></span> Logging in...'; btn.disabled = true;
+  try {
+    _rider = await api('riderLogin', { email: em, password: pw });
+    RCreds.save(em, pw);
     RSess.save(_rider);
     showApp();
-  }catch(e){toast('❌ '+e.message);}
-  finally{btn.innerHTML='<i class="fa-solid fa-right-to-bracket"></i> Login &amp; Start Delivery';btn.disabled=false;}
+  } catch(e) {
+    toast('❌ ' + e.message);
+    // Clear saved creds if server rejected them (wrong password)
+    if (e.message === 'Invalid credentials') RCreds.save('', '');
+  } finally {
+    btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login &amp; Start Delivery';
+    btn.disabled = false;
+  }
 }
 
 function doLogout(){
   if(!confirm('Logout?')) return;
   _rider=null;
   RSess.clear();
+  stopRiderPolling();
   doc('pg-app').style.display='none';
   doc('pg-auth').style.display='flex';
   autofillRiderCreds();
@@ -437,7 +423,10 @@ function showApp(){
   doc('pg-auth').style.display='none';
   doc('pg-app').style.display='block';
   doc('r-name').textContent='Hi, '+(_rider.name||'Rider')+' 👋';
+  const title=doc('section-title');
+  if(title) title.textContent='Active Deliveries';
   loadOrders();
+  startRiderPolling();
 }
 
 // ══ ORDERS ══
@@ -450,35 +439,35 @@ let _dayCutoffH=11.5;  // updated from backend config — used for morning/eveni
 let _isLoading=false;  // race-condition guard for auto-refresh
 
 async function loadOrders(){
-  if(!_rider) return;
-  if(_isLoading) return; // prevent concurrent loads (race condition guard)
-  _isLoading=true;
-  doc('orders-con').innerHTML='<div class="empty"><span>⏳</span><p>Loading...</p></div>';
-  try{
+  if (!_rider) return;
+  if (_isLoading) return;
+  _isLoading = true;
+  const isFirstLoad = _orders.length === 0;
+  if (isFirstLoad) doc('orders-con').innerHTML = '<div class="empty"><span>⏳</span><p>Loading...</p></div>';
+  try {
     const [orders, cutoffCfg] = await Promise.all([
-      api('getRiderOrders',{riderId:_rider.riderId}),
-      api('getOrderCutoff').catch(()=>null)
+      api('getRiderOrders', { riderId: _rider.riderId }),
+      api('getOrderCutoff').catch(() => null)
     ]);
-    // Update day cutoff hour from backend config so isDayOrder is accurate
-    if(cutoffCfg && cutoffCfg.cutoffDay){
-      const [dH,dM]=cutoffCfg.cutoffDay.split(':').map(Number);
-      _dayCutoffH=dH+dM/60;
+    if (cutoffCfg && cutoffCfg.cutoffDay) {
+      const [dH, dM] = cutoffCfg.cutoffDay.split(':').map(Number);
+      _dayCutoffH = dH + dM / 60;
     }
-    _orders=orders;
-    // Split into active (out for delivery) and delivered
-    _activeOrders=_orders.filter(o=>o.orderStatus==='out for delivery');
-    _deliveredOrders=_orders.filter(o=>o.orderStatus==='delivered')
-      .sort((a,b)=>{
-        const ta=Number(String(a.orderId).replace('PB-','').split('-')[0])||0;
-        const tb=Number(String(b.orderId).replace('PB-','').split('-')[0])||0;
-        return tb-ta; // newest first
-      });
+    _orders = orders;
+    _activeOrders = _orders.filter(o => o.orderStatus === 'out for delivery');
+    _deliveredOrders = _orders.filter(o => o.orderStatus === 'delivered')
+      .sort(sortNewest);
     updateStats();
     updateTabCounts();
-    if(_currentTab==='active') renderActive();
+    if (_currentTab === 'active') renderActive();
     else renderDelivered();
-  }catch(e){toast('❌ '+e.message);}
-  finally{_isLoading=false;}
+  } catch(e) {
+    toast('❌ ' + e.message);
+    // If first load failed, show actionable error instead of blank screen
+    if (isFirstLoad) doc('orders-con').innerHTML = `<div class="empty"><span>⚠️</span><p>Load failed. Check internet.<br><br><button class="btn btn-p btn-sm" onclick="loadOrders()"><i class="fa-solid fa-rotate"></i> Retry</button></p></div>`;
+  } finally {
+    _isLoading = false;
+  }
 }
 
 // ══ TAB SWITCHING ══
@@ -491,14 +480,13 @@ function switchTab(tab){
   doc('tab-active').classList.toggle('act',tab==='active');
   doc('tab-delivered').classList.toggle('act',tab==='delivered');
   doc('route-banner-btn').classList.toggle('hide',tab==='delivered');
-  doc('active-filters').classList.toggle('hide',tab==='delivered');
-  doc('delivered-filters').classList.toggle('hide',tab==='active');
+
+  const title=doc('section-title');
+  if(title) title.textContent=tab==='active'?'Active Deliveries':'Delivered Orders';
 
   if(tab==='active'){
-    doc('section-title').textContent='Active Deliveries';
     renderActive();
   } else {
-    doc('section-title').textContent='Delivered Orders';
     renderDelivered();
   }
 }
@@ -532,62 +520,141 @@ function matchesSearch(o){
   );
 }
 
-// ══ TIME / DATE HELPERS ══
-function getOrderHour(t){
-  if(!t&&t!==0) return -1;
-  if(t instanceof Date){const i=new Date(t.getTime()+5.5*3600000);return i.getUTCHours()+i.getUTCMinutes()/60;}
-  const s=String(t).replace(/[\u00a0\u202f\u2009\u200b]/g,' ').trim();
-  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){const i=new Date(new Date(s).getTime()+5.5*3600000);if(!isNaN(i.getTime())) return i.getUTCHours()+i.getUTCMinutes()/60;}
-  const m=s.toLowerCase().match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
-  if(!m) return -1;
-  let h=parseInt(m[1]);const mn=parseInt(m[2]),p=m[3]||'';
-  if(p==='pm'&&h!==12) h+=12;if(p==='am'&&h===12) h=0;
-  return h+mn/60;
-}
-function isDayOrder(o){const h=getOrderHour(o.time);return h<0?false:h<_dayCutoffH;}
+// ════════════════════════════════════════════════
+// PB — Unified date/time utilities (mirrors admin + index)
+// Internal canonical format: date = "YYYY-MM-DD", time = "HH:MM AM/PM"
+// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// PB — Global Date/Time Normalisation Utility  (client-side)
+// Shared across admin, index, and rider panels.
+//
+//  PB.toYMD(v)      : any value  →  "YYYY-MM-DD"   (or '' on failure)
+//  PB.fmtDate(v)    : any value  →  "DD/MM/YYYY"   (display)
+//  PB.fmtTime(v)    : any value  →  "HH:MM AM/PM"  (display)
+//  PB.todayYMD()    : IST today  →  "YYYY-MM-DD"
+//  PB.yesterdayYMD(): IST yest   →  "YYYY-MM-DD"
+//  PB.orderHour(o)  : decimal hour from order.time field
+// ═══════════════════════════════════════════════════════════════
+const PB = {
+  // Internal: shift epoch ms to IST so UTC accessors read IST clock
+  _ist(ms) { return new Date((typeof ms === 'number' ? ms : Date.now()) + 5.5 * 3600000); },
 
-function orderDateToISO(d){
-  if(!d&&d!==0) return '';
-  if(d instanceof Date){const i=new Date(d.getTime()+5.5*3600000);return `${i.getUTCFullYear()}-${String(i.getUTCMonth()+1).padStart(2,'0')}-${String(i.getUTCDate()).padStart(2,'0')}`;}
-  const s=String(d).trim();
-  // DD/MM/YYYY
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){const[dd,mm,yyyy]=s.split('/');return `${yyyy}-${mm}-${dd}`;}
-  // YYYY-MM-DD
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // ISO datetime — apply IST offset
-  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){const i=new Date(new Date(s).getTime()+5.5*3600000);if(!isNaN(i.getTime())) return `${i.getUTCFullYear()}-${String(i.getUTCMonth()+1).padStart(2,'0')}-${String(i.getUTCDate()).padStart(2,'0')}`;}
-  return '';
-}
-
-function fmtDate(v){
-  if(!v&&v!==0) return '';
-  const s=String(v).trim();
-  // Already DD/MM/YYYY
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-  if(v instanceof Date||/^\d{4}-\d{2}-\d{2}T/.test(s)){
-    const raw=v instanceof Date?v:new Date(s);
-    if(!isNaN(raw.getTime())){const i=new Date(raw.getTime()+5.5*3600000);return String(i.getUTCDate()).padStart(2,'0')+'/'+String(i.getUTCMonth()+1).padStart(2,'0')+'/'+i.getUTCFullYear();}
-  }
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const[y,m,d]=s.split('-');return `${d}/${m}/${y}`;}
-  return s;
-}
-function fmtTime(v){
-  if(!v&&v!==0) return '';
-  const s=String(v).trim().replace(/[\u00a0\u202f\u2009]/g,' ');
-  // Already HH:MM AM/PM
-  if(/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(s)) return s;
-  if(v instanceof Date||/^\d{4}-\d{2}-\d{2}T/.test(s)){
-    const raw=v instanceof Date?v:new Date(s);
-    if(!isNaN(raw.getTime())){
-      let h=raw.getUTCHours(),m=raw.getUTCMinutes();
-      // Only add IST offset for real dates, not 1899 GAS time serials
-      if(raw.getUTCFullYear()>=1970){const ist=new Date(raw.getTime()+5.5*3600000);h=ist.getUTCHours();m=ist.getUTCMinutes();}
-      const ap=h>=12?'PM':'AM';h=h%12||12;
-      return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' '+ap;
+  // Any value → "YYYY-MM-DD"  (canonical internal — never use display formats for comparisons)
+  toYMD(v) {
+    if (!v && v !== 0) return '';
+    const s = String(v).trim();
+    // 1. Already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // 2. DD/MM/YYYY or D/M/YYYY  (Indian legacy)
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+      const p = s.split('/');
+      return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
     }
+    // 3. YYYY/MM/DD
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) return s.replace(/\//g, '-');
+    // 4. ISO datetime / Z-suffix  (Supabase timestamps, createdAt)
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
+      const raw = new Date(s);
+      if (!isNaN(raw.getTime())) {
+        const ist = PB._ist(raw.getTime());
+        return ist.getUTCFullYear() + '-' +
+          String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+          String(ist.getUTCDate()).padStart(2, '0');
+      }
+    }
+    // 5. JS Date object
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      const ist = PB._ist(v.getTime());
+      return ist.getUTCFullYear() + '-' +
+        String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(ist.getUTCDate()).padStart(2, '0');
+    }
+    // 6. Excel/Sheets numeric serial  (days since 1899-12-30)
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      const serial = parseFloat(s);
+      if (serial > 40000 && serial < 60000) {
+        const raw = new Date((serial - 25569) * 86400000);
+        if (!isNaN(raw.getTime())) {
+          const ist = PB._ist(raw.getTime());
+          return ist.getUTCFullYear() + '-' +
+            String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+            String(ist.getUTCDate()).padStart(2, '0');
+        }
+      }
+    }
+    return ''; // unrecognised — callers must treat '' as "no date"
+  },
+
+  // Any value → "DD/MM/YYYY"  (display only — never compare with this)
+  fmtDate(v) {
+    const ymd = PB.toYMD(v);
+    if (!ymd) return String(v || '');
+    const [y, m, d] = ymd.split('-');
+    return `${d}/${m}/${y}`;
+  },
+
+  // Any value → "HH:MM AM/PM"  (canonical display, zero-padded)
+  fmtTime(v) {
+    if (!v) return '';
+    const s = String(v).trim().replace(/[\u00a0\u202f\u2009]/g, ' ');
+    // 1. Already H:MM AM/PM — normalise case + zero-pad hour
+    const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampm) return String(ampm[1]).padStart(2,'0') + ':' + ampm[2] + ' ' + ampm[3].toUpperCase();
+    // 2. 24-hour HH:MM or HH:MM:SS
+    const h24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (h24) {
+      let h = parseInt(h24[1]), mn = parseInt(h24[2]);
+      const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+      return String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' ' + p;
+    }
+    // 3. ISO datetime / Z-suffix — extract IST time
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
+      const raw = new Date(s);
+      if (!isNaN(raw.getTime())) {
+        const ist = PB._ist(raw.getTime());
+        let h = ist.getUTCHours(), mn = ist.getUTCMinutes();
+        const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+        return String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' ' + p;
+      }
+    }
+    return s; // pass through unrecognised
+  },
+
+  // IST today  → "YYYY-MM-DD"
+  todayYMD() {
+    const ist = PB._ist();
+    return ist.getUTCFullYear() + '-' +
+      String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(ist.getUTCDate()).padStart(2, '0');
+  },
+
+  // IST yesterday → "YYYY-MM-DD"
+  yesterdayYMD() {
+    const ist = PB._ist(Date.now() - 86400000);
+    return ist.getUTCFullYear() + '-' +
+      String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(ist.getUTCDate()).padStart(2, '0');
+  },
+
+  // Decimal hour (0-24) parsed from order.time — for morning/evening split
+  orderHour(o) {
+    const t = String(o.time || '').replace(/[\u00a0\u202f\u2009]/g, ' ').trim();
+    if (!t) return -1;
+    const m = t.toLowerCase().match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
+    if (!m) return -1;
+    let h = parseInt(m[1]); const mn = parseInt(m[2]), p = m[3] || '';
+    if (p === 'pm' && h !== 12) h += 12;
+    if (p === 'am' && h === 12) h = 0;
+    return h + mn / 60;
   }
-  return s;
-}
+};
+// Shorthands — backward compat aliases
+function fmtDate(v)        { return PB.fmtDate(v); }
+function fmtTime(v)        { return PB.fmtTime(v); }
+function orderDateToISO(v) { return PB.toYMD(v); }
+function getTodayISO()     { return PB.todayYMD(); }
+function getYesterdayISO() { return PB.yesterdayYMD(); }
+function isDayOrder(o)     { const h=PB.orderHour(o); return h<0?false:h<_dayCutoffH; }
 
 // ══ STATS & TAB COUNTS ══
 function updateStats(){
@@ -600,105 +667,163 @@ function updateTabCounts(){
   doc('tab-delivered-count').textContent=_deliveredOrders.length;
 }
 
-// ══ RENDER ACTIVE TAB — Morning/Evening groups with date+slot filter ══
-function renderActive(){
-  const dv = doc('active-filter-date').value;
-  const tv = doc('active-filter-slot').value;
+// DATE HELPERS — provided by PB.todayYMD() / PB.yesterdayYMD() via getTodayISO() / getYesterdayISO() shorthands above
 
-  // Apply search + date + slot filters
-  let list = _activeOrders.filter(o => {
-    if(!matchesSearch(o)) return false;
-    if(dv && orderDateToISO(o.date) !== dv) return false;
-    if(tv !== 'all'){
-      const d = isDayOrder(o);
-      if(tv === 'day' && !d) return false;
-      if(tv === 'night' && d) return false;
-    }
-    return true;
-  });
+// ══ SECTION TOGGLE ══
+function toggleDateSection(id){
+  const body=doc('dsb-'+id);
+  const arr=doc('dsa-'+id);
+  if(!body||!arr) return;
+  body.classList.toggle('collapsed');
+  arr.classList.toggle('open');
+}
+
+// ══ BUILD DATE→SLOT HTML SECTION ══
+function buildDateSlotHTML(orders, dateLabel, datePillClass, dateId, isActive){
+  if(!orders.length) return '';
+  const morning=[...orders.filter(o=>isDayOrder(o))].sort(sortNewest);
+  const evening=[...orders.filter(o=>!isDayOrder(o))].sort(sortNewest);
+  const total=orders.length;
+  let inner='';
+  if(morning.length){
+    inner+=`<div class="group-hdr">
+      <div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div>
+      <span class="group-cnt">${morning.length} order${morning.length>1?'s':''}</span>
+      ${isActive?`<button class="group-route-btn" onclick="showRouteModalFiltered('day','${dateId}')"><i class="fa-solid fa-route"></i> Route</button>`:''}
+    </div>`;
+    morning.forEach(o=>{ inner+=renderCard(o,!isActive); });
+  }
+  if(evening.length){
+    inner+=`<div class="group-hdr"${morning.length?' style="margin-top:4px"':''}>
+      <div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div>
+      <span class="group-cnt">${evening.length} order${evening.length>1?'s':''}</span>
+      ${isActive?`<button class="group-route-btn" onclick="showRouteModalFiltered('night','${dateId}')"><i class="fa-solid fa-route"></i> Route</button>`:''}
+    </div>`;
+    evening.forEach(o=>{ inner+=renderCard(o,!isActive); });
+  }
+  return `<div class="date-section">
+    <div class="date-section-hdr" onclick="toggleDateSection('${dateId}')">
+      <div class="date-pill ${datePillClass}">${dateLabel}</div>
+      <span class="date-section-cnt">${total} order${total>1?'s':''}</span>
+      <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-${dateId}"></i>
+    </div>
+    <div class="date-section-body" id="dsb-${dateId}">
+      ${inner}
+    </div>
+  </div>`;
+}
+
+// ══ RENDER ACTIVE TAB — Today/Yesterday → Morning/Evening ══
+function renderActive(){
+  let list=_activeOrders.filter(o=>matchesSearch(o));
 
   const b=doc('ord-count-badge');
-  const hasFilter = _searchQ || dv || tv !== 'all';
   if(b) b.textContent=list.length+' order'+(list.length!==1?'s':'');
 
   if(!list.length){
-    doc('orders-con').innerHTML=`<div class="empty"><span>${hasFilter?'🔍':'🎉'}</span><p>${hasFilter?'No results for applied filters':'All orders delivered!'}</p></div>`;
+    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ?'🔍':'🎉'}</span><p>${_searchQ?'No results found':'All orders delivered!'}</p></div>`;
     return;
   }
 
-  // When a slot filter is active, don't split into sub-groups (already filtered)
-  if(tv === 'day'){
-    const sorted = [...list].sort(sortOldest);
-    let html = `<div class="group-hdr">
-      <div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div>
-      <span class="group-cnt">${sorted.length} order${sorted.length>1?'s':''}</span>
-      <button class="group-route-btn" onclick="showRouteModal('day')"><i class="fa-solid fa-route"></i> Route</button>
-    </div>`;
-    sorted.forEach(o=>{ html+=renderCard(o,false); });
-    html+='<div style="height:20px"></div>';
-    doc('orders-con').innerHTML=html;
-    return;
-  }
-  if(tv === 'night'){
-    const sorted = [...list].sort(sortOldest);
-    let html = `<div class="group-hdr">
-      <div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div>
-      <span class="group-cnt">${sorted.length} order${sorted.length>1?'s':''}</span>
-      <button class="group-route-btn" onclick="showRouteModal('night')"><i class="fa-solid fa-route"></i> Route</button>
-    </div>`;
-    sorted.forEach(o=>{ html+=renderCard(o,false); });
-    html+='<div style="height:20px"></div>';
-    doc('orders-con').innerHTML=html;
-    return;
-  }
+  const todayISO=getTodayISO();
+  const yestISO=getYesterdayISO();
 
-  // Default: split into Morning / Evening groups
-  const dayList=[...list.filter(o=>isDayOrder(o))].sort(sortOldest);
-  const ngtList=[...list.filter(o=>!isDayOrder(o))].sort(sortOldest);
+  const todayOrders=list.filter(o=>orderDateToISO(o.date)===todayISO);
+  const yestOrders=list.filter(o=>orderDateToISO(o.date)===yestISO);
+  const olderOrders=list.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;});
+
   let html='';
-  if(dayList.length){
-    html+=`<div class="group-hdr">
-      <div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div>
-      <span class="group-cnt">${dayList.length} order${dayList.length>1?'s':''}</span>
-      <button class="group-route-btn" onclick="showRouteModal('day')"><i class="fa-solid fa-route"></i> Route</button>
+  html+=buildDateSlotHTML(todayOrders,'📅 Today','pill-today','today-active',true);
+  html+=buildDateSlotHTML(yestOrders,'📅 Yesterday','pill-yesterday','yest-active',true);
+  if(olderOrders.length){
+    const morning=[...olderOrders.filter(o=>isDayOrder(o))].sort(sortNewest);
+    const evening=[...olderOrders.filter(o=>!isDayOrder(o))].sort(sortNewest);
+    let inner='';
+    if(morning.length){
+      inner+=`<div class="group-hdr"><div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div><span class="group-cnt">${morning.length} orders</span></div>`;
+      morning.forEach(o=>{inner+=renderCard(o,false);});
+    }
+    if(evening.length){
+      inner+=`<div class="group-hdr"><div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div><span class="group-cnt">${evening.length} orders</span></div>`;
+      evening.forEach(o=>{inner+=renderCard(o,false);});
+    }
+    html+=`<div class="date-section">
+      <div class="date-section-hdr" onclick="toggleDateSection('older-active')">
+        <div class="date-pill pill-yesterday">🗂️ Older</div>
+        <span class="date-section-cnt">${olderOrders.length} orders</span>
+        <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-older-active"></i>
+      </div>
+      <div class="date-section-body" id="dsb-older-active">${inner}</div>
     </div>`;
-    dayList.forEach(o=>{ html+=renderCard(o,false); });
   }
-  if(ngtList.length){
-    html+=`<div class="group-hdr"${dayList.length?' style="margin-top:4px"':''}>
-      <div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div>
-      <span class="group-cnt">${ngtList.length} order${ngtList.length>1?'s':''}</span>
-      <button class="group-route-btn" onclick="showRouteModal('night')"><i class="fa-solid fa-route"></i> Route</button>
-    </div>`;
-    ngtList.forEach(o=>{ html+=renderCard(o,false); });
-  }
+  if(!html) html='<div class="empty"><span>🎉</span><p>All orders delivered!</p></div>';
   html+='<div style="height:20px"></div>';
   doc('orders-con').innerHTML=html;
 }
 
+// Extract sort key from new order ID format: O + DDMMYY + HHMMSS + 5chars
+// e.g. O110426143022A8F3K → "110426143022" (fixed-width, lexicographic sort works)
+// Falls back to full string comparison for any legacy format
+function _orderSortKey(orderId){
+  const s = String(orderId || '');
+  if (/^O\d{12}/.test(s)) return s.slice(1, 13); // DDMMYYHHMMSS
+  return s; // fallback — string compare
+}
+function sortNewest(a,b){
+  const ta=_orderSortKey(a.orderId);
+  const tb=_orderSortKey(b.orderId);
+  return tb>ta?1:tb<ta?-1:0; // newest first
+}
 function sortOldest(a,b){
-  const ta=Number(String(a.orderId).replace('PB-','').split('-')[0])||0;
-  const tb=Number(String(b.orderId).replace('PB-','').split('-')[0])||0;
-  return ta-tb;
+  const ta=_orderSortKey(a.orderId);
+  const tb=_orderSortKey(b.orderId);
+  return ta>tb?1:ta<tb?-1:0;
 }
 
-// ══ RENDER DELIVERED TAB — newest first, with filters ══
+// ══ RENDER DELIVERED TAB — Today/Yesterday → Morning/Evening ══
 function renderDelivered(){
-  const dv=doc('filter-date').value;
-  const tv=doc('filter-slot').value;
-  let list=_deliveredOrders.filter(o=>{
-    if(!matchesSearch(o)) return false;
-    if(dv&&orderDateToISO(o.date)!==dv) return false;
-    if(tv!=='all'){const d=isDayOrder(o);if(tv==='day'&&!d) return false;if(tv==='night'&&d) return false;}
-    return true;
-  });
+  let list=_deliveredOrders.filter(o=>matchesSearch(o));
+
   const b=doc('ord-count-badge');
   if(b) b.textContent=list.length+' delivered';
+
   if(!list.length){
-    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ||dv||tv!=='all'?'🔍':'📭'}</span><p>${_searchQ||dv||tv!=='all'?'No results for filters':'No delivered orders yet'}</p></div>`;
+    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ?'🔍':'📭'}</span><p>${_searchQ?'No results found':'No delivered orders yet'}</p></div>`;
     return;
   }
-  let html=list.map(o=>renderCard(o,true)).join('');
+
+  const todayISO=getTodayISO();
+  const yestISO=getYesterdayISO();
+
+  const todayOrders=list.filter(o=>orderDateToISO(o.date)===todayISO);
+  const yestOrders=list.filter(o=>orderDateToISO(o.date)===yestISO);
+  const olderOrders=list.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;});
+
+  let html='';
+  html+=buildDateSlotHTML(todayOrders,'📅 Today','pill-today','today-done',false);
+  html+=buildDateSlotHTML(yestOrders,'📅 Yesterday','pill-yesterday','yest-done',false);
+  if(olderOrders.length){
+    const morning=[...olderOrders.filter(o=>isDayOrder(o))].sort(sortNewest);
+    const evening=[...olderOrders.filter(o=>!isDayOrder(o))].sort(sortNewest);
+    let inner='';
+    if(morning.length){
+      inner+=`<div class="group-hdr"><div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div><span class="group-cnt">${morning.length} orders</span></div>`;
+      morning.forEach(o=>{inner+=renderCard(o,true);});
+    }
+    if(evening.length){
+      inner+=`<div class="group-hdr"><div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div><span class="group-cnt">${evening.length} orders</span></div>`;
+      evening.forEach(o=>{inner+=renderCard(o,true);});
+    }
+    html+=`<div class="date-section">
+      <div class="date-section-hdr" onclick="toggleDateSection('older-done')">
+        <div class="date-pill pill-yesterday">🗂️ Older</div>
+        <span class="date-section-cnt">${olderOrders.length} orders</span>
+        <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-older-done"></i>
+      </div>
+      <div class="date-section-body collapsed" id="dsb-older-done">${inner}</div>
+    </div>`;
+  }
+  if(!html) html='<div class="empty"><span>📭</span><p>No delivered orders yet</p></div>';
   html+='<div style="height:20px"></div>';
   doc('orders-con').innerHTML=html;
 }
@@ -786,8 +911,33 @@ async function markDelivered(orderId, btn){
 // ══ ROUTE MAP ══
 let _routeOrders=[];
 
+function showRouteModalFiltered(slot, dateId){
+  let dateISO='';
+  if(dateId==='today-active'||dateId==='today-done') dateISO=getTodayISO();
+  else if(dateId==='yest-active'||dateId==='yest-done') dateISO=getYesterdayISO();
+  let src=_activeOrders;
+  if(dateISO) src=src.filter(o=>orderDateToISO(o.date)===dateISO);
+  if(slot==='day') src=src.filter(o=>isDayOrder(o));
+  else if(slot==='night') src=src.filter(o=>!isDayOrder(o));
+  if(!src.length){toast('No active orders for this slot');return;}
+  _routeOrders=[...src].sort(sortOldest);
+  const slotLabel=slot==='day'?'☀️ Morning Route':'🌙 Evening Route';
+  const dateLabel=dateISO===getTodayISO()?'Today':dateISO===getYesterdayISO()?'Yesterday':'';
+  doc('rm-title').textContent=`${slotLabel}${dateLabel?' — '+dateLabel:''}`;
+  doc('rm-desc').textContent=`${_routeOrders.length} stop${_routeOrders.length>1?'s':''} · Starting from your current location`;
+  doc('rm-stops').innerHTML=_routeOrders.map((o,i)=>`
+    <div class="rs-item">
+      <div class="rs-num">${i+1}</div>
+      <div class="rs-info">
+        <div class="rs-name">${esc(o.name)} <span style="color:var(--p);font-weight:800">₹${Number(o.finalAmount).toFixed(0)}</span></div>
+        <div class="rs-addr">${esc(o.address)}</div>
+      </div>
+    </div>`).join('');
+  doc('route-modal').classList.remove('hide');
+}
+
 function showRouteModal(slot){
-  let src=_activeOrders; // only active (out for delivery) orders
+  let src=_activeOrders;
   if(slot==='day') src=src.filter(o=>isDayOrder(o));
   else if(slot==='night') src=src.filter(o=>!isDayOrder(o));
   if(!src.length){toast('No active orders for this slot');return;}
@@ -824,55 +974,23 @@ function openRouteInMaps(){
   }catch(e){window.open(url,'_blank');}
 }
 
-// ══ FILTER TOGGLE ══
-function toggleFilters(tab){
-  const suffix = tab || _currentTab;
-  const btn  = doc('ftbtn-' + suffix);
-  const body = doc('fbody-' + suffix);
-  if(!btn || !body) return;
-  btn.classList.toggle('open');
-  body.classList.toggle('hide');
-}
+// ── (filter toggle removed — filters replaced by structured date sections) ──
 
-// ══ PDF EXPORT — sirf current filtered orders, morning/evening grouped ══
+// ══ PDF EXPORT — grouped by Today/Yesterday → Morning/Evening ══
 function exportPDF(){
-  // Get active filters
-  const dv = doc('active-filter-date').value;
-  const tv = doc('active-filter-slot').value;
+  const src = _currentTab === 'delivered' ? _deliveredOrders : _activeOrders;
+  const filtered = src.filter(o => matchesSearch(o));
 
-  // Apply same filters as renderActive()
-  let src = _activeOrders.filter(o => {
-    if(dv && orderDateToISO(o.date) !== dv) return false;
-    if(tv !== 'all'){
-      const d = isDayOrder(o);
-      if(tv === 'day' && !d) return false;
-      if(tv === 'night' && d) return false;
-    }
-    return true;
-  });
+  if(!filtered.length){toast('No orders to export');return;}
 
-  // If no active orders match, try delivered tab filters too
-  if(!src.length && _currentTab === 'delivered'){
-    const ddv = doc('filter-date').value;
-    const dtv = doc('filter-slot').value;
-    src = _deliveredOrders.filter(o => {
-      if(ddv && orderDateToISO(o.date) !== ddv) return false;
-      if(dtv !== 'all'){
-        const d = isDayOrder(o);
-        if(dtv === 'day' && !d) return false;
-        if(dtv === 'night' && d) return false;
-      }
-      return true;
-    });
-  }
+  const todayISO=getTodayISO();
+  const yestISO=getYesterdayISO();
 
-  if(!src.length){toast('No orders to export for current filter');return;}
-
-  const morning = src.filter(o=>isDayOrder(o)).sort(sortOldest);
-  const evening = src.filter(o=>!isDayOrder(o)).sort(sortOldest);
-
-  const filterLabel = tv==='day'?'Morning Only':tv==='night'?'Evening Only':'All Slots';
-  const dateLabel = dv ? ` | Date: ${dv}` : '';
+  const sections=[
+    {label:'📅 Today', orders:filtered.filter(o=>orderDateToISO(o.date)===todayISO)},
+    {label:'📅 Yesterday', orders:filtered.filter(o=>orderDateToISO(o.date)===yestISO)},
+    {label:'🗂️ Older', orders:filtered.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;})}
+  ].filter(s=>s.orders.length);
 
   function buildCards(list, startIdx){
     return list.map((o,i)=>{
@@ -895,10 +1013,23 @@ ${Number(o.discount)>0?`<div class="row"><span style="color:#2a9d8f">Discount</s
     }).join('');
   }
 
+  function buildSectionHTML(section, startIdx){
+    const morning=[...section.orders.filter(o=>isDayOrder(o))].sort(sortNewest);
+    const evening=[...section.orders.filter(o=>!isDayOrder(o))].sort(sortNewest);
+    let html=`<div class="date-hdr">${section.label} (${section.orders.length} orders)</div>`;
+    if(morning.length) html+=`<div class="sec">☀️ Morning Orders (${morning.length})</div>${buildCards(morning,startIdx)}`;
+    if(evening.length) html+=`<div class="sec eve">🌙 Evening Orders (${evening.length})</div>${buildCards(evening,startIdx+morning.length)}`;
+    return html;
+  }
+
+  let bodyHTML='';let idx=0;
+  sections.forEach(s=>{ bodyHTML+=buildSectionHTML(s,idx); idx+=s.orders.length; });
+
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Delivery Sheet</title>
 <style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:16px;font-size:13px;color:#111;max-width:760px;margin:0 auto}
 h1{font-size:18px;color:#e63946;margin-bottom:3px}.sub{color:#999;font-size:11px;margin-bottom:12px}
-.sec{background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;font-weight:700;font-size:13px;margin:14px 0 8px;border-radius:4px}
+.date-hdr{background:#fde8ea;border-left:4px solid #e63946;padding:8px 12px;font-weight:800;font-size:14px;margin:18px 0 6px;border-radius:4px}
+.sec{background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;font-weight:700;font-size:13px;margin:10px 0 8px;border-radius:4px}
 .sec.eve{background:#eef2ff;border-color:#6366f1}
 .ord{border:1px solid #e5e7eb;border-radius:8px;padding:11px;margin-bottom:12px;page-break-inside:avoid}
 .oh{display:flex;justify-content:space-between;margin-bottom:7px}
@@ -908,10 +1039,9 @@ h1{font-size:18px;color:#e63946;margin-bottom:3px}.sub{color:#999;font-size:11px
 .sep{border-top:1px dashed #e5e7eb;margin:7px 0}.tot{font-size:15px;font-weight:800;color:#e63946}
 a{color:#2a9d8f}@media print{.np{display:none!important}}</style></head><body>
 <h1>🍱 Puro Bite – Delivery Sheet</h1>
-<div class="sub">Rider: ${esc(_rider.name)} | ${new Date().toLocaleString('en-IN')} | Filter: ${filterLabel}${dateLabel} | ${src.length} order(s)</div>
+<div class="sub">Rider: ${esc(_rider.name)} | ${new Date().toLocaleString('en-IN')} | ${filtered.length} order(s)</div>
 <button class="np" onclick="window.print()" style="background:#e63946;color:#fff;padding:8px 16px;border:none;border-radius:7px;font-weight:bold;cursor:pointer;margin-bottom:12px">🖨️ Print / Save PDF</button>
-${morning.length ? `<div class="sec">☀️ Morning Orders (${morning.length})</div>${buildCards(morning,0)}` : ''}
-${evening.length ? `<div class="sec eve">🌙 Evening Orders (${evening.length})</div>${buildCards(evening,morning.length)}` : ''}
+${bodyHTML}
 </body></html>`;
   const win=window.open('','_blank');
   if(!win){toast('Popup blocked!');return;}
@@ -925,6 +1055,12 @@ function toast(msg){const t=doc('toast');t.textContent=msg;t.classList.add('on')
 function safeP(v){if(Array.isArray(v)) return v;if(typeof v==='object'&&v!==null) return v;if(!v||typeof v!=='string') return [];try{return JSON.parse(v);}catch{return [];}}
 
 window.addEventListener('DOMContentLoaded',()=>{
+  // ── Register Service Worker for PWA ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(reg => console.log('[SW] Rider registered:', reg.scope))
+      .catch(err => console.warn('[SW] Rider registration failed:', err));
+  }
   const loader=document.getElementById('rider-loader');
   const dismissLoader=()=>{
     if(!loader) return;
@@ -933,20 +1069,147 @@ window.addEventListener('DOMContentLoaded',()=>{
     setTimeout(()=>{ loader.style.display='none'; },380);
   };
   try{localStorage.removeItem('pb_rider');}catch{}
-  // ── Restore session from sessionStorage (fixes frequent logout) ──
-  const saved=RSess.get();
-  if(saved&&saved.riderId){
-    _rider=saved;
+  // ── Restore session from localStorage (survives app switch + background kill) ──
+  const saved = RSess.get();
+  if (saved && saved.riderId && saved.name) {
+    _rider = saved;
     dismissLoader();
     showApp();
     return;
   }
+  // Stale/invalid session — clear it
+  RSess.clear();
   dismissLoader();
   autofillRiderCreds();
 });
 
-// Poll every 30 seconds (was 60s) for real-time order updates
-setInterval(()=>{if(_rider && !document.hidden && !_isLoading) loadOrders();},30000);
+// ════════════════════════════════════════════════
+// AUTO-REFRESH + PULL-TO-REFRESH  (120 s)
+// ════════════════════════════════════════════════
+const RIDER_POLL_MS = 120000;
+let _riderPollTimer = null;
+let _riderPollCd    = 0;
+let _riderCdTimer   = null;
+
+function startRiderPolling(){
+  stopRiderPolling();
+  _riderPollCd = RIDER_POLL_MS / 1000;
+  _riderStartCd();
+  _riderPollTimer = setInterval(()=>{
+    if(!_rider || document.hidden || _isLoading) return;
+    loadOrders();
+    _riderPollCd = RIDER_POLL_MS / 1000;
+  }, RIDER_POLL_MS);
+}
+
+function stopRiderPolling(){
+  if(_riderPollTimer){ clearInterval(_riderPollTimer); _riderPollTimer=null; }
+  if(_riderCdTimer){  clearInterval(_riderCdTimer);  _riderCdTimer=null; }
+}
+
+function _riderStartCd(){
+  if(_riderCdTimer) clearInterval(_riderCdTimer);
+  _riderCdTimer = setInterval(()=>{
+    if(document.hidden) return;
+    _riderPollCd = Math.max(0, _riderPollCd - 1);
+    const btn = doc('rider-refresh-btn');
+    if(btn) btn.title = `Auto-refresh in ${_riderPollCd}s`;
+  }, 1000);
+}
+
+// Manual refresh — resets cycle, guards concurrency
+async function manualRiderRefresh(){
+  if(_isLoading){ toast('⏳ Loading...'); return; }
+  const btn=doc('rider-refresh-btn');
+  const ic=btn?.querySelector('i');
+  if(ic) ic.classList.add('icon-spin');
+  await loadOrders();
+  if(ic) ic.classList.remove('icon-spin');
+  stopRiderPolling();
+  startRiderPolling();
+}
+
+// Pause/resume on visibility change
+document.addEventListener('visibilitychange',()=>{
+  if(!_rider) return;
+  if(document.hidden){
+    if(_riderCdTimer){ clearInterval(_riderCdTimer); _riderCdTimer=null; }
+  } else {
+    loadOrders();
+    _riderPollCd = RIDER_POLL_MS / 1000;
+    _riderStartCd();
+    if(!_riderPollTimer) startRiderPolling();
+  }
+});
+
+// bfcache restore
+window.addEventListener('pageshow', e=>{
+  if(e.persisted && _rider){
+    loadOrders();
+    if(!_riderPollTimer) startRiderPolling();
+  }
+});
+
+// ── PULL-TO-REFRESH ──────────────────────────────
+(function setupRiderPTR(){
+  const THRESHOLD = 70;
+  let startY=0, pulling=false, triggered=false;
+
+  function getPTREl(){
+    let el=doc('rider-ptr-ind');
+    if(!el){
+      el=document.createElement('div');
+      el.id='rider-ptr-ind';
+      el.style.cssText='position:fixed;top:110px;left:50%;transform:translateX(-50%) translateY(-60px);'+
+        'background:#fff;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;'+
+        'justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.15);z-index:9000;'+
+        'transition:opacity .2s;opacity:0;pointer-events:none;';
+      el.innerHTML='<i class="fa-solid fa-rotate" style="color:#e63946;font-size:16px"></i>';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function resetPTR(){
+    const el=doc('rider-ptr-ind'); if(!el) return;
+    el.style.transform='translateX(-50%) translateY(-60px)';
+    el.style.opacity='0';
+    const ic=el.querySelector('i');
+    if(ic){ic.style.transform='';ic.classList.remove('icon-spin');}
+  }
+
+  document.addEventListener('touchstart',e=>{
+    const con=doc('orders-con');
+    if(!con) return;
+    // Only PTR when scrolled to very top
+    const scrollEl=con.closest('.scroll-wrap')||document.scrollingElement||document.documentElement;
+    if((scrollEl.scrollTop||window.scrollY)>4) return;
+    startY=e.touches[0].clientY; pulling=true; triggered=false;
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!pulling) return;
+    const dist=e.touches[0].clientY-startY;
+    if(dist<=0){pulling=false;resetPTR();return;}
+    const pull=Math.min(dist*0.5,55);
+    const el=getPTREl();
+    el.style.transform=`translateX(-50%) translateY(${pull-60}px)`;
+    el.style.opacity=dist>20?'1':'0';
+    const ic=el.querySelector('i');
+    if(ic) ic.style.transform=dist>=THRESHOLD?'rotate(180deg)':'rotate(0deg)';
+    triggered=dist>=THRESHOLD;
+  },{passive:true});
+
+  document.addEventListener('touchend',()=>{
+    if(!pulling) return;
+    pulling=false;
+    if(triggered){
+      const el=getPTREl();
+      const ic=el.querySelector('i');
+      if(ic){ic.style.transform='';ic.classList.add('icon-spin');}
+      manualRiderRefresh().finally(resetPTR);
+    } else { resetPTR(); }
+  },{passive:true});
+})();
 </script>
 </body>
 </html>

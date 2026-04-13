@@ -4,10 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Puro Bite – Ghar ka Khana</title>
+<meta name="description" content="Home-cooked meals delivered fresh. Order tiffin online.">
 <meta name="theme-color" content="#e63946">
+<!-- PWA Manifest -->
+<link rel="manifest" href="./manifest.json">
+<!-- iOS PWA -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Puro Bite">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="shortcut icon" href="./icons/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -16,16 +27,19 @@
   --grad:linear-gradient(135deg,#e63946,#f4591d);
   --g:#2a9d8f;--gl:#e8f5f3;
   --o:#f4a261;--y:#ffd166;
-  --dk:#111827;--gr:#6b7280;--lt:#faf7f5;--wh:#fff;
-  --sh:0 4px 20px rgba(0,0,0,.09);--shl:0 12px 40px rgba(0,0,0,.16);
-  --r:16px;--rl:24px;
+  --dk:#111827;--gr:#6b7280;--lt:#f8f5f2;--wh:#fff;
+  --sh:0 2px 12px rgba(0,0,0,.07);--shl:0 8px 32px rgba(0,0,0,.14);
+  --r:14px;--rl:20px;
   --ff:'Sora',sans-serif;--fb:'DM Sans',sans-serif;
-  --bnav-h:68px;
+  --bnav-h:64px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --pg-pad:clamp(12px,4vw,18px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{height:100%;overflow:hidden}
+html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%}
 body{font-family:var(--fb);color:var(--dk);width:100%;max-width:520px;margin:0 auto;
-     position:relative;height:100%;overflow:hidden;background:var(--lt)}
+     position:relative;height:100%;overflow:hidden;background:var(--lt);
+     -webkit-font-smoothing:antialiased;}
 
 /* ── LOADER ── */
 #app-loader{position:fixed;inset:0;background:#fff;z-index:99999;
@@ -71,6 +85,7 @@ textarea.inp{resize:vertical;min-height:72px}
 .lbl{font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
 .fg{margin-bottom:14px}
 .spin{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite;display:inline-block}
+.icon-spin{animation:sp .7s linear infinite;display:inline-block}
 @keyframes sp{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:calc(var(--bnav-h) + 14px);left:50%;transform:translateX(-50%) translateY(16px);
        background:var(--dk);color:#fff;padding:12px 22px;border-radius:30px;font-weight:600;
@@ -133,8 +148,12 @@ textarea.inp{resize:vertical;min-height:72px}
 .ptr-indicator.loading i{animation:sp .7s linear infinite}
 
 /* ── PAGE BODY ── */
-.pg-body{padding-bottom:80px}
-#pg-home .pg-body{padding-bottom:80px}
+.pg-body{
+  padding:var(--pg-pad);
+  padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);
+  word-break:break-word;overflow-wrap:anywhere;
+}
+#pg-home .pg-body{padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px)}
 
 /* ══ AUTH PAGE ══ */
 #pg-auth{background:linear-gradient(170deg,#fff5f5 0%,#fff 65%)}
@@ -175,15 +194,42 @@ textarea.inp{resize:vertical;min-height:72px}
        display:flex;align-items:center;justify-content:center;color:var(--gr);font-size:15px;position:relative;touch-action:manipulation}
 .t-btn:active{transform:scale(.92)}
 
-/* Wallet header button */
-#wallet-hdr-btn{
-  display:flex;align-items:center;gap:6px;height:38px;padding:0 12px;
-  background:linear-gradient(135deg,#e8f5f3,#d4eeea);border:none;border-radius:12px;
-  cursor:pointer;touch-action:manipulation;transition:all .18s;
+
+/* Account header button */
+/* ══ CART HEADER BADGE ══ */
+.cart-hdr-badge{
+  position:absolute;top:-5px;right:-5px;
+  background:var(--p);color:#fff;
+  font-size:9px;font-weight:800;
+  min-width:17px;height:17px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 3px;pointer-events:none;
+  box-shadow:0 1px 4px rgba(230,57,70,.4);
+  font-family:var(--ff);
 }
-#wallet-hdr-btn i{font-size:15px;color:var(--g)}
-#wallet-hdr-bal{font-family:var(--ff);font-size:13px;font-weight:800;color:var(--g);min-width:28px}
-#wallet-hdr-btn:active{transform:scale(.94)}
+
+/* ══ ADDED TO CART NOTIFICATION ══ */
+#cart-notif{
+  position:fixed;top:0;left:0;right:0;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+.cart-notif-pill{
+  background:linear-gradient(135deg,#1b1b1b,#2d2d2d);
+  color:#fff;font-size:13px;font-weight:700;
+  padding:10px 20px;border-radius:0 0 20px 20px;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  transform:translateY(-100%);
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  font-family:var(--ff);
+}
+.cart-notif-pill.show{transform:translateY(0)}
+.cart-notif-pill .notif-icon{font-size:16px}
+.cart-notif-pill .notif-count{
+  background:var(--p);color:#fff;font-size:10px;font-weight:800;
+  padding:2px 7px;border-radius:20px;margin-left:4px;
+}
 
 /* Account header button */
 #acct-hdr-btn{
@@ -197,35 +243,106 @@ textarea.inp{resize:vertical;min-height:72px}
 
 .cb{position:absolute;top:-4px;right:-4px;background:var(--p);color:#fff;width:17px;height:17px;
     border-radius:50%;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
-.sub-ban{background:linear-gradient(135deg,#2a9d8f,#21867a);color:#fff;border-radius:var(--r);
-         padding:13px 16px;display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.sub-ban .ico{font-size:26px}
-.sub-ban h4{font-size:13px;font-weight:700}
-.sub-ban p{font-size:11px;opacity:.85}
+
 .tif-ban{background:linear-gradient(135deg,#f4a261,#e76f51);color:#fff;border-radius:var(--r);
          padding:13px 16px;display:flex;align-items:center;justify-content:space-between;
          margin-bottom:14px;cursor:pointer;border:none;width:100%;text-align:left;touch-action:manipulation}
 .tif-ban h4{font-size:13px;font-weight:700;margin-bottom:2px}
 .tif-ban p{font-size:11px;opacity:.9}
-.sec-t{font-family:var(--ff);font-size:20px;font-weight:700;margin-bottom:3px}
-.sec-s{font-size:13px;color:var(--gr);margin-bottom:14px}
-.m-grid{display:flex;flex-direction:column;gap:14px}
-.m-card{background:#fff;border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh);border:1px solid rgba(0,0,0,.04)}
-.m-card:active{transform:scale(.98)}
-.m-img{width:100%;height:clamp(140px,40vw,180px);object-fit:cover;background:linear-gradient(135deg,#fde8ea,#f4a261);display:block}
-.m-body{padding:15px}
-.m-name{font-family:var(--ff);font-size:16px;font-weight:700;margin-bottom:3px}
-.m-cat{font-size:12px;color:var(--gr);margin-bottom:10px}
-.var-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
-.var-pill{padding:5px 12px;border-radius:20px;border:2px solid #ede8e4;background:#fff;
-          font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--dk);touch-action:manipulation}
+
+/* ══ RESTAURANT TOGGLE ══ */
+.rest-toggle-wrap{
+  display:flex;align-items:center;justify-content:space-between;
+  background:#fff;border-radius:var(--r);padding:13px 16px;
+  margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);
+  border:2px solid #ede8e4;
+}
+.rest-toggle-left{display:flex;align-items:center;gap:10px}
+.rest-toggle-icon{font-size:22px;line-height:1}
+.rest-toggle-title{font-size:13px;font-weight:800;color:var(--dk)}
+.rest-toggle-sub{font-size:11px;color:var(--gr);margin-top:1px}
+/* mesh/alarm style toggle switch */
+.mesh-switch{position:relative;width:54px;height:28px;flex-shrink:0}
+.mesh-switch input{opacity:0;width:0;height:0;position:absolute}
+.mesh-slider{
+  position:absolute;inset:0;border-radius:28px;cursor:pointer;
+  background:linear-gradient(135deg,#e63946,#c1121f);
+  transition:background .3s;display:flex;align-items:center;
+  padding:3px;box-shadow:inset 0 1px 4px rgba(0,0,0,.2);
+}
+.mesh-slider::before{
+  content:'';width:22px;height:22px;border-radius:50%;background:#fff;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 2px 6px rgba(0,0,0,.25);flex-shrink:0;
+}
+.mesh-switch input:checked + .mesh-slider{
+  background:linear-gradient(135deg,#2a9d8f,#1d7a6f);
+}
+.mesh-switch input:checked + .mesh-slider::before{
+  transform:translateX(26px);
+}
+/* pause sheet (bottom drawer style) */
+.pause-sheet{
+  position:fixed;bottom:-100%;left:0;right:0;z-index:500;
+  background:#fff;border-radius:24px 24px 0 0;
+  padding:20px 20px 36px;
+  box-shadow:0 -4px 30px rgba(0,0,0,.18);
+  transition:bottom .35s cubic-bezier(.34,1,.64,1);
+  max-width:480px;margin:0 auto;
+}
+.pause-sheet.open{bottom:0}
+.pause-sheet-handle{width:40px;height:4px;border-radius:2px;background:#e0d9d4;margin:0 auto 18px}
+.pause-sheet-title{font-family:var(--ff);font-size:17px;font-weight:800;text-align:center;margin-bottom:6px}
+.pause-sheet-sub{font-size:12px;color:var(--gr);text-align:center;margin-bottom:20px}
+.pause-opt{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-radius:var(--r);border:2px solid #ede8e4;
+  margin-bottom:10px;cursor:pointer;transition:all .15s;background:#fafaf9;
+}
+.pause-opt:active{transform:scale(.97)}
+.pause-opt.sel{border-color:var(--p);background:var(--pl)}
+.pause-opt-left{display:flex;align-items:center;gap:10px}
+.pause-opt-icon{font-size:20px}
+.pause-opt-title{font-size:13px;font-weight:700;color:var(--dk)}
+.pause-opt-sub{font-size:11px;color:var(--gr)}
+.pause-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:499;display:none}
+/* paused mesh overlay on home page */
+#rest-mesh-overlay{
+  position:absolute;inset:0;z-index:10;pointer-events:none;
+  background:repeating-linear-gradient(
+    45deg,rgba(0,0,0,.04) 0px,rgba(0,0,0,.04) 1px,
+    transparent 1px,transparent 8px
+  );display:none;
+}
+#rest-paused-notice{
+  display:none;
+  background:linear-gradient(135deg,#e63946,#c1121f);
+  color:#fff;border-radius:var(--r);padding:13px 16px;margin-bottom:14px;
+  align-items:center;gap:12px;font-size:13px;font-weight:700;
+}
+.sec-t{font-family:var(--ff);font-size:clamp(17px,4.5vw,20px);font-weight:800;margin-bottom:3px}
+.sec-s{font-size:clamp(11px,3vw,13px);color:var(--gr);margin-bottom:12px;line-height:1.4}
+/* ══ MENU CARD — Zomato/Swiggy horizontal style ══ */
+.m-grid{display:flex;flex-direction:column;gap:1px;background:rgba(0,0,0,.05);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)}
+.m-card{background:#fff;display:flex;align-items:flex-start;gap:0;padding:0;position:relative;transition:background .15s}
+.m-card:active{background:#fafafa}
+.m-card+.m-card{border-top:1px solid #f3f0ed}
+.m-body{flex:1;padding:14px 12px 14px 14px;min-width:0}
+.m-img-wrap{width:clamp(96px,26vw,120px);height:clamp(96px,26vw,120px);flex-shrink:0;margin:10px 10px 10px 0;border-radius:var(--r);overflow:hidden;position:relative}
+.m-img{width:100%;height:100%;object-fit:cover;background:linear-gradient(135deg,#fde8ea,#f4a261);display:block}
+.m-name{font-family:var(--ff);font-size:clamp(14px,3.5vw,16px);font-weight:700;margin-bottom:3px;line-height:1.3;word-break:break-word}
+.m-cat{font-size:clamp(11px,2.8vw,12px);color:var(--gr);margin-bottom:8px;line-height:1.4}
+.var-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.var-pill{padding:4px 10px;border-radius:20px;border:1.5px solid #ede8e4;background:#fff;
+          font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--dk);touch-action:manipulation;white-space:nowrap}
 .var-pill.sel{border-color:var(--p);background:var(--pl);color:var(--p)}
-.m-foot{display:flex;align-items:center;justify-content:space-between}
-.m-price{font-family:var(--ff);font-size:20px;font-weight:800}
-.add-btn{background:var(--grad);color:#fff;border:none;padding:9px 18px;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--ff);touch-action:manipulation;box-shadow:0 3px 10px rgba(230,57,70,.25)}
-.qty-ctl{display:flex;align-items:center;gap:10px;background:var(--lt);border-radius:12px;padding:3px}
-.q-btn{width:34px;height:34px;border-radius:10px;background:#fff;border:none;cursor:pointer;font-size:16px;font-weight:800;color:var(--p);box-shadow:0 1px 6px rgba(0,0,0,.08);touch-action:manipulation;display:flex;align-items:center;justify-content:center}
-.q-n{font-size:15px;font-weight:800;min-width:18px;text-align:center;font-family:var(--ff)}
+.m-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:auto}
+.m-price{font-family:var(--ff);font-size:clamp(15px,4vw,17px);font-weight:800}
+.add-btn{background:var(--grad);color:#fff;border:none;padding:8px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--ff);touch-action:manipulation;box-shadow:0 2px 8px rgba(230,57,70,.25);white-space:nowrap}
+.qty-ctl{display:flex;align-items:center;gap:8px;background:var(--pl);border-radius:10px;padding:3px}
+.q-btn{width:30px;height:30px;border-radius:8px;background:#fff;border:none;cursor:pointer;font-size:16px;font-weight:800;color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.1);touch-action:manipulation;display:flex;align-items:center;justify-content:center}
+.q-n{font-size:14px;font-weight:800;min-width:18px;text-align:center;font-family:var(--ff);color:var(--p)}
+.m-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:5px;width:fit-content}
 
 /* ══ CART ══ */
 .c-item{background:#fff;border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:10px;border:1px solid rgba(0,0,0,.04)}
@@ -350,42 +467,74 @@ textarea.inp{resize:vertical;min-height:72px}
 .btn-wa:hover{background:#1ebe5d!important}
 
 @media(min-width:400px){
-  .m-img{height:190px}
+  .m-img-wrap{width:clamp(108px,28vw,128px);height:clamp(108px,28vw,128px)}
   .auth-hero{padding:64px 32px 32px}
 }
+@media(max-width:340px){
+  .m-name{font-size:13px}
+  .m-price{font-size:14px}
+  .add-btn{padding:7px 12px;font-size:12px}
+  .m-img-wrap{width:88px;height:88px}
+  .bn span{font-size:9px}
+  .pg-title{font-size:15px}
+}
+/* Ensure no text overflow anywhere */
+.tnav .pg-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
 
 /* ══ MENU SEARCH BAR ══ */
+/* ══ CUTOFF BANNER ══ */
+.cutoff-ban{
+  display:flex;align-items:center;justify-content:space-between;
+  border-radius:var(--r);padding:13px 16px;margin-bottom:14px;
+  border-left:4px solid rgba(255,255,255,.45);
+  background:linear-gradient(135deg,#e63946,#c1121f);
+}
+.cutoff-ban-left{display:flex;align-items:center;gap:12px}
+.cutoff-ban-icon{font-size:22px;line-height:1}
+.cutoff-ban-title{font-size:13px;font-weight:800;color:#fff;letter-spacing:.01em}
+.cutoff-ban-sub{font-size:11px;color:rgba(255,255,255,.82);font-weight:500;margin-top:2px}
+.cutoff-dot{width:9px;height:9px;border-radius:50%;background:#fff;opacity:.7;
+  box-shadow:0 0 0 3px rgba(255,255,255,.25);flex-shrink:0}
+
+/* ══ SEARCH BAR ══ */
 .menu-search-wrap{padding:0 0 10px;position:relative}
 .menu-search-inp{
-  width:100%;padding:11px 16px 11px 42px;background:#fff;
+  width:100%;padding:11px 46px 11px 16px;background:#fff;
   border:2px solid #ede8e4;border-radius:50px;font-family:var(--fb);
   font-size:14px;color:var(--dk);outline:none;transition:border-color .18s;
-  -webkit-appearance:none;
+  box-sizing:border-box;-webkit-appearance:none;
 }
 .menu-search-inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(230,57,70,.1)}
 .menu-search-inp::placeholder{color:#b0a8a3}
-.menu-search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--gr);font-size:15px;pointer-events:none}
+.menu-search-btn{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
+  background:var(--grad);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:14px;touch-action:manipulation;transition:transform .15s,opacity .15s;
+  box-shadow:0 2px 6px rgba(230,57,70,.30);
+}
+.menu-search-btn:active{transform:translateY(-50%) scale(.88);opacity:.85}
 
 /* ══ CATEGORY CHIPS ══ */
-.cat-chips-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:14px;
-  scrollbar-width:none}
+.cat-chips-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:12px;
+  scrollbar-width:none;-ms-overflow-style:none}
 .cat-chips-wrap::-webkit-scrollbar{display:none}
-.cat-chips{display:flex;gap:8px;padding:0 0 2px;width:max-content;min-width:100%}
+.cat-chips{display:flex;gap:6px;padding:2px 0 4px;width:max-content;min-width:100%}
 .cat-chip{
-  display:inline-flex;align-items:center;gap:5px;padding:7px 16px;
-  border-radius:50px;font-size:12px;font-weight:700;font-family:var(--ff);
-  border:2px solid #ede8e4;background:#fff;color:var(--gr);
+  display:inline-flex;align-items:center;gap:4px;padding:6px 14px;
+  border-radius:50px;font-size:11px;font-weight:700;font-family:var(--ff);
+  border:1.5px solid #e8e3de;background:#fff;color:var(--gr);
   cursor:pointer;white-space:nowrap;touch-action:manipulation;transition:all .15s;
   flex-shrink:0;
 }
-.cat-chip:active{transform:scale(.95)}
-.cat-chip.act{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 3px 10px rgba(230,57,70,.28)}
+.cat-chip:active{transform:scale(.94)}
+.cat-chip.act{background:var(--dk);border-color:var(--dk);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 
 /* ══ HIGHLIGHT BADGES ══ */
 .m-badge{
-  display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
-  border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.3px;
-  text-transform:uppercase;margin-bottom:6px;
+  display:inline-flex;align-items:center;gap:3px;padding:2px 8px;
+  border-radius:6px;font-size:10px;font-weight:700;letter-spacing:.2px;
+  margin-bottom:4px;width:fit-content;
 }
 .m-badge-bestseller{background:#fff1f2;color:#c1121f}
 .m-badge-chef{background:#ede9fe;color:#6d28d9}
@@ -458,29 +607,60 @@ textarea.inp{resize:vertical;min-height:72px}
   <div class="home-top">
     <div><div class="logo-n">Puro Bite</div><div class="logo-t">Ghar ka khana ♥</div></div>
     <div class="t-acts">
-      <button class="t-btn" title="Refresh menu" onclick="loadMenu();toast('🔄 Refreshing...')"><i class="fa-solid fa-rotate-right"></i></button>
-      <!-- Wallet Header Button (subscribers only) -->
-      <button id="wallet-hdr-btn" class="hide" onclick="openWalletPage()" title="My Wallet">
-        <i class="fa-solid fa-wallet"></i>
-        <span id="wallet-hdr-bal">₹—</span>
+      <!-- Cart header button -->
+      <button class="t-btn" id="cart-hdr-btn" onclick="nav('pg-cart')" title="View Cart" style="position:relative">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span id="cart-hdr-badge" class="cart-hdr-badge hide">0</span>
       </button>
       <!-- Account Header Button -->
-      <button id="acct-hdr-btn" onclick="openAccountPanel()" title="My Account">
-        <i class="fa-solid fa-circle-user"></i>
-      </button>
+      <div style="position:relative;display:inline-flex">
+        <button id="acct-hdr-btn" onclick="openAccountPanel()" title="My Account">
+          <i class="fa-solid fa-circle-user"></i>
+        </button>
+        <span id="acct-pro-badge" class="hide" style="position:absolute;top:-5px;right:-5px;background:linear-gradient(135deg,#f9c74f,#f3722c);color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:8px;line-height:1.3;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.25);">PRO</span>
+      </div>
     </div>
   </div>
-  <div id="home-scroll" style="flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;">
+  <div id="home-scroll" style="flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;">
+    <!-- Mesh overlay shown when restaurant is paused -->
+    <div id="rest-mesh-overlay"></div>
     <div class="pg-body" style="padding-top:14px;">
-      <div id="sub-banner" class="sub-ban hide">
-        <div class="ico">✨</div>
-        <div><h4>Subscriber Active!</h4><p>🚚 Free Home Delivery on all your orders</p></div>
+
+      <!-- Paused delivery notice (subscribers only, shown when paused) -->
+      <div id="rest-paused-notice">
+        <span style="font-size:20px">🔴</span>
+        <div>
+          <div style="font-weight:800" id="rest-paused-msg">Restaurant paused</div>
+          <div style="font-size:11px;opacity:.82">Tap the switch above to resume delivery</div>
+        </div>
       </div>
-      <div id="cutoff-banner" class="hide" style="background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;border-radius:var(--r);padding:11px 16px;margin-bottom:14px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px">⏰</span>
-        <div><div id="cutoff-msg" style="font-weight:700">Orders closed</div><div style="font-size:11px;opacity:.85" id="cutoff-sub">Next slot opens soon</div></div>
+
+      <!-- Restaurant ON/OFF toggle (subscribers only) -->
+      <div id="rest-toggle-wrap" class="rest-toggle-wrap hide">
+        <div class="rest-toggle-left">
+          <span class="rest-toggle-icon" id="rest-toggle-icon">🟢</span>
+          <div>
+            <div class="rest-toggle-title" id="rest-toggle-title">Restaurant On</div>
+            <div class="rest-toggle-sub" id="rest-toggle-sub">Receiving all deliveries</div>
+          </div>
+        </div>
+        <label class="mesh-switch">
+          <input type="checkbox" id="rest-toggle-chk" checked onchange="onRestToggleChange()">
+          <span class="mesh-slider"></span>
+        </label>
       </div>
-      <button class="tif-ban" onclick="joinTiffin()">
+
+      <div id="cutoff-banner" class="hide cutoff-ban">
+        <div class="cutoff-ban-left">
+          <span id="cutoff-icon" class="cutoff-ban-icon">⏰</span>
+          <div>
+            <div id="cutoff-msg" class="cutoff-ban-title">Orders closed</div>
+            <div id="cutoff-sub" class="cutoff-ban-sub">Next slot opens soon</div>
+          </div>
+        </div>
+        <div id="cutoff-dot" class="cutoff-dot"></div>
+      </div>
+      <button id="tif-ban" class="tif-ban" onclick="joinTiffin()">
         <div><h4>🍛 Monthly Tiffin Plan</h4><p>Free Home Delivery + Save ₹200/month</p></div>
         <i class="fa-solid fa-chevron-right"></i>
       </button>
@@ -488,10 +668,12 @@ textarea.inp{resize:vertical;min-height:72px}
       <div class="sec-s" id="menu-lbl">Loading fresh meals...</div>
       <!-- Search bar -->
       <div class="menu-search-wrap">
-        <i class="fa-solid fa-magnifying-glass menu-search-icon"></i>
         <input class="menu-search-inp" id="menu-search" type="text"
           placeholder="Search roti, sabji, chicken..."
-          oninput="onMenuSearch(this.value)">
+          onkeydown="if(event.key==='Enter')doMenuSearch()">
+        <button class="menu-search-btn" onclick="doMenuSearch()" title="Search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
       </div>
       <!-- Category chips (populated dynamically) -->
       <div class="cat-chips-wrap">
@@ -512,14 +694,6 @@ textarea.inp{resize:vertical;min-height:72px}
     <button class="btn-ghost btn btn-sm" onclick="Cart.clear();renderCart()">Clear</button>
   </div>
   <div class="pg-body">
-    <div class="card" style="margin-bottom:14px">
-      <label class="lbl">🎟️ Have a Coupon?</label>
-      <div class="cpn-row">
-        <input id="cpn-inp" class="inp" type="text" placeholder="Enter coupon code" style="text-transform:uppercase">
-        <button class="cpn-btn" onclick="applyCoupon()">Apply</button>
-      </div>
-      <div id="cpn-msg" class="cpn-msg hide"></div>
-    </div>
     <div id="cart-list"></div>
     <div id="cart-bill"></div>
     <div id="del-note"></div>
@@ -594,89 +768,99 @@ textarea.inp{resize:vertical;min-height:72px}
     <span class="pg-title">Order Confirmed</span>
     <button class="btn-ghost btn btn-sm" onclick="nav('pg-orders')"><i class="fa-solid fa-receipt"></i></button>
   </div>
-  <div class="pg-body" style="padding-bottom:40px">
-    <!-- Success header -->
-    <div style="text-align:center;padding:22px 0 14px">
-      <div style="width:64px;height:64px;background:linear-gradient(135deg,#e8f5f3,#c8ede6);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:10px">✅</div>
-      <div style="font-size:20px;font-weight:800;color:#111827;font-family:'Sora',sans-serif">Order Placed!</div>
-      <div style="font-size:13px;color:var(--gr);margin-top:4px" id="conf-timestamp">—</div>
-    </div>
+  <div class="pg-body" style="padding-bottom:calc(var(--bnav-h) + 20px)">
 
-    <!-- Order ID card -->
-    <div class="card" style="margin-bottom:12px;border-left:4px solid var(--p);background:#fff5f5">
-      <div style="font-size:11px;font-weight:700;color:var(--p);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Order ID</div>
-      <div style="font-size:18px;font-weight:800;color:#111827;letter-spacing:.5px" id="conf-order-id">—</div>
-    </div>
-
-    <!-- Customer info -->
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:12px;font-weight:700;color:var(--gr);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">📋 Delivery Details</div>
-      <div style="display:flex;flex-direction:column;gap:5px">
-        <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--gr);min-width:60px">Name</span><span style="font-weight:600" id="conf-name">—</span></div>
-        <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--gr);min-width:60px">Phone</span><span style="font-weight:600" id="conf-phone">—</span></div>
-        <div style="display:flex;gap:8px;font-size:13px"><span style="color:var(--gr);min-width:60px">Address</span><span style="font-weight:600;flex:1" id="conf-address">—</span></div>
+    <!-- Compact success header -->
+    <div style="display:flex;align-items:center;gap:14px;background:#fff;border-radius:var(--rl);padding:16px;margin-bottom:12px;box-shadow:var(--sh)">
+      <div style="width:50px;height:50px;background:linear-gradient(135deg,#e8f5f3,#c8ede6);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;animation:pop .4s ease">✅</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:17px;font-weight:800;color:#111827;font-family:'Sora',sans-serif">Order Placed!</div>
+        <div style="font-size:12px;color:var(--gr);margin-top:2px" id="conf-timestamp">—</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.4px">Order ID</div>
+        <div style="font-size:13px;font-weight:800;color:var(--p);font-family:'Sora',sans-serif" id="conf-order-id">—</div>
       </div>
     </div>
 
-    <!-- Items -->
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:12px;font-weight:700;color:var(--gr);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">🍱 Items Ordered</div>
-      <div id="conf-items" style="display:flex;flex-direction:column;gap:6px"></div>
-    </div>
-
-    <!-- Bill summary -->
-    <div class="card" style="margin-bottom:12px">
-      <div style="font-size:12px;font-weight:700;color:var(--gr);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px">🧾 Bill Summary</div>
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--gr)">Subtotal</span><span id="conf-subtotal">—</span></div>
-        <div style="display:flex;justify-content:space-between" id="conf-discount-row">
-          <span style="color:var(--g)">🎟️ Discount</span><span style="color:var(--g);font-weight:600" id="conf-discount-amt">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--gr)">🚴 Delivery</span><span id="conf-delivery">—</span></div>
-        <div style="height:1px;background:#f1f1f1;margin:4px 0"></div>
-        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800">
-          <span>Total</span><span style="color:var(--p)" id="conf-total">—</span>
-        </div>
+    <!-- Two-column: delivery + bill -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <!-- Delivery info -->
+      <div style="background:#fff;border-radius:var(--r);padding:12px;box-shadow:var(--sh)">
+        <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">📋 Delivery</div>
+        <div style="font-size:12px;font-weight:700;color:var(--dk);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="conf-name">—</div>
+        <div style="font-size:11px;color:var(--gr);margin-bottom:2px" id="conf-phone">—</div>
+        <div style="font-size:11px;color:var(--gr);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" id="conf-address">—</div>
+      </div>
+      <!-- Bill summary -->
+      <div style="background:#fff;border-radius:var(--r);padding:12px;box-shadow:var(--sh)">
+        <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🧾 Bill</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gr);margin-bottom:4px"><span>Subtotal</span><span id="conf-subtotal">—</span></div>
+        <div id="conf-discount-row" style="display:flex;justify-content:space-between;font-size:11px;color:var(--g);margin-bottom:4px"><span>Discount</span><span id="conf-discount-amt">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gr);margin-bottom:6px"><span>Delivery</span><span id="conf-delivery">—</span></div>
+        <div style="height:1px;background:#f1f1f1;margin-bottom:6px"></div>
+        <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;font-family:'Sora',sans-serif"><span>Total</span><span style="color:var(--p)" id="conf-total">—</span></div>
       </div>
     </div>
 
-    <!-- Wallet deduction (subscribers only, khata ON) -->
+    <!-- Items ordered -->
+    <div style="background:#fff;border-radius:var(--r);padding:12px;margin-bottom:12px;box-shadow:var(--sh)">
+      <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🍱 Items Ordered</div>
+      <div id="conf-items" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+
+    <!-- Coupon -->
+    <div style="background:#fff;border-radius:var(--r);padding:12px;margin-bottom:12px;box-shadow:var(--sh)">
+      <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🎟️ Coupon</div>
+      <div class="cpn-row">
+        <input id="cpn-inp" class="inp" type="text" placeholder="Enter coupon code" style="text-transform:uppercase;font-size:13px;padding:10px 12px">
+        <button class="cpn-btn" onclick="applyCoupon()" style="padding:10px 14px;font-size:13px">Apply</button>
+      </div>
+      <div id="cpn-msg" class="cpn-msg hide"></div>
+    </div>
+
+    <!-- PAYMENT SECTION — subscriber: wallet; non-subscriber: WhatsApp flow -->
+
+    <!-- Wallet info (subscribers only) -->
     <div id="conf-wallet-info" style="display:none;margin-bottom:12px">
-      <div class="wallet-deduct-card">
-        <i class="fa-solid fa-wallet"></i>
-        <div class="wallet-deduct-info">
-          <div class="wdi-label">Wallet Deducted</div>
-          <div class="wdi-amount">₹<span id="conf-deducted">0</span></div>
-          <div class="wdi-bal">New balance: ₹<span id="conf-new-bal">—</span></div>
+      <div style="background:linear-gradient(135deg,#111827,#1f2937);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <i class="fa-solid fa-wallet" style="font-size:24px;color:#fbbf24;flex-shrink:0"></i>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Wallet Payment</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:1px" id="conf-prev-bal"></div>
+              <div style="font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fbbf24">−₹<span id="conf-deducted">0</span> <span style="font-size:11px;font-weight:500;color:rgba(255,255,255,.5)">deducted</span></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:1px">New Balance</div>
+              <div style="font-size:16px;font-weight:800;color:#fff">₹<span id="conf-new-bal">—</span></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Payment note (non-subscribers only) -->
+    <!-- Non-subscriber payment flow -->
     <div id="conf-pay-note" style="display:none;margin-bottom:12px">
-      <div class="card" style="border-left:4px solid var(--p);background:#fff5f5">
-        <div style="font-weight:800;font-size:14px;margin-bottom:6px;color:var(--p)">📸 Send payment screenshot on WhatsApp</div>
-        <div style="font-size:13px;color:var(--gr);line-height:1.6">UPI / QR details will be shared by us. Send screenshot after payment to confirm your order.</div>
+      <div style="background:#fff8f0;border-radius:var(--r);padding:14px;border-left:3px solid var(--o)">
+        <div style="font-weight:800;font-size:13px;color:#c45500;margin-bottom:4px">💳 Payment Required</div>
+        <div style="font-size:12px;color:var(--gr);line-height:1.6">UPI / QR details aapke WhatsApp pe bheje jaayenge. Payment ke baad screenshot bhejein.</div>
       </div>
     </div>
 
-    <!-- Delivery time info -->
-    <div class="dt-card" style="border-left:4px solid #2a9d8f;margin-bottom:12px">
-      <div class="dt-h">⏰ Estimated Delivery Time</div>
-      <div class="dt-row"><span>🌅</span><div><div style="font-weight:700">Breakfast / Lunch</div><div style="font-size:12px;color:var(--gr)">12:00 PM – 1:00 PM</div></div></div>
-      <div class="dt-row"><span>🌙</span><div><div style="font-weight:700">Dinner</div><div style="font-size:12px;color:var(--gr)">8:00 PM – 9:00 PM</div></div></div>
-    </div>
-
-    <!-- WhatsApp screenshot button (non-subscribers only) -->
-    <div id="conf-wa-wrap" style="display:none;opacity:0;transform:translateY(10px);transition:opacity .4s ease,transform .4s ease;margin-bottom:12px">
-      <button class="btn btn-wa" onclick="openWhatsApp()" style="font-size:15px;gap:10px;width:100%">
+    <!-- WhatsApp button (non-subscribers, appears after 2.5s) -->
+    <div id="conf-wa-wrap" style="display:none;opacity:0;transform:translateY(8px);transition:opacity .4s ease,transform .4s ease;margin-bottom:10px">
+      <button class="btn btn-wa" onclick="openWhatsApp()" style="font-size:14px;gap:10px;width:100%;padding:14px">
         <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> Open WhatsApp &amp; Send Screenshot
       </button>
     </div>
 
     <!-- Actions -->
-    <button class="btn btn-p" onclick="nav('pg-orders')" style="margin-bottom:10px"><i class="fa-solid fa-receipt"></i> View My Orders</button>
-    <button class="btn btn-out" onclick="nav('pg-home')"><i class="fa-solid fa-house"></i> Back to Menu</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="btn btn-p" onclick="nav('pg-orders')" style="padding:12px;font-size:13px"><i class="fa-solid fa-receipt"></i> My Orders</button>
+      <button class="btn btn-out" onclick="nav('pg-home')" style="padding:12px;font-size:13px"><i class="fa-solid fa-house"></i> Home</button>
+    </div>
   </div>
 </div>
 
@@ -685,7 +869,7 @@ textarea.inp{resize:vertical;min-height:72px}
   <div class="tnav">
     <button class="bk-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
     <span class="pg-title">My Orders</span>
-    <button class="btn-ghost btn btn-sm" onclick="loadOrders()"><i class="fa-solid fa-rotate"></i></button>
+    <button class="btn-ghost btn btn-sm" onclick="manualIndexRefresh()" title="Auto-refresh in 120s"><i class="fa-solid fa-rotate"></i></button>
   </div>
   <div class="pg-body" id="orders-list">
     <div class="sk sk-lg"></div><div class="sk sk-lg"></div>
@@ -768,6 +952,7 @@ textarea.inp{resize:vertical;min-height:72px}
   <div class="tnav">
     <button class="bk-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
     <span class="pg-title">My Wallet</span>
+    <button class="btn btn-ghost btn-sm" onclick="loadUserKhata()" style="margin-left:auto" title="Refresh wallet"><i class="fa-solid fa-rotate"></i></button>
   </div>
   <div class="pg-body" style="padding-top:20px">
     <div style="background:var(--grad);border-radius:var(--rl);padding:22px 20px;color:#fff;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(230,57,70,.25)">
@@ -778,12 +963,15 @@ textarea.inp{resize:vertical;min-height:72px}
     </div>
     <div style="background:#fff;border-radius:var(--r);padding:14px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04)">
       <div style="font-weight:700;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <input type="date" id="ku-from" class="inp" style="flex:1;min-width:130px;font-size:12px;padding:9px 12px" placeholder="Select start date">
         <input type="date" id="ku-to" class="inp" style="flex:1;min-width:130px;font-size:12px;padding:9px 12px" placeholder="Select end date">
-        <button class="btn" style="background:var(--gl);color:var(--g);padding:10px 14px;font-size:13px" onclick="applyUserKhataFilter()"><i class="fa-solid fa-filter"></i></button>
-        <button class="btn" style="background:#fde8ea;color:var(--p);padding:10px 14px;font-size:13px" onclick="exportUserKhataPDF()"><i class="fa-solid fa-file-pdf"></i></button>
+        <button class="btn btn-p" style="padding:10px 14px;font-size:13px" onclick="applyUserKhataFilter()"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        <button class="btn btn-ghost" style="padding:10px 14px;font-size:13px" onclick="resetUserKhataFilter()"><i class="fa-solid fa-xmark"></i> Reset</button>
       </div>
+      <button class="btn btn-p" style="width:100%;padding:13px;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px" onclick="exportUserKhataPDF()">
+        <i class="fa-solid fa-file-pdf" style="font-size:16px"></i> Generate PDF Statement
+      </button>
     </div>
     <div id="k-user-list" style="display:flex;flex-direction:column;gap:8px">
       <div style="text-align:center;padding:40px;color:#999">Loading transactions...</div>
@@ -857,7 +1045,11 @@ textarea.inp{resize:vertical;min-height:72px}
 <!-- Bottom Nav -->
 <nav class="bnav hide" id="bottom-nav">
   <button class="bn act" id="bn-home" onclick="goHome()"><i class="fa-solid fa-house"></i><span>Home</span></button>
-  <button class="bn" id="bn-cart" onclick="nav('pg-cart')"><i class="fa-solid fa-bag-shopping"></i><span>Cart</span></button>
+  <button class="bn" id="bn-cart" onclick="nav('pg-cart')" style="position:relative">
+    <i class="fa-solid fa-bag-shopping"></i>
+    <span id="cart-badge" class="hide" style="position:absolute;top:2px;right:4px;background:var(--p);color:#fff;font-size:8px;font-weight:800;min-width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0 2px;font-family:var(--ff)">0</span>
+    <span>Cart</span>
+  </button>
   <button class="bn" id="bn-orders" onclick="nav('pg-orders')"><i class="fa-solid fa-receipt"></i><span>Orders</span></button>
   <!-- Wallet Nav Button -->
   <button class="bn" id="bn-wallet" onclick="openWalletPage()">
@@ -886,6 +1078,63 @@ textarea.inp{resize:vertical;min-height:72px}
     </div>
     <button class="btn btn-p" style="margin-top:18px" onclick="hideAbout()">Got it! 👍</button>
   </div>
+</div>
+
+<!-- Added to Cart notification -->
+<div id="cart-notif">
+  <div class="cart-notif-pill" id="cart-notif-pill">
+    <span class="notif-icon">🛒</span>
+    <span id="cart-notif-name">Added to cart</span>
+    <span class="notif-count" id="cart-notif-count">1</span>
+  </div>
+</div>
+
+<!-- Pause delivery overlay -->
+<div class="pause-overlay" id="pause-overlay" onclick="closePauseSheet()"></div>
+
+<!-- Pause delivery bottom sheet -->
+<div class="pause-sheet" id="pause-sheet">
+  <div class="pause-sheet-handle"></div>
+  <div class="pause-sheet-title">⏸ Pause Delivery</div>
+  <div class="pause-sheet-sub">Which meals do you want to pause?</div>
+
+  <div class="pause-opt" id="popt-lunch" onclick="selectPauseOpt('lunch')">
+    <div class="pause-opt-left">
+      <span class="pause-opt-icon">🌅</span>
+      <div>
+        <div class="pause-opt-title">Lunch Only</div>
+        <div class="pause-opt-sub">Skip today's lunch delivery</div>
+      </div>
+    </div>
+    <i class="fa-solid fa-circle" id="popt-lunch-ic" style="color:#ede8e4;font-size:18px"></i>
+  </div>
+
+  <div class="pause-opt" id="popt-dinner" onclick="selectPauseOpt('dinner')">
+    <div class="pause-opt-left">
+      <span class="pause-opt-icon">🌙</span>
+      <div>
+        <div class="pause-opt-title">Dinner Only</div>
+        <div class="pause-opt-sub">Skip today's dinner delivery</div>
+      </div>
+    </div>
+    <i class="fa-solid fa-circle" id="popt-dinner-ic" style="color:#ede8e4;font-size:18px"></i>
+  </div>
+
+  <div class="pause-opt" id="popt-both" onclick="selectPauseOpt('both')">
+    <div class="pause-opt-left">
+      <span class="pause-opt-icon">🔴</span>
+      <div>
+        <div class="pause-opt-title">Both Meals</div>
+        <div class="pause-opt-sub">Pause all deliveries</div>
+      </div>
+    </div>
+    <i class="fa-solid fa-circle" id="popt-both-ic" style="color:#ede8e4;font-size:18px"></i>
+  </div>
+
+  <button class="btn btn-p" style="margin-top:8px" id="pause-confirm-btn" onclick="confirmPause()" disabled>
+    <i class="fa-solid fa-pause"></i> Confirm Pause
+  </button>
+  <button class="btn btn-ghost" style="margin-top:8px" onclick="closePauseSheet()">Cancel</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -926,97 +1175,192 @@ function safeP(v) {
 function getSub() {
   try { return JSON.parse(localStorage.getItem('pb_sub'))?.isSubscriber || false; } catch { return false; }
 }
-// ── DATE / TIME UTILITIES — handle DD/MM/YYYY, ISO, 1899 GAS serials ──
-function fmtDate(v) {
-  if (!v) return '';
-  const s = String(v).trim();
-  // Already DD/MM/YYYY
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-  // ISO or Date object
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s) || v instanceof Date) {
-    const raw = v instanceof Date ? v : new Date(s);
-    if (!isNaN(raw.getTime())) {
-      const ist = new Date(raw.getTime() + 5.5*60*60*1000);
-      return String(ist.getUTCDate()).padStart(2,'0')+'/'+String(ist.getUTCMonth()+1).padStart(2,'0')+'/'+ist.getUTCFullYear();
+// ── PB — Unified date/time utilities (mirrors admin + rider) ──
+// Internal canonical format: date = "YYYY-MM-DD", time = "HH:MM AM/PM"
+// ═══════════════════════════════════════════════════════════════
+// PB — Global Date/Time Normalisation Utility  (client-side)
+// Shared across admin, index, and rider panels.
+//
+//  PB.toYMD(v)      : any value  →  "YYYY-MM-DD"   (or '' on failure)
+//  PB.fmtDate(v)    : any value  →  "DD/MM/YYYY"   (display)
+//  PB.fmtTime(v)    : any value  →  "HH:MM AM/PM"  (display)
+//  PB.todayYMD()    : IST today  →  "YYYY-MM-DD"
+//  PB.yesterdayYMD(): IST yest   →  "YYYY-MM-DD"
+//  PB.orderHour(o)  : decimal hour from order.time field
+// ═══════════════════════════════════════════════════════════════
+const PB = {
+  // Internal: shift epoch ms to IST so UTC accessors read IST clock
+  _ist(ms) { return new Date((typeof ms === 'number' ? ms : Date.now()) + 5.5 * 3600000); },
+
+  // Any value → "YYYY-MM-DD"  (canonical internal — never use display formats for comparisons)
+  toYMD(v) {
+    if (!v && v !== 0) return '';
+    const s = String(v).trim();
+    // 1. Already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // 2. DD/MM/YYYY or D/M/YYYY  (Indian legacy)
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+      const p = s.split('/');
+      return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
     }
-  }
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const [y,m,d] = s.split('-');
-    return `${d}/${m}/${y}`;
-  }
-  return s;
-}
-function fmtTime(v) {
-  if (!v) return '';
-  const s = String(v).trim().replace(/[\u00a0\u202f\u2009]/g,' ');
-  // Already HH:MM AM/PM
-  if (/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(s)) return s;
-  // ISO string — may be 1899 GAS time serial or real datetime
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s) || v instanceof Date) {
-    const raw = v instanceof Date ? v : new Date(s);
-    if (!isNaN(raw.getTime())) {
-      let h = raw.getUTCHours(), m = raw.getUTCMinutes();
-      // Only apply IST offset for real dates (>= 1970), not 1899 time serials
-      if (raw.getUTCFullYear() >= 1970) {
-        const ist = new Date(raw.getTime() + 5.5*60*60*1000);
-        h = ist.getUTCHours(); m = ist.getUTCMinutes();
+    // 3. YYYY/MM/DD
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) return s.replace(/\//g, '-');
+    // 4. ISO datetime / Z-suffix  (Supabase timestamps, createdAt)
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
+      const raw = new Date(s);
+      if (!isNaN(raw.getTime())) {
+        const ist = PB._ist(raw.getTime());
+        return ist.getUTCFullYear() + '-' +
+          String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+          String(ist.getUTCDate()).padStart(2, '0');
       }
+    }
+    // 5. JS Date object
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      const ist = PB._ist(v.getTime());
+      return ist.getUTCFullYear() + '-' +
+        String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(ist.getUTCDate()).padStart(2, '0');
+    }
+    // 6. Excel/Sheets numeric serial  (days since 1899-12-30)
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      const serial = parseFloat(s);
+      if (serial > 40000 && serial < 60000) {
+        const raw = new Date((serial - 25569) * 86400000);
+        if (!isNaN(raw.getTime())) {
+          const ist = PB._ist(raw.getTime());
+          return ist.getUTCFullYear() + '-' +
+            String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+            String(ist.getUTCDate()).padStart(2, '0');
+        }
+      }
+    }
+    return ''; // unrecognised — callers must treat '' as "no date"
+  },
+
+  // Any value → "DD/MM/YYYY"  (display only — never compare with this)
+  fmtDate(v) {
+    const ymd = PB.toYMD(v);
+    if (!ymd) return String(v || '');
+    const [y, m, d] = ymd.split('-');
+    return `${d}/${m}/${y}`;
+  },
+
+  // Any value → "HH:MM AM/PM"  (canonical display, zero-padded)
+  fmtTime(v) {
+    if (!v) return '';
+    const s = String(v).trim().replace(/[\u00a0\u202f\u2009]/g, ' ');
+    // 1. Already H:MM AM/PM — normalise case + zero-pad hour
+    const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampm) return String(ampm[1]).padStart(2,'0') + ':' + ampm[2] + ' ' + ampm[3].toUpperCase();
+    // 2. 24-hour HH:MM or HH:MM:SS
+    const h24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (h24) {
+      let h = parseInt(h24[1]), mn = parseInt(h24[2]);
       const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-      return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' '+p;
+      return String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' ' + p;
     }
-  }
-  return s;
-}
-// dateToYMD: any date value → "YYYY-MM-DD" for <input type=date> filter comparison
-function dateToYMD(v) {
-  if (!v) return '';
-  const s = String(v).trim();
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-    const [dd,mm,yyyy] = s.split('/');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-    const d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      const ist = new Date(d.getTime() + 5.5*60*60*1000);
-      return `${ist.getUTCFullYear()}-${String(ist.getUTCMonth()+1).padStart(2,'0')}-${String(ist.getUTCDate()).padStart(2,'0')}`;
+    // 3. ISO datetime / Z-suffix — extract IST time
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
+      const raw = new Date(s);
+      if (!isNaN(raw.getTime())) {
+        const ist = PB._ist(raw.getTime());
+        let h = ist.getUTCHours(), mn = ist.getUTCMinutes();
+        const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+        return String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' ' + p;
+      }
     }
+    return s; // pass through unrecognised
+  },
+
+  // IST today  → "YYYY-MM-DD"
+  todayYMD() {
+    const ist = PB._ist();
+    return ist.getUTCFullYear() + '-' +
+      String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(ist.getUTCDate()).padStart(2, '0');
+  },
+
+  // IST yesterday → "YYYY-MM-DD"
+  yesterdayYMD() {
+    const ist = PB._ist(Date.now() - 86400000);
+    return ist.getUTCFullYear() + '-' +
+      String(ist.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(ist.getUTCDate()).padStart(2, '0');
+  },
+
+  // Decimal hour (0-24) parsed from order.time — for morning/evening split
+  orderHour(o) {
+    const t = String(o.time || '').replace(/[\u00a0\u202f\u2009]/g, ' ').trim();
+    if (!t) return -1;
+    const m = t.toLowerCase().match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
+    if (!m) return -1;
+    let h = parseInt(m[1]); const mn = parseInt(m[2]), p = m[3] || '';
+    if (p === 'pm' && h !== 12) h += 12;
+    if (p === 'am' && h === 12) h = 0;
+    return h + mn / 60;
   }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  return '';
-}
+};
+// Shorthands — backward compat aliases
+function fmtDate(v)    { return PB.fmtDate(v); }
+function fmtTime(v)    { return PB.fmtTime(v); }
+function dateToYMD(v)  { return PB.toYMD(v); }
+function todayIST()    { return PB.todayYMD(); }
 
 // ── WALLET STATE (in-memory, updated on login and after each order) ──
 let _walletBal = null; // null = not loaded, number = balance
 
+// ── RESTAURANT/DELIVERY PAUSE STATE (subscribers only) ──
+let _pauseDelivery = 'none'; // 'none' | 'lunch' | 'dinner' | 'both'
+let _selectedPauseOpt = null; // temp selection in sheet
+
 function updateWalletUI(bal) {
   _walletBal = bal;
   const balStr = (bal !== null && bal !== undefined) ? '₹' + bal : '₹—';
-  // Header wallet button
-  const hdrBal = doc('wallet-hdr-bal');
-  if (hdrBal) hdrBal.textContent = balStr;
-  // Bottom nav wallet
+  // Footer nav wallet pill (realtime)
   const bnBal = doc('bn-wallet-bal');
-  if (bnBal) bnBal.textContent = (bal !== null && bal !== undefined) ? '₹' + bal : '₹—';
-  // Account page wallet
+  if (bnBal) bnBal.textContent = balStr;
+  // Account page wallet card
   const acctBal = doc('acct-wallet-bal');
   if (acctBal) acctBal.textContent = balStr;
-  // Account panel wallet
+  // Account panel wallet row
   const apBal = doc('ap-wallet-bal');
   if (apBal) apBal.textContent = balStr;
-  // Khata page balance
+  // Khata (wallet history) page header balance
   const kBal = doc('k-user-bal');
   if (kBal && bal !== null) kBal.textContent = balStr;
 }
 
-async function refreshWalletBalance() {
+async function refreshWalletBalance(revertToBal) {
   const user = Auth.get();
   if (!user || !getSub() || !_khataEnabled) return;
-  try {
-    const r = await api('getSubscriberBalance', { phone: user.phone });
-    updateWalletUI(Number(r.balance) || 0);
-  } catch(e) {}
+  // Retry up to 2 times with backoff (500ms, 1500ms) — handles transient network blips
+  const delays = [500, 1500];
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const kd = await api('getKhata', { phone: user.phone });
+      const bal = Number(kd.balance) || 0;
+      // Always update transaction cache — ensures khata list is fresh on navigation
+      _userKhataEntries  = kd.entries || [];
+      _userKhataFiltered = [..._userKhataEntries];
+      updateWalletUI(bal);
+      // If user is currently on khata page, re-render the list immediately
+      const cur = stack[stack.length - 1];
+      if (cur === 'pg-khata') renderUserKhataList(_userKhataFiltered);
+      return; // success — stop retrying
+    } catch(e) {
+      if (attempt < delays.length) {
+        // Wait before next retry
+        await new Promise(r => setTimeout(r, delays[attempt]));
+      } else {
+        // All retries exhausted — revert to pre-order balance if provided
+        // so user never sees a permanently wrong (optimistic) value
+        if (revertToBal !== undefined && revertToBal !== null) {
+          updateWalletUI(revertToBal);
+        }
+      }
+    }
+  }
 }
 
 function openWalletPage() {
@@ -1051,13 +1395,13 @@ function openWA(phone, msg) {
 // ══════════════════════════════════════════════
 // API
 // ══════════════════════════════════════════════
-async function api(action, data = {}) {
+async function api(action, data = {}, _retry = 1) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20000);
+  const timer = setTimeout(() => controller.abort(), 22000);
   try {
     const r = await fetch(CFG.GAS, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, data, apiKey: CFG.KEY }),
       signal: controller.signal
     });
@@ -1068,6 +1412,10 @@ async function api(action, data = {}) {
   } catch(e) {
     clearTimeout(timer);
     if (e.name === 'AbortError') throw new Error('Request timed out. Please try again.');
+    if (_retry > 0 && !e.message.includes('required') && !e.message.includes('credentials') && !e.message.includes('registered')) {
+      await new Promise(r => setTimeout(r, 1200));
+      return api(action, data, _retry - 1);
+    }
     throw e;
   }
 }
@@ -1134,7 +1482,13 @@ function onEnter(id) {
   if (id === 'pg-khata')       { if (_khataEnabled) loadUserKhata(); else { toast('Wallet feature is currently unavailable'); back(); return; } }
   if (id === 'pg-success')     { hideFab(); }
   if (id === 'pg-success-sub') { hideFab(); }
-  if (id === 'pg-confirm')     { hideFab(); }
+  if (id === 'pg-confirm')     {
+    hideFab();
+    // FIX: refresh wallet + order history in background when confirm screen appears
+    // so all panels are consistent without user manually navigating away and back
+    const isSub = getSub();
+    if (isSub && _khataEnabled) refreshWalletBalance().catch(() => {});
+  }
   if (id !== 'pg-home')        { hideFab(); }
 }
 
@@ -1192,31 +1546,54 @@ function hideAbout(e) {
 }
 
 // ══════════════════════════════════════════════
-// PULL-TO-REFRESH
+// ══════════════════════════════════════════════
+// PULL-TO-REFRESH  (all pages)
 // ══════════════════════════════════════════════
 (function setupPTR() {
+  const THRESHOLD = 80;
   let startY = 0, pulling = false, triggered = false;
-  const threshold = 80;
+
+  // Map page id → refresh action
+  const ptrActions = {
+    'pg-home'   : () => loadMenu(),
+    'pg-orders' : () => loadOrders(),
+    'pg-khata'  : () => loadUserKhata(),
+    'pg-account': () => { renderAccount(); return Promise.resolve(); },
+    'pg-confirm': () => manualIndexRefresh(),
+  };
+
+  // Find the active scrollable container for the current page
+  function getScrollEl(pgId) {
+    const pg = doc(pgId); if (!pg) return null;
+    // Each page may have its own scroll wrapper; fall back to window scroll
+    return pg.querySelector('[id$="-scroll"]') || pg.querySelector('.scroll-wrap') || null;
+  }
+
   document.addEventListener('touchstart', e => {
-    const pg = doc('pg-home');
-    if (!pg || !pg.classList.contains('here')) return;
-    const el = doc('home-scroll');
-    if (!el || el.scrollTop > 2) return;
+    const pgId = stack[stack.length - 1];
+    if (!pgId || !ptrActions[pgId]) return;
+    const scrollEl = getScrollEl(pgId);
+    const scrollTop = scrollEl ? scrollEl.scrollTop : window.scrollY;
+    if (scrollTop > 4) return;
     startY = e.touches[0].clientY; pulling = true; triggered = false;
   }, { passive: true });
+
   document.addEventListener('touchmove', e => {
     if (!pulling) return;
-    const el = doc('home-scroll');
-    if (!el || el.scrollTop > 2) { pulling = false; resetPTR(); return; }
+    const pgId = stack[stack.length - 1];
+    const scrollEl = getScrollEl(pgId);
+    const scrollTop = scrollEl ? scrollEl.scrollTop : window.scrollY;
+    if (scrollTop > 4) { pulling = false; resetPTR(); return; }
     const dist = e.touches[0].clientY - startY;
     if (dist <= 0) { pulling = false; resetPTR(); return; }
     const i = doc('ptr-ind'); if (!i) return;
     const pull = Math.min(dist * 0.55, 60);
     i.style.transform = `translateX(-50%) translateY(${pull - 64}px)`;
     i.classList.toggle('visible', dist > 18);
-    i.classList.toggle('ready', dist >= threshold);
-    triggered = dist >= threshold;
+    i.classList.toggle('ready', dist >= THRESHOLD);
+    triggered = dist >= THRESHOLD;
   }, { passive: true });
+
   document.addEventListener('touchend', () => {
     if (!pulling) return;
     pulling = false;
@@ -1224,9 +1601,12 @@ function hideAbout(e) {
     if (triggered) {
       i.style.transform = 'translateX(-50%) translateY(10px)';
       i.classList.add('loading'); i.classList.remove('ready');
-      loadMenu().finally(() => { resetPTR(); triggered = false; });
+      const pgId = stack[stack.length - 1];
+      const action = ptrActions[pgId] || manualIndexRefresh;
+      action().finally(() => { resetPTR(); triggered = false; });
     } else { resetPTR(); }
   }, { passive: true });
+
   function resetPTR() {
     const i = doc('ptr-ind'); if (!i) return;
     i.style.transform = 'translateX(-50%) translateY(-64px)';
@@ -1244,11 +1624,12 @@ const Creds = {
   clear: ()        => Store.remove('pb_creds')
 };
 
-// Session store in sessionStorage — survives F5, not tab close
+// Session store — uses localStorage so session survives tab switches,
+// app backgrounding, and browser restores. Cleared only on explicit logout.
 const SessStore = {
-  save: (u) => { try { sessionStorage.setItem('pb_user_sess', JSON.stringify(u)); } catch {} },
-  get:  ()  => { try { return JSON.parse(sessionStorage.getItem('pb_user_sess')); } catch { return null; } },
-  clear:()  => { try { sessionStorage.removeItem('pb_user_sess'); } catch {} }
+  save: (u) => { try { localStorage.setItem('pb_user_sess', JSON.stringify(u)); } catch {} },
+  get:  ()  => { try { return JSON.parse(localStorage.getItem('pb_user_sess')); } catch { return null; } },
+  clear:()  => { try { localStorage.removeItem('pb_user_sess'); } catch {} }
 };
 
 const Auth = {
@@ -1280,13 +1661,18 @@ function doLogout() {
   if (!confirm('Logout karna chahte hain?')) return;
   stopPolling();
   Auth.clear(); Cart.clear(); _coupon = null; _walletBal = null;
+  _pauseDelivery = 'none';
+  Store.remove('pb_menu_cache');
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
   doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
   stack = ['pg-auth'];
   history.replaceState({ page: 'pg-auth' }, '', location.pathname);
   hideAppUI(); hideFab();
-  // Reset wallet UI
-  doc('wallet-hdr-btn').classList.add('hide');
+  // Reset wallet + pause UI
+  updateWalletUI(null);
+  applyPauseState('none');
+  const wrap = doc('rest-toggle-wrap');
+  if (wrap) wrap.classList.add('hide');
   autofillCreds();
 }
 
@@ -1298,15 +1684,20 @@ function switchTab(t, el) {
 }
 
 function forgotPassword() {
-  const phone = doc('l-ph').value.trim();
+  const phone = doc('l-ph').value.trim().replace(/\D/g, '');
   let msg = 'Namaste! 🙏 Mujhe apna Puro Bite password reset karna hai.\n\n';
-  msg += phone ? `📱 Mera registered mobile number: *${phone}*\n\n` : '📱 Mera registered mobile number: (please fill in above)\n\n';
+  if (phone.length === 10) {
+    msg += `📱 Mera registered mobile number: *${phone}*\n\n`;
+  } else {
+    msg += '📱 Mera registered mobile number: ____________\n(Please fill your 10-digit number above first)\n\n';
+  }
   msg += 'Kripya mujhe naya password set karne mein help karein. 🙏';
   openWA(CFG.WA, msg);
 }
 
 async function doLogin() {
-  const phone = doc('l-ph').value.trim(), pw = doc('l-pw').value;
+  const phone = doc('l-ph').value.trim();
+  const pw = doc('l-pw').value.trim(); // trim: mobile keyboards add trailing spaces
   if (!phone || !pw) return toast('Phone aur password daalein');
   if (phone.length !== 10) return toast('Valid 10-digit number');
   const btn = doc('btn-login');
@@ -1316,8 +1707,10 @@ async function doLogin() {
     Auth.set(user);
     Creds.save(phone, pw);
     await initApp();
-  } catch(e) { toast('❌ ' + e.message); }
-  finally { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
+  } catch(e) {
+    toast('❌ ' + e.message);
+    if (e.message.includes('password') || e.message.includes('not found')) Creds.save('', '');
+  } finally { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
 }
 
 async function doSignup() {
@@ -1356,19 +1749,25 @@ async function initApp() {
   const cachedSub = subData || Store.getJSON('pb_sub');
   const isSub = cachedSub?.isSubscriber;
   if (isSub && _khataEnabled) {
-    doc('sub-banner').classList.remove('hide');
     // Show wallet button in header
-    doc('wallet-hdr-btn').classList.remove('hide');
-    // Fetch wallet balance
+    
+    // Fetch wallet balance — use getKhata so balance = transaction sum (always accurate)
     try {
-      const r = await api('getSubscriberBalance', { phone: user.phone });
-      updateWalletUI(Number(r.balance) || 0);
+      const kd = await api('getKhata', { phone: user.phone });
+      updateWalletUI(Number(kd.balance) || 0);
     } catch {}
   } else {
-    doc('wallet-hdr-btn').classList.add('hide');
+    
     updateWalletUI(null);
-    if (isSub) doc('sub-banner').classList.remove('hide'); // still show subscriber banner even if khata off
   }
+  // PRO badge on account button — visible only for subscribers
+  const proBadge = doc('acct-pro-badge');
+  if (proBadge) proBadge.classList.toggle('hide', !isSub);
+  // Tiffin plan banner — only for non-subscribers
+  const tifBan = doc('tif-ban');
+  if (tifBan) tifBan.classList.toggle('hide', !!isSub);
+  // Restaurant pause state (subscribers only)
+  applyPauseState(cachedSub?.pauseDelivery || 'none');
   updateBadge();
   // Navigate to home
   doc('pg-auth').classList.replace('here','left');
@@ -1407,12 +1806,18 @@ function renderAccount() {
     walletWrap.classList.toggle('hide', !showWallet);
     if (showWallet) {
       doc('acct-wallet-bal').textContent = _walletBal !== null ? '₹' + _walletBal : '₹—';
-      doc('acct-wallet-sub').textContent = 'Loading...';
-      api('getSubscriberBalance', { phone: user.phone }).then(r => {
-        const bal = Number(r.balance) || 0;
-        updateWalletUI(bal);
-        doc('acct-wallet-sub').textContent = bal < 0 ? '⚠️ Balance negative — please recharge' : bal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
-      }).catch(() => { doc('acct-wallet-sub').textContent = 'Unable to fetch balance'; });
+      // FIX: use cached balance if available — avoids redundant fetch after placeOrder
+      // which already called refreshWalletBalance(). Only fetch if truly stale (null).
+      if (_walletBal !== null) {
+        const subTxt = _walletBal < 0 ? '⚠️ Balance negative — please recharge' : _walletBal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+        doc('acct-wallet-sub').textContent = subTxt;
+      } else {
+        doc('acct-wallet-sub').textContent = 'Loading...';
+        refreshWalletBalance().then(() => {
+          const bal = _walletBal || 0;
+          doc('acct-wallet-sub').textContent = bal < 0 ? '⚠️ Balance negative — please recharge' : bal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+        }).catch(() => { doc('acct-wallet-sub').textContent = 'Unable to fetch balance'; });
+      }
     }
   }
 }
@@ -1471,7 +1876,7 @@ const Cart = {
       const price = variantPrice !== undefined ? variantPrice : item.price;
       cart.push({ ...item, _key: key, qty: 1, selectedVariant: variantLabel || '', price });
     }
-    Cart.save(cart); toast('✅ Added to cart!');
+    Cart.save(cart);
   },
   qty: (key, delta) => {
     const c = Cart.get(), i = c.findIndex(x => x._key === key);
@@ -1483,8 +1888,13 @@ const Cart = {
 function updateBadge() {
   try {
     const n = Cart.get().reduce((s, i) => s + i.qty, 0);
+    // Bottom nav cart badge
     const b = doc('cart-badge');
     if (b) { b.textContent = n; b.classList.toggle('hide', n === 0); }
+    // Header cart badge
+    const hb = doc('cart-hdr-badge');
+    if (hb) { hb.textContent = n; hb.classList.toggle('hide', n === 0); }
+    // Floating cart button
     const fab = doc('cart-fab'), fabCount = doc('cart-fab-count');
     const onHome = doc('pg-home')?.classList.contains('here');
     if (fab) {
@@ -1517,7 +1927,19 @@ let _activeCategory = 'all';
 
 async function loadMenu() {
   const list = doc('menu-list');
-  list.innerHTML = '<div class="sk sk-lg"></div><div class="sk sk-lg"></div>';
+  // ── Show cached menu instantly (zero wait) ──
+  const cached = Store.getJSON('pb_menu_cache');
+  if (cached && cached.menu && cached.menu.length) {
+    _menu = cached.menu;
+    buildCategoryChips(_menu);
+    _menuSearch = ''; _activeCategory = 'all';
+    const si = doc('menu-search'); if (si) si.value = '';
+    filterAndRenderMenu();
+    if (cached.lbl) doc('menu-lbl').textContent = cached.lbl;
+  } else {
+    list.innerHTML = '<div class="sk sk-lg"></div><div class="sk sk-lg"></div>';
+  }
+  // ── Fetch fresh data in background ──
   try {
     const [menu, cfg] = await Promise.all([api('getMenu'), api('getOrderCutoff').catch(() => null)]);
     _menu = menu;
@@ -1525,22 +1947,24 @@ async function loadMenu() {
     const h = getISTHours();
     const ist = new Date(Date.now() + 5.5 * 3600000);
     const d = String(ist.getUTCDate()).padStart(2,'0'), mo = String(ist.getUTCMonth()+1).padStart(2,'0'), y = ist.getUTCFullYear();
-    // Use weekly schedule lunchEnd if available
     const schedLunchEnd = cfg && cfg.weeklySchedule
       ? (() => { const dow=ist.getUTCDay(); const s=cfg.weeklySchedule[dow]; return s?timeStrToH(s.lunchEnd||'11:30'):11.5; })()
       : (() => { const [dH,dM]=(cfg&&cfg.cutoffDay||'11:30').split(':').map(Number); return dH+dM/60; })();
     const isLunch = h < schedLunchEnd;
-    doc('menu-lbl').textContent = (isLunch ? '🌅 Breakfast / Lunch Menu' : '🌙 Evening / Dinner Menu') + ' · ' + d+'/'+mo+'/'+y;
-    // Build category chips
+    const lbl = (isLunch ? '🌅 Breakfast / Lunch Menu' : '🌙 Evening / Dinner Menu') + ' · ' + d+'/'+mo+'/'+y;
+    doc('menu-lbl').textContent = lbl;
+    // Cache for instant next load
+    Store.setJSON('pb_menu_cache', { menu, lbl, ts: Date.now() });
     buildCategoryChips(menu);
-    // Reset search + category on fresh load
     _menuSearch = '';
-    const si = doc('menu-search'); if (si) si.value = '';
+    const si2 = doc('menu-search'); if (si2) si2.value = '';
     _activeCategory = 'all';
     filterAndRenderMenu();
     if (cfg) updateCutoffBanner(cfg, h, isLunch ? 'morning' : 'evening');
   } catch(e) {
-    doc('menu-list').innerHTML = `<div class="empty"><span class="em">😕</span><h3>Menu load failed</h3><p style="color:#888;font-size:13px;margin-bottom:12px">Internet check karein aur retry karein</p><button class="btn btn-p" style="width:auto;padding:10px 24px" onclick="loadMenu()"><i class="fa-solid fa-rotate-right"></i> Retry</button></div>`;
+    if (!_menu.length) {
+      doc('menu-list').innerHTML = `<div class="empty"><span class="em">😕</span><h3>Menu load failed</h3><p style="color:#888;font-size:13px;margin-bottom:12px">Internet check karein aur retry karein</p><button class="btn btn-p" style="width:auto;padding:10px 24px" onclick="loadMenu()"><i class="fa-solid fa-rotate-right"></i> Retry</button></div>`;
+    }
   }
 }
 
@@ -1569,6 +1993,39 @@ function setCategory(cat, el) {
   document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('act'));
   if (el) el.classList.add('act');
   filterAndRenderMenu();
+}
+
+let _filterTimer = null;
+function debouncedFilter() {
+  if (_filterTimer) clearTimeout(_filterTimer);
+  _filterTimer = setTimeout(filterAndRenderMenu, 120);
+}
+
+function doMenuSearch() {
+  const val = (doc('menu-search')?.value || '').toLowerCase().trim();
+  _menuSearch = val;
+  if (val) {
+    const chips = document.querySelectorAll('.cat-chip');
+    let matched = false;
+    chips.forEach(chip => {
+      if (chip.textContent.trim().toLowerCase().includes(val)) {
+        chip.click(); matched = true;
+      }
+    });
+    if (!matched) {
+      _activeCategory = 'all';
+      document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('act'));
+      const allChip = document.querySelector('.cat-chip');
+      if (allChip) allChip.classList.add('act');
+      filterAndRenderMenu();
+    }
+  } else {
+    _activeCategory = 'all';
+    document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('act'));
+    const allChip = document.querySelector('.cat-chip');
+    if (allChip) allChip.classList.add('act');
+    filterAndRenderMenu();
+  }
 }
 
 function onMenuSearch(val) {
@@ -1649,39 +2106,32 @@ function showClosedPopup(detail) {
 
 function updateCutoffBanner(cfg, currentH, menuType) {
   const banner = doc('cutoff-banner'), msgEl = doc('cutoff-msg'), subEl = doc('cutoff-sub'), placeBtn = doc('place-btn');
-  // Always check weekly schedule first
-  if (cfg && cfg.weeklySchedule) {
-    const state = calcOrderState(cfg, currentH);
+  const iconEl = doc('cutoff-icon'), dotEl = doc('cutoff-dot');
+  function applyState(state) {
     banner.classList.remove('hide');
     if (msgEl) msgEl.textContent = state.reason;
     if (subEl) subEl.textContent = state.detail;
-    banner.style.background = state.closed
-      ? 'linear-gradient(135deg,#e63946,#c1121f)'
-      : 'linear-gradient(135deg,#2a9d8f,#1d7a6f)';
+    const isOpen = !state.closed;
+    banner.style.background = isOpen
+      ? 'linear-gradient(135deg,#2a9d8f,#1d7a6f)'
+      : 'linear-gradient(135deg,#e63946,#c1121f)';
+    banner.style.borderLeftColor = isOpen ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.35)';
+    if (iconEl) iconEl.textContent = isOpen ? '🟢' : '⏰';
+    if (dotEl) { dotEl.style.background = isOpen ? '#a8ffec' : '#fff'; dotEl.style.opacity = isOpen ? '1' : '.7'; }
     if (placeBtn) placeBtn.disabled = state.closed;
-    return;
   }
+  // Always check weekly schedule first
+  if (cfg && cfg.weeklySchedule) { applyState(calcOrderState(cfg, currentH)); return; }
   // Fallback: hard timing check 7:30 PM – 7:00 AM
   const CLOSE_H = 19.5, OPEN_H = 7.0;
   const isNightClosed = currentH >= CLOSE_H || currentH < OPEN_H;
   if (!cfg || !cfg.enabled) {
     if (isNightClosed) {
-      banner.classList.remove('hide');
-      if (msgEl) msgEl.textContent = 'Restaurant is Closed';
-      if (subEl) subEl.textContent = currentH >= CLOSE_H ? 'Try after 7:00 AM tomorrow.' : 'Opens at 7:00 AM today.';
-      banner.style.background = 'linear-gradient(135deg,#e63946,#c1121f)';
-      if (placeBtn) placeBtn.disabled = true;
+      applyState({ closed: true, reason: 'Restaurant is Closed', detail: currentH >= CLOSE_H ? 'Try after 7:00 AM tomorrow.' : 'Opens at 7:00 AM today.' });
     } else { banner.classList.add('hide'); if (placeBtn) placeBtn.disabled = false; }
     return;
   }
-  const state = calcOrderState(cfg, currentH);
-  banner.classList.remove('hide');
-  if (msgEl) msgEl.textContent = state.reason;
-  if (subEl) subEl.textContent = state.detail;
-  banner.style.background = state.closed
-    ? 'linear-gradient(135deg,#e63946,#c1121f)'
-    : 'linear-gradient(135deg,#2a9d8f,#1d7a6f)';
-  if (placeBtn) placeBtn.disabled = state.closed;
+  applyState(calcOrderState(cfg, currentH));
 }
 
 const _badgeMap = {
@@ -1696,10 +2146,9 @@ function renderMenu(menu) {
     doc('menu-list').innerHTML = `<div class="empty"><span class="em">😴</span><h3>Abhi menu nahi hai</h3><p>Baad mein aayein</p></div>`;
     return;
   }
-  // Use a stable global index keyed by itemId for selVar / addToCart references
-  doc('menu-list').innerHTML = menu.map((item, idx) => {
+  doc('menu-list').innerHTML = `<div class="m-grid">${menu.map((item, idx) => {
     const cart = Cart.get();
-    const imgSrc = resolveImg(item.imageUrl) || `https://picsum.photos/seed/${item.itemId}/400/172`;
+    const imgSrc = resolveImg(item.imageUrl) || `https://picsum.photos/seed/${item.itemId}/200/200`;
     const variants = Array.isArray(item.variants) ? item.variants : [];
     const varHtml = variants.length >= 1
       ? `<div class="var-row" id="var-${idx}">${variants.map((v,vi) =>
@@ -1713,27 +2162,27 @@ function renderMenu(menu) {
     const qty = inCart ? inCart.qty : 0;
     const ctrl = qty > 0
       ? `<div class="qty-ctl"><button class="q-btn" onclick="Cart.qty('${key}',-1);filterAndRenderMenu()">−</button><span class="q-n">${qty}</span><button class="q-btn" onclick="Cart.qty('${key}',1);filterAndRenderMenu()">+</button></div>`
-      : `<button class="add-btn" onclick="addToCart(${idx},'${esc(item.itemId)}')">Add +</button>`;
-    // Highlight badge
+      : `<button class="add-btn" onclick="addToCart(${idx},'${esc(item.itemId)}')">Add</button>`;
     const badgeInfo = _badgeMap[item.highlight];
-    const badgeHtml = badgeInfo
-      ? `<div class="m-badge ${badgeInfo.cls}">${badgeInfo.text}</div>`
-      : '';
+    const badgeHtml = badgeInfo ? `<div class="m-badge ${badgeInfo.cls}">${badgeInfo.text}</div>` : '';
+    const catLine = item.category ? `<div class="m-cat">${esc(item.category)}${variants.length >= 1 ? ' · '+variants.length+' option'+(variants.length>1?'s':'') : ''}</div>` : '';
     return `<div class="m-card">
-      <img class="m-img" src="${imgSrc}" alt="${esc(item.name)}" loading="lazy"
-           onerror="this.onerror=null;this.src='https://picsum.photos/seed/${idx}/400/172'">
       <div class="m-body">
         ${badgeHtml}
         <div class="m-name">${esc(item.name)}</div>
-        <div class="m-cat">${esc(item.category)}${variants.length >= 1 ? ' · '+variants.length+' size'+(variants.length>1?'s':'') : ''}</div>
+        ${catLine}
         ${varHtml}
         <div class="m-foot">
           <div class="m-price" id="price-${idx}">₹${defPrice}</div>
           ${ctrl}
         </div>
       </div>
+      <div class="m-img-wrap">
+        <img class="m-img" src="${imgSrc}" alt="${esc(item.name)}" loading="lazy"
+             onerror="this.onerror=null;this.src='https://picsum.photos/seed/${idx}/200/200'">
+      </div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
 }
 
 const _selVars = {};
@@ -1744,10 +2193,21 @@ function selVar(idx, vi, label, price) {
   const varRow = doc('var-' + idx);
   if (varRow) varRow.querySelectorAll('.var-pill').forEach((p, i) => p.classList.toggle('sel', i === vi));
 }
+let _cartNotifTimer = null;
+function showCartNotif(itemName) {
+  const pill = doc('cart-notif-pill');
+  const nameEl = doc('cart-notif-name');
+  const countEl = doc('cart-notif-count');
+  if (!pill) return;
+  const total = Cart.get().reduce((s, i) => s + i.qty, 0);
+  if (nameEl) nameEl.textContent = itemName || 'Added to cart';
+  if (countEl) countEl.textContent = total;
+  pill.classList.add('show');
+  if (_cartNotifTimer) clearTimeout(_cartNotifTimer);
+  _cartNotifTimer = setTimeout(() => { pill.classList.remove('show'); }, 2000);
+}
+
 function addToCart(idx, itemId) {
-  // Find item in currently displayed list (filtered), then also check full _menu
-  const displayed = doc('menu-list').querySelectorAll('.m-card');
-  // Use itemId to find in _menu regardless of filter index
   const item = _menu.find(i => i.itemId === itemId);
   if (!item) return;
   const sv = _selVars[idx];
@@ -1755,6 +2215,7 @@ function addToCart(idx, itemId) {
   const varLabel = sv ? sv.label : (variants.length > 0 ? variants[0].label : '');
   const varPrice = sv ? sv.price : (variants.length > 0 ? variants[0].price : item.price);
   Cart.add(item, varLabel, varPrice);
+  showCartNotif(item.name);
   filterAndRenderMenu();
 }
 
@@ -1820,6 +2281,29 @@ let _waMsg = '', _waPhone = '';
 function openWhatsApp() { openWA(_waPhone, _waMsg); }
 
 async function placeOrder() {
+  // ── Pause delivery guard (slot-aware) ─────────────────────
+  // Only block if the CURRENT slot is actually paused.
+  // 'lunch' blocks morning slot, 'dinner' blocks evening slot, 'both' blocks all.
+  if (_pauseDelivery !== 'none') {
+    const nowH = getISTHours();
+    // Determine current slot using cached cutoff config, fallback to 11:30 split
+    let currentSlot = 'morning';
+    if (window._cutoffCfg && window._cutoffCfg.enabled) {
+      const st = calcOrderState(window._cutoffCfg, nowH);
+      currentSlot = st.session || (nowH < 11.5 ? 'morning' : 'evening');
+    } else {
+      currentSlot = nowH < 11.5 ? 'morning' : 'evening';
+    }
+    const slotPaused =
+      _pauseDelivery === 'both' ||
+      (_pauseDelivery === 'lunch'  && currentSlot === 'morning') ||
+      (_pauseDelivery === 'dinner' && currentSlot === 'evening');
+    if (slotPaused) {
+      const slotLabel = currentSlot === 'morning' ? 'Lunch' : 'Dinner';
+      toast(`🔴 ${slotLabel} delivery paused hai. Pehle switch ON karein.`);
+      return;
+    }
+  }
   // ── Duplicate-click guard ──────────────────────────────────
   if (_placingOrder) { toast('⏳ Order is being placed, please wait...'); return; }
 
@@ -1857,12 +2341,30 @@ async function placeOrder() {
   const total = Math.max(0, sub - disc + del);
 
   // Subscriber wallet balance check (only if Khata ON)
-  if (isSub && _khataEnabled && _walletBal !== null && _walletBal < total) {
-    toast(`❌ Wallet balance ₹${_walletBal} is insufficient for ₹${total}. Please recharge.`);
-    _placingOrder = false;
-    btn.innerHTML = isSub ? '<i class="fa-solid fa-utensils"></i> Place Order' : '<i class="fa-brands fa-whatsapp"></i> Place Order';
-    btn.disabled = false;
-    return;
+  // Always fetch FRESH balance from server — never rely on cached _walletBal
+  // (admin may have changed balance externally since last poll tick)
+  if (isSub && _khataEnabled) {
+    try {
+      const fresh = await api('getSubscriberBalance', { phone: user.phone });
+      const freshBal = Number(fresh.balance) || 0;
+      updateWalletUI(freshBal); // update all UI pills with latest
+      if (freshBal < total) {
+        toast(`❌ Wallet balance ₹${freshBal} is insufficient for ₹${total}. Please recharge.`);
+        _placingOrder = false;
+        btn.innerHTML = '<i class="fa-solid fa-utensils"></i> Place Order';
+        btn.disabled = false;
+        return;
+      }
+    } catch (_balErr) {
+      // If balance fetch fails, fall back to cached value as last resort
+      if (_walletBal !== null && _walletBal < total) {
+        toast(`❌ Wallet balance ₹${_walletBal} is insufficient for ₹${total}. Please recharge.`);
+        _placingOrder = false;
+        btn.innerHTML = '<i class="fa-solid fa-utensils"></i> Place Order';
+        btn.disabled = false;
+        return;
+      }
+    }
   }
 
   try {
@@ -1879,7 +2381,7 @@ async function placeOrder() {
     const pad = n => String(n).padStart(2, '0');
     const tsDate = `${pad(istNow.getUTCDate())}/${pad(istNow.getUTCMonth()+1)}/${istNow.getUTCFullYear()}`;
     const h = istNow.getUTCHours(), m = istNow.getUTCMinutes();
-    const tsTime = `${pad(h > 12 ? h - 12 : h || 12)}:${pad(m)} ${h >= 12 ? 'PM' : 'AM'}`;
+    const tsTime = `${pad(h % 12 || 12)}:${pad(m)} ${h >= 12 ? 'PM' : 'AM'}`;
 
     Cart.clear(); _coupon = null;
     doc('cpn-inp').value = ''; doc('cpn-msg').classList.add('hide');
@@ -1934,16 +2436,33 @@ function showOrderConfirmation({ orderId, user, cart, sub, del, disc, total, isS
   const confTotal = doc('conf-total');       if (confTotal) confTotal.textContent = '₹' + total;
   const confTs = doc('conf-timestamp');      if (confTs) confTs.textContent = tsDate + ' · ' + tsTime;
 
-  // Subscriber wallet deduction info
+  // Subscriber wallet deduction info — show balance before + after
   const confWallet = doc('conf-wallet-info');
   if (confWallet) {
     if (isSub && _khataEnabled) {
-      const newBal = (_walletBal !== null) ? (_walletBal - total) : null;
+      const prevBal = _walletBal !== null ? _walletBal : null;
+      // Clamp optimistic balance — never show negative value before server confirms
+      const optimisticBal = prevBal !== null ? Math.max(0, prevBal - total) : null;
       confWallet.style.display = 'block';
       const confDeducted = doc('conf-deducted'); if (confDeducted) confDeducted.textContent = total;
-      const confNewBal = doc('conf-new-bal');     if (confNewBal) confNewBal.textContent = newBal !== null ? newBal : '—';
-      updateWalletUI(newBal);
-      setTimeout(() => refreshWalletBalance(), 2000);
+      const confNewBal   = doc('conf-new-bal');  if (confNewBal) confNewBal.textContent = optimisticBal !== null ? optimisticBal : '—';
+      // conf-prev-bal: show "Previous: ₹500" so user knows what it refers to
+      const confPrevBal  = doc('conf-prev-bal'); if (confPrevBal) confPrevBal.textContent = prevBal !== null ? 'Previous: ₹' + prevBal : '';
+      // Also update legacy success screen fields (pg-success-sub) in case it ever shows
+      const sucDeducted = doc('suc-deducted'); if (sucDeducted) sucDeducted.textContent = total;
+      const sucNewBal   = doc('suc-new-bal');  if (sucNewBal) sucNewBal.textContent = optimisticBal !== null ? optimisticBal : '—';
+      // Optimistically update wallet pill right away
+      updateWalletUI(optimisticBal);
+      // Fetch real server balance in background — retries on failure.
+      // On success: updates all UI + confirm screen with true balance.
+      // On all retries failed: reverts to prevBal so user never sees a stuck optimistic value.
+      refreshWalletBalance(prevBal).then(() => {
+        // Update confirm screen with real server balance after fetch
+        if (confNewBal && _walletBal !== null) confNewBal.textContent = _walletBal;
+        if (sucNewBal  && _walletBal !== null) sucNewBal.textContent  = _walletBal;
+      }).catch(() => {
+        // refreshWalletBalance handles revert internally — nothing extra needed
+      });
     } else {
       confWallet.style.display = 'none';
     }
@@ -1986,8 +2505,14 @@ function renderOrders(orders) {
     doc('orders-list').innerHTML = `<div class="empty"><span class="em">📋</span><h3>Koi orders nahi</h3><p>Pehla order daalein!</p></div>`;
     return;
   }
+  // Sort newest first, show last 10
+  const sorted = [...orders].sort((a, b) => {
+    const ta = new Date((a.date || '') + 'T' + (a.time || '00:00')).getTime();
+    const tb = new Date((b.date || '') + 'T' + (b.time || '00:00')).getTime();
+    return tb - ta;
+  }).slice(0, 10);
   const sc = { pending:'b-y', preparing:'b-o', 'out for delivery':'b-o', delivered:'b-g' };
-  doc('orders-list').innerHTML = orders.map(o => {
+  doc('orders-list').innerHTML = sorted.map(o => {
     let items = []; try { items = safeP(o.items); } catch {}
     const txt = items.map(i => `${i.name}${i.selectedVariant ? ` (${i.selectedVariant})` : ''} ×${i.qty}`).join(', ');
     return `<div class="ord-card"><div class="ord-hd"><div><div class="ord-id">${esc(o.orderId)}</div><div class="ord-dt">${esc(fmtDate(o.date))} · ${esc(fmtTime(o.time))}</div></div><span class="bdg ${sc[o.orderStatus] || 'b-y'}">${esc(o.orderStatus)}</span></div><div class="ord-items">${esc(txt)}</div><div class="ord-ft"><span class="ord-amt">₹${Number(o.finalAmount).toFixed(0)}</span><div style="display:flex;gap:6px"><span class="bdg ${o.paymentStatus === 'paid' ? 'b-g' : 'b-y'}">${esc(o.paymentStatus)}</span><button class="btn btn-sm btn-ghost" onclick="openWA('${CFG.WA}','')">Help</button></div></div></div>`;
@@ -1997,6 +2522,137 @@ function renderOrders(orders) {
 // ══════════════════════════════════════════════
 // TIFFIN & CONTACT
 // ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// RESTAURANT / DELIVERY PAUSE TOGGLE
+// ══════════════════════════════════════════════
+function applyPauseState(mode) {
+  _pauseDelivery = mode || 'none';
+  const isSub = getSub();
+  const wrap = doc('rest-toggle-wrap');
+  const chk  = doc('rest-toggle-chk');
+  const icon = doc('rest-toggle-icon');
+  const title= doc('rest-toggle-title');
+  const sub  = doc('rest-toggle-sub');
+  const notice = doc('rest-paused-notice');
+  const mesh   = doc('rest-mesh-overlay');
+  const placeBtn = doc('place-btn');
+
+  // Only show toggle for subscribers
+  if (wrap) wrap.classList.toggle('hide', !isSub);
+  if (!isSub) return;
+
+  const isOn = mode === 'none';
+  if (chk) chk.checked = isOn;
+  if (icon) icon.textContent = isOn ? '🟢' : '🔴';
+  if (title) title.textContent = isOn ? 'Restaurant On' : 'Delivery Paused';
+  const subMap = { none:'Receiving all deliveries', lunch:'Lunch paused', dinner:'Dinner paused', both:'All deliveries paused' };
+  if (sub) sub.textContent = subMap[mode] || 'Receiving all deliveries';
+
+  // Mesh overlay on scroll area
+  if (mesh) mesh.style.display = isOn ? 'none' : 'block';
+
+  // Paused notice banner
+  const msgMap = { lunch:'🌅 Lunch delivery paused', dinner:'🌙 Dinner delivery paused', both:'🔴 All deliveries paused' };
+  if (notice) {
+    notice.style.display = isOn ? 'none' : 'flex';
+    const msgEl = doc('rest-paused-msg');
+    if (msgEl) msgEl.textContent = msgMap[mode] || 'Delivery paused';
+  }
+
+  // Disable place order button
+  if (placeBtn) {
+    placeBtn.disabled = !isOn;
+    placeBtn.style.opacity = isOn ? '' : '0.45';
+  }
+}
+
+function onRestToggleChange() {
+  const chk = doc('rest-toggle-chk');
+  if (chk && chk.checked) {
+    // Turn ON — resume immediately
+    resumeDelivery();
+  } else {
+    // Turn OFF — show pause options sheet
+    if (chk) chk.checked = true; // revert visually until user confirms
+    openPauseSheet();
+  }
+}
+
+function openPauseSheet() {
+  _selectedPauseOpt = null;
+  ['lunch','dinner','both'].forEach(o => {
+    const el = doc('popt-'+o); const ic = doc('popt-'+o+'-ic');
+    if (el) el.classList.remove('sel');
+    if (ic) ic.style.color = '#ede8e4';
+  });
+  const btn = doc('pause-confirm-btn');
+  if (btn) btn.disabled = true;
+  const sheet = doc('pause-sheet'), ov = doc('pause-overlay');
+  if (sheet) sheet.classList.add('open');
+  if (ov) ov.style.display = 'block';
+}
+
+function closePauseSheet() {
+  const sheet = doc('pause-sheet'), ov = doc('pause-overlay');
+  if (sheet) sheet.classList.remove('open');
+  if (ov) ov.style.display = 'none';
+  _selectedPauseOpt = null;
+}
+
+function selectPauseOpt(opt) {
+  _selectedPauseOpt = opt;
+  ['lunch','dinner','both'].forEach(o => {
+    const el = doc('popt-'+o); const ic = doc('popt-'+o+'-ic');
+    if (el) el.classList.toggle('sel', o === opt);
+    if (ic) ic.style.color = o === opt ? 'var(--p)' : '#ede8e4';
+  });
+  const btn = doc('pause-confirm-btn');
+  if (btn) btn.disabled = false;
+}
+
+async function confirmPause() {
+  if (!_selectedPauseOpt) return;
+  const user = Auth.get(); if (!user) return;
+  const btn = doc('pause-confirm-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving...'; }
+  try {
+    await api('pauseUserDelivery', { phone: user.phone, mode: _selectedPauseOpt });
+    _pauseDelivery = _selectedPauseOpt;
+    // Update cached sub data
+    const cached = Store.getJSON('pb_sub') || {};
+    Store.setJSON('pb_sub', { ...cached, pauseDelivery: _selectedPauseOpt });
+    closePauseSheet();
+    applyPauseState(_selectedPauseOpt);
+    // Also uncheck the switch visually
+    const chk = doc('rest-toggle-chk');
+    if (chk) chk.checked = false;
+    toast('⏸ Delivery paused: ' + _selectedPauseOpt);
+  } catch(e) {
+    toast('❌ Could not save: ' + e.message);
+    const chk = doc('rest-toggle-chk');
+    if (chk) chk.checked = _pauseDelivery === 'none';
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-pause"></i> Confirm Pause'; }
+  }
+}
+
+async function resumeDelivery() {
+  const user = Auth.get(); if (!user) return;
+  try {
+    await api('pauseUserDelivery', { phone: user.phone, mode: 'none' });
+    _pauseDelivery = 'none';
+    const cached = Store.getJSON('pb_sub') || {};
+    Store.setJSON('pb_sub', { ...cached, pauseDelivery: 'none' });
+    applyPauseState('none');
+    toast('✅ Delivery resumed!');
+  } catch(e) {
+    toast('❌ Could not resume: ' + e.message);
+    const chk = doc('rest-toggle-chk');
+    if (chk) chk.checked = false;
+    applyPauseState(_pauseDelivery);
+  }
+}
+
 function joinTiffin() {
   const user = Auth.get();
   let msg = 'Namaste! Monthly tiffin plan ke baare mein jaanna chahta/chahti hoon.\n\n🚚 *Free Home Delivery* + Save ₹200/month\n\n';
@@ -2029,18 +2685,28 @@ async function loadUserKhata() {
   if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#999">Loading transactions...</div>';
   // Auto-fill today as end date
   const toEl = doc('ku-to');
-  if (toEl && !toEl.value) toEl.value = new Date().toISOString().split('T')[0];
+  if (toEl && !toEl.value) toEl.value = PB.todayYMD(); // IST date — not UTC
   try {
     const data = await api('getKhata', { phone: user.phone });
     _userKhataEntries  = data.entries || [];
     _userKhataFiltered = [..._userKhataEntries];
     const bal = Number(data.balance) || 0;
     updateWalletUI(bal);
-    if (subEl) subEl.textContent = bal < 0 ? '⚠️ Balance negative — please recharge' : bal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+    const subTxt = bal < 0 ? '⚠️ Balance negative — please recharge' : bal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+    if (subEl) subEl.textContent = subTxt;
+    // FIX: also sync the account page wallet subtitle so it matches
+    const acctSub = doc('acct-wallet-sub');
+    if (acctSub) acctSub.textContent = subTxt;
     renderUserKhataList(_userKhataFiltered);
   } catch(e) {
     if (listEl) listEl.innerHTML = `<div style="text-align:center;padding:40px;color:#e63946">Unable to load wallet: ${e.message}</div>`;
   }
+}
+
+function resetUserKhataFilter() {
+  doc('ku-from').value = '';
+  doc('ku-to').value = '';
+  renderUserKhataList(_userKhataEntries);
 }
 
 function applyUserKhataFilter() {
@@ -2092,24 +2758,150 @@ function exportUserKhataPDF() {
   const rows = filtered.map(e => {
     const amt = Number(e.amount)||0;
     runBal += amt;
+    // Parse item names and order ID from note
+    // Supports new format: "Tiffin Given (items) | O110426143022A8F3K"
+    // and legacy format:   "Tiffin Given (items) | PB-xxx"
+    const ORDER_ID_RE = /(O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
     let orderedItems = '—';
     if (e.type==='tiffin_given' || e.type==='tiffin_udhar') {
-      const note = e.note||'';
-      const itemMatch = note.match(/\(([^)]+)\)\s*$/);
-      const ordIdMatch = note.match(/(PB-[\w-]+)/i);
-      const itemName = itemMatch ? itemMatch[1] : 'tiffin';
-      const ordId = ordIdMatch ? ordIdMatch[1] : '';
-      orderedItems = itemName + (ordId ? ' | ' + ordId : '');
+      const note = e.note || '';
+      // Primary format: "Tiffin Given (items) | ORDER_ID"
+      const newFmt = note.match(/\((.+?)\)\s*\|\s*(O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i);
+      if (newFmt) {
+        orderedItems = `${newFmt[1]} <span style="color:#999;font-size:10px">| ${newFmt[2]}</span>`;
+      } else {
+        // Legacy fallback
+        const itemMatch = note.match(/\(([^)]+)\)\s*$/);
+        const ordIdMatch = note.match(ORDER_ID_RE);
+        const itemName = itemMatch ? itemMatch[1] : (note || 'Tiffin');
+        const ordId = ordIdMatch ? ordIdMatch[1] : '';
+        orderedItems = itemName + (ordId ? ` <span style="color:#999;font-size:10px">| ${ordId}</span>` : '');
+      }
     }
-    // Use fmtDate/fmtTime — never show raw ISO or 1899 strings
-    return `<tr><td>${fmtDate(e.date)}</td><td>${fmtTime(e.time)}</td><td>${typeLabels[e.type]||e.type}</td><td style="color:${amt>=0?'green':'red'};font-weight:700">${amt>=0?'+':''}₹${Math.abs(amt)}</td><td style="font-weight:700;color:${runBal<0?'#e63946':'#111'}">₹${runBal}</td><td style="font-size:11px;color:#555">${orderedItems}</td><td>${(e.note||'').substring(0,40)}</td></tr>`;
+    const rowBg = amt >= 0 ? '#f0fdf8' : '#fff5f5';
+    return `<tr style="background:${rowBg}">
+      <td>${fmtDate(e.date)}</td>
+      <td>${fmtTime(e.time)}</td>
+      <td><strong>${typeLabels[e.type]||e.type}</strong></td>
+      <td style="color:${amt>=0?'#2a9d8f':'#e63946'};font-weight:800">${amt>=0?'+':''}₹${Math.abs(amt)}</td>
+      <td style="font-weight:800;color:${runBal<0?'#e63946':'#111'}">₹${runBal}</td>
+      <td>${orderedItems}</td>
+    </tr>`;
   }).join('');
-  // Clean generated-on date in IST
+
   const nowIST = new Date(Date.now() + 5.5*3600*1000);
   const genStr = `${String(nowIST.getUTCDate()).padStart(2,'0')}/${String(nowIST.getUTCMonth()+1).padStart(2,'0')}/${nowIST.getUTCFullYear()} ${fmtTime(nowIST.toISOString())}`;
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Khata — ${user.name}</title><style>body{font-family:Arial,sans-serif;margin:30px;color:#111}h1{color:#e63946;font-size:22px}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f3f4f6;padding:9px;text-align:left;font-size:12px;border:1px solid #e5e7eb}td{padding:9px;font-size:12px;border:1px solid #e5e7eb}.info{display:flex;justify-content:space-between;margin-bottom:20px;background:#f9fafb;padding:16px;border-radius:10px}.bal{font-size:22px;font-weight:800;color:${closingBal<0?'#e63946':'#2a9d8f'}}</style></head><body><h1>🍱 Puro Bite — My Khata</h1><div class="info"><div><strong>${user.name}</strong><br>📞 ${user.phone}<br>${user.address||''}</div><div style="text-align:right">${from||to?`<div style="font-size:11px;color:#999">Period: ${from||'start'} to ${to||'today'}</div>`:''}${openingBal!==0?`<div style="font-size:11px;color:#999">Opening Balance</div><div style="font-size:16px;font-weight:700;color:#555">₹${openingBal}</div>`:''}<div style="font-size:11px;color:#999;margin-top:4px">Closing Balance</div><div class="bal">₹${closingBal}</div></div></div><table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Ordered Items</th><th>Note</th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#999">No transactions in this period</td></tr>'}</tbody></table><div style="margin-top:20px;font-size:11px;color:#999">Generated: ${genStr}</div></body></html>`;
-  const w = window.open('', '_blank'); w.document.write(html); w.document.close();
-  setTimeout(() => w.print(), 600);
+  const periodLabel = (from || to) ? `${from ? fmtDateFromYMD(from) : 'Start'} → ${to ? fmtDateFromYMD(to) : 'Today'}` : 'All Time';
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Wallet Statement — ${user.name}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;color:#111;background:#f9fafb;padding:0}
+  .page{max-width:720px;margin:0 auto;background:#fff;padding:32px 28px;min-height:100vh}
+  /* Header */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:18px;border-bottom:3px solid #e63946}
+  .brand-name{font-size:26px;font-weight:900;color:#e63946;letter-spacing:-0.5px}
+  .brand-tagline{font-size:11px;color:#999;margin-top:2px}
+  .brand-contact{font-size:12px;color:#555;margin-top:6px;line-height:1.6}
+  .brand-contact strong{color:#111}
+  /* Balance cards */
+  .bal-row{display:flex;gap:12px;margin-bottom:20px}
+  .bal-card{flex:1;border-radius:10px;padding:14px 16px;text-align:center}
+  .bal-card.open{background:#f0fdf8;border:1.5px solid #2a9d8f}
+  .bal-card.close{background:${closingBal<0?'#fff5f5':'#f0fdf8'};border:1.5px solid ${closingBal<0?'#e63946':'#2a9d8f'}}
+  .bal-label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+  .bal-amount{font-size:22px;font-weight:900;color:${closingBal<0?'#e63946':'#2a9d8f'}}
+  /* Customer info */
+  .info-row{display:flex;justify-content:space-between;align-items:flex-start;background:#f3f4f6;border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px}
+  .info-row .name{font-size:16px;font-weight:800;margin-bottom:4px}
+  .period-badge{background:#e63946;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;align-self:flex-start}
+  /* Table */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead tr{background:#1f2937;color:#fff}
+  th{padding:10px 9px;text-align:left;font-weight:700;font-size:11px;letter-spacing:.3px}
+  td{padding:9px;border-bottom:1px solid #f0f0f0}
+  tbody tr:hover{background:#fafafa}
+  /* Footer */
+  .footer{margin-top:24px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#999}
+  .footer strong{color:#e63946}
+  @media print{body{background:#fff}.page{padding:20px}button{display:none}}
+</style>
+</head>
+<body><div class="page">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div>
+      <div class="brand-name">🍱 Puro Bite</div>
+      <div class="brand-tagline">Ghar ka khana ♥</div>
+      <div class="brand-contact">
+        📞 <strong>9889760350</strong><br>
+        Wallet Statement
+      </div>
+    </div>
+    <span class="period-badge">📅 ${periodLabel}</span>
+  </div>
+
+  <!-- Customer info -->
+  <div class="info-row">
+    <div>
+      <div class="name">${user.name}</div>
+      <div style="color:#555">📞 ${user.phone}</div>
+      ${user.address ? `<div style="color:#777;font-size:12px;margin-top:2px">📍 ${user.address}</div>` : ''}
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:11px;color:#888">Statement generated</div>
+      <div style="font-size:12px;font-weight:700">${genStr}</div>
+    </div>
+  </div>
+
+  <!-- Balance summary -->
+  <div class="bal-row">
+    ${openingBal !== 0 ? `<div class="bal-card open"><div class="bal-label">Opening Balance</div><div class="bal-amount" style="font-size:18px;color:#555">₹${openingBal}</div></div>` : ''}
+    <div class="bal-card close">
+      <div class="bal-label">Closing Balance</div>
+      <div class="bal-amount">₹${closingBal}</div>
+    </div>
+    <div class="bal-card open" style="background:#fff8f0;border-color:#f4a261">
+      <div class="bal-label">Transactions</div>
+      <div class="bal-amount" style="color:#f4a261">${filtered.length}</div>
+    </div>
+  </div>
+
+  <!-- Transactions table -->
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Time</th><th>Type</th>
+        <th>Amount</th><th>Balance</th><th>Items Ordered</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999">No transactions in this period</td></tr>'}
+    </tbody>
+  </table>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div>Powered by <strong>Puro Bite</strong> · 📞 9889760350</div>
+    <div>Generated: ${genStr}</div>
+  </div>
+
+</div></body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { toast('Popup blocked! Allow popups and retry.'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 700);
+}
+
+function fmtDateFromYMD(ymd) {
+  if (!ymd) return '';
+  const [y,m,d] = ymd.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 // ══════════════════════════════════════════════
@@ -2123,8 +2915,6 @@ function applyKhataVisibility() {
   // Bottom nav wallet button
   const bnWallet = doc('bn-wallet');
   if (bnWallet) bnWallet.style.display = show ? '' : 'none';
-  // Header wallet button — only show if also subscriber
-  if (!show) doc('wallet-hdr-btn').classList.add('hide');
   // Account panel wallet row
   const apWalletRow = doc('ap-wallet-row');
   if (apWalletRow) apWalletRow.style.display = show ? '' : 'none';
@@ -2133,54 +2923,112 @@ function applyKhataVisibility() {
   if (acctWalletWrap && !show) acctWalletWrap.classList.add('hide');
 }
 
+// ════════════════════════════════════════════════
+// POLLING  (120 s, optimised — no duplicate API calls per tick)
+// ════════════════════════════════════════════════
+const INDEX_POLL_MS = 120000;
+let _indexPollLock  = false; // prevents concurrent poll ticks
+
 function startPolling() {
   stopPolling();
   _pollTimer = setInterval(() => {
-    if (document.hidden || !_session) return;
-    const cur = stack[stack.length - 1];
-    // Silently refresh wallet balance for subscribers (only if Khata ON)
-    if (_khataEnabled && getSub()) {
-      api('getSubscriberBalance', { phone: _session.phone })
-        .then(r => { updateWalletUI(Number(r.balance) || 0); })
-        .catch(() => {});
-    }
-    // Silently refresh orders if on orders page
-    if (cur === 'pg-orders') {
-      api('getUserOrders', { userId: _session.userId })
-        .then(orders => renderOrders(orders))
-        .catch(() => {});
-    }
-    // Silently refresh khata if on wallet page (only if Khata ON)
-    if (_khataEnabled && cur === 'pg-khata' && getSub()) {
-      api('getKhata', { phone: _session.phone })
-        .then(data => {
-          _userKhataEntries = data.entries || [];
-          _userKhataFiltered = [..._userKhataEntries];
-          const bal = Number(data.balance) || 0;
-          updateWalletUI(bal);
-          renderUserKhataList(_userKhataFiltered);
-        })
-        .catch(() => {});
-    }
-  }, 30000); // 30 seconds
+    if (document.hidden || !_session || _indexPollLock) return;
+    _runPollTick();
+  }, INDEX_POLL_MS);
 }
 
 function stopPolling() {
   if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
 }
 
+// Single tick — all page-aware data refreshes, deduped into one getKhata call
+async function _runPollTick() {
+  if (_indexPollLock) return;
+  _indexPollLock = true;
+  try {
+    const cur = stack[stack.length - 1];
+    const isSub = getSub();
+
+    // ── Subscriber: one getKhata call covers wallet balance + tx list + pause ──
+    if (isSub && _khataEnabled) {
+      try {
+        const data = await api('getKhata', { phone: _session.phone });
+        _userKhataEntries  = data.entries || [];
+        _userKhataFiltered = [..._userKhataEntries];
+        updateWalletUI(Number(data.balance) || 0);
+        if (cur === 'pg-khata') renderUserKhataList(_userKhataFiltered);
+      } catch {}
+      // Pause state sync — separate lightweight call (different endpoint)
+      try {
+        const r = await api('getSubscriberPauseStatus', { phone: _session.phone });
+        const newMode = r.pauseDelivery || 'none';
+        if (newMode !== _pauseDelivery) applyPauseState(newMode);
+      } catch {}
+    }
+
+    // ── Orders page: refresh list silently ──
+    if (cur === 'pg-orders') {
+      try {
+        const orders = await api('getUserOrders', { userId: _session.userId });
+        renderOrders(orders);
+      } catch {}
+    }
+  } finally {
+    _indexPollLock = false;
+  }
+}
+
+// Manual refresh — runs a tick immediately, resets the interval
+async function manualIndexRefresh() {
+  if (_indexPollLock) return;
+  await _runPollTick();
+  // Also refresh page-specific content
+  const cur = stack[stack.length - 1];
+  if (cur === 'pg-home')   try { await loadMenu(); } catch {}
+  if (cur === 'pg-orders') try { await loadOrders(); } catch {}
+  // Reset interval so next auto fires 120s from now
+  stopPolling();
+  startPolling();
+}
+
+// Pause when hidden, refresh immediately when visible
+document.addEventListener('visibilitychange', () => {
+  if (!_session) return;
+  if (document.hidden) {
+    // Tab hidden — stop polling to save resources and avoid wasted API calls
+    stopPolling();
+  } else {
+    // Tab visible — run a tick immediately to get fresh data, then restart interval
+    _runPollTick().catch(() => {});
+    startPolling(); // always restart — stopPolling() was called on hide
+  }
+});
+
 // ══════════════════════════════════════════════
 // STARTUP
 // ══════════════════════════════════════════════
 function bootApp() {
   const loader = doc('app-loader');
+  // ── Register Service Worker for PWA (offline + installable) ──
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(regs => { regs.forEach(r => r.unregister()); }).catch(() => {});
-    if ('caches' in window) { caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {}); }
+    navigator.serviceWorker.register('./sw.js', { scope: './' }).then(reg => {
+      console.log('[SW] Registered:', reg.scope);
+      // If a new SW is waiting, activate it on next page load
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        if (newSW) {
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[SW] New version available — will update on next load');
+            }
+          });
+        }
+      });
+    }).catch(err => console.warn('[SW] Registration failed:', err));
   }
   history.replaceState({ page: 'pg-auth' }, '', location.pathname);
 
-  // ── Try to restore session from sessionStorage (fixes frequent logout) ──
+  // ── Try to restore session from localStorage ──
   const savedSess = SessStore.get();
   const savedSub  = Store.getJSON('pb_sub');
   if (savedSess && savedSess.userId) {
@@ -2189,23 +3037,22 @@ function bootApp() {
     api('getKhataEnabled').then(ke => {
       _khataEnabled = ke.enabled !== false;
       applyKhataVisibility();
-      // Update wallet header visibility based on fresh flag
-      const iS = savedSub?.isSubscriber;
-      if (iS && _khataEnabled) doc('wallet-hdr-btn').classList.remove('hide');
-      else doc('wallet-hdr-btn').classList.add('hide');
     }).catch(() => {});
     const isSub = savedSub?.isSubscriber;
     if (isSub && _khataEnabled) {
-      doc('sub-banner').classList.remove('hide');
-      doc('wallet-hdr-btn').classList.remove('hide');
-      // Fetch fresh balance in background
-      api('getSubscriberBalance', { phone: savedSess.phone })
-        .then(r => updateWalletUI(Number(r.balance) || 0))
+      // Fetch fresh balance in background — use getKhata (transaction sum = true balance)
+      api('getKhata', { phone: savedSess.phone })
+        .then(kd => updateWalletUI(Number(kd.balance) || 0))
         .catch(() => { if (_walletBal !== null) updateWalletUI(_walletBal); });
-    } else {
-      doc('wallet-hdr-btn').classList.add('hide');
-      if (isSub) doc('sub-banner').classList.remove('hide');
     }
+    // PRO badge on account button
+    const proBadge = doc('acct-pro-badge');
+    if (proBadge) proBadge.classList.toggle('hide', !isSub);
+    // Tiffin plan banner — only for non-subscribers
+    const tifBan = doc('tif-ban');
+    if (tifBan) tifBan.classList.toggle('hide', !!isSub);
+    // Restaurant pause state (subscribers only)
+    applyPauseState(savedSub?.pauseDelivery || 'none');
     updateBadge();
     // Navigate directly to home
     doc('pg-auth').classList.replace('here','left');
@@ -2220,6 +3067,30 @@ function bootApp() {
     startPolling();
     loader.classList.add('fade-out');
     setTimeout(() => { loader.style.display = 'none'; }, 300);
+
+    // ── Background subscriber status re-verification ──────────
+    // Runs after UI is already shown — corrects stale cached status
+    // (e.g. admin deactivated subscriber since last visit)
+    api('checkSubscriber', { phone: savedSess.phone }).then(fresh => {
+      Store.setJSON('pb_sub', fresh);
+      const wasSubCached = !!isSub;
+      const isSubNow     = !!fresh.isSubscriber;
+      if (wasSubCached !== isSubNow) {
+        // Status changed — re-apply all subscriber-dependent UI
+        const pb = doc('acct-pro-badge');
+        if (pb) pb.classList.toggle('hide', !isSubNow);
+        const tb = doc('tif-ban');
+        if (tb) tb.classList.toggle('hide', isSubNow);
+        applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
+        applyKhataVisibility();
+        if (!isSubNow) updateWalletUI(null); // clear wallet pill if no longer sub
+        updateBadge();
+      } else if (isSubNow) {
+        // Still a sub — sync pause state in case it changed externally
+        applyPauseState(fresh.pauseDelivery || 'none');
+      }
+    }).catch(() => {}); // silent — cached status used as fallback
+
     return;
   }
 
@@ -2232,19 +3103,65 @@ function bootApp() {
 
 (function blankScreenGuard() {
   setTimeout(() => {
+    // Skip reload if user is actively logging in or signing up
+    // (buttons are disabled while API call is in progress — bcrypt can take 2-4s)
+    const loginBusy  = doc('btn-login')  && doc('btn-login').disabled;
+    const signupBusy = doc('btn-signup') && doc('btn-signup').disabled;
+    if (loginBusy || signupBusy) return;
     const visible = document.querySelector('.pg.here');
     if (!visible || !visible.offsetHeight) { location.replace(location.pathname); }
-  }, 8000); // Increased from 3s to 8s — prevents false reloads on slow connections
+  }, 8000); // 8s — only fires if genuinely stuck with no visible page and no auth in progress
 })();
 
 window.addEventListener('pageshow', e => {
-  if (e.persisted && !_session) {
-    stopPolling();
-    document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
-    doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
-    stack = ['pg-auth'];
-    hideAppUI(); hideFab();
-    autofillCreds();
+  if (e.persisted) {
+    // bfcache restore — check if session is still valid in localStorage
+    const saved = SessStore.get();
+    if (saved && saved.userId) {
+      // Session still exists — ensure _session is set (JS var may be gone after bfcache)
+      if (!_session) {
+        Auth.set(saved);
+        showAppUI();
+        // Re-navigate to home if on auth page
+        const cur = stack[stack.length - 1];
+        if (!cur || cur === 'pg-auth') {
+          doc('pg-auth').classList.replace('here','left');
+          doc('pg-home').classList.remove('right','left');
+          doc('pg-home').classList.add('here');
+          stack = ['pg-auth','pg-home'];
+          updateBottomNav('pg-home');
+        }
+        startPolling();
+      }
+      // ── Background subscriber re-verification on bfcache restore ──
+      // Corrects stale status if admin changed it while tab was cached
+      api('checkSubscriber', { phone: saved.phone }).then(fresh => {
+        const cached = Store.getJSON('pb_sub') || {};
+        Store.setJSON('pb_sub', fresh);
+        const wasSubCached = !!cached.isSubscriber;
+        const isSubNow     = !!fresh.isSubscriber;
+        if (wasSubCached !== isSubNow) {
+          const pb = doc('acct-pro-badge');
+          if (pb) pb.classList.toggle('hide', !isSubNow);
+          const tb = doc('tif-ban');
+          if (tb) tb.classList.toggle('hide', isSubNow);
+          applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
+          applyKhataVisibility();
+          if (!isSubNow) updateWalletUI(null);
+          updateBadge();
+        } else if (isSubNow) {
+          applyPauseState(fresh.pauseDelivery || 'none');
+        }
+      }).catch(() => {});
+    } else {
+      // Genuinely logged out — show auth
+      stopPolling();
+      document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+      doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
+      stack = ['pg-auth'];
+      hideAppUI(); hideFab();
+      autofillCreds();
+    }
   }
 });
 
