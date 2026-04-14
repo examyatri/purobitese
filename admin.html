@@ -416,7 +416,7 @@ tr:hover td{background:#fafafa}
             <button class="f-btn" onclick="filterSubs('paused',this)">Paused</button>
             <button class="f-btn" onclick="filterSubs('delivery_paused',this)" style="background:#fff3cd;color:#856404;border-color:#ffc107">⏸ Delivery Off</button>
           </div>
-          <button class="btn btn-g" onclick="openSubModal()"><i class="fa-solid fa-plus"></i> Add Subscriber</button>
+          <button class="btn btn-g" onclick="openAddUserModal()"><i class="fa-solid fa-user-plus"></i> Add User</button>
           <button class="btn btn-dk" onclick="openPromoteModal()" style="background:#4f46e5"><i class="fa-solid fa-arrow-up-right-dots"></i> Promote User</button>
         </div>
         <div class="tc"><div class="th"><h3 id="sub-count">Subscribers</h3></div>
@@ -758,18 +758,47 @@ tr:hover td{background:#fafafa}
 </div></div>
 
 <!-- Subscriber -->
+<!-- Add/Edit Subscriber Modal (edit only) -->
 <div class="mo hide" id="mo-sub"><div class="mo-box">
-  <div class="mo-t" id="mo-sub-t">Add Subscriber</div>
+  <div class="mo-t" id="mo-sub-t">Edit Subscriber</div>
   <input type="hidden" id="sub-orig-ph">
-  <div class="fg"><label class="lbl">Phone *</label><input id="sub-ph" class="inp" type="tel" placeholder="10-digit"></div>
+  <div class="fg"><label class="lbl">Phone</label><input id="sub-ph" class="inp" type="tel" placeholder="10-digit" readonly></div>
   <div class="fg"><label class="lbl">Name</label><input id="sub-nm" class="inp" type="text" placeholder="Subscriber name"></div>
   <div class="fg"><label class="lbl">Address</label><input id="sub-addr" class="inp" type="text" placeholder="Delivery address"></div>
   <div class="fg"><label class="lbl">Plan</label>
     <select id="sub-plan" class="inp"><option value="both">Both (Day + Night)</option><option value="day">Day Only</option><option value="night">Night Only</option></select></div>
   <div class="fg"><label class="lbl">Status</label>
     <select id="sub-stat" class="inp"><option value="active">Active</option><option value="paused">Paused</option></select></div>
-  <div class="fg" id="sub-recharge-fg"><label class="lbl">Initial Recharge Amount (₹)</label><input id="sub-recharge" class="inp" type="number" min="0" placeholder="e.g. 2000 (optional)"></div>
+  <div class="fg" id="sub-recharge-fg" style="display:none"><label class="lbl">Initial Recharge Amount (₹)</label><input id="sub-recharge" class="inp" type="number" min="0" placeholder="e.g. 2000 (optional)"></div>
   <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-sub')">Cancel</button><button class="btn btn-g" onclick="submitSub()"><i class="fa-solid fa-check"></i> Save</button></div>
+</div></div>
+
+<!-- Add User Modal (admin creates user, optional subscriber) -->
+<div class="mo hide" id="mo-add-user"><div class="mo-box">
+  <div class="mo-t">👤 Add New User</div>
+  <div class="fg"><label class="lbl">Phone Number *</label><input id="au-ph" class="inp" type="tel" maxlength="10" placeholder="10-digit mobile" inputmode="numeric"></div>
+  <div class="fg"><label class="lbl">Full Name *</label><input id="au-nm" class="inp" type="text" placeholder="Customer name"></div>
+  <div class="fg"><label class="lbl">Delivery Address *</label><input id="au-addr" class="inp" type="text" placeholder="Delivery address"></div>
+  <div class="fg"><label class="lbl">Password *</label><input id="au-pw" class="inp" type="text" placeholder="Create password for user"></div>
+  <div class="fg"><label class="lbl">Email (optional)</label><input id="au-em" class="inp" type="email" placeholder="email@example.com"></div>
+  <div style="background:#f8f9fa;border-radius:10px;padding:12px;margin-bottom:12px">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700;font-size:13px">
+      <input type="checkbox" id="au-make-sub" onchange="toggleAddUserSubFields()" style="width:16px;height:16px">
+      Make Subscriber immediately
+    </label>
+    <div id="au-sub-fields" style="display:none;margin-top:12px">
+      <div class="fg"><label class="lbl">Plan</label>
+        <select id="au-plan" class="inp"><option value="both">Both (Lunch + Dinner)</option><option value="lunch">Lunch Only</option><option value="dinner">Dinner Only</option></select>
+      </div>
+      <div class="fg"><label class="lbl">Initial Wallet Recharge (₹)</label>
+        <input id="au-recharge" class="inp" type="number" min="0" placeholder="e.g. 2000 (optional)">
+      </div>
+    </div>
+  </div>
+  <div class="mo-ft">
+    <button class="btn btn-ghost" onclick="closeMo('mo-add-user')">Cancel</button>
+    <button class="btn btn-g" onclick="submitAddUser()"><i class="fa-solid fa-user-plus"></i> Create Account</button>
+  </div>
 </div></div>
 
 <!-- Rider -->
@@ -2121,8 +2150,35 @@ function renderSubs(){
   </tr>`;}).join(''):'<tr><td colspan="8" style="text-align:center;padding:28px;color:#999">No subscribers</td></tr>';
 }
 
-function openSubModal(){ doc('mo-sub-t').textContent='Add Subscriber'; doc('sub-orig-ph').value=''; ['sub-ph','sub-nm','sub-addr'].forEach(id=>doc(id).value=''); doc('sub-plan').value='both'; doc('sub-stat').value='active'; doc('sub-recharge').value=''; doc('sub-recharge-fg').style.display='block'; doc('mo-sub').classList.remove('hide'); }
+function openSubModal(){ doc('mo-sub-t').textContent='Edit Subscriber'; doc('sub-orig-ph').value=''; doc('sub-ph').value=''; doc('sub-nm').value=''; doc('sub-addr').value=''; doc('sub-plan').value='both'; doc('sub-stat').value='active'; doc('sub-recharge').value=''; doc('sub-recharge-fg').style.display='none'; doc('mo-sub').classList.remove('hide'); }
 function editSub(ph,nm,plan,stat){ doc('mo-sub-t').textContent='Edit Subscriber'; doc('sub-orig-ph').value=ph; doc('sub-ph').value=ph; doc('sub-nm').value=nm; doc('sub-plan').value=plan; doc('sub-stat').value=stat; doc('sub-recharge').value=''; doc('sub-recharge-fg').style.display='none'; doc('mo-sub').classList.remove('hide'); }
+function openAddUserModal(){ ['au-ph','au-nm','au-addr','au-pw','au-em','au-recharge'].forEach(id=>{if(doc(id))doc(id).value=''}); doc('au-make-sub').checked=false; doc('au-sub-fields').style.display='none'; doc('au-plan').value='both'; doc('mo-add-user').classList.remove('hide'); }
+function toggleAddUserSubFields(){ doc('au-sub-fields').style.display=doc('au-make-sub').checked?'block':'none'; }
+async function submitAddUser(){
+  const ph=(doc('au-ph').value||'').replace(/\D/g,'');
+  const nm=(doc('au-nm').value||'').trim();
+  const addr=(doc('au-addr').value||'').trim();
+  const pw=(doc('au-pw').value||'').trim();
+  const em=(doc('au-em').value||'').trim();
+  if(!ph||ph.length!==10) return toast('Valid 10-digit phone required');
+  if(!nm) return toast('Name required');
+  if(!addr) return toast('Address required');
+  if(!pw||pw.length<6) return toast('Password must be 6+ characters');
+  const makeSub=doc('au-make-sub').checked;
+  const plan=makeSub?doc('au-plan').value:'both';
+  const recharge=makeSub?Number(doc('au-recharge').value)||0:0;
+  const btn=doc('mo-add-user').querySelector('.btn-g');
+  btn.innerHTML='<span class="spin"></span> Creating...'; btn.disabled=true;
+  try{
+    const r=await api('adminCreateUser',{phone:ph,name:nm,address:addr,password:pw,email:em,makeSubscriber:makeSub,plan,initialRecharge:recharge});
+    toast('✅ User created!'+(makeSub?' And added as subscriber.':''));
+    closeMo('mo-add-user');
+    loadUsers();
+    if(makeSub){ loadSubs(); if(recharge>0) loadKhata(); }
+    if(_curPg==='dashboard') loadDash();
+  }catch(e){ toast('❌ '+e.message); }
+  finally{ btn.innerHTML='<i class="fa-solid fa-user-plus"></i> Create Account'; btn.disabled=false; }
+}
 
 async function submitSub(){
   const origPh=doc('sub-orig-ph').value, ph=doc('sub-ph').value.trim().replace(/\D/g,''), nm=doc('sub-nm').value.trim(), addr=doc('sub-addr').value.trim();
@@ -2700,7 +2756,7 @@ function exportKhataPDF(){
   }
   const closingBal=filtered.reduce((s,e)=>s+(Number(e.amount)||0),openingBal);
   const typeLabels={recharge:'Amount Received',tiffin_given:'Tiffin Given',tiffin_udhar:'Tiffin Udhar',adjustment:'Adjustment'};
-  const ORDER_ID_RE = /(O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+  const ORDER_ID_RE = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
   let runBal=openingBal;
   const rows=filtered.map(e=>{
     const amt=Number(e.amount)||0;

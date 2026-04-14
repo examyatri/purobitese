@@ -1740,7 +1740,7 @@ async function initApp() {
   } catch { _khataEnabled = true; }
   applyKhataVisibility();
 
-  // Check subscriber status
+  // Check subscriber status — fresh from server
   let subData = null;
   try {
     subData = await api('checkSubscriber', { phone: user.phone });
@@ -1748,24 +1748,19 @@ async function initApp() {
   } catch {}
   const cachedSub = subData || Store.getJSON('pb_sub');
   const isSub = cachedSub?.isSubscriber;
+
+  // Apply all subscriber-dependent UI now that we know the status
+  applyKhataVisibility();
+
   if (isSub && _khataEnabled) {
-    // Show wallet button in header
-    
     // Fetch wallet balance — use getKhata so balance = transaction sum (always accurate)
     try {
       const kd = await api('getKhata', { phone: user.phone });
       updateWalletUI(Number(kd.balance) || 0);
     } catch {}
   } else {
-    
     updateWalletUI(null);
   }
-  // PRO badge on account button — visible only for subscribers
-  const proBadge = doc('acct-pro-badge');
-  if (proBadge) proBadge.classList.toggle('hide', !isSub);
-  // Tiffin plan banner — only for non-subscribers
-  const tifBan = doc('tif-ban');
-  if (tifBan) tifBan.classList.toggle('hide', !!isSub);
   // Restaurant pause state (subscribers only)
   applyPauseState(cachedSub?.pauseDelivery || 'none');
   updateBadge();
@@ -2761,12 +2756,12 @@ function exportUserKhataPDF() {
     // Parse item names and order ID from note
     // Supports new format: "Tiffin Given (items) | O110426143022A8F3K"
     // and legacy format:   "Tiffin Given (items) | PB-xxx"
-    const ORDER_ID_RE = /(O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+    const ORDER_ID_RE = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
     let orderedItems = '—';
     if (e.type==='tiffin_given' || e.type==='tiffin_udhar') {
       const note = e.note || '';
       // Primary format: "Tiffin Given (items) | ORDER_ID"
-      const newFmt = note.match(/\((.+?)\)\s*\|\s*(O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i);
+      const newFmt = note.match(/\((.+?)\)\s*\|\s*(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i);
       if (newFmt) {
         orderedItems = `${newFmt[1]} <span style="color:#999;font-size:10px">| ${newFmt[2]}</span>`;
       } else {
@@ -2911,8 +2906,9 @@ let _pollTimer = null;
 
 // ── KHATA / WALLET VISIBILITY GATING ──────────────────────────
 function applyKhataVisibility() {
-  const show = _khataEnabled;
-  // Bottom nav wallet button
+  const isSub = getSub();
+  const show   = _khataEnabled && isSub;
+  // Bottom nav wallet button — only for subscribers
   const bnWallet = doc('bn-wallet');
   if (bnWallet) bnWallet.style.display = show ? '' : 'none';
   // Account panel wallet row
@@ -2920,7 +2916,13 @@ function applyKhataVisibility() {
   if (apWalletRow) apWalletRow.style.display = show ? '' : 'none';
   // Account page wallet wrap
   const acctWalletWrap = doc('acct-wallet-wrap');
-  if (acctWalletWrap && !show) acctWalletWrap.classList.add('hide');
+  if (acctWalletWrap) acctWalletWrap.classList.toggle('hide', !show);
+  // Tiffin plan banner — only for non-subscribers
+  const tifBan = doc('tif-ban');
+  if (tifBan) tifBan.classList.toggle('hide', isSub);
+  // PRO badge on account button
+  const proBadge = doc('acct-pro-badge');
+  if (proBadge) proBadge.classList.toggle('hide', !isSub);
 }
 
 // ════════════════════════════════════════════════
@@ -2958,13 +2960,25 @@ async function _runPollTick() {
         updateWalletUI(Number(data.balance) || 0);
         if (cur === 'pg-khata') renderUserKhataList(_userKhataFiltered);
       } catch {}
-      // Pause state sync — separate lightweight call (different endpoint)
+      // Pause state sync
       try {
         const r = await api('getSubscriberPauseStatus', { phone: _session.phone });
         const newMode = r.pauseDelivery || 'none';
         if (newMode !== _pauseDelivery) applyPauseState(newMode);
       } catch {}
     }
+
+    // ── Restaurant timing sync — refresh cutoff config every tick ──
+    // So if admin changes open/close time, user sees it within 120s (no reload needed)
+    try {
+      const cfg = await api('getOrderCutoff');
+      if (cfg) {
+        window._cutoffCfg = cfg;
+        const h = getISTHours();
+        const isLunch = h < (cfg.cutoffDay ? (()=>{ const [dH,dM]=(cfg.cutoffDay||'11:30').split(':').map(Number); return dH+dM/60; })() : 11.5);
+        updateCutoffBanner(cfg, h, isLunch ? 'morning' : 'evening');
+      }
+    } catch {}
 
     // ── Orders page: refresh list silently ──
     if (cur === 'pg-orders') {
@@ -3077,17 +3091,26 @@ function bootApp() {
       const isSubNow     = !!fresh.isSubscriber;
       if (wasSubCached !== isSubNow) {
         // Status changed — re-apply all subscriber-dependent UI
-        const pb = doc('acct-pro-badge');
-        if (pb) pb.classList.toggle('hide', !isSubNow);
-        const tb = doc('tif-ban');
-        if (tb) tb.classList.toggle('hide', isSubNow);
-        applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
         applyKhataVisibility();
-        if (!isSubNow) updateWalletUI(null); // clear wallet pill if no longer sub
+        applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
         updateBadge();
+        if (isSubNow && _khataEnabled) {
+          // Newly promoted subscriber — fetch wallet balance immediately
+          api('getKhata', { phone: savedSess.phone })
+            .then(kd => updateWalletUI(Number(kd.balance) || 0))
+            .catch(() => {});
+        } else {
+          updateWalletUI(null);
+        }
       } else if (isSubNow) {
         // Still a sub — sync pause state in case it changed externally
         applyPauseState(fresh.pauseDelivery || 'none');
+        // Also refresh wallet balance in case admin added money
+        if (_khataEnabled) {
+          api('getKhata', { phone: savedSess.phone })
+            .then(kd => updateWalletUI(Number(kd.balance) || 0))
+            .catch(() => {});
+        }
       }
     }).catch(() => {}); // silent — cached status used as fallback
 
