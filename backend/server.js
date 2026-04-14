@@ -77,6 +77,7 @@ app.post('/api', async (req, res) => {
       case 'updateSubscriber': result = await updateSubscriber(data); break;
       case 'removeSubscriber': result = await removeSubscriber(data); break;
       case 'getUserByPhone': result = await getUserByPhone(data); break;
+      case 'adminCreateUser': result = await adminCreateUser(data); break;
       case 'promoteToSubscriber': result = await promoteToSubscriber(data); break;
       case 'createRider': result = await createRider(data); break;
       case 'updateRider': result = await updateRider(data); break;
@@ -149,35 +150,36 @@ function getIST() { return new Date(Date.now() + 5.5 * 3600000); }
 // Rider ID : R + DDMMYYYY + 4-digit sequence  e.g. R110420260001
 // User  ID : phone number (10-digit, set at registration)
 //──────────────────────────────────────────────────────────────
-function generateOrderId(ist) {
-  // Date part: DDMMYY
-  const dd  = String(ist.getUTCDate()).padStart(2, '0');
-  const mm  = String(ist.getUTCMonth() + 1).padStart(2, '0');
-  const yy  = String(ist.getUTCFullYear()).slice(-2);
-  // Time part: HHMMSS (IST fields — ist is already IST-shifted)
-  const HH  = String(ist.getUTCHours()).padStart(2, '0');
-  const MM  = String(ist.getUTCMinutes()).padStart(2, '0');
-  const SS  = String(ist.getUTCSeconds()).padStart(2, '0');
-  // 5 random alphanumeric digits for guaranteed uniqueness on concurrent bulk inserts
-  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // unambiguous charset
+function generateId(prefix, ist) {
+  // Shared ID generator — prefix: ORD, TXN, RDR, MENU etc.
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let rand = '';
   for (let i = 0; i < 5; i++) rand += CHARS[Math.floor(Math.random() * CHARS.length)];
-  return `O${dd}${mm}${yy}${HH}${MM}${SS}${rand}`;
+  if (!ist) return `${prefix}-${rand}`; // for MENU IDs (no timestamp needed)
+  const yyyy = ist.getUTCFullYear();
+  const mm   = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const dd   = String(ist.getUTCDate()).padStart(2, '0');
+  const HH   = String(ist.getUTCHours()).padStart(2, '0');
+  const MM   = String(ist.getUTCMinutes()).padStart(2, '0');
+  const SS   = String(ist.getUTCSeconds()).padStart(2, '0');
+  return `${prefix}-${yyyy}${mm}${dd}-${HH}${MM}${SS}-${rand}`;
 }
+function generateOrderId(ist) { return generateId('ORD', ist); }
+// e.g. ORD-20250414-143022-AB7K2
 
 async function generateRiderId(ist) {
   const dd   = String(ist.getUTCDate()).padStart(2, '0');
   const mm   = String(ist.getUTCMonth() + 1).padStart(2, '0');
   const yyyy = String(ist.getUTCFullYear());
-  const prefix = `R${dd}${mm}${yyyy}`;
-  // Count riders created today
+  const prefix = `RDR-${dd}${mm}${yyyy}`;
   const { count } = await supabase
     .from('riders')
     .select('rider_id', { count: 'exact', head: true })
     .like('rider_id', `${prefix}%`);
   const seq = String((count || 0) + 1).padStart(4, '0');
-  return `${prefix}${seq}`;
+  return `${prefix}-${seq}`;
 }
+// e.g. RDR-14042025-0001
 
 // ── UNIFIED DATE/TIME FORMAT ──────────────────────────────────
 // Standard internal format: date = "YYYY-MM-DD", time = "HH:MM AM/PM"
@@ -423,7 +425,9 @@ async function addMenuItem(data) {
   if (!data.name) throw new Error('Item name required');
   const { data: items } = await supabase.from('menu').select('sort_order').order('sort_order', { ascending: false }).limit(1);
   const maxSort = items?.[0]?.sort_order || 0;
+  const menuItemId = generateId('MENU');
   const { data: item, error } = await supabase.from('menu').insert({
+    item_id: menuItemId,
     name: data.name, category: data.category || '', price: Number(data.price) || 0,
     variant: data.variants ? JSON.stringify(data.variants) : null,
     image_url: data.imageUrl || '', menu_type: data.menuType || 'morning',
@@ -897,6 +901,8 @@ async function addSubscriber(data) {
     is_active: true, start_date: new Date().toISOString().split('T')[0]
   });
   if (error) throw new Error(error.message);
+  // Sync is_subscriber flag on users table
+  await supabase.from('users').update({ is_subscriber: true }).eq('phone', ph);
   if (data.initialRecharge && Number(data.initialRecharge) > 0) {
     await rechargeWallet({ phone: ph, amount: data.initialRecharge, note: 'Initial recharge' });
   }
@@ -915,8 +921,11 @@ async function updateSubscriber(data) {
 }
 async function removeSubscriber(data) {
   if (!data.phone) throw new Error('phone required');
-  const { error } = await supabase.from('subscribers').delete().eq('phone', cleanPhone(data.phone));
+  const ph = cleanPhone(data.phone);
+  const { error } = await supabase.from('subscribers').delete().eq('phone', ph);
   if (error) throw new Error(error.message);
+  // Clear is_subscriber flag on users table
+  await supabase.from('users').update({ is_subscriber: false }).eq('phone', ph);
   return true;
 }
 async function getUserByPhone(data) {
@@ -927,6 +936,41 @@ async function getUserByPhone(data) {
   const { data: sub } = await supabase.from('subscribers').select('is_active').eq('phone', ph).maybeSingle();
   return { userId: user.user_id, name: user.name, phone: user.phone, email: user.email || '', address: user.address || '', isSubscriber: !!(sub && sub.is_active) };
 }
+// ─────────────────────────────────────────────────────────────────
+// ADMIN CREATE USER
+// Admin manually creates a user account with optional subscriber + wallet
+// ─────────────────────────────────────────────────────────────────
+async function adminCreateUser(data) {
+  if (!data.phone || !data.name || !data.password) throw new Error('phone, name, password required');
+  const ph = cleanPhone(data.phone);
+  // Check duplicate
+  const { data: existing } = await supabase.from('users').select('phone').eq('phone', ph).maybeSingle();
+  if (existing) throw new Error('Phone already registered');
+  const hashed = await bcrypt.hash(String(data.password).trim(), 10);
+  // Create user
+  const { data: user, error } = await supabase.from('users').insert({
+    user_id: ph, name: data.name, phone: ph,
+    email: data.email || '', address: data.address || '',
+    password: hashed, is_subscriber: false
+  }).select().single();
+  if (error) throw new Error(error.message);
+  // If admin wants to make them a subscriber right away
+  if (data.makeSubscriber) {
+    const { error: sErr } = await supabase.from('subscribers').insert({
+      phone: ph, name: data.name, address: data.address || '',
+      plan: data.plan || 'both', plan_type: data.plan || 'both',
+      is_active: true, start_date: new Date().toISOString().split('T')[0]
+    });
+    if (!sErr) {
+      await supabase.from('users').update({ is_subscriber: true }).eq('phone', ph);
+      if (data.initialRecharge && Number(data.initialRecharge) > 0) {
+        await rechargeWallet({ phone: ph, amount: data.initialRecharge, note: 'Initial recharge on account creation' });
+      }
+    }
+  }
+  return { userId: user.user_id, name: user.name, phone: user.phone };
+}
+
 async function promoteToSubscriber(data) {
   if (!data.phone) throw new Error('phone required');
   const ph = cleanPhone(data.phone);
@@ -938,6 +982,8 @@ async function promoteToSubscriber(data) {
     is_active: true, start_date: new Date().toISOString().split('T')[0]
   });
   if (error) throw new Error(error.message);
+  // Sync is_subscriber flag on users table
+  await supabase.from('users').update({ is_subscriber: true }).eq('phone', ph);
   if (data.initialRecharge && Number(data.initialRecharge) > 0) {
     await rechargeWallet({ phone: ph, amount: data.initialRecharge, note: 'Promoted to subscriber' });
   }
@@ -1093,10 +1139,11 @@ async function deductWalletBalance(phone, amount, note, userId) {
   const ph = cleanPhone(phone);
   const newBal = await _atomicWalletUpdate(ph, -amount);
   const ist = getIST();
-  await supabase.from('khata_transactions').insert({
+  const { error: kErr } = await supabase.from('khata_transactions').insert({
     user_id: userId || null, user_phone: ph, amount: -amount, type: 'debit',
     note: note || '', created_at: ist.toISOString()
   });
+  if (kErr) console.error('[khata] deduct insert failed:', kErr.message, '| phone:', ph);
   return newBal;
 }
 async function getSubscriberBalance(data) {
@@ -1110,10 +1157,11 @@ async function rechargeWallet(data) {
   const newBal = await _atomicWalletUpdate(ph, amt);
   const ist = getIST();
   const { data: user } = await supabase.from('users').select('user_id').eq('phone', ph).maybeSingle();
-  await supabase.from('khata_transactions').insert({
+  const { error: kErr } = await supabase.from('khata_transactions').insert({
     user_id: user?.user_id || null, user_phone: ph, amount: amt, type: 'credit',
     note: data.note || 'Recharge', created_at: ist.toISOString()
   });
+  if (kErr) console.error('[khata] recharge insert failed:', kErr.message, '| phone:', ph);
   return { newBalance: newBal };
 }
 async function addKhataEntry(data) {
@@ -1123,10 +1171,11 @@ async function addKhataEntry(data) {
   const newBal = await _atomicWalletUpdate(ph, amount);
   const { data: user } = await supabase.from('users').select('user_id').eq('phone', ph).maybeSingle();
   const ist = getIST();
-  await supabase.from('khata_transactions').insert({
+  const { error: kErr } = await supabase.from('khata_transactions').insert({
     user_id: user?.user_id || null, user_phone: ph, amount, type: amount >= 0 ? 'credit' : 'debit',
     note: data.note || '', created_at: ist.toISOString()
   });
+  if (kErr) console.error('[khata] addEntry insert failed:', kErr.message, '| phone:', ph);
   return { newBalance: newBal };
 }
 
@@ -1197,30 +1246,40 @@ async function getKhata(data) {
   return { entries, balance: computedBal };
 }
 async function adminGetAllKhata() {
-  // Fetch subscribers, wallets, and transaction counts in parallel
+  // Fetch subscribers, wallets, users, and all transactions in parallel
   const [
     { data: subs },
     { data: wallets },
+    { data: users },
     { data: txnCounts }
   ] = await Promise.all([
     supabase.from('subscribers').select('phone, name'),
     supabase.from('wallet').select('user_phone, balance'),
-    // Count transactions per user_phone — works for ALL subscribers,
-    // including admin-added ones who have no users row (user_id = null)
-    supabase.from('khata_transactions').select('user_phone, id')
+    supabase.from('users').select('user_id, phone'),
+    // Fetch user_phone + user_id — covers all insert paths
+    supabase.from('khata_transactions').select('user_phone, user_id, id')
   ]);
 
-  // Build balance map — normalize phone to 10 digits for reliable lookup
+  // Build balance map — normalize phone for reliable lookup
   const balMap = {};
   (wallets || []).forEach(w => {
-    balMap[cleanPhone(w.user_phone)] = Number(w.balance) || 0;
+    if (w.user_phone) balMap[cleanPhone(w.user_phone)] = Number(w.balance) || 0;
   });
 
-  // Count transactions per phone directly — no user_id → phone indirection needed
+  // Build user_id → phone map (for transactions stored without user_phone)
+  const userIdToPhone = {};
+  (users || []).forEach(u => {
+    if (u.user_id && u.phone) userIdToPhone[u.user_id] = cleanPhone(u.phone);
+  });
+
+  // Count transactions per phone — handle both storage paths:
+  // Path A: user_phone set directly (new inserts after Fix #2)
+  // Path B: only user_id set (old inserts before Fix #2) — resolve via userIdToPhone
   const countMap = {};
   (txnCounts || []).forEach(t => {
-    if (!t.user_phone) return;
-    const ph = cleanPhone(t.user_phone);
+    let ph = t.user_phone ? cleanPhone(t.user_phone) : null;
+    if (!ph && t.user_id) ph = userIdToPhone[t.user_id] || null;
+    if (!ph) return;
     countMap[ph] = (countMap[ph] || 0) + 1;
   });
 
