@@ -1663,7 +1663,10 @@ async function getKhata(data) {
   let running = 0;
   const entries = txns.map(t => {
     running += Number(t.amount) || 0;
-    const ist = new Date(new Date(t.created_at).getTime() + 5.5 * 3600000);
+    // FIX v14: created_at is stored as IST time via getIST().toISOString()
+    // (i.e. IST clock value written into UTC field — no offset should be added).
+    // Reading it as a plain Date and using UTC accessors gives the correct IST time.
+    const ist = new Date(t.created_at);
     return {
       entryId:        t.id,
       phone:          ph,
