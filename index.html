@@ -540,6 +540,47 @@ textarea.inp{resize:vertical;min-height:72px}
 .m-badge-chef{background:#ede9fe;color:#6d28d9}
 .m-badge-recommended{background:var(--gl);color:#1e7e71}
 .m-badge-new{background:#fffde7;color:#c67c00}
+
+/* ══ CONFETTI CANVAS ══ */
+#confetti-canvas{position:fixed;inset:0;pointer-events:none;z-index:9998;display:none}
+
+/* ══ OUT-OF-STOCK ══ */
+.oos-btn{background:#e5e7eb;color:#9ca3af;border:none;padding:8px 14px;border-radius:10px;
+  font-weight:700;font-size:13px;cursor:not-allowed;font-family:var(--ff);white-space:nowrap}
+.stock-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+  border-radius:6px;font-size:10px;font-weight:700;margin-bottom:4px;width:fit-content}
+.stock-badge.low{background:#fff3e0;color:#c45500}
+.stock-badge.ok{background:#e8f5f3;color:#1d7a6f}
+
+/* ══ THALI SECTION ══ */
+.thali-section{margin-bottom:18px}
+.thali-section-title{font-family:var(--ff);font-size:clamp(17px,4.5vw,20px);font-weight:800;margin-bottom:3px}
+.thali-section-sub{font-size:clamp(11px,3vw,13px);color:var(--gr);margin-bottom:12px}
+.thali-grid{display:flex;flex-direction:column;gap:10px}
+.thali-card{background:#fff;border-radius:var(--rl);padding:14px;box-shadow:var(--sh);
+  border:2px solid rgba(230,57,70,.1);display:flex;gap:12px;align-items:flex-start}
+.thali-img{width:80px;height:80px;border-radius:var(--r);object-fit:cover;flex-shrink:0;
+  background:linear-gradient(135deg,#fde8ea,#f4a261)}
+.thali-body{flex:1;min-width:0}
+.thali-name{font-family:var(--ff);font-size:15px;font-weight:700;margin-bottom:3px}
+.thali-contents{font-size:11px;color:var(--gr);margin-bottom:8px;line-height:1.5}
+.thali-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.thali-price{font-family:var(--ff);font-size:16px;font-weight:800;color:var(--dk)}
+.thali-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+  border-radius:6px;font-size:10px;font-weight:700;background:#fffde7;color:#c67c00;margin-bottom:5px}
+
+/* ══ COUPON IN CART ══ */
+.cart-coupon-wrap{background:#fff;border-radius:var(--rl);padding:14px 16px;
+  box-shadow:var(--sh);margin-bottom:14px;border:1px solid rgba(0,0,0,.04)}
+.cart-coupon-title{font-family:var(--ff);font-size:13px;font-weight:700;margin-bottom:10px;
+  display:flex;align-items:center;gap:6px}
+
+/* ══ SUCCESS screens ══ */
+.suc-order-id{font-family:var(--ff);font-size:13px;font-weight:700;color:var(--p);
+  background:var(--pl);padding:4px 12px;border-radius:20px;display:inline-block;margin-bottom:16px}
+.wa-reveal-wrap{width:100%;margin-bottom:12px;opacity:0;transform:translateY(8px);
+  transition:opacity .4s ease,transform .4s ease}
+.wa-reveal-wrap.show{opacity:1;transform:translateY(0)}
 </style>
 </head>
 <body>
@@ -666,6 +707,14 @@ textarea.inp{resize:vertical;min-height:72px}
       </button>
       <div class="sec-t">Today's Menu</div>
       <div class="sec-s" id="menu-lbl">Loading fresh meals...</div>
+      <!-- Thali Section (shown above menu when thalis available) -->
+      <div id="thali-section" class="thali-section hide">
+        <div class="thali-section-title">🍱 Thalis / Combos</div>
+        <div class="thali-section-sub">Complete meal combos at special price</div>
+        <div class="thali-grid" id="thali-list"></div>
+        <div style="height:4px"></div>
+        <div style="height:1px;background:rgba(0,0,0,.06);margin:12px 0"></div>
+      </div>
       <!-- Search bar -->
       <div class="menu-search-wrap">
         <input class="menu-search-inp" id="menu-search" type="text"
@@ -695,6 +744,15 @@ textarea.inp{resize:vertical;min-height:72px}
   </div>
   <div class="pg-body">
     <div id="cart-list"></div>
+    <!-- COUPON SECTION — moved from pg-confirm into cart -->
+    <div id="cart-coupon-section" class="cart-coupon-wrap hide">
+      <div class="cart-coupon-title"><i class="fa-solid fa-ticket" style="color:var(--p)"></i> Have a Coupon?</div>
+      <div class="cpn-row">
+        <input id="cpn-inp" class="inp" type="text" placeholder="Enter coupon code" style="text-transform:uppercase;font-size:13px">
+        <button class="cpn-btn" onclick="applyCoupon()">Apply</button>
+      </div>
+      <div id="cpn-msg" class="cpn-msg hide"></div>
+    </div>
     <div id="cart-bill"></div>
     <div id="del-note"></div>
     <button class="btn btn-p" id="place-btn" style="margin-top:14px" onclick="placeOrder()">
@@ -707,22 +765,22 @@ textarea.inp{resize:vertical;min-height:72px}
 <div class="pg right" id="pg-success">
   <div class="suc-wrap">
     <div class="suc-ico">✅</div>
-    <div class="suc-t">Order Sent!</div>
+    <div class="suc-t">Order Placed!</div>
+    <div id="suc-order-id-wrap" class="suc-order-id"></div>
     <div class="suc-s" style="color:#e63946;font-weight:700;font-size:15px">🍱 Order sent to restaurant</div>
     <div class="dt-card" style="border-left:4px solid #2a9d8f">
       <div class="dt-h">⏰ Estimated Delivery Time</div>
       <div class="dt-row"><span>🌅</span><div><div style="font-weight:700">Breakfast/Lunch</div><div style="font-size:12px;color:var(--gr)">12:00 PM – 1:00 PM</div></div></div>
       <div class="dt-row"><span>🌙</span><div><div style="font-weight:700">Dinner</div><div style="font-size:12px;color:var(--gr)">8:00 PM – 9:00 PM</div></div></div>
     </div>
-    <div id="pay-note" class="hide" style="width:100%;margin-bottom:16px">
-      <div class="card" style="text-align:left;border-left:4px solid var(--p);background:#fff5f5">
-        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:var(--p)">📸 Please send payment screenshot on WhatsApp</div>
-        <div style="font-size:13px;color:var(--gr);line-height:1.6">UPI / QR details will be shared by us. Send screenshot after payment to confirm your order.</div>
-      </div>
+    <div class="card" style="width:100%;text-align:left;background:#fff8f0;border-left:3px solid var(--o);margin-bottom:14px">
+      <div style="font-weight:800;font-size:13px;color:#c45500;margin-bottom:4px">💳 Payment Required</div>
+      <div style="font-size:12px;color:var(--gr);line-height:1.6">UPI / QR details aapke WhatsApp pe bheje jaayenge. Payment ke baad screenshot bhejein.</div>
     </div>
-    <div id="wa-btn-wrap" class="hide" style="width:100%;margin-bottom:12px">
+    <!-- WhatsApp button appears after 2.5s -->
+    <div id="wa-btn-wrap" class="wa-reveal-wrap">
       <button class="btn btn-wa" id="wa-open-btn" onclick="openWhatsApp()" style="font-size:15px;gap:10px">
-        <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> Open WhatsApp &amp; Send Screenshot
+        <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> 📲 Share Screenshot &amp; Payment on WhatsApp
       </button>
     </div>
     <button class="btn btn-out" onclick="nav('pg-home')" style="margin-top:8px"><i class="fa-solid fa-house"></i> Back to Menu</button>
@@ -734,6 +792,7 @@ textarea.inp{resize:vertical;min-height:72px}
   <div class="suc-wrap">
     <div class="suc-ico" style="background:linear-gradient(135deg,#e8f5f3,#c8ede6);font-size:48px">🎉</div>
     <div class="suc-t">Thanks for your order!</div>
+    <div id="suc-sub-order-id-wrap" class="suc-order-id"></div>
     <div class="suc-s">Your order is sent to the restaurant</div>
     <!-- Wallet Deduction Card -->
     <div class="wallet-deduct-card">
@@ -761,108 +820,6 @@ textarea.inp{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- ═══ PAGE 4C: ORDER CONFIRMATION (unified for all users) ═══ -->
-<div class="pg right" id="pg-confirm">
-  <div class="tnav">
-    <button class="bk-btn" onclick="nav('pg-home')"><i class="fa-solid fa-house"></i></button>
-    <span class="pg-title">Order Confirmed</span>
-    <button class="btn-ghost btn btn-sm" onclick="nav('pg-orders')"><i class="fa-solid fa-receipt"></i></button>
-  </div>
-  <div class="pg-body" style="padding-bottom:calc(var(--bnav-h) + 20px)">
-
-    <!-- Compact success header -->
-    <div style="display:flex;align-items:center;gap:14px;background:#fff;border-radius:var(--rl);padding:16px;margin-bottom:12px;box-shadow:var(--sh)">
-      <div style="width:50px;height:50px;background:linear-gradient(135deg,#e8f5f3,#c8ede6);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;animation:pop .4s ease">✅</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:17px;font-weight:800;color:#111827;font-family:'Sora',sans-serif">Order Placed!</div>
-        <div style="font-size:12px;color:var(--gr);margin-top:2px" id="conf-timestamp">—</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:10px;color:var(--gr);text-transform:uppercase;letter-spacing:.4px">Order ID</div>
-        <div style="font-size:13px;font-weight:800;color:var(--p);font-family:'Sora',sans-serif" id="conf-order-id">—</div>
-      </div>
-    </div>
-
-    <!-- Two-column: delivery + bill -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <!-- Delivery info -->
-      <div style="background:#fff;border-radius:var(--r);padding:12px;box-shadow:var(--sh)">
-        <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">📋 Delivery</div>
-        <div style="font-size:12px;font-weight:700;color:var(--dk);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="conf-name">—</div>
-        <div style="font-size:11px;color:var(--gr);margin-bottom:2px" id="conf-phone">—</div>
-        <div style="font-size:11px;color:var(--gr);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden" id="conf-address">—</div>
-      </div>
-      <!-- Bill summary -->
-      <div style="background:#fff;border-radius:var(--r);padding:12px;box-shadow:var(--sh)">
-        <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🧾 Bill</div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gr);margin-bottom:4px"><span>Subtotal</span><span id="conf-subtotal">—</span></div>
-        <div id="conf-discount-row" style="display:flex;justify-content:space-between;font-size:11px;color:var(--g);margin-bottom:4px"><span>Discount</span><span id="conf-discount-amt">—</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gr);margin-bottom:6px"><span>Delivery</span><span id="conf-delivery">—</span></div>
-        <div style="height:1px;background:#f1f1f1;margin-bottom:6px"></div>
-        <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;font-family:'Sora',sans-serif"><span>Total</span><span style="color:var(--p)" id="conf-total">—</span></div>
-      </div>
-    </div>
-
-    <!-- Items ordered -->
-    <div style="background:#fff;border-radius:var(--r);padding:12px;margin-bottom:12px;box-shadow:var(--sh)">
-      <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🍱 Items Ordered</div>
-      <div id="conf-items" style="display:flex;flex-direction:column;gap:4px"></div>
-    </div>
-
-    <!-- Coupon -->
-    <div style="background:#fff;border-radius:var(--r);padding:12px;margin-bottom:12px;box-shadow:var(--sh)">
-      <div style="font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">🎟️ Coupon</div>
-      <div class="cpn-row">
-        <input id="cpn-inp" class="inp" type="text" placeholder="Enter coupon code" style="text-transform:uppercase;font-size:13px;padding:10px 12px">
-        <button class="cpn-btn" onclick="applyCoupon()" style="padding:10px 14px;font-size:13px">Apply</button>
-      </div>
-      <div id="cpn-msg" class="cpn-msg hide"></div>
-    </div>
-
-    <!-- PAYMENT SECTION — subscriber: wallet; non-subscriber: WhatsApp flow -->
-
-    <!-- Wallet info (subscribers only) -->
-    <div id="conf-wallet-info" style="display:none;margin-bottom:12px">
-      <div style="background:linear-gradient(135deg,#111827,#1f2937);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px">
-        <i class="fa-solid fa-wallet" style="font-size:24px;color:#fbbf24;flex-shrink:0"></i>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Wallet Payment</div>
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-size:11px;color:rgba(255,255,255,.45);margin-bottom:1px" id="conf-prev-bal"></div>
-              <div style="font-family:'Sora',sans-serif;font-size:17px;font-weight:800;color:#fbbf24">−₹<span id="conf-deducted">0</span> <span style="font-size:11px;font-weight:500;color:rgba(255,255,255,.5)">deducted</span></div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:1px">New Balance</div>
-              <div style="font-size:16px;font-weight:800;color:#fff">₹<span id="conf-new-bal">—</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Non-subscriber payment flow -->
-    <div id="conf-pay-note" style="display:none;margin-bottom:12px">
-      <div style="background:#fff8f0;border-radius:var(--r);padding:14px;border-left:3px solid var(--o)">
-        <div style="font-weight:800;font-size:13px;color:#c45500;margin-bottom:4px">💳 Payment Required</div>
-        <div style="font-size:12px;color:var(--gr);line-height:1.6">UPI / QR details aapke WhatsApp pe bheje jaayenge. Payment ke baad screenshot bhejein.</div>
-      </div>
-    </div>
-
-    <!-- WhatsApp button (non-subscribers, appears after 2.5s) -->
-    <div id="conf-wa-wrap" style="display:none;opacity:0;transform:translateY(8px);transition:opacity .4s ease,transform .4s ease;margin-bottom:10px">
-      <button class="btn btn-wa" onclick="openWhatsApp()" style="font-size:14px;gap:10px;width:100%;padding:14px">
-        <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> Open WhatsApp &amp; Send Screenshot
-      </button>
-    </div>
-
-    <!-- Actions -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <button class="btn btn-p" onclick="nav('pg-orders')" style="padding:12px;font-size:13px"><i class="fa-solid fa-receipt"></i> My Orders</button>
-      <button class="btn btn-out" onclick="nav('pg-home')" style="padding:12px;font-size:13px"><i class="fa-solid fa-house"></i> Home</button>
-    </div>
-  </div>
-</div>
 
 <!-- ═══ PAGE 5: ORDERS ═══ -->
 <div class="pg right" id="pg-orders">
@@ -1137,6 +1094,8 @@ textarea.inp{resize:vertical;min-height:72px}
   <button class="btn btn-ghost" style="margin-top:8px" onclick="closePauseSheet()">Cancel</button>
 </div>
 
+<canvas id="confetti-canvas"></canvas>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1174,6 +1133,58 @@ function safeP(v) {
 }
 function getSub() {
   try { return JSON.parse(localStorage.getItem('pb_sub'))?.isSubscriber || false; } catch { return false; }
+}
+
+// ── CONFETTI ENGINE (canvas-based, Zomato-style burst) ──
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
+  canvas.style.display = 'block';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  const colors = ['#e63946','#f4a261','#2a9d8f','#ffd166','#6d28d9','#10b981','#f59e0b'];
+  const pieces = Array.from({length: 90}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height * 0.4 - canvas.height * 0.1,
+    r: Math.random() * 7 + 4,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    vx: (Math.random() - 0.5) * 5,
+    vy: Math.random() * 4 + 2,
+    opacity: 1,
+    rotation: Math.random() * 360,
+    rotSpeed: (Math.random() - 0.5) * 8,
+    shape: Math.random() > 0.5 ? 'rect' : 'circle'
+  }));
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.opacity;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.r, -p.r/2, p.r*2, p.r);
+      } else {
+        ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+      p.x += p.vx; p.y += p.vy;
+      p.vy += 0.12; p.vx *= 0.99;
+      p.rotation += p.rotSpeed;
+      p.opacity -= 0.012;
+    });
+    frame++;
+    if (frame < 120 && pieces.some(p => p.opacity > 0)) {
+      requestAnimationFrame(draw);
+    } else {
+      canvas.style.display = 'none';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  draw();
 }
 // ── PB — Unified date/time utilities (mirrors admin + rider) ──
 // Internal canonical format: date = "YYYY-MM-DD", time = "HH:MM AM/PM"
