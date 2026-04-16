@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Puro Bite – Ghar ka Khana</title>
+<title>Tiffo – Ghar ka Khana</title>
 <meta name="description" content="Home-cooked meals delivered fresh. Order tiffin online.">
 <meta name="theme-color" content="#e63946">
 <!-- PWA Manifest -->
@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Puro Bite">
+<meta name="apple-mobile-web-app-title" content="Tiffo">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
@@ -579,7 +579,7 @@ textarea.inp{resize:vertical;min-height:72px}
 <canvas id="confetti-canvas"></canvas>
 
 <div id="app-loader">
-  <div class="logo-mark">Puro Bite</div>
+  <div class="logo-mark"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>
   <div class="tagline">Ghar ka khana ♥</div>
   <div class="loader-ring"></div>
   <div id="loader-msg" style="font-size:12px;color:var(--gr);font-weight:600;margin-top:4px;min-height:18px">Loading your account...</div>
@@ -590,7 +590,7 @@ textarea.inp{resize:vertical;min-height:72px}
 <!-- ═══ PAGE 1: AUTH ═══ -->
 <div class="pg here" id="pg-auth">
   <div class="auth-brand">
-    <div class="auth-logo-n">Puro Bite</div>
+    <div class="auth-logo-n"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>
     <div class="auth-logo-t">Ghar ka khana ♥</div>
   </div>
   <div class="auth-hero">
@@ -639,7 +639,7 @@ textarea.inp{resize:vertical;min-height:72px}
 <!-- ═══ PAGE 2: HOME ═══ -->
 <div class="pg right" id="pg-home" style="overflow:hidden;display:flex;flex-direction:column;">
   <div class="home-top">
-    <div><div class="logo-n">Puro Bite</div><div class="logo-t">Ghar ka khana ♥</div></div>
+    <div><div class="logo-n"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="logo-t">Ghar ka khana ♥</div></div>
     <div class="t-acts">
       <button class="t-btn" id="cart-hdr-btn" onclick="nav('pg-cart')" title="View Cart" style="position:relative">
         <i class="fa-solid fa-cart-shopping"></i>
@@ -877,7 +877,7 @@ textarea.inp{resize:vertical;min-height:72px}
       </button>
     </div>
     <div class="acct-card" style="cursor:pointer" onclick="showAbout()">
-      <div class="acct-card-title"><i class="fa-solid fa-circle-info" style="color:var(--p)"></i> About Puro Bite</div>
+      <div class="acct-card-title"><i class="fa-solid fa-circle-info" style="color:var(--p)"></i> About <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>
       <div style="font-size:13px;color:var(--gr)">App version, our story &amp; more</div>
     </div>
     <button class="btn btn-danger" onclick="doLogout()" style="margin-top:4px">
@@ -1006,7 +1006,7 @@ textarea.inp{resize:vertical;min-height:72px}
   <div class="modal-box">
     <button class="modal-close" onclick="hideAbout()"><i class="fa-solid fa-xmark"></i></button>
     <div class="modal-emoji">🍱</div>
-    <h2 class="modal-title">About Puro Bite</h2>
+    <h2 class="modal-title">About <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></h2>
     <div class="modal-body">
       <p>Yahan daily menu change hota hai 😄</p>
       <p>Veg + Non-veg dono available, aur sirf aalu nahi — green sabzi bhi milti hai 🌱</p>
@@ -1602,7 +1602,7 @@ function switchTab(t, el) {
 
 function forgotPassword() {
   const phone = doc('l-ph').value.trim().replace(/\D/g, '');
-  let msg = 'Namaste! 🙏 Mujhe apna Puro Bite password reset karna hai.\n\n';
+  let msg = 'Namaste! 🙏 Mujhe apna Tiffo password reset karna hai.\n\n';
   if (phone.length === 10) {
     msg += `📱 Mera registered mobile number: *${phone}*\n\n`;
   } else {
@@ -2406,7 +2406,7 @@ async function placeOrder() {
     const cpnMsg = doc('cpn-msg'); if (cpnMsg) { cpnMsg.classList.add('hide'); cpnMsg.textContent = ''; }
 
     // Build WhatsApp message for non-subscriber
-    let waMsg = `🍱 *Puro Bite Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name} | 📞 ${user.phone}\n📍 ${user.address}\n\n*Items:*\n`;
+    let waMsg = `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name} | 📞 ${user.phone}\n📍 ${user.address}\n\n*Items:*\n`;
     cart.forEach(i => { waMsg += `• ${i.name}${i.selectedVariant ? ` (${i.selectedVariant})` : ''} ×${i.qty} — ₹${i.price * i.qty}\n`; });
     waMsg += `\n`;
     if (disc > 0) waMsg += `🎟️ Discount: −₹${disc}\n`;
@@ -2719,11 +2719,11 @@ function exportUserKhataPDF() {
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Wallet Statement — ${user.name}</title>
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#111;background:#f9fafb;padding:0}.page{max-width:720px;margin:0 auto;background:#fff;padding:32px 28px;min-height:100vh}.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:18px;border-bottom:3px solid #e63946}.brand-name{font-size:26px;font-weight:900;color:#e63946;letter-spacing:-0.5px}.brand-tagline{font-size:11px;color:#999;margin-top:2px}.brand-contact{font-size:12px;color:#555;margin-top:6px;line-height:1.6}.brand-contact strong{color:#111}.bal-row{display:flex;gap:12px;margin-bottom:20px}.bal-card{flex:1;border-radius:10px;padding:14px 16px;text-align:center}.bal-card.open{background:#f0fdf8;border:1.5px solid #2a9d8f}.bal-card.close{background:${closingBal<0?'#fff5f5':'#f0fdf8'};border:1.5px solid ${closingBal<0?'#e63946':'#2a9d8f'}}.bal-label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}.bal-amount{font-size:22px;font-weight:900;color:${closingBal<0?'#e63946':'#2a9d8f'}}.info-row{display:flex;justify-content:space-between;align-items:flex-start;background:#f3f4f6;border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px}.info-row .name{font-size:16px;font-weight:800;margin-bottom:4px}.period-badge{background:#e63946;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;align-self:flex-start}table{width:100%;border-collapse:collapse;font-size:12px}thead tr{background:#1f2937;color:#fff}th{padding:10px 9px;text-align:left;font-weight:700;font-size:11px;letter-spacing:.3px}td{padding:9px;border-bottom:1px solid #f0f0f0}.footer{margin-top:24px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#999}.footer strong{color:#e63946}@media print{body{background:#fff}.page{padding:20px}}</style>
 </head><body><div class="page">
-<div class="hdr"><div><div class="brand-name">🍱 Puro Bite</div><div class="brand-tagline">Ghar ka khana ♥</div><div class="brand-contact">📞 <strong>9889760350</strong><br>Wallet Statement</div></div><span class="period-badge">📅 ${periodLabel}</span></div>
+<div class="hdr"><div><div class="brand-name">🍱 <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="brand-tagline">Ghar ka khana ♥</div><div class="brand-contact">📞 <strong>9889760350</strong><br>Wallet Statement</div></div><span class="period-badge">📅 ${periodLabel}</span></div>
 <div class="info-row"><div><div class="name">${user.name}</div><div style="color:#555">📞 ${user.phone}</div>${user.address?`<div style="color:#777;font-size:12px;margin-top:2px">📍 ${user.address}</div>`:''}</div><div style="text-align:right"><div style="font-size:11px;color:#888">Generated</div><div style="font-size:12px;font-weight:700">${genStr}</div></div></div>
 <div class="bal-row">${openingBal !== 0 ? `<div class="bal-card open"><div class="bal-label">Opening Balance</div><div class="bal-amount" style="font-size:18px;color:#555">₹${openingBal}</div></div>` : ''}<div class="bal-card close"><div class="bal-label">Closing Balance</div><div class="bal-amount">₹${closingBal}</div></div><div class="bal-card open" style="background:#fff8f0;border-color:#f4a261"><div class="bal-label">Transactions</div><div class="bal-amount" style="color:#f4a261">${filtered.length}</div></div></div>
 <table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Items Ordered</th></tr></thead><tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#999">No transactions</td></tr>'}</tbody></table>
-<div class="footer"><div>Powered by <strong>Puro Bite</strong> · 📞 9889760350</div><div>Generated: ${genStr}</div></div>
+<div class="footer"><div>Powered by <strong><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></strong> · 📞 9889760350</div><div>Generated: ${genStr}</div></div>
 </div></body></html>`;
   const w = window.open('', '_blank');
   if (!w) { toast('Popup blocked! Allow popups and retry.'); return; }
