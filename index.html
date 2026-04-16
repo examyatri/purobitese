@@ -2019,14 +2019,14 @@ function calcOrderState(cfg, currentH) {
       if (!sched.open) return { closed: true, reason: 'Restaurant closed today', detail: 'We are closed today. See you tomorrow!' };
 
       const lunchStart  = timeStrToH(sched.lunchStart  || sched.openTime || '07:00');
-      const cutoffDay   = timeStrToH(cfg.cutoffDay   || sched.lunchEnd   || '11:30');
+      const cutoffDay   = timeStrToH(sched.lunchEnd   || cfg.cutoffDay   || '11:30');
       const dinnerStart = timeStrToH(sched.dinnerStart || '11:30');
-      const cutoffNight = timeStrToH(cfg.cutoffNight || sched.dinnerEnd  || '19:30');
+      const cutoffNight = timeStrToH(sched.dinnerEnd   || cfg.cutoffNight || '19:30');
 
       const lunchStartFmt  = fmtCutoffTime(sched.lunchStart  || sched.openTime || '07:00');
-      const cutoffDayFmt   = fmtCutoffTime(cfg.cutoffDay   || sched.lunchEnd   || '11:30');
+      const cutoffDayFmt   = fmtCutoffTime(sched.lunchEnd   || cfg.cutoffDay   || '11:30');
       const dinnerStartFmt = fmtCutoffTime(sched.dinnerStart || '11:30');
-      const cutoffNightFmt = fmtCutoffTime(cfg.cutoffNight || sched.dinnerEnd  || '19:30');
+      const cutoffNightFmt = fmtCutoffTime(sched.dinnerEnd   || cfg.cutoffNight || '19:30');
 
       // Get tomorrow's lunchStart for "resumes tomorrow" message
       const tomorrowDow  = (dow + 1) % 7;
