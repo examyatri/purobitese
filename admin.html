@@ -223,17 +223,16 @@ tr:hover td{background:#fafafa}
         <option value="staff">Staff</option>
       </select>
     </div>
-    <div class="fg" id="a-em-fg"><label class="lbl">Email</label><input id="a-em" class="inp" type="email" placeholder="admin@email.com" oninput="var e=document.getElementById('login-err');if(e)e.style.display='none'"></div>
+    <div class="fg" id="a-em-fg"><label class="lbl">Email</label><input id="a-em" class="inp" type="email" placeholder="admin@email.com"></div>
     <div class="fg" id="a-uid-fg" style="display:none"><label class="lbl">Staff Username</label><input id="a-uid" class="inp" type="text" placeholder="username"></div>
     <div id="admin-creds-hint" class="creds-hint">✅ Credentials filled from last session</div>
     <div class="fg"><label class="lbl">Password</label><div class="pw-wrap"><input id="a-pw" class="inp" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" class="pw-eye" onclick="togglePw('a-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button></div></div>
     <button class="btn btn-p btn-full" id="login-btn" onclick="doLogin()"><i class="fa-solid fa-lock-open"></i> Access Dashboard</button>
-    <div id="login-err" style="display:none;margin-top:10px;padding:10px 14px;background:#fde8ea;border-radius:10px;font-size:13px;font-weight:600;color:#c1121f;text-align:center"></div>
     <div style="margin-top:14px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
       <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">⚙️ Credentials Setup</div>
       <div style="font-size:12px;color:#64748b;line-height:1.6">
         Default: <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin@purobite.com</code> / <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin123</code><br>
-        To change: Login → <strong>Settings</strong> → <strong>Reset Admin Password</strong>.
+        To change, run <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">setupSheets()</code> once in Apps Script, or update <strong>Settings sheet</strong> → <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin_email</code> / <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin_password</code> rows.
       </div>
     </div>
   </div>
@@ -254,7 +253,6 @@ tr:hover td{background:#fafafa}
       <button class="ni" id="ni-orders" onclick="showPg('orders')"><i class="fa-solid fa-bag-shopping"></i> Orders</button>
       <button class="ni" id="ni-bulk" onclick="showPg('bulk')"><i class="fa-solid fa-boxes-stacked"></i> Bulk Orders</button>
       <button class="ni" id="ni-menu" onclick="showPg('menu')"><i class="fa-solid fa-utensils"></i> Menu</button>
-      <button class="ni" id="ni-thalis" onclick="showPg('thalis')"><i class="fa-solid fa-bowl-food"></i> Thalis</button>
       <button class="ni" id="ni-coupons" onclick="showPg('coupons')"><i class="fa-solid fa-tags"></i> Coupons</button>
       <div class="sb-sec">Users</div>
       <button class="ni" id="ni-subscribers" onclick="showPg('subscribers')"><i class="fa-solid fa-crown"></i> Subscribers</button>
@@ -394,7 +392,7 @@ tr:hover td{background:#fafafa}
               <button class="f-btn" onclick="filterMenu('evening',this)">Evening</button>
             </div>
           </div>
-          <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Img</th><th>Name</th><th>Category</th><th>Price</th><th>Variants</th><th>Stock</th><th>Type</th><th>Badge</th><th>Avail</th><th>Order</th><th>Actions</th></tr></thead><tbody id="menu-tb"></tbody></table></div>
+          <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Img</th><th>Name</th><th>Category</th><th>Price</th><th>Variants</th><th>Type</th><th>Badge</th><th>Avail</th><th>Order</th><th>Actions</th></tr></thead><tbody id="menu-tb"></tbody></table></div>
         </div>
       </div>
 
@@ -403,14 +401,6 @@ tr:hover td{background:#fafafa}
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-p" onclick="openCpnModal()"><i class="fa-solid fa-plus"></i> Create Coupon</button></div>
         <div class="tc"><div class="th"><h3>Coupons</h3></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Expiry</th><th>User</th><th>Limit/Uses</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cpn-tb"></tbody></table></div>
-        </div>
-      </div>
-
-      <!-- THALIS -->
-      <div class="pg-v" id="pg-thalis">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-p" onclick="openThaliModal()"><i class="fa-solid fa-plus"></i> Create Thali</button></div>
-        <div class="tc"><div class="th"><h3 id="thali-count">Thalis</h3></div>
-          <div style="overflow-x:auto"><table><thead><tr><th>Name</th><th>Price</th><th>Components</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="thali-tb"></tbody></table></div>
         </div>
       </div>
 
@@ -436,23 +426,6 @@ tr:hover td{background:#fafafa}
 
       <!-- USERS -->
       <div class="pg-v" id="pg-users">
-        <!-- Password Reset Card -->
-        <div class="tc" style="margin-bottom:14px">
-          <div class="th"><h3>🔑 Reset User Password</h3></div>
-          <div style="padding:16px">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-              <div style="flex:1;min-width:160px"><label class="st-lbl">Phone Number</label><input id="pw-reset-ph" class="inp" type="tel" maxlength="10" placeholder="10-digit mobile" inputmode="numeric"></div>
-              <button class="btn btn-ghost" onclick="lookupUserForReset()" style="white-space:nowrap"><i class="fa-solid fa-magnifying-glass"></i> Lookup</button>
-            </div>
-            <div id="pw-reset-user-info" style="display:none;margin-top:12px;padding:12px;background:#f8f5f2;border-radius:10px;font-size:13px">
-              <div id="pw-reset-user-detail" style="margin-bottom:10px"></div>
-              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-                <div style="flex:1;min-width:160px"><label class="st-lbl">New Password</label><input id="pw-reset-new" class="inp" type="password" placeholder="Min 6 characters"></div>
-                <button class="btn btn-p" onclick="submitUserPasswordReset()" style="white-space:nowrap;min-width:130px"><i class="fa-solid fa-key"></i> Reset Password</button>
-              </div>
-            </div>
-          </div>
-        </div>
         <div class="fb">
           <input class="s-inp" type="text" id="usr-srch" placeholder="Search users..." oninput="renderUsers()">
           <button class="f-btn act" onclick="filterUsrSub('all',this)">All</button>
@@ -754,10 +727,6 @@ tr:hover td{background:#fafafa}
     <button class="btn btn-ghost btn-sm" onclick="addVarRow()" style="margin-top:8px"><i class="fa-solid fa-plus"></i> Add Variant</button>
     <div style="font-size:11px;color:var(--gr);margin-top:4px">Leave empty to use base price only</div>
   </div>
-  <div class="fg"><label class="lbl">Stock (grams) — leave blank = unlimited</label>
-    <input id="mi-stock" class="inp" type="number" min="0" placeholder="e.g. 2000 — leave blank for unlimited">
-    <div style="font-size:11px;color:var(--gr);margin-top:4px">Tracked stock: auto-deducted on each order. Set to 0 = Out of Stock.</div>
-  </div>
   <div class="fg"><label class="lbl">Image URL (ibb.co / imgur / direct link)</label><input id="mi-img" class="inp" type="url" placeholder="https://i.ibb.co/..."></div>
   <div class="fg"><label class="lbl">Menu Type</label>
     <select id="mi-type" class="inp"><option value="morning">Morning (Before 11:30 AM)</option><option value="evening">Evening (After 11:30 AM)</option></select></div>
@@ -774,24 +743,6 @@ tr:hover td{background:#fafafa}
   <div class="fg"><label class="lbl">Sort Order (lower = appears first)</label>
     <input id="mi-sort" class="inp" type="number" min="1" placeholder="e.g. 1 (auto-assigned if blank)"></div>
   <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-menu')">Cancel</button><button class="btn btn-p" onclick="submitMenu()"><i class="fa-solid fa-check"></i> Save</button></div>
-</div></div>
-
-<!-- Thali Modal -->
-<div class="mo hide" id="mo-thali"><div class="mo-box">
-  <div class="mo-t" id="mo-thali-t">Create Thali</div>
-  <input type="hidden" id="tl-id">
-  <div class="fg"><label class="lbl">Thali Name *</label><input id="tl-name" class="inp" type="text" placeholder="e.g. Special Thali, Veg Combo"></div>
-  <div class="fg"><label class="lbl">Description</label><input id="tl-desc" class="inp" type="text" placeholder="Short description (optional)"></div>
-  <div class="fg"><label class="lbl">Price (₹) *</label><input id="tl-price" class="inp" type="number" placeholder="e.g. 120"></div>
-  <div class="fg"><label class="lbl">Image URL</label><input id="tl-img" class="inp" type="url" placeholder="https://i.ibb.co/..."></div>
-  <div class="fg"><label class="lbl">Stock Qty — leave blank = unlimited</label>
-    <input id="tl-stock" class="inp" type="number" min="0" placeholder="e.g. 10 plates per day — blank = unlimited"></div>
-  <div class="fg">
-    <label class="lbl">Components (items inside this thali)</label>
-    <div id="tl-comp-list"></div>
-    <button class="btn btn-ghost btn-sm" onclick="addThaliComp()" style="margin-top:8px"><i class="fa-solid fa-plus"></i> Add Component</button>
-  </div>
-  <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-thali')">Cancel</button><button class="btn btn-p" onclick="submitThali()"><i class="fa-solid fa-check"></i> Save Thali</button></div>
 </div></div>
 
 <!-- Coupon -->
@@ -1001,14 +952,10 @@ function npDone(){
   setTimeout(()=>{ b.style.opacity='0'; setTimeout(()=>{ b.style.width='0%'; },400); },200);
 }
 
-// AUTH actions that must never be silently retried
-const _NO_RETRY_ACTIONS = new Set(['adminLogin','staffLogin','login','signup']);
-
 async function api(action, data={}, _retry=1){
   npStart();
   const ctrl = new AbortController();
-  // 55s timeout — Render free tier can take 30-50s to wake from sleep
-  const timer = setTimeout(() => ctrl.abort(), 55000);
+  const timer = setTimeout(() => ctrl.abort(), 25000);
   try {
     const r = await fetch(CFG.GAS, {
       method: 'POST',
@@ -1024,17 +971,8 @@ async function api(action, data={}, _retry=1){
   } catch(e) {
     clearTimeout(timer);
     npDone();
-    if (e.name === 'AbortError') throw new Error('Server took too long to respond. Please try again.');
-    // Never retry auth actions or explicit server-side rejections
-    const noRetry = _NO_RETRY_ACTIONS.has(action)
-      || e.message.includes('required')
-      || e.message.includes('credentials')
-      || e.message.includes('Unauthorized')
-      || e.message.includes('not found')
-      || e.message.includes('Incorrect')
-      || e.message.includes('Invalid')
-      || e.message.includes('inactive');
-    if (_retry > 0 && !noRetry) {
+    if (e.name === 'AbortError') throw new Error('Request timed out. Please retry.');
+    if (_retry > 0 && !e.message.includes('required') && !e.message.includes('credentials') && !e.message.includes('Unauthorized')) {
       await new Promise(r => setTimeout(r, 1200));
       return api(action, data, _retry - 1);
     }
@@ -1105,20 +1043,16 @@ function updateAuthUI(){
 async function doLogin(){
   const role=doc('a-role').value;
   const pw=doc('a-pw').value.trim();
+  // Validate BEFORE disabling button so finally always runs correctly
   if(!pw){ toast('Password required'); return; }
   if(role==='admin' && !doc('a-em').value.trim()){ toast('Email required'); return; }
   if(role==='staff' && !doc('a-uid').value.trim()){ toast('Username required'); return; }
 
   const btn=doc('login-btn');
   btn.innerHTML='<span class="spin"></span> Logging in...'; btn.disabled=true;
-
-  // After 8s, show "waking server" message — Render free tier cold-start can take 30-50s
-  const wakeTimer=setTimeout(()=>{
-    if(btn.disabled) btn.innerHTML='<span class="spin"></span> Waking up server… please wait';
-  }, 8000);
-
   try{
     if(role==='admin'){
+      // Normalize email: trim + lowercase to avoid case-mismatch with Settings sheet
       const em=doc('a-em').value.trim().toLowerCase();
       const admin=await api('adminLogin',{email:em,password:pw});
       Session.set({...admin,role:'admin'});
@@ -1134,15 +1068,10 @@ async function doLogin(){
   }catch(e){
     const msg=e.message||'Login failed';
     toast('❌ '+msg);
-    // Also show persistent error below button — toast disappears in 3.5s, user might miss it
-    const errEl=doc('login-err');
-    if(errEl){ errEl.textContent='❌ '+msg; errEl.style.display='block'; }
+    // Clear saved creds if server explicitly rejected them
     if(msg.includes('credentials')||msg.includes('password')||msg.includes('not found')) ACreds.save('','','');
   }
-  finally{
-    clearTimeout(wakeTimer);
-    btn.innerHTML='<i class="fa-solid fa-lock-open"></i> Access Dashboard'; btn.disabled=false;
-  }
+  finally{ btn.innerHTML='<i class="fa-solid fa-lock-open"></i> Access Dashboard'; btn.disabled=false; }
 }
 
 function showApp(session){
@@ -1355,7 +1284,7 @@ function closeSb(){ doc('sidebar').classList.remove('open'); doc('sb-ov').classL
 // NAVIGATION
 // ════════════════════════════════════════════════
 let _curPg='dashboard';
-const _titles={dashboard:'Dashboard',orders:'Orders',bulk:'Bulk Orders',menu:'Menu Management',thalis:'Thali Manager',coupons:'Coupons',subscribers:'Subscribers',users:'All Users',riders:'Riders',khata:'Khata / Wallet',staff:'Staff Members',settings:'Settings'};
+const _titles={dashboard:'Dashboard',orders:'Orders',bulk:'Bulk Orders',menu:'Menu Management',coupons:'Coupons',subscribers:'Subscribers',users:'All Users',riders:'Riders',khata:'Khata / Wallet',staff:'Staff Members',settings:'Settings'};
 
 function showPg(name){
   document.querySelectorAll('.pg-v').forEach(p=>p.classList.remove('act'));
@@ -1364,7 +1293,7 @@ function showPg(name){
   const ni=doc('ni-'+name); if(ni) ni.classList.add('act');
   doc('pg-title').textContent=_titles[name]||name;
   _curPg=name; closeSb();
-  const loaders={dashboard:loadDash,orders:loadOrds,menu:loadMenu,thalis:loadThalis,coupons:loadCpns,subscribers:loadSubs,users:loadUsers,riders:loadRiders,bulk:initBulk,khata:loadKhata,staff:loadStaff,settings:loadSettings};
+  const loaders={dashboard:loadDash,orders:loadOrds,menu:loadMenu,coupons:loadCpns,subscribers:loadSubs,users:loadUsers,riders:loadRiders,bulk:initBulk,khata:loadKhata,staff:loadStaff,settings:loadSettings};
   if(loaders[name]) loaders[name]();
 }
 
@@ -2013,15 +1942,6 @@ function renderMenu(){
     const varStr=vars.length?vars.map(v=>`${v.label}:₹${v.price}`).join(', '):'—';
     const badge=item.highlight&&_highlightLabels[item.highlight]?`<span class="bdg ${_highlightColors[item.highlight]||'b-gr'}">${_highlightLabels[item.highlight]}</span>`:'<span style="color:#ccc">—</span>';
     const sortNum=Number(item.sortOrder)||9999;
-    // v14: stock display
-    const stk=item.stock_grams;
-    const stkCell=stk===null||stk===undefined
-      ?'<span style="color:#ccc;font-size:11px">∞</span>'
-      :stk<=0
-        ?'<span class="bdg b-r" style="font-size:10px">OOS</span>'
-        :stk<=1000
-          ?`<span class="bdg b-o" style="font-size:10px">⚠ ${stk}g</span>`
-          :`<span style="font-size:12px;color:#555">${stk}g</span>`;
     return `<tr>
       <td style="color:#999;font-size:12px">${sortNum>=9999?'—':sortNum}</td>
       <td><img src="${esc(item.imageUrl)||'https://picsum.photos/seed/'+item.itemId+'/44'}" style="width:44px;height:44px;object-fit:cover;border-radius:8px" onerror="this.src='https://picsum.photos/44'"></td>
@@ -2029,7 +1949,6 @@ function renderMenu(){
       <td>${esc(item.category)}</td>
       <td><strong>₹${Number(item.price).toFixed(0)}</strong></td>
       <td style="font-size:11px;max-width:140px;color:#666">${esc(varStr)}</td>
-      <td>${stkCell}</td>
       <td><span class="bdg ${item.menuType==='morning'?'b-y':'b-bl'}">${esc(item.menuType)}</span></td>
       <td>${badge}</td>
       <td><span class="bdg ${av?'b-g':'b-r'}">${av?'Yes':'No'}</span></td>
@@ -2044,7 +1963,7 @@ function renderMenu(){
         <button class="btn btn-sm btn-red" onclick="delMenu('${esc(item.itemId)}','${esc(item.name)}')"><i class="fa-solid fa-trash"></i></button>
       </td>
     </tr>`;
-  }).join(''):'<tr><td colspan="12" style="text-align:center;padding:28px;color:#999">No items</td></tr>';
+  }).join(''):'<tr><td colspan="11" style="text-align:center;padding:28px;color:#999">No items</td></tr>';
 }
 
 async function moveMenuUp(itemId){
@@ -2077,7 +1996,6 @@ function openMenuModal(){
   doc('mi-price').value=''; doc('mi-type').value='morning'; doc('mi-avail').value='TRUE';
   if(doc('mi-highlight')) doc('mi-highlight').value='';
   if(doc('mi-sort')) doc('mi-sort').value='';
-  if(doc('mi-stock')) doc('mi-stock').value='';
   _varRows=[]; renderVarRows();
   doc('mo-menu').classList.remove('hide');
 }
@@ -2089,8 +2007,6 @@ function editMenu(item){
   doc('mi-type').value=item.menuType; doc('mi-avail').value=String(item.availability).toUpperCase()==='FALSE'?'FALSE':'TRUE';
   if(doc('mi-highlight')) doc('mi-highlight').value=item.highlight||'';
   if(doc('mi-sort')) doc('mi-sort').value=item.sortOrder&&item.sortOrder<9999?item.sortOrder:'';
-  // v14: stock
-  if(doc('mi-stock')) doc('mi-stock').value=(item.stock_grams!==null&&item.stock_grams!==undefined)?item.stock_grams:'';
   _varRows=safeP(item.variants).map(v=>({...v}));
   renderVarRows();
   doc('mo-menu').classList.remove('hide');
@@ -2111,14 +2027,11 @@ async function submitMenu(){
   const itemId=doc('mi-id').value;
   const variants=_varRows.filter(v=>v.label&&v.price);
   const sortVal=doc('mi-sort')&&doc('mi-sort').value?Number(doc('mi-sort').value):undefined;
-  // v14: stock_grams — blank = null (unlimited), number = tracked
-  const stockRaw=doc('mi-stock')&&doc('mi-stock').value.trim()!==''?Number(doc('mi-stock').value):null;
   const data={
     name:doc('mi-name').value.trim(), category:doc('mi-cat').value.trim(),
     price:doc('mi-price').value||'0', variants,
     imageUrl:doc('mi-img').value.trim(), menuType:doc('mi-type').value, availability:doc('mi-avail').value,
-    highlight:doc('mi-highlight')?doc('mi-highlight').value:'',
-    stock_grams:stockRaw
+    highlight:doc('mi-highlight')?doc('mi-highlight').value:''
   };
   if(sortVal!==undefined) data.sortOrder=sortVal;
   if(!data.name) return toast('Item name required');
@@ -2133,198 +2046,6 @@ async function delMenu(itemId,name){
   if(!confirm(`Delete "${name}"?`)) return;
   try{ await api('deleteMenuItem',{itemId}); toast('✅ Deleted'); loadMenu(); }
   catch(e){ toast('❌ '+e.message); }
-}
-
-// ════════════════════════════════════════════════
-// THALI MANAGER (v14 NEW)
-// ════════════════════════════════════════════════
-let _thalis=[];
-let _thaliComps=[]; // [{itemId,itemName,variantLabel,variantPrice,qty}]
-
-async function loadThalis(){
-  doc('thali-tb').innerHTML='<tr><td colspan="6" style="text-align:center;padding:28px;color:#999">Loading...</td></tr>';
-  try{
-    _thalis=await api('adminGetThalis');
-    renderThalis();
-  }catch(e){ toast('Thali error: '+e.message); }
-}
-
-function renderThalis(){
-  doc('thali-count').textContent=`Thalis (${_thalis.length})`;
-  doc('thali-tb').innerHTML=_thalis.length?_thalis.map(t=>{
-    const items=Array.isArray(t.items)?t.items:[];
-    const stk=t.stock_qty;
-    const stkStr=stk===null||stk===undefined?'∞':stk<=0?'<span class="bdg b-r">OOS</span>':`${stk}`;
-    const active=t.is_active!==false;
-    return `<tr>
-      <td style="font-weight:700">${esc(t.name)}<div style="font-size:11px;color:#999">${esc(t.description||'')}</div></td>
-      <td><strong>₹${Number(t.price||0)}</strong></td>
-      <td style="font-size:12px;color:#555">${items.map(i=>esc(i.variant_label||i.name||'')).join(', ')||'—'}</td>
-      <td>${stkStr}</td>
-      <td><span class="bdg ${active?'b-g':'b-r'}">${active?'Active':'Inactive'}</span></td>
-      <td>
-        <button class="btn btn-sm btn-ghost" onclick='editThali(${JSON.stringify(t).replace(/'/g,"&#39;")})' style="margin-right:4px"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn btn-sm btn-ghost" onclick="toggleThaliStatus('${esc(t.thali_id)}',${active})" style="margin-right:4px;background:${active?'#fff3e0':'#e8f5f3'};color:${active?'#c45500':'#1e7e71'}">${active?'Deactivate':'Activate'}</button>
-        <button class="btn btn-sm btn-red" onclick="delThali('${esc(t.thali_id)}','${esc(t.name)}')"><i class="fa-solid fa-trash"></i></button>
-      </td>
-    </tr>`;
-  }).join(''):'<tr><td colspan="6" style="text-align:center;padding:28px;color:#999">No thalis yet</td></tr>';
-}
-
-function openThaliModal(){
-  doc('mo-thali-t').textContent='Create Thali';
-  doc('tl-id').value='';
-  ['tl-name','tl-desc','tl-img'].forEach(id=>doc(id).value='');
-  doc('tl-price').value=''; doc('tl-stock').value='';
-  _thaliComps=[];
-  renderThaliComps();
-  doc('mo-thali').classList.remove('hide');
-}
-
-function editThali(t){
-  doc('mo-thali-t').textContent='Edit Thali';
-  doc('tl-id').value=t.thali_id;
-  doc('tl-name').value=t.name||'';
-  doc('tl-desc').value=t.description||'';
-  doc('tl-price').value=t.price||'';
-  doc('tl-img').value=t.image_url||'';
-  doc('tl-stock').value=(t.stock_qty!==null&&t.stock_qty!==undefined)?t.stock_qty:'';
-  const items=Array.isArray(t.items)?t.items:[];
-  _thaliComps=items.map(i=>({
-    itemId:i.menu_item_id||'',
-    itemName:i.menu_item_name||i.name||'',
-    variantLabel:i.variant_label||'',
-    variantPrice:i.variant_price||0,
-    qty:i.quantity_in_thali||1
-  }));
-  renderThaliComps();
-  doc('mo-thali').classList.remove('hide');
-}
-
-function addThaliComp(){
-  // Build item dropdown from loaded _menu
-  const idx=_thaliComps.length;
-  _thaliComps.push({itemId:'',itemName:'',variantLabel:'',variantPrice:0,qty:1});
-  renderThaliComps();
-  // Focus new item select
-  const sel=doc('tl-item-sel-'+idx);
-  if(sel) sel.focus();
-}
-
-function renderThaliComps(){
-  const el=doc('tl-comp-list'); if(!el) return;
-  el.innerHTML=_thaliComps.map((c,i)=>{
-    const itemOpts=_menu.map(m=>`<option value="${esc(m.itemId)}" ${c.itemId===m.itemId?'selected':''}>${esc(m.name)}</option>`).join('');
-    // Build variant options for currently selected item
-    const selItem=_menu.find(m=>m.itemId===c.itemId);
-    const vars=selItem?safeP(selItem.variants):[];
-    const varOpts=vars.length
-      ?vars.map(v=>`<option value="${esc(v.label)}|${v.price}" ${c.variantLabel===v.label?'selected':''}>${esc(v.label)} ₹${v.price}</option>`).join('')
-      :`<option value="|0">No variants</option>`;
-    return `<div style="background:#f8f5f2;border-radius:10px;padding:10px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-      <select id="tl-item-sel-${i}" class="inp" style="flex:2;min-width:130px;font-size:13px" onchange="onThaliItemChange(${i},this.value)">
-        <option value="">— Select item —</option>${itemOpts}
-      </select>
-      <select id="tl-var-sel-${i}" class="inp" style="flex:2;min-width:110px;font-size:13px" onchange="onThaliVarChange(${i},this.value)">
-        ${varOpts}
-      </select>
-      <input type="number" min="1" value="${c.qty}" class="inp" style="width:64px;font-size:13px;padding:10px 8px" placeholder="Qty" onchange="_thaliComps[${i}].qty=Number(this.value)||1">
-      <button class="btn btn-sm btn-red" onclick="_thaliComps.splice(${i},1);renderThaliComps()"><i class="fa-solid fa-times"></i></button>
-    </div>`;
-  }).join('');
-}
-
-function onThaliItemChange(i,itemId){
-  const item=_menu.find(m=>m.itemId===itemId);
-  _thaliComps[i].itemId=itemId;
-  _thaliComps[i].itemName=item?item.name:'';
-  const vars=item?safeP(item.variants):[];
-  if(vars.length){ _thaliComps[i].variantLabel=vars[0].label; _thaliComps[i].variantPrice=vars[0].price; }
-  else { _thaliComps[i].variantLabel=''; _thaliComps[i].variantPrice=0; }
-  renderThaliComps();
-}
-
-function onThaliVarChange(i,val){
-  const [label,price]=val.split('|');
-  _thaliComps[i].variantLabel=label||'';
-  _thaliComps[i].variantPrice=Number(price)||0;
-}
-
-async function submitThali(){
-  const thaliId=doc('tl-id').value;
-  const name=doc('tl-name').value.trim();
-  if(!name) return toast('Thali name required');
-  const stockRaw=doc('tl-stock').value.trim();
-  const data={
-    name, description:doc('tl-desc').value.trim(),
-    price:Number(doc('tl-price').value)||0,
-    image_url:doc('tl-img').value.trim(),
-    stock_qty:stockRaw!==''?Number(stockRaw):null,
-    items:_thaliComps.filter(c=>c.itemId).map(c=>({
-      menu_item_id:c.itemId, variant_label:c.variantLabel||'—',
-      variant_price:c.variantPrice||0, quantity_in_thali:c.qty||1
-    }))
-  };
-  try{
-    if(thaliId){ await api('updateThali',{thali_id:thaliId,...data}); toast('✅ Thali updated!'); }
-    else{ await api('createThali',data); toast('✅ Thali created!'); }
-    closeMo('mo-thali'); loadThalis();
-  }catch(e){ toast('❌ '+e.message); }
-}
-
-async function toggleThaliStatus(thaliId,currentActive){
-  try{
-    await api('updateThali',{thali_id:thaliId,is_active:!currentActive});
-    toast(currentActive?'Thali deactivated':'Thali activated');
-    loadThalis();
-  }catch(e){ toast('❌ '+e.message); }
-}
-
-async function delThali(thaliId,name){
-  if(!confirm(`Delete thali "${name}"?`)) return;
-  try{ await api('deleteThali',{thali_id:thaliId}); toast('✅ Deleted'); loadThalis(); }
-  catch(e){ toast('❌ '+e.message); }
-}
-
-// ════════════════════════════════════════════════
-// USER PASSWORD RESET (v14 NEW)
-// ════════════════════════════════════════════════
-let _pwResetUser=null;
-
-async function lookupUserForReset(){
-  const ph=(doc('pw-reset-ph').value||'').replace(/\D/g,'');
-  if(!ph||ph.length!==10) return toast('Enter valid 10-digit number');
-  const info=doc('pw-reset-user-info');
-  const detail=doc('pw-reset-user-detail');
-  info.style.display='none'; _pwResetUser=null;
-  try{
-    const u=await api('getUserByPhone',{phone:ph});
-    _pwResetUser=u;
-    const isSub=_subPhones&&_subPhones.has(ph);
-    // Try to get wallet balance
-    let balStr='—';
-    try{ const wb=await api('getSubscriberBalance',{phone:ph}); balStr='₹'+Number(wb.balance); }catch{}
-    detail.innerHTML=`<strong>${esc(u.name||'Unknown')}</strong> &nbsp;|&nbsp; 📞 ${esc(ph)}
-      &nbsp;|&nbsp; <span class="bdg ${isSub?'b-g':'b-gr'}" style="font-size:11px">${isSub?'Subscriber':'Daily'}</span>
-      &nbsp;|&nbsp; 💰 ${balStr}`;
-    info.style.display='block';
-    if(doc('pw-reset-new')) doc('pw-reset-new').value='';
-  }catch(e){ toast('❌ '+e.message); }
-}
-
-async function submitUserPasswordReset(){
-  if(!_pwResetUser) return toast('Look up a user first');
-  const newPw=(doc('pw-reset-new').value||'').trim();
-  if(!newPw||newPw.length<6) return toast('Password must be 6+ characters');
-  const ph=(doc('pw-reset-ph').value||'').replace(/\D/g,'');
-  try{
-    await api('resetUserPassword',{phone:ph,newPassword:newPw});
-    toast('✅ Password reset for '+ph);
-    doc('pw-reset-new').value='';
-    doc('pw-reset-user-info').style.display='none';
-    doc('pw-reset-ph').value='';
-    _pwResetUser=null;
-  }catch(e){ toast('❌ '+e.message); }
 }
 
 // ════════════════════════════════════════════════
@@ -2419,7 +2140,7 @@ function renderSubs(){
     <td><span class="bdg b-g">${esc(s.plan||'both')}</span></td>
     <td><span class="bdg ${(s.status||'active')==='active'?'b-g':'b-o'}">${esc(s.status||'active')}</span></td>
     <td>${pauseBadge}</td>
-    <td id="sub-bal-${esc(s.phone)}"><span class="bdg ${balClass}" style="font-weight:800">₹${bal}</span></td>
+    <td><span class="bdg ${balClass}" style="font-weight:800">₹${bal}</span></td>
     <td style="font-size:12px;color:#999">${s.startDate?fmtDate(s.startDate):''}</td>
     <td>
       <button class="btn btn-sm" style="background:var(--gl);color:var(--g);margin-right:4px" onclick="viewSubKhata('${esc(s.phone)}','${esc(s.name)}')"><i class="fa-solid fa-book"></i></button>
@@ -2903,17 +2624,9 @@ async function submitRecharge(){
     const r=await api('rechargeWallet',{phone:ph,amount:amt,note:note||`Recharge ₹${amt}`});
     toast(`✅ Wallet recharged! New balance: ₹${r.newBalance}`);
     closeMo('mo-recharge');
-    // v14: update subscriber balance cell in-place (no full reload needed)
-    const newBal=Number(r.newBalance)||0;
-    const balCell=doc('sub-bal-'+ph);
-    if(balCell){
-      const bc=newBal<0?'b-r':newBal<100?'b-o':'b-g';
-      balCell.innerHTML=`<span class="bdg ${bc}" style="font-weight:800">₹${newBal}</span>`;
-      // also update in-memory _subs so filter/re-render stays correct
-      const subIdx=_subs.findIndex(s=>String(s.phone).replace(/\D/g,'')==ph);
-      if(subIdx>=0) _subs[subIdx].balance=newBal;
-    }
+    // Immediately refresh all relevant panels
     loadKhata();
+    if(_curPg==='subscribers') loadSubs();
     if(_curPg==='dashboard') loadDash();
   }catch(e){ toast('❌ '+e.message); }
 }
@@ -3565,187 +3278,6 @@ window.addEventListener('DOMContentLoaded',()=>{
     try{ SStore.clear(); }catch{}
   }
 });
-
-// ════════════════════════════════════════════════
-// v14 — THALI MANAGER
-// ════════════════════════════════════════════════
-let _thalis=[], _thaliComps=[];
-
-async function loadThalis(){
-  doc('thali-tb').innerHTML='<tr><td colspan="6" style="text-align:center;padding:28px;color:#999">Loading...</td></tr>';
-  try{
-    _thalis=await api('adminGetThalis');
-    renderThalis();
-  }catch(e){ toast('Thali error: '+e.message); }
-}
-
-function renderThalis(){
-  doc('thali-count').textContent=`Thalis (${_thalis.length})`;
-  doc('thali-tb').innerHTML=_thalis.length?_thalis.map(t=>{
-    const items=Array.isArray(t.items)?t.items:[];
-    const stk=t.stock_qty;
-    const stkTxt=stk===null||stk===undefined?'∞':stk<=0?'<span class="bdg b-r">OOS</span>':`${stk}`;
-    return `<tr>
-      <td style="font-weight:700">${esc(t.name)}</td>
-      <td><strong>₹${Number(t.price||0).toFixed(0)}</strong></td>
-      <td style="font-size:12px;color:#666">${items.length} item${items.length!==1?'s':''}</td>
-      <td>${stkTxt}</td>
-      <td><span class="bdg ${t.is_active!==false?'b-g':'b-r'}">${t.is_active!==false?'Active':'Inactive'}</span></td>
-      <td>
-        <button class="btn btn-sm btn-ghost" onclick='editThali(${JSON.stringify(t).replace(/'/g,"&#39;")})' style="margin-right:4px"><i class="fa-solid fa-pen"></i></button>
-        <button class="btn btn-sm" style="background:#fff3e0;color:#c45500;margin-right:4px" onclick="toggleThaliActive('${esc(t.thali_id)}',${t.is_active!==false})">${t.is_active!==false?'Deactivate':'Activate'}</button>
-        <button class="btn btn-sm btn-red" onclick="delThali('${esc(t.thali_id)}','${esc(t.name)}')"><i class="fa-solid fa-trash"></i></button>
-      </td>
-    </tr>`;
-  }).join(''):'<tr><td colspan="6" style="text-align:center;padding:28px;color:#999">No thalis yet</td></tr>';
-}
-
-function openThaliModal(){
-  doc('mo-thali-t').textContent='Create Thali';
-  doc('tl-id').value='';
-  ['tl-name','tl-desc','tl-price','tl-img','tl-stock'].forEach(id=>doc(id).value='');
-  _thaliComps=[];
-  renderThaliComps();
-  doc('mo-thali').classList.remove('hide');
-}
-
-function editThali(t){
-  doc('mo-thali-t').textContent='Edit Thali';
-  doc('tl-id').value=t.thali_id;
-  doc('tl-name').value=t.name||'';
-  doc('tl-desc').value=t.description||'';
-  doc('tl-price').value=t.price||'';
-  doc('tl-img').value=t.image_url||'';
-  doc('tl-stock').value=(t.stock_qty!==null&&t.stock_qty!==undefined)?t.stock_qty:'';
-  _thaliComps=(Array.isArray(t.items)?t.items:[]).map(i=>({...i}));
-  renderThaliComps();
-  doc('mo-thali').classList.remove('hide');
-}
-
-function addThaliComp(){
-  _thaliComps.push({menu_item_id:'',variant_label:'',variant_price:0,quantity_in_thali:1,_variants:[]});
-  renderThaliComps();
-}
-
-function removeThaliComp(idx){ _thaliComps.splice(idx,1); renderThaliComps(); }
-
-function renderThaliComps(){
-  const el=doc('tl-comp-list'); if(!el) return;
-  if(!_thaliComps.length){ el.innerHTML='<div style="font-size:12px;color:#999;padding:8px 0">No components yet. Click Add Component.</div>'; return; }
-  el.innerHTML=_thaliComps.map((c,i)=>{
-    const menuOpts=_menu.map(m=>`<option value="${esc(m.itemId)}" ${c.menu_item_id===m.itemId?'selected':''}>${esc(m.name)}</option>`).join('');
-    const selItem=_menu.find(m=>m.itemId===c.menu_item_id);
-    const vars=selItem?safeP(selItem.variants):[];
-    const varOpts=vars.length
-      ?vars.map(v=>`<option value="${esc(v.label)}" data-price="${v.price}" ${c.variant_label===v.label?'selected':''}>${esc(v.label)} — ₹${v.price}</option>`).join('')
-      :'<option value="">No variants</option>';
-    return `<div style="background:#f8f5f2;border-radius:10px;padding:10px 12px;margin-bottom:8px">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <select class="inp" style="flex:2;min-width:130px;padding:8px 10px;font-size:13px" onchange="onThaliItemSelect(${i},this.value)">
-          <option value="">Select item...</option>${menuOpts}
-        </select>
-        <select class="inp" style="flex:2;min-width:120px;padding:8px 10px;font-size:13px" id="tl-var-${i}" onchange="onThaliVarSelect(${i},this)">
-          ${varOpts}
-        </select>
-        <input class="inp" type="number" min="1" value="${c.quantity_in_thali||1}" placeholder="Qty" style="width:70px;padding:8px 10px;font-size:13px" oninput="_thaliComps[${i}].quantity_in_thali=Number(this.value)||1">
-        <button class="btn btn-sm btn-red" onclick="removeThaliComp(${i})" style="padding:8px 10px"><i class="fa-solid fa-times"></i></button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function onThaliItemSelect(idx,itemId){
-  _thaliComps[idx].menu_item_id=itemId;
-  _thaliComps[idx].variant_label='';
-  _thaliComps[idx].variant_price=0;
-  const item=_menu.find(m=>m.itemId===itemId);
-  const vars=item?safeP(item.variants):[];
-  if(vars.length){ _thaliComps[idx].variant_label=vars[0].label; _thaliComps[idx].variant_price=vars[0].price; }
-  renderThaliComps();
-}
-
-function onThaliVarSelect(idx,sel){
-  _thaliComps[idx].variant_label=sel.value;
-  const price=sel.options[sel.selectedIndex]?.dataset?.price;
-  if(price) _thaliComps[idx].variant_price=Number(price)||0;
-}
-
-async function submitThali(){
-  const thaliId=doc('tl-id').value;
-  const name=doc('tl-name').value.trim();
-  const price=Number(doc('tl-price').value)||0;
-  if(!name) return toast('Thali name required');
-  if(!price) return toast('Price required');
-  const stockRaw=doc('tl-stock').value.trim()!==''?Number(doc('tl-stock').value):null;
-  const payload={
-    name, description:doc('tl-desc').value.trim(),
-    price, image_url:doc('tl-img').value.trim(),
-    stock_qty:stockRaw,
-    items:_thaliComps.filter(c=>c.menu_item_id)
-  };
-  try{
-    if(thaliId){ await api('updateThali',{thali_id:thaliId,...payload}); toast('✅ Thali updated!'); }
-    else{ await api('createThali',payload); toast('✅ Thali created!'); }
-    closeMo('mo-thali'); loadThalis();
-  }catch(e){ toast('❌ '+e.message); }
-}
-
-async function toggleThaliActive(thaliId,isActive){
-  try{
-    await api('updateThali',{thali_id:thaliId,is_active:!isActive});
-    toast(isActive?'⏸ Thali deactivated':'✅ Thali activated');
-    loadThalis();
-  }catch(e){ toast('❌ '+e.message); }
-}
-
-async function delThali(thaliId,name){
-  if(!confirm(`Delete thali "${name}"?`)) return;
-  try{ await api('deleteThali',{thali_id:thaliId}); toast('✅ Deleted'); loadThalis(); }
-  catch(e){ toast('❌ '+e.message); }
-}
-
-// ════════════════════════════════════════════════
-// v14 — USER PASSWORD RESET
-// ════════════════════════════════════════════════
-let _pwResetUser=null;
-
-async function lookupUserForReset(){
-  const ph=(doc('pw-reset-ph').value||'').replace(/\D/g,'');
-  if(ph.length!==10) return toast('Enter valid 10-digit phone');
-  const infoEl=doc('pw-reset-user-info');
-  const detailEl=doc('pw-reset-user-detail');
-  infoEl.style.display='none';
-  try{
-    const u=await api('getUserByPhone',{phone:ph});
-    if(!u) return toast('User not found');
-    _pwResetUser=u;
-    const isSub=u.isSubscriber||false;
-    const bal=u.walletBalance!==undefined?`₹${u.walletBalance}`:'—';
-    detailEl.innerHTML=`
-      <div style="display:flex;gap:16px;flex-wrap:wrap">
-        <div><span style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.4px">Name</span><div style="font-weight:700;font-size:14px">${esc(u.name||'—')}</div></div>
-        <div><span style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.4px">Phone</span><div style="font-weight:700;font-size:14px">${esc(ph)}</div></div>
-        <div><span style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.4px">Status</span><div><span class="bdg ${isSub?'b-g':'b-gr'}" style="font-size:11px">${isSub?'Subscriber':'Daily User'}</span></div></div>
-        <div><span style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.4px">Wallet</span><div style="font-weight:700;font-size:14px">${bal}</div></div>
-      </div>`;
-    infoEl.style.display='block';
-    doc('pw-reset-new').value='';
-  }catch(e){ toast('❌ '+e.message); }
-}
-
-async function submitUserPasswordReset(){
-  if(!_pwResetUser) return toast('Lookup a user first');
-  const ph=(doc('pw-reset-ph').value||'').replace(/\D/g,'');
-  const newPw=doc('pw-reset-new').value;
-  if(!newPw||newPw.length<6) return toast('Password must be 6+ characters');
-  try{
-    await api('resetUserPassword',{phone:ph,newPassword:newPw});
-    toast(`✅ Password reset for ${ph}`);
-    doc('pw-reset-new').value='';
-    doc('pw-reset-user-info').style.display='none';
-    _pwResetUser=null;
-  }catch(e){ toast('❌ '+e.message); }
-}
 </script>
 </body>
 </html>
