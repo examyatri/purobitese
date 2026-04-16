@@ -668,7 +668,7 @@ textarea.inp{resize:vertical;min-height:72px}
           <span class="rest-toggle-icon" id="rest-toggle-icon">🟢</span>
           <div>
             <div class="rest-toggle-title" id="rest-toggle-title">Pause Your Auto Tiffin</div>
-            <div class="rest-toggle-sub" id="rest-toggle-sub">If you turn this off, no automatic order will be generated.</div>
+            <div class="rest-toggle-sub" id="rest-toggle-sub">Receiving all deliveries. If you turn this off, no automatic order will be generated.</div>
           </div>
         </div>
         <label class="mesh-switch">
@@ -1837,14 +1837,16 @@ async function loadMenu() {
     ]);
     _menu = menu;
     _thalis = Array.isArray(thalisData) ? thalisData : [];
-    window._cutoffCfg = cfg;
+    window._cutoffCfg = normalizeCfg(cfg);
     const h = getISTHours();
     const ist = new Date(Date.now() + 5.5 * 3600000);
     const d = String(ist.getUTCDate()).padStart(2,'0'), mo = String(ist.getUTCMonth()+1).padStart(2,'0'), y = ist.getUTCFullYear();
-    const schedLunchEnd = cfg && cfg.weeklySchedule
-      ? (() => { const dow=ist.getUTCDay(); const s=cfg.weeklySchedule[dow]; return s?timeStrToH(s.lunchEnd||'11:30'):11.5; })()
-      : (() => { const [dH,dM]=(cfg&&cfg.cutoffDay||'11:30').split(':').map(Number); return dH+dM/60; })();
-    const isLunch = h < schedLunchEnd;
+    const _cfgN = window._cutoffCfg;
+    const _todaySched = _cfgN && _cfgN.weeklySchedule ? _cfgN.weeklySchedule[ist.getUTCDay()] : null;
+    const _lunchCutoffH = _todaySched
+      ? timeStrToH(_cfgN.cutoffDay || _todaySched.lunchEnd || '11:30')
+      : timeStrToH((_cfgN && _cfgN.cutoffDay) || '11:30');
+    const isLunch = h < _lunchCutoffH;
     const lbl = (isLunch ? '🌅 Breakfast / Lunch Menu' : '🌙 Evening / Dinner Menu') + ' · ' + d+'/'+mo+'/'+y;
     doc('menu-lbl').textContent = lbl;
     Store.setJSON('pb_menu_cache', { menu, lbl, ts: Date.now() });
@@ -1913,6 +1915,13 @@ function timeStrToH(t) {
   if (!t) return 0;
   const parts = String(t).split(':').map(Number);
   return (parts[0]||0) + (parts[1]||0)/60;
+}
+
+function normalizeCfg(cfg) {
+  if (!cfg) return cfg;
+  if (cfg.schedule && !cfg.weeklySchedule) cfg.weeklySchedule = cfg.schedule;
+  if (!cfg.enabled && cfg.weeklySchedule) cfg.enabled = true;
+  return cfg;
 }
 
 function buildCategoryChips(menu) {
@@ -2000,32 +2009,61 @@ function getISTHours() {
 }
 
 function calcOrderState(cfg, currentH) {
+  // ── Dynamic schedule branch (uses schedule_0…6 from admin_settings) ──
   if (cfg && cfg.weeklySchedule) {
     const ist = new Date(Date.now() + 5.5 * 3600000);
     const dow = ist.getUTCDay();
     const sched = cfg.weeklySchedule[dow];
     if (sched) {
+      // Condition 1: day marked closed
       if (!sched.open) return { closed: true, reason: 'Restaurant closed today', detail: 'We are closed today. See you tomorrow!' };
-      const openH   = timeStrToH(sched.openTime    || '07:00');
-      const leH     = timeStrToH(sched.lunchEnd    || '11:30');
-      const deH     = timeStrToH(sched.dinnerEnd   || '19:30');
-      if (currentH < openH)  return { closed: true,  reason: 'Not yet open', detail: `Opens at ${sched.openTime||'07:00'}` };
-      if (currentH >= deH)   return { closed: true,  reason: 'Closed for today', detail: 'All orders done. See you tomorrow!' };
-      if (currentH < leH)    return { closed: false, reason: 'Orders open', detail: `Lunch orders close at ${sched.lunchEnd||'11:30'}`, session: 'morning' };
-      return { closed: false, reason: 'Orders open', detail: `Dinner orders close at ${sched.dinnerEnd||'19:30'}`, session: 'evening' };
+
+      const lunchStart  = timeStrToH(sched.lunchStart  || sched.openTime || '07:00');
+      const cutoffDay   = timeStrToH(cfg.cutoffDay   || sched.lunchEnd   || '11:30');
+      const dinnerStart = timeStrToH(sched.dinnerStart || '11:30');
+      const cutoffNight = timeStrToH(cfg.cutoffNight || sched.dinnerEnd  || '19:30');
+
+      const lunchStartFmt  = fmtCutoffTime(sched.lunchStart  || sched.openTime || '07:00');
+      const cutoffDayFmt   = fmtCutoffTime(cfg.cutoffDay   || sched.lunchEnd   || '11:30');
+      const dinnerStartFmt = fmtCutoffTime(sched.dinnerStart || '11:30');
+      const cutoffNightFmt = fmtCutoffTime(cfg.cutoffNight || sched.dinnerEnd  || '19:30');
+
+      // Get tomorrow's lunchStart for "resumes tomorrow" message
+      const tomorrowDow  = (dow + 1) % 7;
+      const tomorrowSched = cfg.weeklySchedule[tomorrowDow];
+      const tomorrowOpen  = tomorrowSched
+        ? fmtCutoffTime(tomorrowSched.lunchStart || tomorrowSched.openTime || '07:00')
+        : '7:00 AM';
+
+      // Condition 2: before lunch starts
+      if (currentH < lunchStart)
+        return { closed: true, reason: 'Orders not started yet', detail: `Orders open at ${lunchStartFmt}`, session: 'morning' };
+
+      // Condition 3: lunch window open
+      if (currentH <= cutoffDay)
+        return { closed: false, reason: 'Orders open', detail: `Lunch orders close at ${cutoffDayFmt}`, session: 'morning' };
+
+      // Condition 4: between lunch cutoff and dinner start
+      if (currentH < dinnerStart)
+        return { closed: true, reason: 'Lunch closed', detail: `Dinner orders start at ${dinnerStartFmt}`, session: 'evening' };
+
+      // Condition 5: dinner window open
+      if (currentH <= cutoffNight)
+        return { closed: false, reason: 'Orders open', detail: `Dinner orders close at ${cutoffNightFmt}`, session: 'evening' };
+
+      // Condition 6: all done for today
+      return { closed: true, reason: 'All orders closed for today', detail: `Lunch & dinner orders resume tomorrow at ${tomorrowOpen}`, session: 'evening' };
     }
   }
+  // ── Legacy fallback (no schedule) ──
   if (!cfg || !cfg.enabled) return { closed: false, reason: '', detail: '' };
-  const [dH, dM] = (cfg.cutoffDay   || '11:30').split(':').map(Number);
-  const [nH, nM] = (cfg.cutoffNight || '19:30').split(':').map(Number);
-  const dayCutoff   = dH + dM / 60;
-  const nightCutoff = nH + nM / 60;
-  const morningOpen = 7;
+  const dayCutoff   = timeStrToH(cfg.cutoffDay   || '11:30');
+  const nightCutoff = timeStrToH(cfg.cutoffNight || '19:30');
   const dayFmt   = fmtCutoffTime(cfg.cutoffDay);
   const nightFmt = fmtCutoffTime(cfg.cutoffNight);
-  if (currentH >= nightCutoff) return { closed: true, reason: 'All orders closed for today', detail: 'Lunch & dinner orders resume tomorrow at 7:00 AM' };
+  if (currentH >= nightCutoff) return { closed: true,  reason: 'All orders closed for today', detail: 'Lunch & dinner orders resume tomorrow at 7:00 AM' };
   if (currentH >= dayCutoff)   return { closed: false, reason: 'Orders open', detail: `Dinner orders close at ${nightFmt}`, session: 'evening' };
-  if (currentH >= morningOpen) return { closed: false, reason: 'Orders open', detail: `Lunch orders close at ${dayFmt}`, session: 'morning' };
+  if (currentH >= 7)           return { closed: false, reason: 'Orders open', detail: `Lunch orders close at ${dayFmt}`, session: 'morning' };
   return { closed: true, reason: 'Orders not started yet', detail: `Lunch orders open at 7:00 AM (close at ${dayFmt})` };
 }
 
@@ -2050,16 +2088,18 @@ function updateCutoffBanner(cfg, currentH, menuType) {
     if (dotEl) { dotEl.style.background = isOpen ? '#a8ffec' : '#fff'; dotEl.style.opacity = isOpen ? '1' : '.7'; }
     if (placeBtn) placeBtn.disabled = state.closed;
   }
-  if (cfg && cfg.weeklySchedule) { applyState(calcOrderState(cfg, currentH)); return; }
-  const CLOSE_H = 19.5, OPEN_H = 7.0;
-  const isNightClosed = currentH >= CLOSE_H || currentH < OPEN_H;
+  // All state decisions now route through calcOrderState with normalizeCfg applied upstream
+  const st = calcOrderState(cfg, currentH);
   if (!cfg || !cfg.enabled) {
+    const nightH = cfg ? timeStrToH(cfg.cutoffNight || '19:30') : 19.5;
+    const openH  = 7.0;
+    const isNightClosed = currentH >= nightH || currentH < openH;
     if (isNightClosed) {
-      applyState({ closed: true, reason: 'Restaurant is Closed', detail: currentH >= CLOSE_H ? 'Try after 7:00 AM tomorrow.' : 'Opens at 7:00 AM today.' });
+      applyState({ closed: true, reason: 'Restaurant is Closed', detail: currentH >= nightH ? 'Try after 7:00 AM tomorrow.' : 'Opens at 7:00 AM today.' });
     } else { banner.classList.add('hide'); if (placeBtn) placeBtn.disabled = false; }
     return;
   }
-  applyState(calcOrderState(cfg, currentH));
+  applyState(st);
 }
 
 const _badgeMap = {
@@ -2293,13 +2333,16 @@ async function placeOrder() {
     const iSub = getSub();
     btn.innerHTML = iSub ? '<i class="fa-solid fa-utensils"></i> Place Order' : '<i class="fa-brands fa-whatsapp"></i> Place Order';
     const nowH2 = getISTHours();
-    const stillClosed = (nowH2 >= 19.5 || nowH2 < 7) || (window._cutoffCfg && window._cutoffCfg.enabled && calcOrderState(window._cutoffCfg, nowH2).closed);
+    const _rc = window._cutoffCfg;
+    const stillClosed = (_rc && _rc.enabled)
+      ? calcOrderState(_rc, nowH2).closed
+      : (nowH2 >= 19.5 || nowH2 < 7);
     btn.disabled = !!stillClosed;
   };
 
   const nowH = getISTHours();
   try {
-    const cfg2 = await api('getOrderCutoff');
+    const cfg2 = normalizeCfg(await api('getOrderCutoff'));
     if (cfg2) {
       const st = calcOrderState(cfg2, nowH);
       if (st.closed) { isBtnRestored(); showClosedPopup(st.reason + '. ' + st.detail); return; }
@@ -2448,7 +2491,7 @@ function applyPauseState(mode) {
   if (chk) chk.checked = isOn;
   if (icon) icon.textContent = isOn ? '🟢' : '🔴';
   if (title) title.textContent = 'Pause Your Auto Tiffin';
-  const subMap = { none:'If you turn this off, no automatic order will be generated.', lunch:'Lunch auto-tiffin paused.', dinner:'Dinner auto-tiffin paused.', both:'All auto-tiffin paused.' };
+  const subMap = { none:'Receiving all deliveries. If you turn this off, no automatic order will be generated.', lunch:'Lunch auto-tiffin paused.', dinner:'Dinner auto-tiffin paused.', both:'All auto-tiffin paused.' };
   if (sub) sub.textContent = subMap[mode] || subMap.none;
   if (mesh) mesh.style.display = 'none';
   if (notice) notice.style.display = 'none';
@@ -2737,9 +2780,15 @@ async function _runPollTick() {
     try {
       const cfg = await api('getOrderCutoff');
       if (cfg) {
-        window._cutoffCfg = cfg;
+        window._cutoffCfg = normalizeCfg(cfg);
         const h = getISTHours();
-        const isLunch = h < (cfg.cutoffDay ? (()=>{ const [dH,dM]=(cfg.cutoffDay||'11:30').split(':').map(Number); return dH+dM/60; })() : 11.5);
+        const _cfgP = window._cutoffCfg;
+        const _ist2 = new Date(Date.now() + 5.5 * 3600000);
+        const _pollSched = _cfgP && _cfgP.weeklySchedule ? _cfgP.weeklySchedule[_ist2.getUTCDay()] : null;
+        const _pollCutoffH = _pollSched
+          ? timeStrToH(_cfgP.cutoffDay || _pollSched.lunchEnd || '11:30')
+          : timeStrToH((_cfgP && _cfgP.cutoffDay) || '11:30');
+        const isLunch = h < _pollCutoffH;
         updateCutoffBanner(cfg, h, isLunch ? 'morning' : 'evening');
       }
     } catch {}
