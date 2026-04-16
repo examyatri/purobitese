@@ -204,6 +204,31 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
 .rm-cancel{background:var(--lt);color:var(--tx);border:none;border-radius:11px;padding:13px 16px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer}
 .rm-note{font-size:11px;color:var(--mu);text-align:center;margin-top:11px;line-height:1.5}
 
+/* ── SLOT FILTER ── */
+.slot-filter-bar{display:flex;align-items:center;gap:8px;padding:6px 14px 2px}
+.slot-filter-bar label{font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap}
+.slot-sel{flex:1;padding:8px 12px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#fff;outline:none;cursor:pointer;transition:border-color .18s}
+.slot-sel:focus{border-color:var(--p)}
+
+/* ── THALI ITEMS ── */
+.oc-thali-block{padding:6px 14px 8px;border-bottom:1px solid #f5f5f5}
+.oc-item-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0}
+.oc-item-row:last-child{border-bottom:none}
+.oc-item-badge{flex-shrink:0;padding:2px 7px;border-radius:6px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.badge-thali{background:#fff3e0;color:#c45500;border:1px solid #ffe0b2}
+.badge-item{background:#e3f2fd;color:#1565c0;border:1px solid #bbdefb}
+.oc-item-name{flex:1;font-size:12px;font-weight:700;color:var(--tx);min-width:0}
+.oc-item-qty{font-size:11px;font-weight:700;color:var(--mu);flex-shrink:0}
+.oc-thali-comps{margin-top:4px;padding:5px 8px;background:#fffbeb;border-radius:7px;border:1px solid #fde68a}
+.oc-thali-comp{font-size:11px;color:#92400e;display:flex;align-items:center;gap:4px;padding:2px 0}
+.oc-thali-comp::before{content:"•";color:#f59e0b;font-size:14px;line-height:1}
+
+/* ── OLDER DATE SELECT ── */
+.older-date-bar{display:flex;align-items:center;gap:8px;padding:6px 14px 4px}
+.older-date-bar label{font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap}
+.older-date-sel{flex:1;padding:8px 12px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#fff;outline:none;cursor:pointer;transition:border-color .18s}
+.older-date-sel:focus{border-color:var(--p)}
+
 /* PDF */
 @media print{#pg-auth,#pg-app,.toast{display:none!important}#print-content{display:block!important}}
 </style>
@@ -295,6 +320,16 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
       <i class="fa-solid fa-circle-check"></i> Delivered
       <span class="tab-count" id="tab-delivered-count">0</span>
     </button>
+  </div>
+
+  <!-- Slot Filter (Morning/Evening) — shown only on active tab -->
+  <div class="slot-filter-bar" id="slot-filter-bar">
+    <label><i class="fa-solid fa-filter"></i> Slot:</label>
+    <select class="slot-sel" id="slot-sel" onchange="onSlotChange()">
+      <option value="all">All (Morning + Evening)</option>
+      <option value="morning">☀️ Morning Only</option>
+      <option value="evening">🌙 Evening Only</option>
+    </select>
   </div>
 
   <div class="ord-hdr">
@@ -434,6 +469,7 @@ let _orders=[];        // all orders from server (filtered server-side)
 let _activeOrders=[];  // orderStatus === 'out for delivery' (approved)
 let _deliveredOrders=[];// orderStatus === 'delivered'
 let _currentTab='active'; // 'active' | 'delivered'
+let _slotFilter='all';   // 'all' | 'morning' | 'evening'
 let _searchQ='';
 let _dayCutoffH=11.5;  // updated from backend config — used for morning/evening split
 let _isLoading=false;  // race-condition guard for auto-refresh
@@ -481,6 +517,11 @@ function switchTab(tab){
   doc('tab-delivered').classList.toggle('act',tab==='delivered');
   doc('route-banner-btn').classList.toggle('hide',tab==='delivered');
 
+  // Show slot filter only on active tab
+  const sfBar=doc('slot-filter-bar');
+  if(sfBar) sfBar.classList.toggle('hide',tab==='delivered');
+  if(tab==='active'){const ss=doc('slot-sel');if(ss) ss.value='all';}
+
   const title=doc('section-title');
   if(title) title.textContent=tab==='active'?'Active Deliveries':'Delivered Orders';
 
@@ -510,6 +551,11 @@ function clearSearch(){
   doc('search-clear').classList.remove('show');
   if(_currentTab==='active') renderActive();
   else renderDelivered();
+}
+function onSlotChange(){
+  const ss=doc('slot-sel');
+  _slotFilter=ss?ss.value:'all';
+  renderActive();
 }
 function matchesSearch(o){
   if(!_searchQ) return true;
@@ -681,9 +727,13 @@ function toggleDateSection(id){
 // ══ BUILD DATE→SLOT HTML SECTION ══
 function buildDateSlotHTML(orders, dateLabel, datePillClass, dateId, isActive){
   if(!orders.length) return '';
-  const morning=[...orders.filter(o=>isDayOrder(o))].sort(sortNewest);
-  const evening=[...orders.filter(o=>!isDayOrder(o))].sort(sortNewest);
-  const total=orders.length;
+  let morning=[...orders.filter(o=>isDayOrder(o))].sort(sortNewest);
+  let evening=[...orders.filter(o=>!isDayOrder(o))].sort(sortNewest);
+  // Apply slot filter for active tab
+  if(isActive && _slotFilter==='morning') evening=[];
+  if(isActive && _slotFilter==='evening') morning=[];
+  const total=morning.length+evening.length;
+  if(!total) return '';
   let inner='';
   if(morning.length){
     inner+=`<div class="group-hdr">
@@ -715,7 +765,15 @@ function buildDateSlotHTML(orders, dateLabel, datePillClass, dateId, isActive){
 
 // ══ RENDER ACTIVE TAB — Today/Yesterday → Morning/Evening ══
 function renderActive(){
+  // Sync slot filter from select
+  const ss=doc('slot-sel');
+  _slotFilter=ss?ss.value:'all';
+
   let list=_activeOrders.filter(o=>matchesSearch(o));
+
+  // Apply slot filter
+  if(_slotFilter==='morning') list=list.filter(o=>isDayOrder(o));
+  else if(_slotFilter==='evening') list=list.filter(o=>!isDayOrder(o));
 
   const b=doc('ord-count-badge');
   if(b) b.textContent=list.length+' order'+(list.length!==1?'s':'');
@@ -736,24 +794,24 @@ function renderActive(){
   html+=buildDateSlotHTML(todayOrders,'📅 Today','pill-today','today-active',true);
   html+=buildDateSlotHTML(yestOrders,'📅 Yesterday','pill-yesterday','yest-active',true);
   if(olderOrders.length){
-    const morning=[...olderOrders.filter(o=>isDayOrder(o))].sort(sortNewest);
-    const evening=[...olderOrders.filter(o=>!isDayOrder(o))].sort(sortNewest);
-    let inner='';
-    if(morning.length){
-      inner+=`<div class="group-hdr"><div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div><span class="group-cnt">${morning.length} orders</span></div>`;
-      morning.forEach(o=>{inner+=renderCard(o,false);});
-    }
-    if(evening.length){
-      inner+=`<div class="group-hdr"><div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div><span class="group-cnt">${evening.length} orders</span></div>`;
-      evening.forEach(o=>{inner+=renderCard(o,false);});
-    }
+    // Build unique dates for older section
+    const olderDates=[...new Set(olderOrders.map(o=>orderDateToISO(o.date)).filter(Boolean))].sort((a,b)=>b>a?1:-1);
     html+=`<div class="date-section">
       <div class="date-section-hdr" onclick="toggleDateSection('older-active')">
         <div class="date-pill pill-yesterday">🗂️ Older</div>
         <span class="date-section-cnt">${olderOrders.length} orders</span>
         <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-older-active"></i>
       </div>
-      <div class="date-section-body" id="dsb-older-active">${inner}</div>
+      <div class="date-section-body" id="dsb-older-active">
+        <div class="older-date-bar">
+          <label><i class="fa-solid fa-calendar"></i> Date:</label>
+          <select class="older-date-sel" id="older-active-date-sel" onchange="renderOlderDateSection('active')">
+            <option value="all">All Older Dates</option>
+            ${olderDates.map(d=>`<option value="${d}">${PB.fmtDate(d)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="older-active-inner">${buildOlderInner(olderOrders,true)}</div>
+      </div>
     </div>`;
   }
   if(!html) html='<div class="empty"><span>🎉</span><p>All orders delivered!</p></div>';
@@ -803,24 +861,23 @@ function renderDelivered(){
   html+=buildDateSlotHTML(todayOrders,'📅 Today','pill-today','today-done',false);
   html+=buildDateSlotHTML(yestOrders,'📅 Yesterday','pill-yesterday','yest-done',false);
   if(olderOrders.length){
-    const morning=[...olderOrders.filter(o=>isDayOrder(o))].sort(sortNewest);
-    const evening=[...olderOrders.filter(o=>!isDayOrder(o))].sort(sortNewest);
-    let inner='';
-    if(morning.length){
-      inner+=`<div class="group-hdr"><div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div><span class="group-cnt">${morning.length} orders</span></div>`;
-      morning.forEach(o=>{inner+=renderCard(o,true);});
-    }
-    if(evening.length){
-      inner+=`<div class="group-hdr"><div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div><span class="group-cnt">${evening.length} orders</span></div>`;
-      evening.forEach(o=>{inner+=renderCard(o,true);});
-    }
+    const olderDates=[...new Set(olderOrders.map(o=>orderDateToISO(o.date)).filter(Boolean))].sort((a,b)=>b>a?1:-1);
     html+=`<div class="date-section">
       <div class="date-section-hdr" onclick="toggleDateSection('older-done')">
         <div class="date-pill pill-yesterday">🗂️ Older</div>
         <span class="date-section-cnt">${olderOrders.length} orders</span>
         <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-older-done"></i>
       </div>
-      <div class="date-section-body collapsed" id="dsb-older-done">${inner}</div>
+      <div class="date-section-body collapsed" id="dsb-older-done">
+        <div class="older-date-bar">
+          <label><i class="fa-solid fa-calendar"></i> Date:</label>
+          <select class="older-date-sel" id="older-done-date-sel" onchange="renderOlderDateSection('done')">
+            <option value="all">All Older Dates</option>
+            ${olderDates.map(d=>`<option value="${d}">${PB.fmtDate(d)}</option>`).join('')}
+          </select>
+        </div>
+        <div id="older-done-inner">${buildOlderInner(olderOrders,false)}</div>
+      </div>
     </div>`;
   }
   if(!html) html='<div class="empty"><span>📭</span><p>No delivered orders yet</p></div>';
@@ -828,7 +885,64 @@ function renderDelivered(){
   doc('orders-con').innerHTML=html;
 }
 
+// ══ OLDER SECTION HELPERS ══
+function buildOlderInner(orders, isActive){
+  let morning=[...orders.filter(o=>isDayOrder(o))].sort(sortNewest);
+  let evening=[...orders.filter(o=>!isDayOrder(o))].sort(sortNewest);
+  if(!morning.length && !evening.length) return '<div class="empty" style="padding:20px"><p>No orders</p></div>';
+  let inner='';
+  if(morning.length){
+    inner+=`<div class="group-hdr"><div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div><span class="group-cnt">${morning.length} order${morning.length>1?'s':''}</span></div>`;
+    morning.forEach(o=>{inner+=renderCard(o,!isActive);});
+  }
+  if(evening.length){
+    inner+=`<div class="group-hdr"><div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div><span class="group-cnt">${evening.length} order${evening.length>1?'s':''}</span></div>`;
+    evening.forEach(o=>{inner+=renderCard(o,!isActive);});
+  }
+  return inner;
+}
+
+function renderOlderDateSection(tab){
+  const selId='older-'+tab+'-date-sel';
+  const innerId='older-'+tab+'-inner';
+  const sel=doc(selId); const innerEl=doc(innerId);
+  if(!sel||!innerEl) return;
+  const val=sel.value;
+  const todayISO=getTodayISO(); const yestISO=getYesterdayISO();
+  const src=tab==='active'?_activeOrders:_deliveredOrders;
+  let pool=src.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;});
+  if(val!=='all') pool=pool.filter(o=>orderDateToISO(o.date)===val);
+  innerEl.innerHTML=buildOlderInner(pool, tab==='active');
+}
+
 // ══ RENDER CARD ══
+function buildItemsHTML(items){
+  if(!items.length) return '';
+  let html='<div class="oc-thali-block">';
+  items.forEach(it=>{
+    const isThali=it.isThali||String(it.type||'').toLowerCase()==='thali'||
+      (it.components&&it.components.length>0)||
+      String(it.name||'').toLowerCase().includes('thali');
+    const badgeCls=isThali?'badge-thali':'badge-item';
+    const badgeTxt=isThali?'Thali':'Item';
+    const variant=it.selectedVariant?` <span style="color:var(--mu);font-weight:600">(${esc(it.selectedVariant)})</span>`:'';
+    let compsHTML='';
+    if(isThali){
+      const comps=it.components||it.thaliComponents||[];
+      if(comps.length){
+        compsHTML=`<div class="oc-thali-comps">${comps.map(c=>`<div class="oc-thali-comp">${esc(typeof c==='string'?c:(c.name||c.item||''))}</div>`).join('')}</div>`;
+      }
+    }
+    html+=`<div class="oc-item-row">
+      <span class="oc-item-badge ${badgeCls}">${badgeTxt}</span>
+      <div class="oc-item-name">${esc(it.name||'')}${variant}${compsHTML}</div>
+      <span class="oc-item-qty">×${it.qty||1}</span>
+    </div>`;
+  });
+  html+='</div>';
+  return html;
+}
+
 function renderCard(o, isDone){
   let items=[]; try{items=safeP(o.items);}catch{}
   const mapsUrl=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}`;
@@ -853,6 +967,9 @@ function renderCard(o, isDone){
         </button>
       </div>`;
 
+  const itemsBlock=items.length?buildItemsHTML(items):`<div class="oc-items-row"><span class="oc-items-txt">🍱 ${esc(itemsSummary)||'—'}</span><div class="oc-amt-block"><div class="oc-amt">₹${Number(o.finalAmount).toFixed(0)}</div><div class="oc-pay-lbl">${payLbl}</div></div></div>`;
+  const amtFooter=items.length?`<div class="oc-items-row" style="border-top:1px solid #f0f0f0"><span class="oc-items-txt" style="font-weight:700;color:var(--tx)">${items.length} item${items.length>1?'s':''}</span><div class="oc-amt-block"><div class="oc-amt">₹${Number(o.finalAmount).toFixed(0)}</div><div class="oc-pay-lbl">${payLbl}</div></div></div>`:'';
+
   return `<div class="o-card${isDone?' done':''}" id="oc-${o.orderId.replace(/[^a-zA-Z0-9_-]/g,'')}">
   <div class="oc-top">
     <span class="oc-id">${esc(o.orderId)} &nbsp;·&nbsp; ${esc(fmtDate(o.date))} ${esc(fmtTime(o.time))}</span>
@@ -867,13 +984,7 @@ function renderCard(o, isDone){
       <a href="${mapsUrl}" target="_blank" rel="noopener" class="oc-maps-link"><i class="fa-solid fa-map-location-dot"></i> Google Maps</a>
     </div>
   </div>
-  <div class="oc-items-row">
-    <span class="oc-items-txt">🍱 ${esc(itemsSummary)||'—'}</span>
-    <div class="oc-amt-block">
-      <div class="oc-amt">₹${Number(o.finalAmount).toFixed(0)}</div>
-      <div class="oc-pay-lbl">${payLbl}</div>
-    </div>
-  </div>
+  ${itemsBlock}${amtFooter}
   ${actionRow}
 </div>`;
 }
