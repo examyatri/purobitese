@@ -1062,7 +1062,11 @@ let _adminSession=null;
 
 // Credentials store — role+identifier+password in localStorage (for autofill)
 const ACreds={
-save:(role,id,pw)=>{ try{ localStorage.setItem(‘pb_admin_creds’,JSON.stringify({role,id,pw})); }catch{} },
+save:(role,id,pw)=>{ try{
+// Never save blank/empty creds — just clear them
+if(!role||!id||!pw){ localStorage.removeItem(‘pb_admin_creds’); return; }
+localStorage.setItem(‘pb_admin_creds’,JSON.stringify({role,id,pw}));
+}catch{} },
 get:()=>{ try{ return JSON.parse(localStorage.getItem(‘pb_admin_creds’)); }catch{ return null; } }
 };
 
@@ -1092,9 +1096,10 @@ else{ inp.type=‘password’; icon.classList.replace(‘fa-eye-slash’,‘fa-e
 // Autofill login form from saved creds
 function autofillAdminCreds(){
 const c=ACreds.get();
-if(!c) return;
+// Skip autofill if creds are missing or were wiped after a failed login
+if(!c || !c.role || !c.id || !c.pw) return;
 try{
-if(c.role){ doc(‘a-role’).value=c.role; updateAuthUI(); }
+if(c.role===‘admin’||c.role===‘staff’){ doc(‘a-role’).value=c.role; updateAuthUI(); }
 if(c.id){
 if(c.role===‘admin’) doc(‘a-em’).value=c.id;
 else doc(‘a-uid’).value=c.id;
@@ -1125,7 +1130,6 @@ if(role===‘staff’ && !doc(‘a-uid’).value.trim()){ toast(‘Username requ
 
 const btn=doc(‘login-btn’);
 btn.innerHTML=’<span class="spin"></span> Logging in…’; btn.disabled=true;
-// Show cold-start hint if Render server takes > 5s to respond
 const coldStartTimer = setTimeout(()=>{ toast(‘⏳ Server waking up (Render free tier)… please wait’); }, 5000);
 try{
 if(role===‘admin’){
