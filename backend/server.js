@@ -153,6 +153,8 @@ app.post('/api', async (req, res) => {
       case 'deleteOldTransactions':    result = await deleteOldTransactions(data); break;
       case 'previewDeleteOrders':      result = await previewDeleteOrders(data);   break;
       case 'previewDeleteTransactions':result = await previewDeleteTransactions(data); break;
+      case 'previewDeleteNotifications':result = await previewDeleteNotifications(data); break;
+      case 'masterDelete':             result = await masterDelete(data);          break;
 
       default: return res.json({ success: false, error: 'Unknown action: ' + action });
     }
@@ -2134,4 +2136,56 @@ async function deleteOldData(data) {
     ordersError:   orders.error || null,
     txnsError:     txns.error   || null
   };
+}
+
+// ── Preview notifications count before cutoff (for master delete preview) ──
+async function previewDeleteNotifications(data) {
+  _parseCutoff(data.cutoffDate, 5);
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .lt('created_at', data.cutoffDate + 'T00:00:00Z');
+  if (error) throw new Error(error.message);
+  return { count: count || 0 };
+}
+
+// ── Master Delete: bulk delete khata transactions + orders + notifications ──
+async function masterDelete(data) {
+  const { txnCutoffDate, otherCutoffDate } = data;
+  const result = {};
+
+  // 1. Delete Khata Transactions (min 45 days)
+  if (txnCutoffDate) {
+    _parseCutoff(txnCutoffDate, 45);
+    const { error, count } = await supabase
+      .from('khata_transactions')
+      .delete({ count: 'exact' })
+      .lt('created_at', txnCutoffDate + 'T00:00:00Z');
+    if (error) throw new Error('Khata delete failed: ' + error.message);
+    result.deletedTransactions = count || 0;
+  }
+
+  // 2. Delete Old Orders (min 5 days)
+  if (otherCutoffDate) {
+    _parseCutoff(otherCutoffDate, 5);
+    const ids = await _orderIdsBefore(otherCutoffDate);
+    let deletedOrders = 0;
+    for (let i = 0; i < ids.length; i += 500) {
+      const batch = ids.slice(i, i + 500);
+      const { error, count } = await supabase.from('orders').delete({ count: 'exact' }).in('order_id', batch);
+      if (error) throw new Error('Orders delete failed: ' + error.message);
+      deletedOrders += count || batch.length;
+    }
+    result.deletedOrders = deletedOrders;
+
+    // 3. Delete Notifications (min 5 days, same cutoff as orders)
+    const { error: ne, count: nc } = await supabase
+      .from('notifications')
+      .delete({ count: 'exact' })
+      .lt('created_at', otherCutoffDate + 'T00:00:00Z');
+    if (ne) throw new Error('Notifications delete failed: ' + ne.message);
+    result.deletedNotifications = nc || 0;
+  }
+
+  return result;
 }
