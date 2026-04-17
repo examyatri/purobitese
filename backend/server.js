@@ -379,7 +379,8 @@ function formatOrder(o) {
     paymentStatus: o.payment_status || 'pending',
     orderStatus: o.order_status || 'pending',
     date: normOrderDate(o.order_date), time: normOrderTime(o.order_time),
-    riderId: o.rider_id || ''
+    riderId: o.rider_id || '',
+    orderSource: o.order_source || 'user'
   };
 }
 
@@ -1172,6 +1173,7 @@ async function _createSingleOrder(o, { skipDeduction = false, allowOverdraft = f
     user_type:      o.userType || 'subscriber',
     payment_status: 'pending',
     order_status:   'pending',
+    order_source:   'admin',
     order_date:     istDateStr(ist),
     order_time:     istTimeStr(ist)
   }).select().single();
