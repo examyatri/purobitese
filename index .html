@@ -1079,6 +1079,9 @@ textarea.inp{resize:vertical;min-height:72px}
 // ══════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════
+// Always use clean path (strip index.html so PWA URL stays canonical)
+const _cleanPath = location.pathname.replace(/\/index\.html$/, '/');
+
 const CFG = {
   'GAS': 'https://purobitese-api.onrender.com/api',
   'KEY': 'PB_SECURE_API_KEY_2026',
@@ -1585,7 +1588,7 @@ function doLogout() {
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
   doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
   stack = ['pg-auth'];
-  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+  history.replaceState({ page: 'pg-auth' }, '', _cleanPath);
   hideAppUI(); hideFab();
   updateWalletUI(null);
   applyPauseState('none');
@@ -2883,7 +2886,7 @@ function bootApp() {
       });
     }).catch(err => console.warn('[SW] Registration failed:', err));
   }
-  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+  history.replaceState({ page: 'pg-auth' }, '', _cleanPath);
 
   const savedSess = SessStore.get();
   const savedSub  = Store.getJSON('pb_sub');
@@ -2953,7 +2956,7 @@ function bootApp() {
     const signupBusy = doc('btn-signup') && doc('btn-signup').disabled;
     if (loginBusy || signupBusy) return;
     const visible = document.querySelector('.pg.here');
-    if (!visible || !visible.offsetHeight) { location.replace(location.pathname); }
+    if (!visible || !visible.offsetHeight) { location.replace(_cleanPath); }
   }, 8000);
 })();
 
