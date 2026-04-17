@@ -1848,9 +1848,33 @@ async function getKhata(data) {
       note:           t.note || '',
       runningBalance: running,
       date:           istDateStr(ist),
-      time:           istTimeStr(ist)
+      time:           istTimeStr(ist),
+      orderSource:    null,
+      orderStatus:    null
     };
   });
+
+  // Attach orderSource + orderStatus for tiffin entries (for PDF Note column)
+  const ORDER_ID_RE = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+  const tiffentries = entries.filter(e => e.type !== 'recharge' && e.note);
+  const orderIds = [...new Set(tiffentries.map(e => { const m = e.note.match(ORDER_ID_RE); return m ? m[1] : null; }).filter(Boolean))];
+  if (orderIds.length) {
+    const { data: ordRows } = await supabase.from('orders')
+      .select('order_id, order_source, order_status')
+      .in('order_id', orderIds);
+    if (ordRows && ordRows.length) {
+      const ordMap = {};
+      ordRows.forEach(r => { ordMap[r.order_id] = r; });
+      entries.forEach(e => {
+        if (e.type === 'recharge') return;
+        const m = e.note.match(ORDER_ID_RE);
+        if (m && ordMap[m[1]]) {
+          e.orderSource = ordMap[m[1]].order_source || 'user';
+          e.orderStatus = ordMap[m[1]].order_status || null;
+        }
+      });
+    }
+  }
 
   const computedBal = running;
   // Sync wallet table to match transaction sum
