@@ -659,6 +659,16 @@ tr:hover td{background:#fafafa}
               </div>
               <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
             </div>
+            <div class="settings-item admin-only" onclick="openSettingsSub('master-delete')" style="border:2px solid #fde8ea">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#fff0f1"><span>🔥</span></div>
+                <div>
+                  <div class="settings-item-text" style="color:var(--p)">Master Delete</div>
+                  <div class="settings-item-desc">Bulk delete Khata transactions &amp; other old data</div>
+                </div>
+              </div>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
+            </div>
             <div class="settings-item" onclick="openSettingsSub('cutoff')">
               <div class="settings-item-left">
                 <div class="settings-item-icon" style="background:#fffbf0"><span>⏰</span></div>
@@ -817,6 +827,48 @@ tr:hover td{background:#fafafa}
               </div>
               <button class="btn btn-red" onclick="deleteNotifRange()" style="width:100%">
                 <i class="fa-solid fa-trash"></i> Delete Notifications in Range
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB: Master Delete -->
+        <div class="settings-sub admin-only" id="settings-sub-master-delete">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title" style="color:var(--p)">🔥 Master Delete</div>
+          </div>
+          <div class="tc" style="max-width:560px;border:2px solid #fde8ea">
+            <div style="padding:18px">
+              <div style="background:#fff0f1;border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:12px;color:#c1121f;font-weight:700;border-left:4px solid var(--p)">
+                🔥 MASTER DELETE — This is a <u>permanent bulk action</u>. Both settings below run together when you click Delete. Cannot be undone.
+              </div>
+
+              <!-- Section 1: Khata Transactions -->
+              <div style="background:#fff8f8;border-radius:10px;padding:14px;margin-bottom:14px;border:1px solid #fde8ea">
+                <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#c1121f">📒 Khata Transaction Data</div>
+                <div style="font-size:11px;color:var(--gr);margin-bottom:10px">Minimum 45 days old. Select a cutoff date — all khata transactions <strong>before</strong> this date will be deleted.</div>
+                <div class="fg" style="margin-bottom:6px">
+                  <label class="lbl">Delete transactions older than (min 45 days ago)</label>
+                  <input id="md-txn-date" class="inp" type="date" oninput="mdPreview()">
+                </div>
+                <div id="md-txn-preview" style="font-size:12px;font-weight:600;min-height:18px"></div>
+              </div>
+
+              <!-- Section 2: Other Data -->
+              <div style="background:#fff8f8;border-radius:10px;padding:14px;margin-bottom:18px;border:1px solid #fde8ea">
+                <div style="font-weight:700;font-size:13px;margin-bottom:6px;color:#c1121f">🗂️ Other Data (Notifications &amp; Old Orders)</div>
+                <div style="font-size:11px;color:var(--gr);margin-bottom:10px">Minimum 5 days old, maximum any past date. All notifications and orders <strong>before</strong> this date will be deleted.</div>
+                <div class="fg" style="margin-bottom:6px">
+                  <label class="lbl">Delete other data older than (min 5 days ago)</label>
+                  <input id="md-other-date" class="inp" type="date" oninput="mdPreview()">
+                </div>
+                <div id="md-other-preview" style="font-size:12px;font-weight:600;min-height:18px"></div>
+              </div>
+
+              <div id="md-msg" style="font-size:13px;margin-bottom:10px;min-height:18px;text-align:center"></div>
+              <button class="btn btn-red" onclick="masterDeleteConfirm()" style="width:100%;font-size:15px;padding:14px">
+                <i class="fa-solid fa-fire"></i> Master Delete All Selected Data
               </button>
             </div>
           </div>
@@ -1706,6 +1758,8 @@ function openSettingsSub(sub){
   try{ history.pushState({page:'settings', sub:sub}, '', '#settings-'+sub); }catch{}
   // Scroll to top of content area
   try{ doc('pg-settings').parentElement.scrollTop=0; }catch{}
+  // Init master delete dates when that sub is opened
+  if(sub==='master-delete') setTimeout(_initMasterDeleteDates, 50);
 }
 
 function closeSettingsSub(){
@@ -4059,6 +4113,73 @@ This is PERMANENT and cannot be undone.`)) return;
     toast(`✅ Deleted ${r.deleted} transaction(s)`);
     if(doc('del-txn-preview')) doc('del-txn-preview').textContent='';
     setTimeout(()=>{ if(msg) msg.textContent=''; },7000);
+  }catch(e){
+    if(msg){ msg.textContent='❌ '+e.message; msg.style.color='var(--p)'; }
+    toast('❌ '+e.message);
+  }
+}
+
+// ── Master Delete ─────────────────────────────────────────────
+function _initMasterDeleteDates(){
+  const txnEl=doc('md-txn-date'), othEl=doc('md-other-date');
+  const txnMax=_getMaxAllowedDate(45);
+  const othMax=_getMaxAllowedDate(5);
+  if(txnEl){ txnEl.max=txnMax; if(!txnEl.value){ const d60=_getMaxAllowedDate(60); txnEl.value=d60<=txnMax?d60:txnMax; } }
+  if(othEl){ othEl.max=othMax; if(!othEl.value){ const d30=_getMaxAllowedDate(30); othEl.value=d30<=othMax?d30:othMax; } }
+}
+async function mdPreview(){
+  _initMasterDeleteDates();
+  const txnDate=doc('md-txn-date')?.value;
+  const othDate=doc('md-other-date')?.value;
+  const txnPrev=doc('md-txn-preview');
+  const othPrev=doc('md-other-preview');
+  if(txnDate&&txnPrev){
+    txnPrev.innerHTML='<span style="color:#999">Checking...</span>';
+    try{
+      const r=await api('previewDeleteTransactions',{cutoffDate:txnDate});
+      txnPrev.innerHTML=r.count>0
+        ?`<span style="color:#c1121f">⚠️ ${r.count} transaction(s) will be deleted before ${fmtDate(txnDate)}.</span>`
+        :`<span style="color:var(--g)">✅ No transactions before ${fmtDate(txnDate)}.</span>`;
+    }catch(e){ txnPrev.innerHTML=`<span style="color:var(--p)">❌ ${e.message}</span>`; }
+  }
+  if(othDate&&othPrev){
+    othPrev.innerHTML='<span style="color:#999">Checking...</span>';
+    try{
+      const [ro,rn]=await Promise.all([
+        api('previewDeleteOrders',{cutoffDate:othDate}),
+        api('previewDeleteNotifications',{cutoffDate:othDate})
+      ]);
+      const total=(ro.count||0)+(rn.count||0);
+      othPrev.innerHTML=total>0
+        ?`<span style="color:#c1121f">⚠️ ${ro.count||0} order(s) + ${rn.count||0} notification(s) will be deleted before ${fmtDate(othDate)}.</span>`
+        :`<span style="color:var(--g)">✅ No orders/notifications before ${fmtDate(othDate)}.</span>`;
+    }catch(e){ othPrev.innerHTML=`<span style="color:var(--p)">❌ ${e.message}</span>`; }
+  }
+}
+async function masterDeleteConfirm(){
+  _initMasterDeleteDates();
+  const txnDate=doc('md-txn-date')?.value;
+  const othDate=doc('md-other-date')?.value;
+  const msg=doc('md-msg');
+  if(!txnDate&&!othDate){ toast('⚠️ Set at least one date to delete.'); return; }
+  const lines=[];
+  if(txnDate) lines.push(`• Khata transactions before ${fmtDate(txnDate)}`);
+  if(othDate) lines.push(`• Orders & notifications before ${fmtDate(othDate)}`);
+  if(!confirm(`⚠️ MASTER DELETE — PERMANENT ACTION\n\n${lines.join('\n')}\n\nThis CANNOT be undone. Continue?`)) return;
+  if(!confirm(`FINAL CONFIRM: Yes, permanently delete all selected data.`)) return;
+  if(msg){ msg.textContent='⏳ Deleting...'; msg.style.color='var(--gr)'; }
+  try{
+    const r=await api('masterDelete',{txnCutoffDate:txnDate||null, otherCutoffDate:othDate||null});
+    const parts=[];
+    if(r.deletedTransactions!=null) parts.push(`${r.deletedTransactions} transaction(s)`);
+    if(r.deletedOrders!=null)       parts.push(`${r.deletedOrders} order(s)`);
+    if(r.deletedNotifications!=null) parts.push(`${r.deletedNotifications} notification(s)`);
+    const summary='✅ Deleted: '+parts.join(', ');
+    if(msg){ msg.textContent=summary; msg.style.color='var(--g)'; }
+    toast(summary);
+    if(doc('md-txn-preview')) doc('md-txn-preview').textContent='';
+    if(doc('md-other-preview')) doc('md-other-preview').textContent='';
+    setTimeout(()=>{ if(msg) msg.textContent=''; },8000);
   }catch(e){
     if(msg){ msg.textContent='❌ '+e.message; msg.style.color='var(--p)'; }
     toast('❌ '+e.message);
