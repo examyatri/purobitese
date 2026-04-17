@@ -217,6 +217,29 @@ tr:hover td{background:#fafafa}
 .nu-pending-badge{background:#fff3e0;color:#c45500;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block;margin-left:6px}
 .nu-sent-badge{background:var(--gl);color:var(--g);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block;margin-left:6px}
 .nu-refresh-bar{text-align:right;font-size:11px;color:#999;margin-bottom:8px}
+/* ── NOTIFICATIONS TAB ── */
+.notif-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;background:#ef4444;color:#fff;border-radius:20px;font-size:10px;font-weight:700;padding:0 5px;margin-left:6px;animation:pulse-badge .8s ease infinite alternate;vertical-align:middle}
+@keyframes pulse-badge{from{transform:scale(1)}to{transform:scale(1.18)}}
+.notif-section-hdr{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gr);margin:18px 0 8px;padding:0 2px}
+.notif-card{background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:10px;padding:14px 16px;border-left:5px solid #ccc;transition:all .2s}
+.notif-card.unread{font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.13)}
+.notif-card.read{opacity:.6}
+.notif-card.type-order{border-left-color:#ef4444}
+.notif-card.type-user{border-left-color:#22c55e}
+.notif-card.type-transaction{border-left-color:#3b82f6}
+.notif-card.type-recharge{border-left-color:#8b5cf6}
+.notif-card.type-pause{border-left-color:#f97316}
+.notif-card-title{font-size:14px;font-weight:700;margin-bottom:3px}
+.notif-card-meta{font-size:12px;color:#555;margin-bottom:4px}
+.notif-card-body{font-size:12px;color:#777;margin-bottom:6px}
+.notif-card-time{font-size:10px;color:#bbb;margin-bottom:8px}
+.notif-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}
+.notif-actions .btn{font-size:11px;padding:4px 10px;border-radius:8px}
+.notif-expand-area{background:#f8faff;border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12px;display:none}
+.notif-expand-area.open{display:block;animation:fadeInPage .18s ease}
+.notif-empty{text-align:center;padding:36px 20px;color:#ccc;font-size:14px}
+.notif-del-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.06)}
+.notif-del-bar input[type=date]{font-family:var(--ff);font-size:12px;padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;outline:none;color:#333}
 </style>
 </head>
 <body>
@@ -300,6 +323,8 @@ tr:hover td{background:#fafafa}
       <div class="sb-sec admin-only">Admin</div>
       <button class="ni admin-only" id="ni-staff" onclick="showPg('staff')"><i class="fa-solid fa-id-badge"></i> Staff Members</button>
       <button class="ni admin-only" id="ni-settings" onclick="showPg('settings')"><i class="fa-solid fa-gear"></i> Settings</button>
+      <div class="sb-sec">Alerts</div>
+      <button class="ni" id="ni-notifications" onclick="showPg('notifications')"><i class="fa-solid fa-bell"></i> Notifications<span class="notif-badge" id="sb-notif-badge" style="display:none">0</span></button>
     </nav>
     <div class="sb-foot"><button class="btn btn-ghost btn-full" onclick="doLogout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></div>
   </aside>
@@ -695,6 +720,26 @@ tr:hover td{background:#fafafa}
         <div class="tc">
           <div class="th"><h3>Staff Members</h3><select class="sort-sel" id="staff-sort" onchange="loadStaff()" title="Sort staff"><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option><option value="status">✅ Active First</option><option value="created_new">📅 Created Newest</option><option value="created_old">📅 Created Oldest</option></select>&nbsp;<span style="font-size:12px;color:var(--gr)">Staff can manage operations but cannot view revenue</span></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="staff-tb"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- NOTIFICATIONS -->
+      <div class="pg-v" id="pg-notifications">
+        <div class="notif-del-bar">
+          <span style="font-size:12px;font-weight:600;color:var(--gr)">🗑️ Delete by date range:</span>
+          <input type="date" id="notif-del-from" />
+          <span style="font-size:12px;color:#aaa">to</span>
+          <input type="date" id="notif-del-to" />
+          <button class="btn btn-ghost btn-sm" onclick="deleteNotifRange()">Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadNotifications()" style="margin-left:auto" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+        </div>
+        <div id="notif-unread-section">
+          <div class="notif-section-hdr">🔴 New Notifications <span id="notif-unread-count" style="color:#ef4444"></span></div>
+          <div id="notif-unread-list"><div class="notif-empty"><i class="fa-solid fa-spinner icon-spin"></i> Loading...</div></div>
+        </div>
+        <div id="notif-read-section" style="margin-top:8px">
+          <div class="notif-section-hdr" style="color:#bbb">✅ Seen Messages</div>
+          <div id="notif-read-list"><div class="notif-empty">No seen notifications</div></div>
         </div>
       </div>
 
@@ -1194,11 +1239,13 @@ function showApp(session){
   showPg(session.role==='admin'?'dashboard':'orders');
   if(window.innerWidth<=768){ doc('menu-toggle').style.display='block'; doc('sb-ov').classList.add('hide'); }
   startAutoRefresh();
+  startNotifPolling();
 }
 
 function doLogout(){
   if(!confirm('Logout?')) return;
   stopAutoRefresh();
+  stopNotifPolling();
   Session.clear();
   doc('app').classList.add('hide');
   doc('auth-pg').classList.remove('hide');
@@ -1294,6 +1341,7 @@ async function silentRefresh(){
     menu      : ()=>loadMenu().catch(()=>{}),
     coupons   : ()=>loadCpns().catch(()=>{}),
     bulk      : ()=>loadBulkSubs().catch(()=>{}),
+    notifications: ()=>loadNotifications().catch(()=>{}),
   };
   try{ if(m[_curPg]) await m[_curPg](); } catch{}
   finally{ _refreshLock=false; }
@@ -1392,7 +1440,7 @@ function closeSb(){ doc('sidebar').classList.remove('open'); doc('sb-ov').classL
 // NAVIGATION
 // ════════════════════════════════════════════════
 let _curPg='dashboard';
-const _titles={dashboard:'Dashboard',orders:'Orders',bulk:'Bulk Orders',menu:'Menu Management',thalis:'Thali Manager',coupons:'Coupons',subscribers:'Subscribers',users:'All Users',riders:'Riders',khata:'Khata / Wallet',staff:'Staff Members',settings:'Settings'};
+const _titles={dashboard:'Dashboard',orders:'Orders',bulk:'Bulk Orders',menu:'Menu Management',thalis:'Thali Manager',coupons:'Coupons',subscribers:'Subscribers',users:'All Users',riders:'Riders',khata:'Khata / Wallet',staff:'Staff Members',settings:'Settings',notifications:'Notifications'};
 
 function showPg(name){
   document.querySelectorAll('.pg-v').forEach(p=>p.classList.remove('act'));
@@ -1401,7 +1449,7 @@ function showPg(name){
   const ni=doc('ni-'+name); if(ni) ni.classList.add('act');
   doc('pg-title').textContent=_titles[name]||name;
   _curPg=name; closeSb();
-  const loaders={dashboard:loadDash,orders:loadOrds,menu:loadMenu,thalis:loadThalis,coupons:loadCpns,subscribers:loadSubs,users:loadUsers,riders:loadRiders,bulk:initBulk,khata:loadKhata,staff:loadStaff,settings:loadSettings};
+  const loaders={dashboard:loadDash,orders:loadOrds,menu:loadMenu,thalis:loadThalis,coupons:loadCpns,subscribers:loadSubs,users:loadUsers,riders:loadRiders,bulk:initBulk,khata:loadKhata,staff:loadStaff,settings:loadSettings,notifications:loadNotifications};
   if(loaders[name]) loaders[name]();
 }
 
@@ -3933,6 +3981,290 @@ async function submitUserPasswordReset(){
     doc('pw-reset-user-info').style.display='none';
     _pwResetUser=null;
   }catch(e){ toast('❌ '+e.message); }
+}
+
+// ════════════════════════════════════════════════
+// NOTIFICATIONS MODULE
+// ════════════════════════════════════════════════
+let _notifData = [];
+let _notifPollTimer = null;
+
+function _notifTimeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'Just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+async function loadNotifications() {
+  try {
+    const data = await api('getNotifications', { limit: 200 });
+    _notifData = data || [];
+    renderNotifications();
+    _updateNotifBadge();
+  } catch(e) {
+    console.error('Notif load error:', e.message);
+  }
+}
+
+function _updateNotifBadge() {
+  const unread = _notifData.filter(n => !n.is_read).length;
+  const badge  = doc('sb-notif-badge');
+  if (!badge) return;
+  if (unread > 0) {
+    badge.textContent = unread > 99 ? '99+' : unread;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+  const countEl = doc('notif-unread-count');
+  if (countEl) countEl.textContent = unread > 0 ? '(' + unread + ')' : '';
+}
+
+function renderNotifications() {
+  const unread = _notifData.filter(n => !n.is_read);
+  const read   = _notifData.filter(n =>  n.is_read);
+  const ul = doc('notif-unread-list');
+  const rl = doc('notif-read-list');
+  if (!ul || !rl) return;
+  ul.innerHTML = unread.length
+    ? unread.map(n => _notifCardHtml(n)).join('')
+    : '<div class="notif-empty">🎉 All caught up! No new notifications.</div>';
+  rl.innerHTML = read.length
+    ? read.slice(0, 40).map(n => _notifCardHtml(n)).join('')
+    : '<div class="notif-empty">No seen notifications yet.</div>';
+}
+
+function _notifCardHtml(n) {
+  const meta = n.meta || {};
+  const time = _notifTimeAgo(n.created_at);
+  const readCls = n.is_read ? 'read' : 'unread';
+  let metaHtml = '';
+  if (meta.name)          metaHtml += `<b>${_esc(meta.name)}</b>`;
+  if (meta.phone)         metaHtml += ` &nbsp;📱 ${_esc(meta.phone)}`;
+  if (meta.amount)        metaHtml += ` &nbsp;₹${meta.amount}`;
+  if (meta.address)       metaHtml += `<br>📍 ${_esc(meta.address)}`;
+  if (meta.recharged_by)  metaHtml += `<br>👤 Recharged by: <b>${_esc(meta.recharged_by)}</b>`;
+  if (meta.order_id)      metaHtml += `<br>🧾 Order: <b>${_esc(meta.order_id)}</b>`;
+  if (meta.user_type)     metaHtml += ` &nbsp;· ${meta.user_type === 'subscriber' ? '👑 Subscriber' : '👤 Normal User'}`;
+
+  let actions = '';
+
+  // ORDER notification — View Order button
+  if (n.type === 'order' && meta.sub_group === 'order') {
+    actions += `<button class="btn btn-p btn-sm" onclick="notifViewOrder('${_esc(meta.order_id)}',${n.id},'${_esc(meta.group_id||'')}')">📦 View Order</button>`;
+  }
+
+  // TRANSACTION notification — expand txn details
+  if (n.type === 'transaction' && meta.sub_group === 'txn') {
+    actions += `<button class="btn btn-p btn-sm" onclick="notifToggleTxn(${n.id},'${_esc(meta.phone)}','${_esc(meta.group_id||'')}')">💳 View Transaction</button>`;
+  }
+
+  // USER notification
+  if (n.type === 'user') {
+    const waMsg = encodeURIComponent(`Hi ${meta.name||''}, welcome to Puro Bite! 🎉 Here is a special welcome coupon for you.`);
+    actions += `<button class="btn btn-p btn-sm" onclick="notifViewUser('${_esc(meta.phone)}',${n.id})">👤 View User</button>`;
+    actions += `<button class="btn btn-ghost btn-sm" onclick="notifCopyPhone('${_esc(meta.phone)}',${n.id})">📋 Copy Phone</button>`;
+    actions += `<button class="btn btn-ghost btn-sm" onclick="notifGenCoupon('${_esc(meta.phone)}',${n.id})">🎟️ Generate Coupon</button>`;
+    actions += `<a class="btn btn-ghost btn-sm" style="background:#25d366;color:#fff;text-decoration:none" href="https://wa.me/91${meta.phone}?text=${waMsg}" target="_blank" onclick="notifMarkRead(${n.id})">💬 WhatsApp</a>`;
+  }
+
+  // RECHARGE notification
+  if (n.type === 'recharge') {
+    actions += `<button class="btn btn-ghost btn-sm" onclick="notifView30Days(${n.id},'${_esc(meta.phone)}')">📅 30-Day History</button>`;
+  }
+
+  // TRANSACTION (subscriber or normal)
+  if (n.type === 'transaction' && !meta.sub_group) {
+    if (meta.user_type === 'subscriber') {
+      actions += `<button class="btn btn-ghost btn-sm" onclick="notifView30Days(${n.id},'${_esc(meta.phone)}')">📅 30-Day History</button>`;
+    } else {
+      actions += `<a class="btn btn-ghost btn-sm" style="background:#25d366;color:#fff;text-decoration:none" href="https://wa.me/91${meta.phone}" target="_blank" onclick="notifMarkRead(${n.id})">💬 WhatsApp</a>`;
+    }
+  }
+
+  // PAUSE notification
+  if (n.type === 'pause') {
+    actions += `<button class="btn btn-ghost btn-sm" onclick="notifMarkRead(${n.id})">✓ Acknowledge</button>`;
+  }
+
+  // Universal: mark read + delete
+  if (!n.is_read) {
+    actions += `<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="notifMarkRead(${n.id})">✓ Mark Seen</button>`;
+  }
+  actions += `<button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="notifDelete(${n.id})" title="Delete">🗑️</button>`;
+
+  return `<div class="notif-card type-${n.type} ${readCls}" id="notif-card-${n.id}">
+    <div class="notif-card-title">${n.title}</div>
+    <div class="notif-card-meta">${metaHtml}</div>
+    <div class="notif-card-body">${_esc(n.body)}</div>
+    <div class="notif-card-time">🕐 ${time}</div>
+    <div class="notif-actions">${actions}</div>
+    <div class="notif-expand-area" id="notif-exp-${n.id}"></div>
+  </div>`;
+}
+
+function _esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function notifMarkRead(id) {
+  try {
+    await api('markNotificationRead', { id });
+    const n = _notifData.find(x => x.id == id);
+    if (n) { n.is_read = true; }
+    renderNotifications();
+    _updateNotifBadge();
+  } catch(e) { console.error('notifMarkRead error:', e.message); }
+}
+
+async function notifDelete(id) {
+  try {
+    await api('deleteNotification', { id });
+    _notifData = _notifData.filter(n => n.id != id);
+    renderNotifications();
+    _updateNotifBadge();
+  } catch(e) { toast('Delete failed: ' + e.message); }
+}
+
+function notifViewOrder(orderId, notifId, groupId) {
+  notifMarkRead(notifId);
+  if (groupId) _notifCheckGroupDone(groupId, notifId);
+  showPg('orders');
+  setTimeout(() => {
+    // Try common search input selectors used in the orders page
+    const candidates = ['ord-search','order-search'];
+    let el = null;
+    for (const id of candidates) { el = doc(id); if (el) break; }
+    if (!el) el = document.querySelector('#pg-orders input[type=text], #pg-orders input[type=search]');
+    if (el) { el.value = orderId; el.dispatchEvent(new Event('input')); el.focus(); }
+  }, 500);
+}
+
+function notifViewUser(phone, notifId) {
+  notifMarkRead(notifId);
+  showPg('users');
+  setTimeout(() => {
+    const candidates = ['user-search','users-search'];
+    let el = null;
+    for (const id of candidates) { el = doc(id); if (el) break; }
+    if (!el) el = document.querySelector('#pg-users input[type=text], #pg-users input[type=search]');
+    if (el) { el.value = phone; el.dispatchEvent(new Event('input')); el.focus(); }
+  }, 500);
+}
+
+function notifCopyPhone(phone, notifId) {
+  notifMarkRead(notifId);
+  navigator.clipboard.writeText(phone)
+    .then(() => toast('📋 Copied: ' + phone))
+    .catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = phone; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast('📋 Copied: ' + phone);
+    });
+}
+
+function notifGenCoupon(phone, notifId) {
+  notifMarkRead(notifId);
+  showPg('coupons');
+  setTimeout(() => {
+    const candidates = ['cpn-phone','coupon-phone','new-cpn-phone'];
+    let el = null;
+    for (const id of candidates) { el = doc(id); if (el) break; }
+    if (!el) el = document.querySelector('#pg-coupons input[type=tel], #pg-coupons input[placeholder*="hone"]');
+    if (el) { el.value = phone; el.focus(); }
+  }, 500);
+}
+
+async function notifToggleTxn(notifId, phone, groupId) {
+  notifMarkRead(notifId);
+  if (groupId) _notifCheckGroupDone(groupId, notifId);
+  const expEl = doc('notif-exp-' + notifId);
+  if (!expEl) return;
+  if (expEl.classList.contains('open')) { expEl.classList.remove('open'); return; }
+  expEl.innerHTML = '<i class="fa-solid fa-spinner icon-spin"></i> Loading transaction...';
+  expEl.classList.add('open');
+  try {
+    const txns = await api('getKhata', { phone });
+    const rows = (txns.transactions || []).slice(0, 8);
+    expEl.innerHTML = rows.length
+      ? `<b style="font-size:12px">Recent Transactions for ${phone}:</b><br><br>` +
+        rows.map(t => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:11px">
+          <span style="color:#888">${(t.created_at||'').slice(0,10)}</span>
+          <span style="flex:1;margin:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.note||t.type||'—'}</span>
+          <span style="font-weight:700;color:${Number(t.amount)>0?'#22c55e':'#ef4444'};white-space:nowrap">${Number(t.amount)>0?'+':''}₹${Math.abs(Number(t.amount))}</span>
+        </div>`).join('')
+      : '<span style="color:#999">No transactions found.</span>';
+  } catch(e) { expEl.innerHTML = '<span style="color:#ef4444">Error: ' + e.message + '</span>'; }
+}
+
+async function notifView30Days(notifId, phone) {
+  notifMarkRead(notifId);
+  const expEl = doc('notif-exp-' + notifId);
+  if (!expEl) return;
+  if (expEl.classList.contains('open')) { expEl.classList.remove('open'); return; }
+  expEl.innerHTML = '<i class="fa-solid fa-spinner icon-spin"></i> Loading 30-day history...';
+  expEl.classList.add('open');
+  try {
+    const txns = await api('getKhata', { phone });
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const all = (txns.transactions || []).filter(t => new Date(t.created_at || t.date || 0).getTime() > cutoff);
+    const total = all.reduce((s, t) => s + Number(t.amount || 0), 0);
+    expEl.innerHTML = all.length
+      ? `<b style="font-size:12px">Last 30 Days — ${all.length} transaction(s) | Net: <span style="color:${total>=0?'#22c55e':'#ef4444'}">₹${total}</span></b><br><br>` +
+        all.map(t => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:11px">
+          <span style="color:#888;white-space:nowrap">${(t.created_at||'').slice(0,10)}</span>
+          <span style="flex:1;margin:0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.note||t.type||'—'}</span>
+          <span style="font-weight:700;color:${Number(t.amount)>0?'#22c55e':'#ef4444'};white-space:nowrap">${Number(t.amount)>0?'+':''}₹${Math.abs(Number(t.amount))}</span>
+        </div>`).join('')
+      : '<span style="color:#999">No transactions in the last 30 days.</span>';
+  } catch(e) { expEl.innerHTML = '<span style="color:#ef4444">Error: ' + e.message + '</span>'; }
+}
+
+async function _notifCheckGroupDone(groupId, justReadId) {
+  // Mark entire group read if all members are now read
+  const group = _notifData.filter(n => n.meta && n.meta.group_id === groupId);
+  const allRead = group.every(n => n.is_read || String(n.id) === String(justReadId));
+  if (allRead && group.length > 0) {
+    await api('markNotificationGroupRead', { group_id: groupId }).catch(() => {});
+    group.forEach(n => { n.is_read = true; });
+    renderNotifications();
+    _updateNotifBadge();
+  }
+}
+
+async function deleteNotifRange() {
+  const from = (doc('notif-del-from') || {}).value;
+  const to   = (doc('notif-del-to')   || {}).value;
+  if (!from || !to) { toast('⚠️ Please select both From and To dates.'); return; }
+  if (from > to) { toast('⚠️ From date must be before To date.'); return; }
+  if (!confirm(`Delete all notifications from ${from} to ${to}?`)) return;
+  try {
+    const r = await api('deleteNotificationsByRange', { from, to });
+    toast(`🗑️ Deleted ${r.deleted} notification(s)`);
+    loadNotifications();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+function startNotifPolling() {
+  stopNotifPolling();
+  loadNotifications(); // immediate first load
+  _notifPollTimer = setInterval(() => {
+    if (!Session.get()) { stopNotifPolling(); return; }
+    if (document.hidden) return; // skip when tab hidden
+    loadNotifications();
+  }, 60000); // every 60 seconds
+}
+
+function stopNotifPolling() {
+  if (_notifPollTimer) { clearInterval(_notifPollTimer); _notifPollTimer = null; }
 }
 </script>
 
