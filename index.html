@@ -2867,6 +2867,14 @@ document.addEventListener('visibilitychange', () => {
 // STARTUP
 // ══════════════════════════════════════════════
 function bootApp() {
+  // ── Block popstate during startup — prevents URL hash restoring old page ──
+  _navLock = true;
+  setTimeout(() => { _navLock = false; }, 600);
+  // ── Strip any hash immediately, before any async work ──
+  if (location.hash) history.replaceState(null, '', location.pathname);
+  // ── Force all pages hidden immediately so no stale page flashes ──
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+  doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
   const loader = doc('app-loader');
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js', { scope: './' }).then(reg => {
@@ -2961,6 +2969,10 @@ function bootApp() {
 
 window.addEventListener('pageshow', e => {
   if (e.persisted) {
+    // ── Block popstate during restore reset ──
+    _navLock = true;
+    setTimeout(() => { _navLock = false; }, 600);
+    if (location.hash) history.replaceState(null, '', location.pathname);
     // Clear stale keys on BF-cache restore
     ['pb_menu_cache','pb_order_processing','pb_user'].forEach(k => Store.remove(k));
     const saved = SessStore.get();
