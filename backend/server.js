@@ -138,6 +138,15 @@ app.post('/api', async (req, res) => {
       case 'markNuCouponSent':         result = await markNuCouponSent(data);      break;
       case 'deleteOldNuCouponSent':    result = await deleteOldNuCouponSent();     break;
 
+      // ── NOTIFICATIONS ─────────────────────────────────────
+      case 'getNotifications':         result = await getNotifications(data);      break;
+      case 'markNotificationRead':     result = await markNotificationRead(data);  break;
+      case 'markNotificationGroupRead':result = await markNotificationGroupRead(data); break;
+      case 'deleteNotification':       result = await deleteNotification(data);    break;
+      case 'deleteNotificationsByRange':result = await deleteNotificationsByRange(data); break;
+      case 'purgeOldNotifications':    result = await purgeOldNotifications();     break;
+      case 'createNotification':       result = await createNotification(data);    break;
+
       // ── DATA CLEANUP ──────────────────────────────────────
       case 'deleteOldData':            result = await deleteOldData(data);         break;
       case 'deleteOldOrders':          result = await deleteOldOrders(data);       break;
@@ -153,6 +162,83 @@ app.post('/api', async (req, res) => {
     return res.json({ success: false, error: err.message });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+
+async function createNotification(data) {
+  const { error } = await supabase.from('notifications').insert({
+    type:       data.type,
+    priority:   data.priority || 'normal',
+    group_id:   data.group_id || null,
+    title:      data.title,
+    body:       data.body,
+    meta:       data.meta || {},
+    is_read:    false,
+    created_at: new Date().toISOString()
+  });
+  if (error) console.error('[notif] insert error:', error.message);
+  return { ok: !error };
+}
+
+async function getNotifications(data) {
+  await purgeOldNotifications().catch(() => {});
+  const limit = Number(data?.limit) || 200;
+  const { data: rows, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return rows || [];
+}
+
+async function markNotificationRead(data) {
+  if (!data.id) throw new Error('id required');
+  const { error } = await supabase.from('notifications')
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('id', data.id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+async function markNotificationGroupRead(data) {
+  if (!data.group_id) throw new Error('group_id required');
+  const { error } = await supabase.from('notifications')
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('group_id', data.group_id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+async function deleteNotification(data) {
+  if (!data.id) throw new Error('id required');
+  const { error } = await supabase.from('notifications').delete().eq('id', data.id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+async function deleteNotificationsByRange(data) {
+  if (!data.from || !data.to) throw new Error('from and to dates required');
+  const from = data.from + 'T00:00:00Z';
+  const to   = data.to   + 'T23:59:59Z';
+  const { error, count } = await supabase.from('notifications')
+    .delete({ count: 'exact' })
+    .gte('created_at', from)
+    .lte('created_at', to);
+  if (error) throw new Error(error.message);
+  return { deleted: count || 0 };
+}
+
+async function purgeOldNotifications() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { error, count } = await supabase.from('notifications')
+    .delete({ count: 'exact' })
+    .lt('created_at', cutoff);
+  if (error) console.error('[notif] purge error:', error.message);
+  return { purged: count || 0 };
+}
 
 // ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
@@ -358,7 +444,14 @@ async function signupUser(data) {
     password: hashed, is_subscriber: false
   }).select().single();
   if (error) throw new Error(error.message);
-  return { userId: user.user_id, name: user.name, phone: user.phone, email: user.email || '', address: user.address || '', isSubscriber: false };
+  const signupResult = { userId: user.user_id, name: user.name, phone: user.phone, email: user.email || '', address: user.address || '', isSubscriber: false };
+  setImmediate(() => createNotification({
+    type: 'user', priority: 'normal',
+    title: '🟢 New User Registered',
+    body: `${data.name} just signed up`,
+    meta: { phone: ph, name: data.name, address: data.address || '' }
+  }).catch(() => {}));
+  return signupResult;
 }
 
 async function loginUser(data) {
@@ -950,7 +1043,25 @@ async function createOrder(data) {
     newBalance = await getWalletBalance(ph);
   }
 
-  return { orderId: order.order_id, newBalance };
+  const orderResult = { orderId: order.order_id, newBalance };
+  const _notifGroupId = 'order_' + order.order_id;
+  setImmediate(async () => {
+    try {
+      await createNotification({ type:'order', priority:'high', group_id: _notifGroupId,
+        title:'🛒 New Order Placed',
+        body:`${data.name} placed an order of ₹${amount}`,
+        meta:{ phone:ph, name:data.name, order_id:order.order_id,
+               amount, user_type:data.userType||'daily', sub_group:'order', group_id:_notifGroupId }
+      });
+      await createNotification({ type:'transaction', priority:'normal', group_id: _notifGroupId,
+        title:'💳 New Transaction (Order)',
+        body:`Payment linked to order ${order.order_id}`,
+        meta:{ phone:ph, name:data.name, order_id:order.order_id,
+               amount, user_type:data.userType||'daily', sub_group:'txn', group_id:_notifGroupId }
+      });
+    } catch(_) {}
+  });
+  return orderResult;
 }
 
 async function getUserOrders(data) {
@@ -1278,6 +1389,13 @@ async function pauseUserDelivery(data) {
   const mode = data.mode || 'none';
   const { error } = await supabase.from('subscribers').update({ pause_delivery: mode }).eq('phone', ph);
   if (error) throw new Error(error.message);
+  if (mode && mode !== 'none') {
+    setImmediate(() => createNotification({ type:'pause', priority:'normal',
+      title:'⏸️ Subscription Paused',
+      body:`${data.name || ph} paused delivery (${mode})`,
+      meta:{ phone:ph, name:data.name||ph, mode }
+    }).catch(()=>{}));
+  }
   return { pauseDelivery: mode };
 }
 
@@ -1608,6 +1726,14 @@ async function rechargeWallet(data) {
     created_at: ist.toISOString()
   });
   if (kErr) console.error('[khata] recharge insert failed:', kErr.message, '| phone:', ph);
+  // Fire notification only for explicit admin/staff recharges (has rechargedBy set)
+  if (data.rechargedBy) {
+    setImmediate(() => createNotification({ type:'recharge', priority:'normal',
+      title:'🔁 Wallet Recharged',
+      body:`₹${amt} added to ${data.userName||ph} by ${data.rechargedBy}`,
+      meta:{ phone:ph, name:data.userName||ph, amount:amt, note:data.note||'Recharge', recharged_by:data.rechargedBy }
+    }).catch(()=>{}));
+  }
   return { newBalance: newBal };
 }
 
