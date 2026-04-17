@@ -199,6 +199,24 @@ tr:hover td{background:#fafafa}
 .promote-found .pf-name{font-weight:800;font-size:15px;margin-bottom:3px}
 .promote-found .pf-ph{font-size:12px;color:var(--gr)}
 .promote-found .pf-addr{font-size:12px;color:#555;margin-top:3px}
+
+/* ── NEW USER COUPON CARD ── */
+.nu-tabs{display:flex;gap:0;margin-bottom:14px;border-radius:10px;overflow:hidden;border:2px solid #e5e7eb}
+.nu-tab{flex:1;padding:8px 12px;font-family:var(--ff);font-weight:700;font-size:12px;border:none;cursor:pointer;background:#fff;color:var(--gr);transition:all .18s;text-align:center}
+.nu-tab.act{background:var(--grad);color:#fff}
+.nu-item{padding:13px 14px;border-bottom:1px solid #f3f3f3;font-size:13px}
+.nu-item:last-child{border-bottom:none}
+.nu-item:hover{background:#fafafa}
+.nu-name{font-weight:700;font-size:14px;margin-bottom:2px}
+.nu-meta{font-size:11px;color:#999;margin-bottom:6px}
+.nu-addr{font-size:12px;color:#555;margin-bottom:8px}
+.nu-actions{display:flex;gap:7px;align-items:center}
+.nu-msg-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:10px 12px;font-size:12px;color:#166534;margin:8px 0;line-height:1.5}
+.nu-msg-edit{width:100%;padding:8px 10px;border-radius:8px;border:1.5px solid #d1fae5;font-family:var(--fb);font-size:12px;background:#f0fdf4;color:#166534;resize:vertical;min-height:80px;outline:none}
+.nu-msg-edit:focus{border-color:var(--g)}
+.nu-pending-badge{background:#fff3e0;color:#c45500;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block;margin-left:6px}
+.nu-sent-badge{background:var(--gl);color:var(--g);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;display:inline-block;margin-left:6px}
+.nu-refresh-bar{text-align:right;font-size:11px;color:#999;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -311,6 +329,7 @@ tr:hover td{background:#fafafa}
           <div class="st-card clickable" onclick="openStatDetail('total-orders')"><div class="st-ico">🛒</div><div class="st-lbl">Total Orders</div><div class="st-val" id="s-tot-ord">—</div></div>
           <div class="st-card clickable" onclick="openStatDetail('total-users')"><div class="st-ico">👥</div><div class="st-lbl">Total Users</div><div class="st-val" id="s-users">—</div></div>
           <div class="st-card clickable" onclick="openStatDetail('subscribers')"><div class="st-ico">👑</div><div class="st-lbl">Subscribers</div><div class="st-val" id="s-subs">—</div></div>
+          <div class="st-card admin-only clickable" onclick="openNewUserCouponPanel()" style="border:2px solid #fff3e0" id="nu-dash-card"><div class="st-ico">🎁</div><div class="st-lbl">New Users <span id="nu-card-badge" style="display:none;background:var(--p);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:4px;vertical-align:middle"></span></div><div class="st-val" id="s-new-users" style="color:#c45500">—</div></div>
         </div>
       </div>
 
@@ -1393,7 +1412,7 @@ function refreshCurrent(){ manualRefresh(); }
 // ════════════════════════════════════════════════
 async function loadDash(){
   // Show skeleton placeholders while loading
-  ['s-tod-ord','s-tod-rev','s-mo-rev','s-tot-ord','s-users','s-subs','s-wallet-bal'].forEach(id=>{
+  ['s-tod-ord','s-tod-rev','s-mo-rev','s-tot-ord','s-users','s-subs','s-wallet-bal','s-new-users'].forEach(id=>{
     const el=doc(id);
     if(el) el.innerHTML='<div class="sk" style="height:32px;width:80px;border-radius:8px"></div>';
   });
@@ -1409,6 +1428,185 @@ async function loadDash(){
     // Re-apply role restrictions after data fills in (prevents staff briefly seeing admin cards)
     const sess=Session.get(); if(sess) applyRoleUI(sess.role);
   }catch(e){ toast('Dashboard error: '+e.message); }
+  // Load new users coupon count
+  _loadNuDashCount();
+}
+
+// ════════════════════════════════════════════════
+// NEW USER COUPON FEATURE
+// ════════════════════════════════════════════════
+let _nuUsers = [];       // all users from API
+let _nuTab = 'pending';  // current tab
+let _nuAutoTimer = null; // auto-refresh timer inside modal
+let _nuCdTimer = null;   // countdown timer
+let _waCurUser = null;   // user being composed for WA
+
+// Coupon-sent set — backed by Supabase nu_coupon_sent table
+let _nuSentCache = null; // Set<string> loaded fresh each panel open
+
+async function _nuLoadSent(){
+  try{
+    const phones = await api('getNuCouponSent');
+    _nuSentCache = new Set(phones.map(String));
+  }catch(e){
+    console.warn('_nuLoadSent failed, using empty set',e);
+    _nuSentCache = new Set();
+  }
+}
+function _nuGetSent(){ return _nuSentCache || new Set(); }
+async function _nuMarkSent(phone){
+  const p=String(phone);
+  if(!_nuSentCache) _nuSentCache=new Set();
+  _nuSentCache.add(p);
+  try{ await api('markNuCouponSent',{phone:p}); }catch(e){ console.warn('markNuCouponSent failed',e); }
+}
+
+// Sort users newest-first by createdAt or id
+function _nuSortUsers(users){
+  return [...users].sort((a,b)=>{
+    const da=a.createdAt||a.created_at||'';
+    const db=b.createdAt||b.created_at||'';
+    if(da&&db) return db.localeCompare(da);
+    return 0;
+  });
+}
+
+async function _loadNuDashCount(){
+  try{
+    const [users] = await Promise.all([api('getUsers'), _nuSentCache===null?_nuLoadSent():Promise.resolve()]);
+    const sent=_nuGetSent();
+    const pending=users.filter(u=>!sent.has(String(u.phone)));
+    const cnt=pending.length;
+    const el=doc('s-new-users');
+    const badge=doc('nu-card-badge');
+    if(el) el.textContent=cnt;
+    if(badge){
+      if(cnt>0){ badge.textContent='Pending'; badge.style.display='inline'; }
+      else { badge.style.display='none'; }
+    }
+    const card=doc('nu-dash-card');
+    if(card){
+      card.style.borderColor=cnt>0?'#fed7aa':'#f0f0f0';
+      card.style.background=cnt>0?'#fffbf5':'#fff';
+    }
+  }catch(e){}
+}
+
+async function openNewUserCouponPanel(){
+  _nuTab='pending';
+  doc('nu-tab-pending').classList.add('act');
+  doc('nu-tab-sent').classList.remove('act');
+  doc('mo-new-users').classList.remove('hide');
+  await _nuLoadSent();   // load from Supabase before rendering
+  await _loadNuUsers();
+  _startNuAutoRefresh();
+}
+
+function _startNuAutoRefresh(){
+  _stopNuAutoRefresh();
+  let cd=60;
+  const cdEl=doc('nu-cd');
+  _nuCdTimer=setInterval(()=>{ cd--; if(cdEl) cdEl.textContent=cd; if(cd<=0){cd=60;_loadNuUsers();} },1000);
+}
+function _stopNuAutoRefresh(){
+  if(_nuAutoTimer){ clearInterval(_nuAutoTimer); _nuAutoTimer=null; }
+  if(_nuCdTimer){ clearInterval(_nuCdTimer); _nuCdTimer=null; }
+}
+
+// Close modal hook — stop timers
+const _origCloseMo=window.closeMo;
+window.closeMo=function(id){
+  if(id==='mo-new-users') _stopNuAutoRefresh();
+  _origCloseMo(id);
+};
+
+async function _loadNuUsers(){
+  const body=doc('nu-list-body');
+  if(!body) return;
+  try{
+    const [users] = await Promise.all([api('getUsers'), _nuLoadSent()]);
+    _nuUsers=_nuSortUsers(users);
+    _renderNuList();
+    _loadNuDashCount();
+  }catch(e){
+    body.innerHTML=`<div class="sd-empty" style="color:var(--p)">❌ Failed: ${esc(e.message)}</div>`;
+  }
+}
+
+function switchNuTab(tab){
+  _nuTab=tab;
+  doc('nu-tab-pending').classList.toggle('act',tab==='pending');
+  doc('nu-tab-sent').classList.toggle('act',tab==='sent');
+  _renderNuList();
+}
+
+function _renderNuList(){
+  const body=doc('nu-list-body'); if(!body) return;
+  const sent=_nuGetSent();
+  const pending=_nuUsers.filter(u=>!sent.has(String(u.phone)));
+  const sentArr=_nuUsers.filter(u=>sent.has(String(u.phone)));
+  // Update tab counts
+  const pc=doc('nu-pending-count'); if(pc) pc.textContent=pending.length;
+  const sc=doc('nu-sent-count'); if(sc) sc.textContent=sentArr.length;
+  const list=_nuTab==='pending'?pending:sentArr;
+  if(!list.length){
+    body.innerHTML=`<div class="sd-empty">${_nuTab==='pending'?'🎉 All users have received their coupon!':'No sent coupons yet.'}</div>`;
+    return;
+  }
+  body.innerHTML=list.map(u=>{
+    const isSent=sent.has(String(u.phone));
+    return `<div class="nu-item">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div class="nu-name">${esc(u.name||'—')}</div>
+          <div class="nu-meta">📞 ${esc(u.phone||'—')}</div>
+          ${u.address?`<div class="nu-addr">📍 ${esc(u.address)}</div>`:''}
+        </div>
+        <span class="${isSent?'nu-sent-badge':'nu-pending-badge'}">${isSent?'✅ Sent':'⏳ Pending'}</span>
+      </div>
+      ${!isSent?`<div class="nu-actions">
+        <button class="btn btn-g btn-sm" onclick="openWACouponCompose(${JSON.stringify(u).replace(/"/g,'&quot;')})"><i class="fa-brands fa-whatsapp"></i> Send Coupon</button>
+      </div>`:`<div style="font-size:11px;color:#999;margin-top:4px">Coupon sent ✓</div>`}
+    </div>`;
+  }).join('');
+}
+
+function openWACouponCompose(user){
+  _waCurUser=user;
+  doc('wa-uname').textContent=user.name||'—';
+  doc('wa-umeta').textContent='📞 '+(user.phone||'—')+(user.address?' · 📍 '+user.address:'');
+  const defaultMsg=`Hello ${user.name||'there'}! 👋\n\nWelcome to Puro Bite 🍱\n\nHere is your first order coupon code:\n*COUPON_CODE*\n\nUse it to order your tiffin and enjoy a special discount!\n\nThank you for joining us 😊`;
+  doc('wa-msg').value=defaultMsg;
+  doc('mo-wa-coupon').classList.remove('hide');
+}
+
+async function sendWACoupon(){
+  if(!_waCurUser) return;
+  const msg=doc('wa-msg').value.trim();
+  if(!msg) return toast('Message cannot be empty');
+  const phone=String(_waCurUser.phone||'').replace(/\D/g,'');
+  if(!phone) return toast('No phone number');
+  const waPhone='91'+phone;
+  const url=`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+  window.open(url,'_blank');
+  // Mark as sent
+  await _nuMarkSent(_waCurUser.phone);
+  closeMo('mo-wa-coupon');
+  toast('✅ WhatsApp opened! User marked as coupon sent.');
+  // Refresh list
+  _renderNuList();
+  _loadNuDashCount();
+}
+
+async function deleteOldNuCouponSent(){
+  if(!confirm('Delete coupon-sent records older than 2 days?\n\nThis frees Supabase storage. Today\'s and yesterday\'s records are kept.')) return;
+  try{
+    const r = await api('deleteOldNuCouponSent');
+    toast(`✅ Deleted ${r.deleted} old record${r.deleted===1?'':'s'}.`);
+    await _nuLoadSent();
+    _renderNuList();
+    _loadNuDashCount();
+  }catch(e){ toast('❌ '+e.message); }
 }
 
 // ════════════════════════════════════════════════
@@ -3737,6 +3935,49 @@ async function submitUserPasswordReset(){
   }catch(e){ toast('❌ '+e.message); }
 }
 </script>
+
+<!-- NEW USER COUPON PANEL MODAL -->
+<div class="mo hide" id="mo-new-users" onclick="if(event.target===this)closeMo('mo-new-users')">
+  <div class="mo-box" style="max-width:620px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span class="mo-t" style="margin-bottom:0">🎁 New User Welcome Coupons</span>
+      <div class="nu-refresh-bar" id="nu-refresh-bar">Auto-refresh in <span id="nu-cd">60</span>s</div>
+    </div>
+    <div class="nu-tabs">
+      <button class="nu-tab act" id="nu-tab-pending" onclick="switchNuTab('pending')">⏳ Coupon Pending <span id="nu-pending-count" style="background:rgba(255,255,255,.25);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px"></span></button>
+      <button class="nu-tab" id="nu-tab-sent" onclick="switchNuTab('sent')">✅ Coupon Sent <span id="nu-sent-count" style="background:rgba(0,0,0,.07);border-radius:20px;padding:1px 7px;font-size:11px;margin-left:4px"></span></button>
+    </div>
+    <div id="nu-list-body" style="max-height:60vh;overflow-y:auto;border:1px solid #f0f0f0;border-radius:12px">
+      <div class="sd-loading">Loading...</div>
+    </div>
+    <div class="mo-ft" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-ghost btn-sm" style="color:#e74c3c;border-color:#e74c3c" onclick="deleteOldNuCouponSent()" title="Delete coupon-sent records older than 2 days">🗑️ Clear Old Records</button>
+      <button class="btn btn-ghost" onclick="closeMo('mo-new-users')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHATSAPP COUPON COMPOSE MODAL -->
+<div class="mo hide" id="mo-wa-coupon" onclick="if(event.target===this)closeMo('mo-wa-coupon')">
+  <div class="mo-box" style="max-width:460px">
+    <div class="mo-t">📱 Send Welcome Coupon</div>
+    <div id="wa-user-info" style="background:#f3f4f6;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px">
+      <div style="font-weight:700" id="wa-uname">—</div>
+      <div style="font-size:12px;color:#999;margin-top:3px" id="wa-umeta">—</div>
+    </div>
+    <div class="fg">
+      <label class="lbl">Welcome Message (customise below)</label>
+      <textarea id="wa-msg" class="inp" style="resize:vertical;min-height:100px;font-size:13px;line-height:1.6"></textarea>
+    </div>
+    <div style="background:#e8f5f3;border-radius:9px;padding:9px 12px;font-size:12px;color:#1e7e71;margin-bottom:14px">
+      <i class="fa-solid fa-circle-info" style="margin-right:5px"></i>Edit the coupon code in the message above, then click <strong>Send on WhatsApp</strong>.
+    </div>
+    <div class="mo-ft">
+      <button class="btn btn-ghost" onclick="closeMo('mo-wa-coupon')">Cancel</button>
+      <button class="btn btn-g" onclick="sendWACoupon()" id="wa-send-btn"><i class="fa-brands fa-whatsapp"></i> Send on WhatsApp</button>
+    </div>
+  </div>
+</div>
 
 <!-- STAT DETAIL MODAL -->
 <div class="mo hide" id="mo-stat-detail" onclick="if(event.target===this)closeMo('mo-stat-detail')">
