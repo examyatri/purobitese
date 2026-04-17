@@ -2889,10 +2889,10 @@ else { _runPollTick().catch(() => {}); startPolling(); }
 function bootApp() {
 const loader = doc(‘app-loader’);
 
-// FIX: Always clear URL hash on startup (prevents PWA reopening on wallet/khata page)
+// Always clear hash on startup — prevents PWA opening on #pg-khata etc
 if (location.hash) history.replaceState(null, ‘’, location.pathname);
 
-// FIX: Register SW after load so it never blocks page rendering
+// Register SW after page load — never block rendering
 if (‘serviceWorker’ in navigator) {
 window.addEventListener(‘load’, () => {
 navigator.serviceWorker.register(’./sw.js’, { scope: ‘./’ }).then(reg => {
@@ -2909,70 +2909,17 @@ console.log(’[SW] New version available’);
 }).catch(err => console.warn(’[SW] Registration failed:’, err));
 });
 }
+
+// ALWAYS show login screen on every app open
+// Creds autofill karo — user manually Login button click kare
 history.replaceState({ page: ‘pg-auth’ }, ‘’, location.pathname);
-
-const savedSess = SessStore.get();
-const savedSub  = Store.getJSON(‘pb_sub’);
-if (savedSess && savedSess.userId) {
-Auth.set(savedSess);
-api(‘getKhataEnabled’).then(ke => {
-_khataEnabled = ke.enabled !== false;
-applyKhataVisibility();
-}).catch(() => {});
-const isSub = savedSub?.isSubscriber;
-if (isSub && _khataEnabled) {
-api(‘getKhata’, { phone: savedSess.phone })
-.then(kd => updateWalletUI(Number(kd.balance) || 0))
-.catch(() => { if (_walletBal !== null) updateWalletUI(_walletBal); });
-}
-const proBadge = doc(‘acct-pro-badge’); if (proBadge) proBadge.classList.toggle(‘hide’, !isSub);
-const tifBan = doc(‘tif-ban’); if (tifBan) tifBan.classList.toggle(‘hide’, !!isSub);
-applyPauseState(savedSub?.pauseDelivery || ‘none’);
-updateBadge();
-doc(‘pg-auth’).classList.replace(‘here’,‘left’);
-doc(‘pg-home’).classList.remove(‘right’,‘left’);
-doc(‘pg-home’).classList.add(‘here’);
-stack = [‘pg-auth’,‘pg-home’];
-history.replaceState({ page: ‘pg-auth’ }, ‘’, location.pathname);
-history.pushState({ page: ‘pg-home’ }, ‘’, ‘#pg-home’);
-updateBottomNav(‘pg-home’);
-showAppUI();
-loadMenu();
-startPolling();
-loader.classList.add(‘fade-out’);
-setTimeout(() => { loader.style.display = ‘none’; }, 300);
-
-```
-// ── v14: Background subscriber re-verification ──
-api('checkSubscriber', { phone: savedSess.phone }).then(fresh => {
-  Store.setJSON('pb_sub', fresh);
-  const wasSubCached = !!isSub;
-  const isSubNow     = !!fresh.isSubscriber;
-  if (wasSubCached !== isSubNow) {
-    applyKhataVisibility();
-    applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
-    updateBadge();
-    if (isSubNow && _khataEnabled) {
-      api('getKhata', { phone: savedSess.phone })
-        .then(kd => updateWalletUI(Number(kd.balance) || 0))
-        .catch(() => {});
-    } else { updateWalletUI(null); }
-  } else if (isSubNow) {
-    applyPauseState(fresh.pauseDelivery || 'none');
-    if (_khataEnabled) {
-      api('getKhata', { phone: savedSess.phone })
-        .then(kd => updateWalletUI(Number(kd.balance) || 0))
-        .catch(() => {});
-    }
-  }
-}).catch(() => {});
-return;
-```
-
-}
-
+document.querySelectorAll(’.pg’).forEach(p => { p.classList.remove(‘here’,‘left’); p.classList.add(‘right’); });
+doc(‘pg-auth’).classList.remove(‘right’); doc(‘pg-auth’).classList.add(‘here’);
+stack = [‘pg-auth’];
+_session = null;
+hideAppUI(); hideFab();
 autofillCreds();
-Store.remove(‘pb_user’);
+
 loader.classList.add(‘fade-out’);
 setTimeout(() => { loader.style.display = ‘none’; }, 300);
 }
@@ -2989,43 +2936,15 @@ if (!visible || !visible.offsetHeight) { location.replace(location.pathname); }
 
 window.addEventListener(‘pageshow’, e => {
 if (e.persisted) {
-const saved = SessStore.get();
-if (saved && saved.userId) {
-// FIX: Always force back to pg-home on PWA resume — prevents blank wallet/khata screen
-Auth.set(saved);
-showAppUI();
-document.querySelectorAll(’.pg’).forEach(p => { p.classList.remove(‘here’,‘left’); p.classList.add(‘right’); });
-doc(‘pg-auth’).classList.remove(‘right’); doc(‘pg-auth’).classList.add(‘left’);
-doc(‘pg-home’).classList.remove(‘right’,‘left’); doc(‘pg-home’).classList.add(‘here’);
-stack = [‘pg-auth’,‘pg-home’];
-history.replaceState({ page: ‘pg-auth’ }, ‘’, location.pathname);
-history.pushState({ page: ‘pg-home’ }, ‘’, ‘#pg-home’);
-updateBottomNav(‘pg-home’);
-startPolling();
-api(‘checkSubscriber’, { phone: saved.phone }).then(fresh => {
-const cached = Store.getJSON(‘pb_sub’) || {};
-Store.setJSON(‘pb_sub’, fresh);
-const wasSubCached = !!cached.isSubscriber;
-const isSubNow     = !!fresh.isSubscriber;
-if (wasSubCached !== isSubNow) {
-const pb = doc(‘acct-pro-badge’); if (pb) pb.classList.toggle(‘hide’, !isSubNow);
-const tb = doc(‘tif-ban’); if (tb) tb.classList.toggle(‘hide’, isSubNow);
-applyPauseState(isSubNow ? (fresh.pauseDelivery || ‘none’) : ‘none’);
-applyKhataVisibility();
-if (!isSubNow) updateWalletUI(null);
-updateBadge();
-} else if (isSubNow) {
-applyPauseState(fresh.pauseDelivery || ‘none’);
-}
-}).catch(() => {});
-} else {
+// On every resume — always go back to login screen with autofilled creds
 stopPolling();
+_session = null;
 document.querySelectorAll(’.pg’).forEach(p => { p.classList.remove(‘here’,‘left’); p.classList.add(‘right’); });
 doc(‘pg-auth’).classList.remove(‘right’); doc(‘pg-auth’).classList.add(‘here’);
 stack = [‘pg-auth’];
+history.replaceState({ page: ‘pg-auth’ }, ‘’, location.pathname);
 hideAppUI(); hideFab();
 autofillCreds();
-}
 }
 });
 
