@@ -1,8 +1,8 @@
-// Puro Bite Service Worker
+// Tiffo Service Worker
 const CACHE_VERSION = ‘v4’;
-const STATIC_CACHE = `purobite-static-${CACHE_VERSION}`;
-const DYNAMIC_CACHE = `purobite-dynamic-${CACHE_VERSION}`;
-const API_CACHE = `purobite-api-${CACHE_VERSION}`;
+const STATIC_CACHE = `tiffo-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `tiffo-dynamic-${CACHE_VERSION}`;
+const API_CACHE = `tiffo-api-${CACHE_VERSION}`;
 
 // Files to pre-cache on install
 const STATIC_FILES = [
@@ -139,7 +139,7 @@ return cached || fetchPromise;
 self.addEventListener(‘push’, event => {
 let data = { title: ‘Puro Bite’, body: ‘You have a new update!’, icon: ‘./icons/icon-192.png’ };
 if (event.data) {
-try { data = { …data, …event.data.json() }; } catch {}
+try { data = { ...data, ...event.data.json() }; } catch {}
 }
 event.waitUntil(
 self.registration.showNotification(data.title, {
