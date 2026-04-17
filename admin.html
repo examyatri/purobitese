@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Puro Bite – Admin</title>
-<meta name="description" content="Puro Bite Admin Control Center">
+<title>Tiffo – Admin</title>
+<meta name="description" content="Tiffo Admin Control Center">
 <meta name="theme-color" content="#e63946">
 <meta name="robots" content="noindex,nofollow">
 <!-- PWA Manifest -->
@@ -240,6 +240,41 @@ tr:hover td{background:#fafafa}
 .notif-empty{text-align:center;padding:36px 20px;color:#ccc;font-size:14px}
 .notif-del-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.06)}
 .notif-del-bar input[type=date]{font-family:var(--ff);font-size:12px;padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;outline:none;color:#333}
+
+/* ── SETTINGS SUB-PAGE SYSTEM ── */
+.settings-menu{display:flex;flex-direction:column;gap:10px;max-width:560px}
+.settings-item{display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:16px;padding:18px 20px;box-shadow:var(--sh);cursor:pointer;border:1px solid rgba(0,0,0,.04);transition:all .18s;user-select:none}
+.settings-item:hover{transform:translateX(4px);box-shadow:var(--shl);border-color:var(--pl)}
+.settings-item:active{transform:scale(.98)}
+.settings-item-left{display:flex;align-items:center;gap:14px}
+.settings-item-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.settings-item-text{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--dk)}
+.settings-item-desc{font-size:12px;color:var(--gr);margin-top:2px;font-family:var(--fb)}
+.settings-item-arrow{color:var(--gr);font-size:13px}
+.settings-item.danger .settings-item-text{color:var(--p)}
+.settings-item.danger:hover{border-color:var(--pl);background:#fff8f8}
+
+/* ── SETTINGS SUB-PAGE VIEWS ── */
+.settings-sub{display:none}
+.settings-sub.act{display:block}
+.settings-sub-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #f0f0f0}
+.settings-back-btn{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:#fff;border:2px solid #e5e7eb;cursor:pointer;color:var(--dk);font-size:16px;transition:all .18s;flex-shrink:0}
+.settings-back-btn:hover{background:var(--pl);border-color:var(--p);color:var(--p)}
+.settings-sub-title{font-family:var(--ff);font-size:18px;font-weight:800;color:var(--dk)}
+
+/* ── NOTIFICATIONS TABS ── */
+.notif-tabs{display:flex;gap:0;margin-bottom:16px;border-radius:12px;overflow:hidden;border:2px solid #e5e7eb;background:#fff}
+.notif-tab-btn{flex:1;padding:10px 14px;font-family:var(--ff);font-weight:700;font-size:13px;border:none;cursor:pointer;background:transparent;color:var(--gr);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
+.notif-tab-btn.act{background:var(--grad);color:#fff}
+.notif-tab-btn .ntab-badge{min-width:20px;height:20px;background:rgba(255,255,255,.25);border-radius:20px;font-size:11px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center}
+.notif-tab-btn:not(.act) .ntab-badge{background:#f0f0f0;color:var(--dk)}
+.notif-del-toggle-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#fff;border:2px solid #e5e7eb;border-radius:10px;cursor:pointer;font-family:var(--ff);font-weight:700;font-size:12px;color:var(--gr);transition:all .18s;margin-bottom:12px}
+.notif-del-toggle-btn:hover{border-color:var(--p);color:var(--p);background:var(--pl)}
+.notif-del-panel{display:none;background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px;border:2px solid #f0f0f0;animation:fadeInPage .18s ease}
+.notif-del-panel.open{display:block}
+.notif-tab-content{display:none}
+.notif-tab-content.act{display:block}
+.notif-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -261,7 +296,7 @@ tr:hover td{background:#fafafa}
   opacity:1;transition:opacity .35s ease;pointer-events:all">
   <div style="font-family:'Sora',sans-serif;font-size:28px;font-weight:900;
     background:linear-gradient(135deg,#e63946,#f4591d);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
-    🍱 Puro Bite
+    🍱 Tiffo
   </div>
   <div style="font-size:12px;color:rgba(255,255,255,.4);font-weight:600;letter-spacing:1px;text-transform:uppercase">
     Admin Panel
@@ -272,7 +307,7 @@ tr:hover td{background:#fafafa}
 <div id="nprogress"><div class="bar" id="npbar"></div></div>
 <div id="auth-pg">
   <div class="a-card">
-    <div class="a-logo"><h1 style="color:var(--p)">🍱 Puro Bite</h1><p id="auth-subtitle">Admin Control Center</p></div>
+    <div class="a-logo"><h1 style="color:var(--p)">🍱 Tiffo</h1><p id="auth-subtitle">Admin Control Center</p></div>
     <div class="fg">
       <label class="lbl">Login As</label>
       <select id="a-role" class="inp" onchange="updateAuthUI()">
@@ -289,7 +324,7 @@ tr:hover td{background:#fafafa}
     <div style="margin-top:14px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
       <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">⚙️ Credentials Setup</div>
       <div style="font-size:12px;color:#64748b;line-height:1.6">
-        Default: <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin@purobite.com</code> / <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin123</code><br>
+        Default: <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin@tiffo.com</code> / <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin123</code><br>
         To change: Login → <strong>Settings</strong> → <strong>Reset Admin Password</strong>.
       </div>
     </div>
@@ -303,7 +338,7 @@ tr:hover td{background:#fafafa}
 
   <!-- SIDEBAR -->
   <aside class="sb" id="sidebar">
-    <div class="sb-logo"><h1 style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Puro Bite</h1><p id="sb-role-label">Admin Panel</p></div>
+    <div class="sb-logo"><h1 style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Tiffo</h1><p id="sb-role-label">Admin Panel</p></div>
     <nav style="flex:1;padding:6px 0">
       <div class="sb-sec">Overview</div>
       <button class="ni act" id="ni-dashboard" onclick="showPg('dashboard')"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
@@ -536,135 +571,230 @@ tr:hover td{background:#fafafa}
 
       <!-- SETTINGS -->
       <div class="pg-v" id="pg-settings">
-        <!-- Admin Password Reset Card -->
-        <div class="tc" style="max-width:520px;margin-bottom:20px">
-          <div class="th"><h3>🔐 Change Admin Password</h3><span style="font-size:12px;color:var(--gr)">Updates hashed password in Settings sheet</span></div>
-          <div style="padding:18px">
-            <div class="fg"><label class="lbl">New Password</label>
-              <div class="pw-wrap">
-                <input id="new-admin-pw" class="inp" type="password" placeholder="Min 6 characters">
-                <button type="button" class="pw-eye" onclick="togglePw('new-admin-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
+
+        <!-- SETTINGS MENU (shown by default) -->
+        <div id="settings-menu-view">
+          <div class="settings-menu">
+            <div class="settings-item" onclick="openSettingsSub('admin-pw')">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#fff0f1"><span>🔐</span></div>
+                <div>
+                  <div class="settings-item-text">Change Admin Password</div>
+                  <div class="settings-item-desc">Update hashed password in Settings sheet</div>
+                </div>
               </div>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
             </div>
-            <div class="fg"><label class="lbl">Confirm Password</label>
-              <input id="new-admin-pw-confirm" class="inp" type="password" placeholder="Re-enter password">
-            </div>
-            <button class="btn btn-dk" onclick="saveAdminPassword()"><i class="fa-solid fa-key"></i> Update Password</button>
-          </div>
-        </div>
-        <div class="tc" style="max-width:680px;margin-bottom:20px">
-          <div class="th">
-            <h3>📅 Restaurant Schedule</h3>
-            <span style="font-size:12px;color:var(--gr)">Set hours per day — changes apply immediately</span>
-          </div>
-          <div style="padding:16px">
-            <div id="schedule-cards"></div>
-            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-              <button class="btn btn-p" onclick="saveWeeklySchedule()"><i class="fa-solid fa-floppy-disk"></i> Save Schedule</button>
-              <button class="btn btn-ghost" onclick="resetDefaultSchedule()"><i class="fa-solid fa-rotate-left"></i> Reset to Default</button>
-            </div>
-          </div>
-        </div>
-        <div class="tc" style="max-width:520px;margin-bottom:20px">
-          <div class="th"><h3>📒 Khata / Wallet Feature</h3><span style="font-size:12px;color:var(--gr)">Toggle to show/hide Khata and Wallet from user app</span></div>
-          <div style="padding:20px">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--lt);border-radius:var(--r)">
-              <div>
-                <div style="font-weight:700;font-size:14px">Khata &amp; Wallet</div>
-                <div style="font-size:12px;color:var(--gr);margin-top:3px">When OFF: hides wallet from users, stops all Khata API calls</div>
+            <div class="settings-item" onclick="openSettingsSub('schedule')">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#f0f9ff"><span>📅</span></div>
+                <div>
+                  <div class="settings-item-text">Restaurant Schedule</div>
+                  <div class="settings-item-desc">Set opening hours per day — applies immediately</div>
+                </div>
               </div>
-              <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer">
-                <input type="checkbox" id="khata-enabled-chk" style="opacity:0;width:0;height:0" onchange="saveKhataToggle()">
-                <span id="khata-slider" style="position:absolute;inset:0;background:#ccc;border-radius:26px;transition:.3s">
-                  <span style="position:absolute;left:3px;bottom:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3)" id="khata-knob"></span>
-                </span>
-              </label>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
             </div>
-            <div id="khata-toggle-msg" style="margin-top:10px;font-size:13px;color:var(--gr)"></div>
-          </div>
-        </div>
-        <!-- ── Delete Old Orders (Admin Only) ── -->
-        <div class="tc admin-only" style="max-width:540px;margin-bottom:20px;border:2px solid #fde8ea">
-          <div class="th">
-            <h3>🗑️ Delete Old Orders</h3>
-            <span style="font-size:12px;color:var(--p)">Min 5 days old · Frees Supabase storage</span>
-          </div>
-          <div style="padding:18px">
-            <div style="background:#fff8f8;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:12px;color:#c1121f;font-weight:600;border-left:3px solid var(--p)">
-              ⚠️ Permanent action — cannot be undone. Only orders placed <strong>before</strong> the selected date will be deleted.
-            </div>
-            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-              <div class="fg" style="flex:1;min-width:160px;margin-bottom:0">
-                <label class="lbl">Delete orders older than</label>
-                <input id="del-ord-date" class="inp" type="date" oninput="previewOrdDelete()">
+            <div class="settings-item" onclick="openSettingsSub('khata')">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#f0fff8"><span>📒</span></div>
+                <div>
+                  <div class="settings-item-text">Khata / Wallet Feature</div>
+                  <div class="settings-item-desc">Toggle Khata & Wallet visibility in user app</div>
+                </div>
               </div>
-              <button class="btn btn-ghost btn-sm" onclick="previewOrdDelete()" style="height:44px;white-space:nowrap">
-                <i class="fa-solid fa-eye"></i> Preview
-              </button>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
             </div>
-            <div id="del-ord-preview" style="font-size:13px;font-weight:600;margin-bottom:10px;min-height:20px"></div>
-            <div id="del-ord-msg" style="font-size:13px;margin-bottom:8px;min-height:18px"></div>
-            <button class="btn btn-red" onclick="deleteOrdersConfirm()" style="width:100%">
-              <i class="fa-solid fa-trash"></i> Delete Orders Before Selected Date
-            </button>
+            <div class="settings-item admin-only" onclick="openSettingsSub('del-orders')">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#fff0f1"><span>🗑️</span></div>
+                <div>
+                  <div class="settings-item-text" style="color:var(--p)">Delete Old Orders</div>
+                  <div class="settings-item-desc">Min 5 days old · Frees Supabase storage</div>
+                </div>
+              </div>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
+            </div>
+            <div class="settings-item admin-only" onclick="openSettingsSub('del-txns')">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#fff0f1"><span>🗑️</span></div>
+                <div>
+                  <div class="settings-item-text" style="color:var(--p)">Delete Old Transactions</div>
+                  <div class="settings-item-desc">Min 45 days old · Wallet/Khata entries</div>
+                </div>
+              </div>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
+            </div>
+            <div class="settings-item" onclick="openSettingsSub('cutoff')">
+              <div class="settings-item-left">
+                <div class="settings-item-icon" style="background:#fffbf0"><span>⏰</span></div>
+                <div>
+                  <div class="settings-item-text">Legacy Cutoff (Fallback)</div>
+                  <div class="settings-item-desc">Used if daily schedule is not configured</div>
+                </div>
+              </div>
+              <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
+            </div>
           </div>
         </div>
 
-        <!-- ── Delete Old Transactions (Admin Only) ── -->
-        <div class="tc admin-only" style="max-width:540px;margin-bottom:20px;border:2px solid #fde8ea">
-          <div class="th">
-            <h3>🗑️ Delete Old Transactions</h3>
-            <span style="font-size:12px;color:var(--p)">Min 45 days old · Wallet/Khata entries</span>
+        <!-- SUB: Change Admin Password -->
+        <div class="settings-sub" id="settings-sub-admin-pw">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title">🔐 Change Admin Password</div>
           </div>
-          <div style="padding:18px">
-            <div style="background:#fff8f8;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:12px;color:#c1121f;font-weight:600;border-left:3px solid var(--p)">
-              ⚠️ Permanent action — cannot be undone. Only transactions older than <strong>45 days</strong> from today can be selected.
-            </div>
-            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-              <div class="fg" style="flex:1;min-width:160px;margin-bottom:0">
-                <label class="lbl">Delete transactions older than</label>
-                <input id="del-txn-date" class="inp" type="date" oninput="previewTxnDelete()">
+          <div class="tc" style="max-width:520px">
+            <div style="padding:18px">
+              <div class="fg"><label class="lbl">New Password</label>
+                <div class="pw-wrap">
+                  <input id="new-admin-pw" class="inp" type="password" placeholder="Min 6 characters">
+                  <button type="button" class="pw-eye" onclick="togglePw('new-admin-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
+                </div>
               </div>
-              <button class="btn btn-ghost btn-sm" onclick="previewTxnDelete()" style="height:44px;white-space:nowrap">
-                <i class="fa-solid fa-eye"></i> Preview
-              </button>
+              <div class="fg"><label class="lbl">Confirm Password</label>
+                <input id="new-admin-pw-confirm" class="inp" type="password" placeholder="Re-enter password">
+              </div>
+              <button class="btn btn-dk" onclick="saveAdminPassword()"><i class="fa-solid fa-key"></i> Update Password</button>
             </div>
-            <div id="del-txn-preview" style="font-size:13px;font-weight:600;margin-bottom:10px;min-height:20px"></div>
-            <div id="del-txn-msg" style="font-size:13px;margin-bottom:8px;min-height:18px"></div>
-            <button class="btn btn-red" onclick="deleteTransactionsConfirm()" style="width:100%">
-              <i class="fa-solid fa-trash"></i> Delete Transactions Before Selected Date
-            </button>
           </div>
         </div>
 
-        <div class="tc" style="max-width:520px">
-          <div class="th"><h3>⏰ Legacy Cutoff (Fallback)</h3><span style="font-size:12px;color:var(--gr)">Used if day schedule not set</span></div>
-          <div style="padding:20px">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:14px;background:var(--lt);border-radius:var(--r)">
-              <div>
-                <div style="font-weight:700;font-size:14px">Enable Cutoff Times</div>
-                <div style="font-size:12px;color:var(--gr);margin-top:3px">Fallback if daily schedule is not configured</div>
-              </div>
-              <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer">
-                <input type="checkbox" id="cutoff-enabled" style="opacity:0;width:0;height:0" onchange="toggleCutoffUI()">
-                <span id="cutoff-slider" style="position:absolute;inset:0;background:#ccc;border-radius:26px;transition:.3s">
-                  <span style="position:absolute;left:3px;bottom:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3)" id="cutoff-knob"></span>
-                </span>
-              </label>
-            </div>
-            <div id="cutoff-fields" style="display:none">
-              <div class="fg">
-                <label class="lbl">🌅 Lunch Cutoff Time</label>
-                <input id="cutoff-day" class="inp" type="time" value="11:30">
-              </div>
-              <div class="fg">
-                <label class="lbl">🌙 Dinner Cutoff Time</label>
-                <input id="cutoff-night" class="inp" type="time" value="19:30">
+        <!-- SUB: Restaurant Schedule -->
+        <div class="settings-sub" id="settings-sub-schedule">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title">📅 Restaurant Schedule</div>
+          </div>
+          <div class="tc" style="max-width:680px">
+            <div style="padding:16px">
+              <div id="schedule-cards"></div>
+              <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+                <button class="btn btn-p" onclick="saveWeeklySchedule()"><i class="fa-solid fa-floppy-disk"></i> Save Schedule</button>
+                <button class="btn btn-ghost" onclick="resetDefaultSchedule()"><i class="fa-solid fa-rotate-left"></i> Reset to Default</button>
               </div>
             </div>
-            <button class="btn btn-p" onclick="saveCutoffSettings()" style="margin-top:4px"><i class="fa-solid fa-floppy-disk"></i> Save Fallback</button>
           </div>
         </div>
+
+        <!-- SUB: Khata / Wallet Feature -->
+        <div class="settings-sub" id="settings-sub-khata">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title">📒 Khata / Wallet Feature</div>
+          </div>
+          <div class="tc" style="max-width:520px">
+            <div style="padding:20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px;background:var(--lt);border-radius:var(--r)">
+                <div>
+                  <div style="font-weight:700;font-size:14px">Khata &amp; Wallet</div>
+                  <div style="font-size:12px;color:var(--gr);margin-top:3px">When OFF: hides wallet from users, stops all Khata API calls</div>
+                </div>
+                <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer">
+                  <input type="checkbox" id="khata-enabled-chk" style="opacity:0;width:0;height:0" onchange="saveKhataToggle()">
+                  <span id="khata-slider" style="position:absolute;inset:0;background:#ccc;border-radius:26px;transition:.3s">
+                    <span style="position:absolute;left:3px;bottom:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3)" id="khata-knob"></span>
+                  </span>
+                </label>
+              </div>
+              <div id="khata-toggle-msg" style="margin-top:10px;font-size:13px;color:var(--gr)"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB: Delete Old Orders -->
+        <div class="settings-sub admin-only" id="settings-sub-del-orders">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title" style="color:var(--p)">🗑️ Delete Old Orders</div>
+          </div>
+          <div class="tc" style="max-width:540px;border:2px solid #fde8ea">
+            <div style="padding:18px">
+              <div style="background:#fff8f8;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:12px;color:#c1121f;font-weight:600;border-left:3px solid var(--p)">
+                ⚠️ Permanent action — cannot be undone. Only orders placed <strong>before</strong> the selected date will be deleted.
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+                <div class="fg" style="flex:1;min-width:160px;margin-bottom:0">
+                  <label class="lbl">Delete orders older than</label>
+                  <input id="del-ord-date" class="inp" type="date" oninput="previewOrdDelete()">
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="previewOrdDelete()" style="height:44px;white-space:nowrap">
+                  <i class="fa-solid fa-eye"></i> Preview
+                </button>
+              </div>
+              <div id="del-ord-preview" style="font-size:13px;font-weight:600;margin-bottom:10px;min-height:20px"></div>
+              <div id="del-ord-msg" style="font-size:13px;margin-bottom:8px;min-height:18px"></div>
+              <button class="btn btn-red" onclick="deleteOrdersConfirm()" style="width:100%">
+                <i class="fa-solid fa-trash"></i> Delete Orders Before Selected Date
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB: Delete Old Transactions -->
+        <div class="settings-sub admin-only" id="settings-sub-del-txns">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title" style="color:var(--p)">🗑️ Delete Old Transactions</div>
+          </div>
+          <div class="tc" style="max-width:540px;border:2px solid #fde8ea">
+            <div style="padding:18px">
+              <div style="background:#fff8f8;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:12px;color:#c1121f;font-weight:600;border-left:3px solid var(--p)">
+                ⚠️ Permanent action — cannot be undone. Only transactions older than <strong>45 days</strong> from today can be selected.
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+                <div class="fg" style="flex:1;min-width:160px;margin-bottom:0">
+                  <label class="lbl">Delete transactions older than</label>
+                  <input id="del-txn-date" class="inp" type="date" oninput="previewTxnDelete()">
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="previewTxnDelete()" style="height:44px;white-space:nowrap">
+                  <i class="fa-solid fa-eye"></i> Preview
+                </button>
+              </div>
+              <div id="del-txn-preview" style="font-size:13px;font-weight:600;margin-bottom:10px;min-height:20px"></div>
+              <div id="del-txn-msg" style="font-size:13px;margin-bottom:8px;min-height:18px"></div>
+              <button class="btn btn-red" onclick="deleteTransactionsConfirm()" style="width:100%">
+                <i class="fa-solid fa-trash"></i> Delete Transactions Before Selected Date
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB: Legacy Cutoff -->
+        <div class="settings-sub" id="settings-sub-cutoff">
+          <div class="settings-sub-header">
+            <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
+            <div class="settings-sub-title">⏰ Legacy Cutoff (Fallback)</div>
+          </div>
+          <div class="tc" style="max-width:520px">
+            <div style="padding:20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:14px;background:var(--lt);border-radius:var(--r)">
+                <div>
+                  <div style="font-weight:700;font-size:14px">Enable Cutoff Times</div>
+                  <div style="font-size:12px;color:var(--gr);margin-top:3px">Fallback if daily schedule is not configured</div>
+                </div>
+                <label style="position:relative;display:inline-block;width:48px;height:26px;cursor:pointer">
+                  <input type="checkbox" id="cutoff-enabled" style="opacity:0;width:0;height:0" onchange="toggleCutoffUI()">
+                  <span id="cutoff-slider" style="position:absolute;inset:0;background:#ccc;border-radius:26px;transition:.3s">
+                    <span style="position:absolute;left:3px;bottom:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.3)" id="cutoff-knob"></span>
+                  </span>
+                </label>
+              </div>
+              <div id="cutoff-fields" style="display:none">
+                <div class="fg">
+                  <label class="lbl">🌅 Lunch Cutoff Time</label>
+                  <input id="cutoff-day" class="inp" type="time" value="11:30">
+                </div>
+                <div class="fg">
+                  <label class="lbl">🌙 Dinner Cutoff Time</label>
+                  <input id="cutoff-night" class="inp" type="time" value="19:30">
+                </div>
+              </div>
+              <button class="btn btn-p" onclick="saveCutoffSettings()" style="margin-top:4px"><i class="fa-solid fa-floppy-disk"></i> Save Fallback</button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- KHATA / WALLET MANAGEMENT (Admin only) -->
@@ -725,22 +855,48 @@ tr:hover td{background:#fafafa}
 
       <!-- NOTIFICATIONS -->
       <div class="pg-v" id="pg-notifications">
-        <div class="notif-del-bar">
-          <span style="font-size:12px;font-weight:600;color:var(--gr)">🗑️ Delete by date range:</span>
-          <input type="date" id="notif-del-from" />
-          <span style="font-size:12px;color:#aaa">to</span>
-          <input type="date" id="notif-del-to" />
-          <button class="btn btn-ghost btn-sm" onclick="deleteNotifRange()">Delete</button>
-          <button class="btn btn-ghost btn-sm" onclick="loadNotifications()" style="margin-left:auto" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+        <!-- Toolbar: tabs left, actions right -->
+        <div class="notif-toolbar">
+          <div class="notif-tabs" style="flex:1;max-width:320px">
+            <button class="notif-tab-btn act" id="ntab-new" onclick="switchNotifTab('new')">
+              🔴 New <span class="ntab-badge" id="ntab-new-badge">0</span>
+            </button>
+            <button class="notif-tab-btn" id="ntab-seen" onclick="switchNotifTab('seen')">
+              ✅ Seen
+            </button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="notif-del-toggle-btn" onclick="toggleNotifDelPanel()">
+              <i class="fa-solid fa-trash"></i> Delete by Date Range
+              <i class="fa-solid fa-chevron-down" id="notif-del-chevron" style="font-size:10px;transition:transform .2s"></i>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="loadNotifications()" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+          </div>
         </div>
-        <div id="notif-unread-section">
+
+        <!-- Collapsible Delete by Date Range panel -->
+        <div class="notif-del-panel" id="notif-del-panel">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:700;color:var(--gr)">From:</span>
+            <input type="date" id="notif-del-from" style="font-family:var(--ff);font-size:12px;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;outline:none;color:#333">
+            <span style="font-size:12px;color:#aaa">to</span>
+            <input type="date" id="notif-del-to" style="font-family:var(--ff);font-size:12px;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;outline:none;color:#333">
+            <button class="btn btn-red btn-sm" onclick="deleteNotifRange()"><i class="fa-solid fa-trash"></i> Delete</button>
+          </div>
+        </div>
+
+        <!-- NEW tab content -->
+        <div class="notif-tab-content act" id="ntab-content-new">
           <div class="notif-section-hdr">🔴 New Notifications <span id="notif-unread-count" style="color:#ef4444"></span></div>
           <div id="notif-unread-list"><div class="notif-empty"><i class="fa-solid fa-spinner icon-spin"></i> Loading...</div></div>
         </div>
-        <div id="notif-read-section" style="margin-top:8px">
+
+        <!-- SEEN tab content -->
+        <div class="notif-tab-content" id="ntab-content-seen">
           <div class="notif-section-hdr" style="color:#bbb">✅ Seen Messages</div>
           <div id="notif-read-list"><div class="notif-empty">No seen notifications</div></div>
         </div>
+
       </div>
 
     </div>
@@ -1236,7 +1392,10 @@ function showApp(session){
   applyRoleUI(session.role);
   // Load cutoff config once at startup so isAdminDayOrder is correct from first render
   _loadAdminCutoff();
-  showPg(session.role==='admin'?'dashboard':'orders');
+  const startPg = session.role==='admin'?'dashboard':'orders';
+  // Clear history and push first state so back from first page exits app cleanly
+  try{ history.replaceState({page:startPg}, '', '#'+startPg); }catch{}
+  showPg(startPg, false);
   if(window.innerWidth<=768){ doc('menu-toggle').style.display='block'; doc('sb-ov').classList.add('hide'); }
   startAutoRefresh();
   startNotifPolling();
@@ -1442,18 +1601,97 @@ function closeSb(){ doc('sidebar').classList.remove('open'); doc('sb-ov').classL
 let _curPg='dashboard';
 const _titles={dashboard:'Dashboard',orders:'Orders',bulk:'Bulk Orders',menu:'Menu Management',thalis:'Thali Manager',coupons:'Coupons',subscribers:'Subscribers',users:'All Users',riders:'Riders',khata:'Khata / Wallet',staff:'Staff Members',settings:'Settings',notifications:'Notifications'};
 
-function showPg(name){
+function showPg(name, pushState=true){
   document.querySelectorAll('.pg-v').forEach(p=>p.classList.remove('act'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('act'));
   doc('pg-'+name).classList.add('act');
   const ni=doc('ni-'+name); if(ni) ni.classList.add('act');
   doc('pg-title').textContent=_titles[name]||name;
   _curPg=name; closeSb();
+  // Also reset settings to menu view when navigating to settings
+  if(name==='settings') _showSettingsMenu();
   const loaders={dashboard:loadDash,orders:loadOrds,menu:loadMenu,thalis:loadThalis,coupons:loadCpns,subscribers:loadSubs,users:loadUsers,riders:loadRiders,bulk:initBulk,khata:loadKhata,staff:loadStaff,settings:loadSettings,notifications:loadNotifications};
   if(loaders[name]) loaders[name]();
+  // Push to browser history for back-button support
+  if(pushState && Session.get()){
+    try{ history.pushState({page:name}, '', '#'+name); }catch{}
+  }
 }
 
 function refreshCurrent(){ manualRefresh(); }
+
+// ════════════════════════════════════════════════
+// BROWSER BACK-BUTTON (popstate)
+// ════════════════════════════════════════════════
+window.addEventListener('popstate', function(e){
+  if(!Session.get()) return; // Not logged in, ignore
+  // If inside a settings sub-page, back = go to settings menu
+  if(_curPg === 'settings' && _curSettingsSub){
+    closeSettingsSub();
+    return;
+  }
+  // Otherwise navigate to the page in history state (or dashboard)
+  const pg = (e.state && e.state.page) ? e.state.page : 'dashboard';
+  if(_titles[pg]) showPg(pg, false);
+});
+
+// ════════════════════════════════════════════════
+// SETTINGS SUB-PAGE NAVIGATION
+// ════════════════════════════════════════════════
+let _curSettingsSub = null;
+
+function _showSettingsMenu(){
+  doc('settings-menu-view').style.display='';
+  document.querySelectorAll('.settings-sub').forEach(el=>el.classList.remove('act'));
+  _curSettingsSub = null;
+}
+
+function openSettingsSub(sub){
+  const el = doc('settings-sub-'+sub);
+  if(!el) return;
+  doc('settings-menu-view').style.display='none';
+  document.querySelectorAll('.settings-sub').forEach(e=>e.classList.remove('act'));
+  el.classList.add('act');
+  _curSettingsSub = sub;
+  // Push a history state so back button returns to settings menu
+  try{ history.pushState({page:'settings', sub:sub}, '', '#settings-'+sub); }catch{}
+  // Scroll to top of content area
+  try{ doc('pg-settings').parentElement.scrollTop=0; }catch{}
+}
+
+function closeSettingsSub(){
+  _showSettingsMenu();
+  try{ history.pushState({page:'settings'}, '', '#settings'); }catch{}
+}
+
+// ════════════════════════════════════════════════
+// NOTIFICATION TABS & DELETE PANEL
+// ════════════════════════════════════════════════
+let _curNotifTab = 'new';
+
+function switchNotifTab(tab){
+  _curNotifTab = tab;
+  document.querySelectorAll('.notif-tab-btn').forEach(b=>b.classList.remove('act'));
+  document.querySelectorAll('.notif-tab-content').forEach(c=>c.classList.remove('act'));
+  const btn = doc('ntab-'+tab);
+  const content = doc('ntab-content-'+tab);
+  if(btn) btn.classList.add('act');
+  if(content) content.classList.add('act');
+}
+
+function _updateNotifTabBadge(unreadCount){
+  const badge = doc('ntab-new-badge');
+  if(badge) badge.textContent = unreadCount > 0 ? unreadCount : '0';
+}
+
+let _notifDelOpen = false;
+function toggleNotifDelPanel(){
+  _notifDelOpen = !_notifDelOpen;
+  const panel = doc('notif-del-panel');
+  const chevron = doc('notif-del-chevron');
+  if(panel) panel.classList.toggle('open', _notifDelOpen);
+  if(chevron) chevron.style.transform = _notifDelOpen ? 'rotate(180deg)' : '';
+}
 
 // ════════════════════════════════════════════════
 // DASHBOARD
@@ -1623,7 +1861,7 @@ function openWACouponCompose(user){
   _waCurUser=user;
   doc('wa-uname').textContent=user.name||'—';
   doc('wa-umeta').textContent='📞 '+(user.phone||'—')+(user.address?' · 📍 '+user.address:'');
-  const defaultMsg=`Hello ${user.name||'there'}! 👋\n\nWelcome to Puro Bite 🍱\n\nHere is your first order coupon code:\n*COUPON_CODE*\n\nUse it to order your tiffin and enjoy a special discount!\n\nThank you for joining us 😊`;
+  const defaultMsg=`Hello ${user.name||'there'}! 👋\n\nWelcome to Tiffo 🍱\n\nHere is your first order coupon code:\n*COUPON_CODE*\n\nUse it to order your tiffin and enjoy a special discount!\n\nThank you for joining us 😊`;
   doc('wa-msg').value=defaultMsg;
   doc('mo-wa-coupon').classList.remove('hide');
 }
@@ -1873,7 +2111,7 @@ ${Number(o.discount)>0?`<div class="row"><span style="color:#2a9d8f">Discount</s
   const nowIST=new Date(Date.now()+5.5*3600*1000);
   const genDate=`${String(nowIST.getUTCDate()).padStart(2,'0')}/${String(nowIST.getUTCMonth()+1).padStart(2,'0')}/${nowIST.getUTCFullYear()} ${fmtTime(nowIST.toISOString())}`;
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Puro Bite Orders</title>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tiffo Orders</title>
 <style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:16px;font-size:13px;color:#111;max-width:800px;margin:0 auto}
 h1{font-size:18px;color:#e63946;margin-bottom:3px}.sub{color:#999;font-size:11px;margin-bottom:12px}
 .sec-hdr{background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;font-weight:700;font-size:13px;margin:14px 0 8px;border-radius:4px}
@@ -1884,7 +2122,7 @@ h1{font-size:18px;color:#e63946;margin-bottom:3px}.sub{color:#999;font-size:11px
 .row{display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px}
 .sep{border-top:1px dashed #e5e7eb;margin:6px 0}.tot{font-size:14px;font-weight:800;color:#e63946}
 a{color:#2a9d8f}@media print{.np{display:none!important}}</style></head><body>
-<h1>🍱 Puro Bite – Orders Report</h1>
+<h1>🍱 Tiffo – Orders Report</h1>
 <div class="sub">Filter: ${filterLabel}${dateLabel} | Total: ${src.length} orders | Generated: ${genDate}</div>
 <button class="np" onclick="window.print()" style="background:#e63946;color:#fff;padding:8px 16px;border:none;border-radius:7px;font-weight:bold;cursor:pointer;margin-bottom:12px">🖨️ Print / Save PDF</button>
 ${morning.length?`<div class="sec-hdr">☀️ Morning Orders (${morning.length})</div>${buildPDFRows(morning)}`:''}
@@ -3190,7 +3428,7 @@ function exportKhataPDF(){
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Khata — ${name}</title>
   <style>body{font-family:Arial,sans-serif;margin:30px;color:#111}h1{color:#e63946;font-size:22px}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#f3f4f6;padding:9px;text-align:left;font-size:11px;border:1px solid #e5e7eb;white-space:nowrap}td{padding:8px;font-size:11px;border:1px solid #e5e7eb;word-break:break-word}.bal{font-size:22px;font-weight:800;color:${closingBal<0?'#e63946':'#2a9d8f'}}.header{display:flex;justify-content:space-between;margin-bottom:20px;background:#f9fafb;padding:16px;border-radius:10px}</style>
   </head><body>
-  <h1>🍱 Puro Bite — Khata Statement</h1>
+  <h1>🍱 Tiffo — Khata Statement</h1>
   <div class="header"><div><strong>${name}</strong><br><code>${phone}</code>${fromDate||toDate?`<br><span style="font-size:11px;color:#999">Period: ${fromDate||'start'} to ${toDate||'today'}</span>`:''}</div><div style="text-align:right"><div style="font-size:11px;color:#999">OPENING BALANCE</div><div style="font-size:16px;font-weight:700;color:#555">₹${openingBal}</div><div style="font-size:11px;color:#999;margin-top:6px">CLOSING BALANCE</div><div class="bal">₹${closingBal}</div></div></div>
   <table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Ordered Items</th><th>Note</th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="text-align:center;color:#999">No transactions in this period</td></tr>'}</tbody></table>
   <div style="margin-top:20px;font-size:11px;color:#999">Generated on ${genDate}</div>
@@ -4000,6 +4238,8 @@ function _notifTimeAgo(iso) {
 }
 
 async function loadNotifications() {
+  // Always show new tab first so admin sees urgent items immediately
+  if(typeof switchNotifTab === 'function') switchNotifTab('new');
   try {
     const data = await api('getNotifications', { limit: 200 });
     _notifData = data || [];
@@ -4022,6 +4262,8 @@ function _updateNotifBadge() {
   }
   const countEl = doc('notif-unread-count');
   if (countEl) countEl.textContent = unread > 0 ? '(' + unread + ')' : '';
+  // Also update tab badge
+  if(typeof _updateNotifTabBadge === 'function') _updateNotifTabBadge(unread);
 }
 
 function renderNotifications() {
@@ -4065,7 +4307,7 @@ function _notifCardHtml(n) {
 
   // USER notification
   if (n.type === 'user') {
-    const waMsg = encodeURIComponent(`Hi ${meta.name||''}, welcome to Puro Bite! 🎉 Here is a special welcome coupon for you.`);
+    const waMsg = encodeURIComponent(`Hi ${meta.name||''}, welcome to Tiffo! 🎉 Here is a special welcome coupon for you.`);
     actions += `<button class="btn btn-p btn-sm" onclick="notifViewUser('${_esc(meta.phone)}',${n.id})">👤 View User</button>`;
     actions += `<button class="btn btn-ghost btn-sm" onclick="notifCopyPhone('${_esc(meta.phone)}',${n.id})">📋 Copy Phone</button>`;
     actions += `<button class="btn btn-ghost btn-sm" onclick="notifGenCoupon('${_esc(meta.phone)}',${n.id})">🎟️ Generate Coupon</button>`;
