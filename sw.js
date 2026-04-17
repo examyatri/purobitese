@@ -1,5 +1,5 @@
 // Puro Bite Service Worker
-const CACHE_VERSION = ‘v3’;
+const CACHE_VERSION = ‘v4’;
 const STATIC_CACHE = `purobite-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `purobite-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `purobite-api-${CACHE_VERSION}`;
@@ -56,9 +56,13 @@ const url = new URL(event.request.url);
 if (event.request.method !== ‘GET’) return;
 if (url.protocol === ‘chrome-extension:’) return;
 
+// FIX: Strip hash from URL — never cache #pg-khata or any hash variant separately
+url.hash = ‘’;
+const cleanRequest = url.href === event.request.url ? event.request : new Request(url.href, { headers: event.request.headers });
+
 // API calls (Render backend) → Network first, fallback to cache
 if (url.hostname.includes(‘onrender.com’) || url.hostname.includes(‘supabase.co’)) {
-event.respondWith(networkFirst(event.request, API_CACHE));
+event.respondWith(networkFirst(cleanRequest, API_CACHE));
 return;
 }
 
@@ -68,18 +72,18 @@ url.hostname.includes(‘fonts.googleapis.com’) ||
 url.hostname.includes(‘fonts.gstatic.com’) ||
 url.hostname.includes(‘cdnjs.cloudflare.com’)
 ) {
-event.respondWith(staleWhileRevalidate(event.request, DYNAMIC_CACHE));
+event.respondWith(staleWhileRevalidate(cleanRequest, DYNAMIC_CACHE));
 return;
 }
 
 // Same-origin static files → Cache first
 if (url.origin === self.location.origin) {
-event.respondWith(cacheFirst(event.request, STATIC_CACHE));
+event.respondWith(cacheFirst(cleanRequest, STATIC_CACHE));
 return;
 }
 
 // Everything else → Network first
-event.respondWith(networkFirst(event.request, DYNAMIC_CACHE));
+event.respondWith(networkFirst(cleanRequest, DYNAMIC_CACHE));
 });
 
 // ── Strategies ──────────────────────────────────────
