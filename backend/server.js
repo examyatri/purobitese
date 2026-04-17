@@ -1277,11 +1277,11 @@ async function adminBulkCreate(data) {
   const success = [], failed = [];
   for (const o of data.orders) {
     const ph = cleanPhone(o.phone);
-    if (alreadyOrderedThisSlot.has(ph)) {
+    if (alreadyOrderedThisSlot.has(ph) && !o.isUdhar && !o.forceAdd) {
       failed.push({ phone: ph, name: o.name, reason: `Already has a ${slotName} order today` });
       continue;
     }
-    if (o.userType !== 'daily') {
+    if (o.userType !== 'daily' && !o.isUdhar && !o.forceAdd) {
       const pauseMode = pauseMap[ph] || 'none';
       const slotPaused =
         pauseMode === 'both' ||
@@ -1295,7 +1295,7 @@ async function adminBulkCreate(data) {
     try {
       const orderId = await _createSingleOrder(
         { ...o, phone: ph, userId: ph, userType: o.userType || 'subscriber' },
-        { skipDeduction: o.userType === 'daily' }
+        { skipDeduction: o.userType === 'daily', allowOverdraft: !!o.isUdhar }
       );
       alreadyOrderedThisSlot.add(ph);
       success.push({ phone: ph, name: o.name, orderId });
