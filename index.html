@@ -2882,6 +2882,8 @@ function bootApp() {
       });
     }).catch(err => console.warn('[SW] Registration failed:', err));
   }
+  // ── Always clear stale/unwanted localStorage on every load ──
+  ['pb_menu_cache','pb_order_processing','pb_user'].forEach(k => Store.remove(k));
   history.replaceState({ page: 'pg-auth' }, '', location.pathname);
 
   const savedSess = SessStore.get();
@@ -2959,21 +2961,21 @@ function bootApp() {
 
 window.addEventListener('pageshow', e => {
   if (e.persisted) {
+    // Clear stale keys on BF-cache restore
+    ['pb_menu_cache','pb_order_processing','pb_user'].forEach(k => Store.remove(k));
     const saved = SessStore.get();
     if (saved && saved.userId) {
-      if (!_session) {
-        Auth.set(saved);
-        showAppUI();
-        const cur = stack[stack.length - 1];
-        if (!cur || cur === 'pg-auth') {
-          doc('pg-auth').classList.replace('here','left');
-          doc('pg-home').classList.remove('right','left');
-          doc('pg-home').classList.add('here');
-          stack = ['pg-auth','pg-home'];
-          updateBottomNav('pg-home');
-        }
-        startPolling();
-      }
+      if (!_session) { Auth.set(saved); showAppUI(); startPolling(); }
+      // Always reset to home page on restore
+      document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+      doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('left');
+      doc('pg-home').classList.remove('right','left');
+      doc('pg-home').classList.add('here');
+      stack = ['pg-auth','pg-home'];
+      history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+      history.pushState({ page: 'pg-home' }, '', '#pg-home');
+      updateBottomNav('pg-home');
+      loadMenu();
       api('checkSubscriber', { phone: saved.phone }).then(fresh => {
         const cached = Store.getJSON('pb_sub') || {};
         Store.setJSON('pb_sub', fresh);
