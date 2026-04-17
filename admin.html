@@ -1057,13 +1057,14 @@ tr:hover td{background:#fafafa}
 <!-- Coupon -->
 <div class="mo hide" id="mo-cpn"><div class="mo-box">
   <div class="mo-t">Create Coupon</div>
+  <div id="notif-cpn-hint" style="display:none;background:#fffbe6;border:1.5px solid #f59e0b;border-radius:9px;padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:12px"><i class="fa-solid fa-bell" style="margin-right:5px"></i>Creating coupon for new user. After clicking <strong>Create</strong>, the code will be <strong>auto-copied</strong> to your clipboard. Then go back to <strong>Notifications → WhatsApp</strong> to send it.</div>
   <div class="fg"><label class="lbl">Code *</label><input id="cp-code" class="inp" type="text" placeholder="e.g. SAVE50" style="text-transform:uppercase"></div>
   <div class="fg"><label class="lbl">Type *</label><select id="cp-type" class="inp"><option value="percent">Percentage (%)</option><option value="fixed">Fixed (₹)</option></select></div>
   <div class="fg"><label class="lbl">Value *</label><input id="cp-val" class="inp" type="number" placeholder="e.g. 20"></div>
   <div class="fg"><label class="lbl">Expiry Date</label><input id="cp-exp" class="inp" type="date" placeholder="Select expiry date"></div>
   <div class="fg"><label class="lbl">User Phone (blank = all users)</label><input id="cp-ph" class="inp" type="tel" placeholder="Specific phone number"></div>
   <div class="fg"><label class="lbl">Per-User Usage Limit (0 = unlimited)</label><input id="cp-limit" class="inp" type="number" min="0" value="0" placeholder="e.g. 1 for one-time use per person"></div>
-  <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-cpn')">Cancel</button><button class="btn btn-p" onclick="submitCpn()"><i class="fa-solid fa-check"></i> Create</button></div>
+  <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-cpn');_notifCouponPhone=null;if(doc('notif-cpn-hint'))doc('notif-cpn-hint').style.display='none'">Cancel</button><button class="btn btn-p" onclick="submitCpn()"><i class="fa-solid fa-check"></i> Create</button></div>
 </div></div>
 
 <!-- Subscriber -->
@@ -1899,8 +1900,15 @@ async function sendWACoupon(){
   window.open(url,'_blank');
   // Mark as sent
   await _nuMarkSent(_waCurUser.phone);
+  // If opened from notification flow, mark that notification as read too
+  if(_notifWANotifId){
+    notifMarkRead(_notifWANotifId);
+    _notifWANotifId = null;
+  }
+  // Clear stored coupon for this phone
+  if(_waCurUser.phone) delete _notifPendingCoupons[_waCurUser.phone];
   closeMo('mo-wa-coupon');
-  toast('✅ WhatsApp opened! User marked as coupon sent.');
+  toast('✅ WhatsApp opened! User moved to coupon sent.');
   // Refresh list
   _renderNuList();
   _loadNuDashCount();
@@ -2705,6 +2713,8 @@ async function loadCpns(){
 function openCpnModal(){
   ['cp-code','cp-val','cp-exp','cp-ph'].forEach(id=>doc(id).value='');
   doc('cp-type').value='percent';
+  _notifCouponPhone = null;
+  if(doc('notif-cpn-hint')) doc('notif-cpn-hint').style.display='none';
   // Auto-fill today as min expiry reference — use IST date, not UTC
   const today=PB.todayYMD();
   if(doc('cp-exp')) doc('cp-exp').min=today;
@@ -2721,7 +2731,20 @@ async function submitCpn(){
     perUserLimit:Number(doc('cp-limit').value)||0
   };
   if(!data.code||!data.discountValue) return toast('Code and value required');
-  try{ await api('createCoupon',data); toast('✅ Created!'); closeMo('mo-cpn'); loadCpns(); }
+  try{
+    await api('createCoupon',data);
+    closeMo('mo-cpn');
+    loadCpns();
+    // If triggered from notification flow, copy code & store for WA button
+    if(_notifCouponPhone && data.code){
+      _notifPendingCoupons[_notifCouponPhone] = data.code;
+      try{ await navigator.clipboard.writeText(data.code); } catch(e){}
+      toast('✅ Coupon created & copied! Now go to Notifications → WhatsApp to send.');
+      _notifCouponPhone = null;
+    } else {
+      toast('✅ Created!');
+    }
+  }
   catch(e){ toast('❌ '+e.message); }
 }
 
@@ -4333,7 +4356,7 @@ function _notifCardHtml(n) {
     actions += `<button class="btn btn-p btn-sm" onclick="notifViewUser('${_esc(meta.phone)}',${n.id})">👤 View User</button>`;
     actions += `<button class="btn btn-ghost btn-sm" onclick="notifCopyPhone('${_esc(meta.phone)}',${n.id})">📋 Copy Phone</button>`;
     actions += `<button class="btn btn-ghost btn-sm" onclick="notifGenCoupon('${_esc(meta.phone)}',${n.id})">🎟️ Generate Coupon</button>`;
-    actions += `<a class="btn btn-ghost btn-sm" style="background:#25d366;color:#fff;text-decoration:none" href="https://wa.me/91${meta.phone}?text=${waMsg}" target="_blank" onclick="notifMarkRead(${n.id})">💬 WhatsApp</a>`;
+    actions += `<button class="btn btn-ghost btn-sm" style="background:#25d366;color:#fff;border-color:#25d366" onclick="notifSendCouponWA('${_esc(meta.phone)}',${n.id},'${_esc(meta.name||'')}')">💬 WhatsApp</button>`;
   }
 
   // RECHARGE notification
@@ -4435,17 +4458,50 @@ function notifCopyPhone(phone, notifId) {
     });
 }
 
+// Stores coupon codes generated from notification flow: { phone -> couponCode }
+const _notifPendingCoupons = {};
+// Stores which phone triggered the coupon modal from notification flow
+let _notifCouponPhone = null;
+
 function notifGenCoupon(phone, notifId) {
   notifMarkRead(notifId);
-  showPg('coupons');
-  setTimeout(() => {
-    const candidates = ['cpn-phone','coupon-phone','new-cpn-phone'];
-    let el = null;
-    for (const id of candidates) { el = doc(id); if (el) break; }
-    if (!el) el = document.querySelector('#pg-coupons input[type=tel], #pg-coupons input[placeholder*="hone"]');
-    if (el) { el.value = phone; el.focus(); }
-  }, 500);
+  _notifCouponPhone = phone;
+  // Pre-fill phone and open coupon create modal directly (no page switch needed)
+  ['cp-code','cp-val','cp-exp'].forEach(id=>{ if(doc(id)) doc(id).value=''; });
+  if(doc('cp-type')) doc('cp-type').value='percent';
+  if(doc('cp-limit')) doc('cp-limit').value='1';
+  if(doc('cp-ph')) doc('cp-ph').value = phone;
+  const today=PB.todayYMD();
+  if(doc('cp-exp')) doc('cp-exp').min=today;
+  doc('mo-cpn').classList.remove('hide');
+  // Show hint inside modal
+  setTimeout(()=>{
+    const hint = doc('notif-cpn-hint');
+    if(hint) hint.style.display='block';
+  }, 50);
 }
+
+function notifSendCouponWA(phone, notifId, name) {
+  // Build user object for openWACouponCompose
+  const user = { phone, name: name || '' };
+  // Check if a coupon was generated for this phone
+  const couponCode = _notifPendingCoupons[phone] || '';
+  // Open the WA compose modal
+  _waCurUser = user;
+  _notifWANotifId = notifId; // store so sendWACoupon can mark this notif read
+  doc('wa-uname').textContent = user.name || '—';
+  doc('wa-umeta').textContent = '📞 ' + (user.phone || '—');
+  const defaultMsg = `Hello ${user.name || 'there'}! 👋\n\nWelcome to Tiffo 🍱\n\nHere is your first order coupon code:\n*${couponCode || 'COUPON_CODE'}*\n\nUse it to order your tiffin and enjoy a special discount!\n\nThank you for joining us 😊`;
+  doc('wa-msg').value = defaultMsg;
+  doc('mo-wa-coupon').classList.remove('hide');
+  if(couponCode){
+    toast('✅ Coupon code pre-filled. Edit message and send!');
+  } else {
+    toast('ℹ️ No coupon generated yet. Edit COUPON_CODE manually or generate first.');
+  }
+}
+
+let _notifWANotifId = null; // tracks notif id when WA modal opened from notification
 
 async function notifToggleTxn(notifId, phone, groupId) {
   notifMarkRead(notifId);
