@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Puro Bite – Rider</title>
-<meta name="description" content="Puro Bite Delivery Partner Portal">
+<title>Tiffo – Rider</title>
+<meta name="description" content="Tiffo Delivery Partner Portal">
 <meta name="theme-color" content="#e63946">
 <meta name="robots" content="noindex,nofollow">
 <!-- PWA Manifest -->
@@ -13,7 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="PB Rider">
+<meta name="apple-mobile-web-app-title" content="Tiffo Rider">
 <link rel="apple-touch-icon" href="./icons/icon-rider-192.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-rider-192.png">
 <link rel="shortcut icon" href="./icons/icon-rider-192.png">
@@ -204,11 +204,18 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
 .rm-cancel{background:var(--lt);color:var(--tx);border:none;border-radius:11px;padding:13px 16px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer}
 .rm-note{font-size:11px;color:var(--mu);text-align:center;margin-top:11px;line-height:1.5}
 
-/* ── SLOT FILTER ── */
-.slot-filter-bar{display:flex;align-items:center;gap:8px;padding:6px 14px 2px}
-.slot-filter-bar label{font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap}
-.slot-sel{flex:1;padding:8px 12px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#fff;outline:none;cursor:pointer;transition:border-color .18s}
-.slot-sel:focus{border-color:var(--p)}
+/* ── MULTILAYER FILTER PANEL ── */
+.filter-panel{background:#fff;border-radius:13px;margin:6px 14px 4px;padding:10px 12px;box-shadow:var(--sh);border:1.5px solid var(--lt)}
+.filter-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.filter-row:last-child{margin-bottom:0}
+.filter-lbl{font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;min-width:34px}
+.filter-sel{flex:1;padding:8px 10px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#f8f9fa;outline:none;cursor:pointer;transition:border-color .18s}
+.filter-sel:focus{border-color:var(--p);background:#fff}
+.filter-actions{display:flex;gap:7px;align-items:center}
+.filter-fetch-btn{flex:1;background:var(--p);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-weight:800;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;touch-action:manipulation;transition:background .18s}
+.filter-fetch-btn:active{transform:scale(.96);background:var(--pd)}
+.sort-sel{padding:9px 10px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:12px;font-weight:700;color:var(--tx);background:#f8f9fa;outline:none;cursor:pointer;transition:border-color .18s;min-width:0}
+.sort-sel:focus{border-color:var(--p);background:#fff}
 
 /* ── THALI ITEMS ── */
 .oc-thali-block{padding:6px 14px 8px;border-bottom:1px solid #f5f5f5}
@@ -223,11 +230,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
 .oc-thali-comp{font-size:11px;color:#92400e;display:flex;align-items:center;gap:4px;padding:2px 0}
 .oc-thali-comp::before{content:"•";color:#f59e0b;font-size:14px;line-height:1}
 
-/* ── OLDER DATE SELECT ── */
-.older-date-bar{display:flex;align-items:center;gap:8px;padding:6px 14px 4px}
-.older-date-bar label{font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap}
-.older-date-sel{flex:1;padding:8px 12px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#fff;outline:none;cursor:pointer;transition:border-color .18s}
-.older-date-sel:focus{border-color:var(--p)}
+
 
 /* PDF */
 @media print{#pg-auth,#pg-app,.toast{display:none!important}#print-content{display:block!important}}
@@ -240,7 +243,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
   transition:opacity .35s ease;pointer-events:all">
   <div style="font-size:52px">🏍️</div>
-  <div style="font-family:'Sora',sans-serif;font-size:22px;font-weight:800;color:#e63946">Puro Bite Rider</div>
+  <div style="font-family:'Sora',sans-serif;font-size:22px;font-weight:800;color:#e63946">Tiffo Rider</div>
   <div style="font-size:12px;color:#6b7280;font-weight:600">Loading your dashboard...</div>
   <div style="width:36px;height:36px;border:3px solid #fde8ea;border-top-color:#e63946;
     border-radius:50%;animation:sp .8s linear infinite;margin-top:6px"></div>
@@ -250,7 +253,7 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
 <div id="pg-auth">
   <div class="a-logo">
     <span class="a-em">🏍️</span>
-    <h1>Puro Bite Rider</h1>
+    <h1>Tiffo Rider</h1>
     <p>Delivery Partner Portal</p>
   </div>
   <div class="a-card">
@@ -322,14 +325,33 @@ body{font-family:var(--fb);background:var(--bg);color:var(--tx);max-width:520px;
     </button>
   </div>
 
-  <!-- Slot Filter (Morning/Evening) — shown only on active tab -->
-  <div class="slot-filter-bar" id="slot-filter-bar">
-    <label><i class="fa-solid fa-filter"></i> Slot:</label>
-    <select class="slot-sel" id="slot-sel" onchange="onSlotChange()">
-      <option value="all">All (Morning + Evening)</option>
-      <option value="morning">☀️ Morning Only</option>
-      <option value="evening">🌙 Evening Only</option>
-    </select>
+  <!-- Multilayer Filter Panel — shown on both tabs -->
+  <div class="filter-panel" id="filter-panel">
+    <div class="filter-row">
+      <span class="filter-lbl">Slot</span>
+      <select class="filter-sel" id="slot-sel">
+        <option value="all">All Orders (Morning + Evening)</option>
+        <option value="morning">☀️ Morning Only</option>
+        <option value="evening">🌙 Evening Only</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <span class="filter-lbl">Date</span>
+      <select class="filter-sel" id="date-sel">
+        <option value="all">All Dates</option>
+        <option value="today">📅 Today</option>
+        <option value="yesterday">📅 Yesterday</option>
+        <option value="daybeforeyesterday">📅 Day Before Yesterday</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="filter-fetch-btn" onclick="applyFiltersAndFetch()"><i class="fa-solid fa-magnifying-glass"></i> Fetch Orders</button>
+      <select class="sort-sel" id="sort-sel" onchange="applySort()">
+        <option value="newest">Sort: Newest</option>
+        <option value="name">Sort: By Name</option>
+        <option value="time">Sort: By Time</option>
+      </select>
+    </div>
   </div>
 
   <div class="ord-hdr">
@@ -470,19 +492,23 @@ let _activeOrders=[];  // orderStatus === 'out for delivery' (approved)
 let _deliveredOrders=[];// orderStatus === 'delivered'
 let _currentTab='active'; // 'active' | 'delivered'
 let _slotFilter='all';   // 'all' | 'morning' | 'evening'
+let _dateFilter='all';   // 'all' | 'today' | 'yesterday' | 'daybeforeyesterday'
+let _sortMode='newest';  // 'newest' | 'name' | 'time'
 let _searchQ='';
 let _dayCutoffH=11.5;  // updated from backend config — used for morning/evening split
 let _isLoading=false;  // race-condition guard for auto-refresh
 
-async function loadOrders(){
+async function loadOrders(opts={}){
   if (!_rider) return;
   if (_isLoading) return;
   _isLoading = true;
   const isFirstLoad = _orders.length === 0;
   if (isFirstLoad) doc('orders-con').innerHTML = '<div class="empty"><span>⏳</span><p>Loading...</p></div>';
   try {
+    // Pass dateFilter to server so Supabase filters rows before returning
+    const dateFilter = opts.dateFilter || _dateFilter || 'all';
     const [orders, cutoffCfg] = await Promise.all([
-      api('getRiderOrders', { riderId: _rider.riderId }),
+      api('getRiderOrders', { riderId: _rider.riderId, dateFilter }),
       api('getOrderCutoff').catch(() => null)
     ]);
     if (cutoffCfg && cutoffCfg.cutoffDay) {
@@ -499,7 +525,6 @@ async function loadOrders(){
     else renderDelivered();
   } catch(e) {
     toast('❌ ' + e.message);
-    // If first load failed, show actionable error instead of blank screen
     if (isFirstLoad) doc('orders-con').innerHTML = `<div class="empty"><span>⚠️</span><p>Load failed. Check internet.<br><br><button class="btn btn-p btn-sm" onclick="loadOrders()"><i class="fa-solid fa-rotate"></i> Retry</button></p></div>`;
   } finally {
     _isLoading = false;
@@ -516,11 +541,6 @@ function switchTab(tab){
   doc('tab-active').classList.toggle('act',tab==='active');
   doc('tab-delivered').classList.toggle('act',tab==='delivered');
   doc('route-banner-btn').classList.toggle('hide',tab==='delivered');
-
-  // Show slot filter only on active tab
-  const sfBar=doc('slot-filter-bar');
-  if(sfBar) sfBar.classList.toggle('hide',tab==='delivered');
-  if(tab==='active'){const ss=doc('slot-sel');if(ss) ss.value='all';}
 
   const title=doc('section-title');
   if(title) title.textContent=tab==='active'?'Active Deliveries':'Delivered Orders';
@@ -552,10 +572,54 @@ function clearSearch(){
   if(_currentTab==='active') renderActive();
   else renderDelivered();
 }
-function onSlotChange(){
-  const ss=doc('slot-sel');
-  _slotFilter=ss?ss.value:'all';
-  renderActive();
+// ══ FILTER & SORT ══
+function applyFiltersAndFetch(){
+  _slotFilter = (doc('slot-sel')||{value:'all'}).value || 'all';
+  _dateFilter = (doc('date-sel')||{value:'all'}).value || 'all';
+  _sortMode   = (doc('sort-sel')||{value:'newest'}).value || 'newest';
+  // Fetch from server with date filter — reduces payload
+  loadOrders({ dateFilter: _dateFilter });
+}
+function applySort(){
+  _sortMode = (doc('sort-sel')||{value:'newest'}).value || 'newest';
+  if(_currentTab==='active') renderActive();
+  else renderDelivered();
+}
+function onSlotChange(){ applyFiltersAndFetch(); } // backward compat
+
+// Return IST date string for "day before yesterday"
+function dayBeforeYesterdayYMD(){
+  const ist=PB._ist(Date.now()-2*86400000);
+  return ist.getUTCFullYear()+'-'+String(ist.getUTCMonth()+1).padStart(2,'0')+'-'+String(ist.getUTCDate()).padStart(2,'0');
+}
+
+// Sort list by current _sortMode
+function sortByMode(arr){
+  if(_sortMode==='name') return [...arr].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  if(_sortMode==='time') return [...arr].sort((a,b)=>{const ha=PB.orderHour(a),hb=PB.orderHour(b);return ha-hb;});
+  return [...arr].sort(sortNewest); // newest default
+}
+
+// Filter list by active date filter (_dateFilter)
+function filterByDate(arr){
+  if(_dateFilter==='all') return arr;
+  const todayISO=getTodayISO();
+  const yestISO=getYesterdayISO();
+  const dbyISO=dayBeforeYesterdayYMD();
+  if(_dateFilter==='today') return arr.filter(o=>orderDateToISO(o.date)===todayISO);
+  if(_dateFilter==='yesterday') return arr.filter(o=>orderDateToISO(o.date)===yestISO);
+  if(_dateFilter==='daybeforeyesterday') return arr.filter(o=>orderDateToISO(o.date)===dbyISO);
+  return arr;
+}
+
+// Get currently visible/filtered list (used by PDF)
+function getFilteredVisible(){
+  const src=_currentTab==='delivered'?_deliveredOrders:_activeOrders;
+  let list=src.filter(o=>matchesSearch(o));
+  if(_slotFilter==='morning') list=list.filter(o=>isDayOrder(o));
+  else if(_slotFilter==='evening') list=list.filter(o=>!isDayOrder(o));
+  list=filterByDate(list);
+  return sortByMode(list);
 }
 function matchesSearch(o){
   if(!_searchQ) return true;
@@ -763,38 +827,48 @@ function buildDateSlotHTML(orders, dateLabel, datePillClass, dateId, isActive){
   </div>`;
 }
 
-// ══ RENDER ACTIVE TAB — Today/Yesterday → Morning/Evening ══
+// ══ RENDER ACTIVE TAB ══
 function renderActive(){
-  // Sync slot filter from select
-  const ss=doc('slot-sel');
-  _slotFilter=ss?ss.value:'all';
+  // Sync selects → state
+  _slotFilter=(doc('slot-sel')||{value:'all'}).value||'all';
+  _sortMode=(doc('sort-sel')||{value:'newest'}).value||'newest';
 
   let list=_activeOrders.filter(o=>matchesSearch(o));
-
-  // Apply slot filter
   if(_slotFilter==='morning') list=list.filter(o=>isDayOrder(o));
   else if(_slotFilter==='evening') list=list.filter(o=>!isDayOrder(o));
+  list=filterByDate(list);
+  list=sortByMode(list);
 
   const b=doc('ord-count-badge');
   if(b) b.textContent=list.length+' order'+(list.length!==1?'s':'');
 
   if(!list.length){
-    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ?'🔍':'🎉'}</span><p>${_searchQ?'No results found':'All orders delivered!'}</p></div>`;
+    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ||_dateFilter!=='all'||_slotFilter!=='all'?'🔍':'🎉'}</span><p>${_searchQ||_dateFilter!=='all'||_slotFilter!=='all'?'No orders match filter':'All orders delivered!'}</p></div>`;
+    return;
+  }
+
+  // If date filter is specific, flat render with slot grouping (no date sections)
+  if(_dateFilter!=='all'){
+    let html=_buildFlatSlotHTML(list, true);
+    html+='<div style="height:20px"></div>';
+    doc('orders-con').innerHTML=html;
     return;
   }
 
   const todayISO=getTodayISO();
   const yestISO=getYesterdayISO();
+  const dbyISO=dayBeforeYesterdayYMD();
 
   const todayOrders=list.filter(o=>orderDateToISO(o.date)===todayISO);
   const yestOrders=list.filter(o=>orderDateToISO(o.date)===yestISO);
-  const olderOrders=list.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;});
+  const dbyOrders=list.filter(o=>orderDateToISO(o.date)===dbyISO);
+  const olderOrders=list.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO&&d!==dbyISO;});
 
   let html='';
   html+=buildDateSlotHTML(todayOrders,'📅 Today','pill-today','today-active',true);
   html+=buildDateSlotHTML(yestOrders,'📅 Yesterday','pill-yesterday','yest-active',true);
+  html+=buildDateSlotHTML(dbyOrders,'📅 Day Before Yesterday','pill-yesterday','dby-active',true);
   if(olderOrders.length){
-    // Build unique dates for older section
     const olderDates=[...new Set(olderOrders.map(o=>orderDateToISO(o.date)).filter(Boolean))].sort((a,b)=>b>a?1:-1);
     html+=`<div class="date-section">
       <div class="date-section-hdr" onclick="toggleDateSection('older-active')">
@@ -803,9 +877,9 @@ function renderActive(){
         <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-older-active"></i>
       </div>
       <div class="date-section-body" id="dsb-older-active">
-        <div class="older-date-bar">
-          <label><i class="fa-solid fa-calendar"></i> Date:</label>
-          <select class="older-date-sel" id="older-active-date-sel" onchange="renderOlderDateSection('active')">
+        <div class="older-date-bar" style="display:flex;align-items:center;gap:8px;padding:6px 14px 4px">
+          <label style="font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap"><i class="fa-solid fa-calendar"></i> Date:</label>
+          <select style="flex:1;padding:8px 12px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#fff;outline:none;cursor:pointer" id="older-active-date-sel" onchange="renderOlderDateSection('active')">
             <option value="all">All Older Dates</option>
             ${olderDates.map(d=>`<option value="${d}">${PB.fmtDate(d)}</option>`).join('')}
           </select>
@@ -838,28 +912,46 @@ function sortOldest(a,b){
   return ta>tb?1:ta<tb?-1:0;
 }
 
-// ══ RENDER DELIVERED TAB — Today/Yesterday → Morning/Evening ══
+// ══ RENDER DELIVERED TAB ══
 function renderDelivered(){
+  _slotFilter=(doc('slot-sel')||{value:'all'}).value||'all';
+  _sortMode=(doc('sort-sel')||{value:'newest'}).value||'newest';
+
   let list=_deliveredOrders.filter(o=>matchesSearch(o));
+  if(_slotFilter==='morning') list=list.filter(o=>isDayOrder(o));
+  else if(_slotFilter==='evening') list=list.filter(o=>!isDayOrder(o));
+  list=filterByDate(list);
+  list=sortByMode(list);
 
   const b=doc('ord-count-badge');
   if(b) b.textContent=list.length+' delivered';
 
   if(!list.length){
-    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ?'🔍':'📭'}</span><p>${_searchQ?'No results found':'No delivered orders yet'}</p></div>`;
+    doc('orders-con').innerHTML=`<div class="empty"><span>${_searchQ||_dateFilter!=='all'||_slotFilter!=='all'?'🔍':'📭'}</span><p>${_searchQ||_dateFilter!=='all'||_slotFilter!=='all'?'No orders match filter':'No delivered orders yet'}</p></div>`;
+    return;
+  }
+
+  // If date filter is specific, flat render
+  if(_dateFilter!=='all'){
+    let html=_buildFlatSlotHTML(list, false);
+    html+='<div style="height:20px"></div>';
+    doc('orders-con').innerHTML=html;
     return;
   }
 
   const todayISO=getTodayISO();
   const yestISO=getYesterdayISO();
+  const dbyISO=dayBeforeYesterdayYMD();
 
   const todayOrders=list.filter(o=>orderDateToISO(o.date)===todayISO);
   const yestOrders=list.filter(o=>orderDateToISO(o.date)===yestISO);
-  const olderOrders=list.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;});
+  const dbyOrders=list.filter(o=>orderDateToISO(o.date)===dbyISO);
+  const olderOrders=list.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO&&d!==dbyISO;});
 
   let html='';
   html+=buildDateSlotHTML(todayOrders,'📅 Today','pill-today','today-done',false);
   html+=buildDateSlotHTML(yestOrders,'📅 Yesterday','pill-yesterday','yest-done',false);
+  html+=buildDateSlotHTML(dbyOrders,'📅 Day Before Yesterday','pill-yesterday','dby-done',false);
   if(olderOrders.length){
     const olderDates=[...new Set(olderOrders.map(o=>orderDateToISO(o.date)).filter(Boolean))].sort((a,b)=>b>a?1:-1);
     html+=`<div class="date-section">
@@ -869,9 +961,9 @@ function renderDelivered(){
         <i class="fa-solid fa-chevron-up date-section-arr open" id="dsa-older-done"></i>
       </div>
       <div class="date-section-body collapsed" id="dsb-older-done">
-        <div class="older-date-bar">
-          <label><i class="fa-solid fa-calendar"></i> Date:</label>
-          <select class="older-date-sel" id="older-done-date-sel" onchange="renderOlderDateSection('done')">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 14px 4px">
+          <label style="font-size:11px;font-weight:700;color:var(--mu);white-space:nowrap"><i class="fa-solid fa-calendar"></i> Date:</label>
+          <select style="flex:1;padding:8px 12px;border:2px solid var(--lt);border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:var(--tx);background:#fff;outline:none;cursor:pointer" id="older-done-date-sel" onchange="renderOlderDateSection('done')">
             <option value="all">All Older Dates</option>
             ${olderDates.map(d=>`<option value="${d}">${PB.fmtDate(d)}</option>`).join('')}
           </select>
@@ -915,6 +1007,22 @@ function renderOlderDateSection(tab){
   innerEl.innerHTML=buildOlderInner(pool, tab==='active');
 }
 
+// ══ FLAT SLOT HTML (for specific date filter — no date section wrapper) ══
+function _buildFlatSlotHTML(list, isActive){
+  const morning=list.filter(o=>isDayOrder(o));
+  const evening=list.filter(o=>!isDayOrder(o));
+  let html='';
+  if(morning.length){
+    html+=`<div class="group-hdr"><div class="group-pill pill-day"><i class="fa-solid fa-sun"></i> Morning</div><span class="group-cnt">${morning.length} order${morning.length>1?'s':''}</span></div>`;
+    morning.forEach(o=>{html+=renderCard(o,!isActive);});
+  }
+  if(evening.length){
+    html+=`<div class="group-hdr" style="margin-top:4px"><div class="group-pill pill-ngt"><i class="fa-solid fa-moon"></i> Evening</div><span class="group-cnt">${evening.length} order${evening.length>1?'s':''}</span></div>`;
+    evening.forEach(o=>{html+=renderCard(o,!isActive);});
+  }
+  return html||'<div class="empty"><span>📭</span><p>No orders</p></div>';
+}
+
 // ══ RENDER CARD ══
 function buildItemsHTML(items){
   if(!items.length) return '';
@@ -946,7 +1054,7 @@ function buildItemsHTML(items){
 function renderCard(o, isDone){
   let items=[]; try{items=safeP(o.items);}catch{}
   const mapsUrl=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}`;
-  const waMsg=`Hello ${o.name}! Main aapka Puro Bite order deliver karne aa raha hoon.\n\nOrder: ${o.orderId}\nAmount: \u20b9${o.finalAmount}`;
+  const waMsg=`Hello ${o.name}! Main aapka Tiffo order deliver karne aa raha hoon.\n\nOrder: ${o.orderId}\nAmount: \u20b9${o.finalAmount}`;
   const waUrl='https://wa.me/91'+String(o.phone).replace(/\D/g,'')+'?text='+encodeURIComponent(waMsg);
   const itemsSummary=items.slice(0,2).map(i=>`${i.name}${i.selectedVariant?` (${i.selectedVariant})`:''}×${i.qty}`).join(', ')+(items.length>2?` +${items.length-2}more`:'');
   const payLbl=o.userType==='subscriber'?'👑 Wallet':isDone?'💰 Collected':'💰 Collect';
@@ -1087,20 +1195,22 @@ function openRouteInMaps(){
 
 // ── (filter toggle removed — filters replaced by structured date sections) ──
 
-// ══ PDF EXPORT — grouped by Today/Yesterday → Morning/Evening ══
+// ══ PDF EXPORT — exports only currently filtered/visible orders ══
 function exportPDF(){
-  const src = _currentTab === 'delivered' ? _deliveredOrders : _activeOrders;
-  const filtered = src.filter(o => matchesSearch(o));
+  const filtered = getFilteredVisible();
 
   if(!filtered.length){toast('No orders to export');return;}
 
-  const todayISO=getTodayISO();
-  const yestISO=getYesterdayISO();
+  // Build label describing active filters
+  const slotLbl=_slotFilter==='morning'?'Morning':_slotFilter==='evening'?'Evening':'All Slots';
+  const dateLbl=_dateFilter==='today'?'Today':_dateFilter==='yesterday'?'Yesterday':_dateFilter==='daybeforeyesterday'?'Day Before Yesterday':'All Dates';
+  const filterDesc=`${slotLbl} · ${dateLbl}`;
 
   const sections=[
-    {label:'📅 Today', orders:filtered.filter(o=>orderDateToISO(o.date)===todayISO)},
-    {label:'📅 Yesterday', orders:filtered.filter(o=>orderDateToISO(o.date)===yestISO)},
-    {label:'🗂️ Older', orders:filtered.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==todayISO&&d!==yestISO;})}
+    {label:'📅 Today', orders:filtered.filter(o=>orderDateToISO(o.date)===getTodayISO())},
+    {label:'📅 Yesterday', orders:filtered.filter(o=>orderDateToISO(o.date)===getYesterdayISO())},
+    {label:'📅 Day Before Yesterday', orders:filtered.filter(o=>orderDateToISO(o.date)===dayBeforeYesterdayYMD())},
+    {label:'🗂️ Older', orders:filtered.filter(o=>{const d=orderDateToISO(o.date);return d&&d!==getTodayISO()&&d!==getYesterdayISO()&&d!==dayBeforeYesterdayYMD();})}
   ].filter(s=>s.orders.length);
 
   function buildCards(list, startIdx){
@@ -1149,8 +1259,8 @@ h1{font-size:18px;color:#e63946;margin-bottom:3px}.sub{color:#999;font-size:11px
 .row{display:flex;justify-content:space-between;margin-bottom:3px;font-size:12px}
 .sep{border-top:1px dashed #e5e7eb;margin:7px 0}.tot{font-size:15px;font-weight:800;color:#e63946}
 a{color:#2a9d8f}@media print{.np{display:none!important}}</style></head><body>
-<h1>🍱 Puro Bite – Delivery Sheet</h1>
-<div class="sub">Rider: ${esc(_rider.name)} | ${new Date().toLocaleString('en-IN')} | ${filtered.length} order(s)</div>
+<h1>🍱 Tiffo – Delivery Sheet</h1>
+<div class="sub">Rider: ${esc(_rider.name)} | ${new Date().toLocaleString('en-IN')} | ${filtered.length} order(s) | Filter: ${filterDesc}</div>
 <button class="np" onclick="window.print()" style="background:#e63946;color:#fff;padding:8px 16px;border:none;border-radius:7px;font-weight:bold;cursor:pointer;margin-bottom:12px">🖨️ Print / Save PDF</button>
 ${bodyHTML}
 </body></html>`;
