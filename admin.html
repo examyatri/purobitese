@@ -115,6 +115,8 @@ tr:hover td{background:#fafafa}
 .f-btn.act{background:var(--p);border-color:var(--p);color:#fff}
 .s-inp{padding:8px 14px;border-radius:9px;border:2px solid #e5e7eb;font-family:var(--fb);font-size:13px;outline:none}
 .s-inp:focus{border-color:var(--p)}
+.sort-sel{padding:6px 10px;border-radius:9px;border:2px solid #e5e7eb;font-family:var(--fb);font-size:12px;font-weight:600;color:var(--dk);background:#fff;outline:none;cursor:pointer;min-width:130px}
+.sort-sel:focus{border-color:var(--p)}
 
 /* ── MODAL ── */
 .mo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)}
@@ -331,6 +333,7 @@ tr:hover td{background:#fafafa}
           <button class="btn btn-p btn-sm" onclick="renderOrds()"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
           <button class="btn btn-ghost btn-sm" onclick="resetOrdFilters()"><i class="fa-solid fa-xmark"></i> Reset</button>
           <button class="btn btn-ghost btn-sm" onclick="exportOrdsPDF()" title="Export PDF"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+          <select class="sort-sel" id="ord-sort" onchange="renderOrds()" title="Sort orders"><option value="newest">🕐 Newest First</option><option value="oldest">🕐 Oldest First</option><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option><option value="amt_high">💰 Amount High–Low</option><option value="amt_low">💰 Amount Low–High</option></select>
         </div>
         <div class="tc">
           <div class="th"><h3 id="ord-count-lbl">Orders</h3><button class="btn btn-ghost btn-sm" onclick="loadOrds()"><i class="fa-solid fa-rotate"></i></button></div>
@@ -415,7 +418,7 @@ tr:hover td{background:#fafafa}
       <!-- COUPONS -->
       <div class="pg-v" id="pg-coupons">
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-p" onclick="openCpnModal()"><i class="fa-solid fa-plus"></i> Create Coupon</button></div>
-        <div class="tc"><div class="th"><h3>Coupons</h3></div>
+        <div class="tc"><div class="th"><h3>Coupons</h3><select class="sort-sel" id="cpn-sort" onchange="loadCpns()" title="Sort coupons"><option value="code_az">🔤 Code A–Z</option><option value="val_high">💰 Value High–Low</option><option value="val_low">💰 Value Low–High</option><option value="expiry">📅 Expiry Soonest</option><option value="status">✅ Active First</option></select></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Expiry</th><th>User</th><th>Limit/Uses</th><th>Status</th><th>Actions</th></tr></thead><tbody id="cpn-tb"></tbody></table></div>
         </div>
       </div>
@@ -443,7 +446,7 @@ tr:hover td{background:#fafafa}
           <button class="btn btn-g" onclick="openAddUserModal()"><i class="fa-solid fa-user-plus"></i> Add User</button>
           <button class="btn btn-dk" onclick="openPromoteModal()" style="background:#4f46e5"><i class="fa-solid fa-arrow-up-right-dots"></i> Promote User</button>
         </div>
-        <div class="tc"><div class="th"><h3 id="sub-count">Subscribers</h3></div>
+        <div class="tc"><div class="th"><h3 id="sub-count">Subscribers</h3><select class="sort-sel" id="sub-sort" onchange="renderSubs()" title="Sort subscribers"><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option><option value="bal_high">💰 Balance High–Low</option><option value="bal_low">💰 Balance Low–High</option><option value="start_new">📅 Start Date Newest</option><option value="start_old">📅 Start Date Oldest</option></select></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Phone</th><th>Name</th><th>Plan</th><th>Status</th><th>Delivery</th><th>Balance</th><th>Start Date</th><th>Actions</th></tr></thead><tbody id="sub-tb"></tbody></table></div>
         </div>
       </div>
@@ -472,6 +475,7 @@ tr:hover td{background:#fafafa}
           <button class="f-btn act" onclick="filterUsrSub('all',this)">All</button>
           <button class="f-btn" onclick="filterUsrSub('subscriber',this)">Subscribers</button>
           <button class="f-btn" onclick="filterUsrSub('non',this)">Non-Sub</button>
+          <select class="sort-sel" id="usr-sort" onchange="renderUsers()" title="Sort users"><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option><option value="joined_new">📅 Joined Newest</option><option value="joined_old">📅 Joined Oldest</option><option value="type">👤 Type (Sub first)</option></select>
         </div>
         <div class="tc"><div class="th"><h3>All Users</h3><button class="btn btn-ghost btn-sm" onclick="loadUsers()"><i class="fa-solid fa-rotate"></i></button></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Phone</th><th>Name</th><th>Email</th><th>Address</th><th>Subscriber</th><th>Joined</th></tr></thead><tbody id="usr-tb"></tbody></table></div>
@@ -481,7 +485,7 @@ tr:hover td{background:#fafafa}
       <!-- RIDERS -->
       <div class="pg-v" id="pg-riders">
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-p" onclick="openRiderModal()"><i class="fa-solid fa-plus"></i> Add Rider</button></div>
-        <div class="tc"><div class="th"><h3>Riders</h3><button class="btn btn-ghost btn-sm" onclick="loadRiders()"><i class="fa-solid fa-rotate"></i></button></div>
+        <div class="tc"><div class="th"><h3>Riders</h3><select class="sort-sel" id="rider-sort" onchange="loadRiders()" title="Sort riders"><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option></select>&nbsp;<button class="btn btn-ghost btn-sm" onclick="loadRiders()"><i class="fa-solid fa-rotate"></i></button></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Rider ID</th><th>Name</th><th>Email / Login ID</th><th>Actions</th></tr></thead><tbody id="rider-tb"></tbody></table></div>
         </div>
       </div>
@@ -658,7 +662,7 @@ tr:hover td{background:#fafafa}
 
         <!-- Subscriber Khata Table -->
         <div class="tc" style="margin-bottom:20px">
-          <div class="th"><h3 id="k-count">All Subscriber Wallets</h3><button class="btn btn-ghost btn-sm" onclick="loadKhata()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+          <div class="th"><h3 id="k-count">All Subscriber Wallets</h3><select class="sort-sel" id="k-sort" onchange="renderKhata()" title="Sort wallets"><option value="bal_low">⬇ Balance Low–High</option><option value="bal_high">⬆ Balance High–Low</option><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option></select>&nbsp;<button class="btn btn-ghost btn-sm" onclick="loadKhata()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
           <div style="overflow-x:auto"><table>
             <thead><tr><th>Phone</th><th>Name</th><th>Balance</th><th>Status</th><th>Entries</th><th>Actions</th></tr></thead>
             <tbody id="k-tb"></tbody>
@@ -670,7 +674,7 @@ tr:hover td{background:#fafafa}
       <div class="pg-v" id="pg-staff">
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button class="btn btn-p" onclick="openStaffModal()"><i class="fa-solid fa-plus"></i> Add Staff</button></div>
         <div class="tc">
-          <div class="th"><h3>Staff Members</h3><span style="font-size:12px;color:var(--gr)">Staff can manage operations but cannot view revenue</span></div>
+          <div class="th"><h3>Staff Members</h3><select class="sort-sel" id="staff-sort" onchange="loadStaff()" title="Sort staff"><option value="name_az">🔤 Name A–Z</option><option value="name_za">🔤 Name Z–A</option><option value="status">✅ Active First</option><option value="created_new">📅 Created Newest</option><option value="created_old">📅 Created Oldest</option></select>&nbsp;<span style="font-size:12px;color:var(--gr)">Staff can manage operations but cannot view revenue</span></div>
           <div style="overflow-x:auto"><table><thead><tr><th>Username</th><th>Name</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="staff-tb"></tbody></table></div>
         </div>
       </div>
@@ -1493,8 +1497,16 @@ function renderOrds(){
   // Search filter
   filtered=filtered.filter(o=>!srch||(o.name||'').toLowerCase().includes(srch)||(o.phone||'').includes(srch)||(o.orderId||'').toLowerCase().includes(srch));
 
-  // Always newest first
-  filtered = [...filtered].sort(ordNewest);
+  // Sort by selected option
+  const ordSortVal = (doc('ord-sort') ? doc('ord-sort').value : 'newest');
+  filtered = [...filtered].sort((a,b)=>{
+    if(ordSortVal==='oldest') return (Number(String(a.orderId).replace('PB-','').split('-')[0])||0)-(Number(String(b.orderId).replace('PB-','').split('-')[0])||0);
+    if(ordSortVal==='name_az') return (a.name||'').localeCompare(b.name||'');
+    if(ordSortVal==='name_za') return (b.name||'').localeCompare(a.name||'');
+    if(ordSortVal==='amt_high') return (Number(b.finalAmount)||0)-(Number(a.finalAmount)||0);
+    if(ordSortVal==='amt_low') return (Number(a.finalAmount)||0)-(Number(b.finalAmount)||0);
+    return ordNewest(a,b); // default: newest
+  });
 
   // Update count label
   const lbl=doc('ord-count-lbl');
@@ -2155,7 +2167,15 @@ async function delMenu(itemId,name){
 // ════════════════════════════════════════════════
 async function loadCpns(){
   try{
-    const coupons=await api('adminGetCoupons');
+    let coupons=await api('adminGetCoupons');
+    const cpnSortVal = doc('cpn-sort') ? doc('cpn-sort').value : 'code_az';
+    coupons = [...coupons].sort((a,b)=>{
+      if(cpnSortVal==='val_high') return (Number(b.discountValue)||0)-(Number(a.discountValue)||0);
+      if(cpnSortVal==='val_low')  return (Number(a.discountValue)||0)-(Number(b.discountValue)||0);
+      if(cpnSortVal==='expiry')   return (a.expiryDate||'9999').localeCompare(b.expiryDate||'9999');
+      if(cpnSortVal==='status'){  const as=String(a.isActive).toUpperCase()==='TRUE'?0:1; const bs=String(b.isActive).toUpperCase()==='TRUE'?0:1; return as-bs; }
+      return (a.code||'').localeCompare(b.code||''); // default code_az
+    });
     doc('cpn-tb').innerHTML=coupons.length?coupons.map(c=>{
       const limit=Number(c.perUserLimit)||0;
       // Count total uses across all users
@@ -2227,7 +2247,15 @@ function renderSubs(){
     return (s.plan||'both')===_subF;
   });
   doc('sub-count').textContent=`Subscribers (${filtered.length})`;
-  // Segregate: delivery-paused users shown with warning row style
+  const subSortVal = doc('sub-sort') ? doc('sub-sort').value : 'name_az';
+  filtered = [...filtered].sort((a,b)=>{
+    if(subSortVal==='name_za') return (b.name||'').localeCompare(a.name||'');
+    if(subSortVal==='bal_high') return (Number(b.balance)||0)-(Number(a.balance)||0);
+    if(subSortVal==='bal_low') return (Number(a.balance)||0)-(Number(b.balance)||0);
+    if(subSortVal==='start_new') return (normDate(b.startDate)||'').localeCompare(normDate(a.startDate)||'');
+    if(subSortVal==='start_old') return (normDate(a.startDate)||'').localeCompare(normDate(b.startDate)||'');
+    return (a.name||'').localeCompare(b.name||''); // default name_az
+  });
   doc('sub-tb').innerHTML=filtered.length?filtered.map(s=>{
     const bal=Number(s.balance)||0;
     const balClass=bal<0?'b-r':bal<100?'b-o':'b-g';
@@ -2326,6 +2354,14 @@ function renderUsers(){
     if(_usrF==='non'&&isSub) return false;
     return !srch||(u.name||'').toLowerCase().includes(srch)||(u.phone||'').includes(srch);
   });
+  const usrSortVal = doc('usr-sort') ? doc('usr-sort').value : 'name_az';
+  filtered = [...filtered].sort((a,b)=>{
+    if(usrSortVal==='name_za') return (b.name||'').localeCompare(a.name||'');
+    if(usrSortVal==='joined_new') return (normDate(b.createdAt)||'').localeCompare(normDate(a.createdAt)||'');
+    if(usrSortVal==='joined_old') return (normDate(a.createdAt)||'').localeCompare(normDate(b.createdAt)||'');
+    if(usrSortVal==='type'){ const as=_subPhones.has(String(a.phone).replace(/\D/g,''))?0:1; const bs=_subPhones.has(String(b.phone).replace(/\D/g,''))?0:1; return as-bs; }
+    return (a.name||'').localeCompare(b.name||''); // default name_az
+  });
   doc('usr-tb').innerHTML=filtered.length?filtered.map(u=>{
     const isSub=_subPhones.has(String(u.phone).replace(/\D/g,''));
     return `<tr>
@@ -2344,7 +2380,11 @@ function renderUsers(){
 // ════════════════════════════════════════════════
 async function loadRiders(){
   try{
-    const riders=await api('getRiders');
+    let riders=await api('getRiders');
+    const riderSortVal = doc('rider-sort') ? doc('rider-sort').value : 'name_az';
+    riders = [...riders].sort((a,b)=>
+      riderSortVal==='name_za' ? (b.name||'').localeCompare(a.name||'') : (a.name||'').localeCompare(b.name||'')
+    );
     doc('rider-tb').innerHTML=riders.length?riders.map(r=>`<tr>
       <td><code style="font-size:11px">${esc(r.riderId)}</code></td>
       <td style="font-weight:700">${esc(r.name)}</td>
@@ -2666,6 +2706,14 @@ function renderKhata(){
 
   if(doc('k-count')) doc('k-count').textContent=`Subscriber Wallets (${list.length})`;
 
+  const kSortVal = doc('k-sort') ? doc('k-sort').value : 'bal_low';
+  list = [...list].sort((a,b)=>{
+    if(kSortVal==='bal_high') return (Number(b.balance)||0)-(Number(a.balance)||0);
+    if(kSortVal==='name_az')  return (a.name||'').localeCompare(b.name||'');
+    if(kSortVal==='name_za')  return (b.name||'').localeCompare(a.name||'');
+    return (Number(a.balance)||0)-(Number(b.balance)||0); // default bal_low
+  });
+
   tb.innerHTML=list.length?list.map(k=>{
     const bal=Number(k.balance)||0;
     const balClass=bal<0?'b-r':bal<100?'b-o':'b-g';
@@ -2912,7 +2960,15 @@ async function loadStaff(){
   const tb=doc('staff-tb');
   tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:28px;color:#999">Loading...</td></tr>';
   try{
-    const staff=await api('getStaff');
+    let staff=await api('getStaff');
+    const staffSortVal = doc('staff-sort') ? doc('staff-sort').value : 'name_az';
+    staff = [...staff].sort((a,b)=>{
+      if(staffSortVal==='name_za')     return (b.name||'').localeCompare(a.name||'');
+      if(staffSortVal==='status'){     const as=(a.status||'active')==='active'?0:1; const bs=(b.status||'active')==='active'?0:1; return as-bs; }
+      if(staffSortVal==='created_new') return (normDate(b.createdAt)||'').localeCompare(normDate(a.createdAt)||'');
+      if(staffSortVal==='created_old') return (normDate(a.createdAt)||'').localeCompare(normDate(b.createdAt)||'');
+      return (a.name||'').localeCompare(b.name||''); // default name_az
+    });
     tb.innerHTML=staff.length?staff.map(s=>`<tr>
       <td><code style="font-weight:700">${esc(s.username)}</code></td>
       <td style="font-weight:700">${esc(s.name)}</td>
