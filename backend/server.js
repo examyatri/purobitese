@@ -1318,15 +1318,47 @@ async function applyCoupon(data) {
   if (coupon.user_phone && cleanPhone(coupon.user_phone) !== cleanPhone(data.phone || ''))
     throw new Error('Coupon is not valid for this account');
 
+  // Min order check
+  const minOrder = Number(coupon.min_order_amount) || 0;
+  const orderAmt = Number(data.orderAmount) || 0;
+  if (minOrder > 0 && orderAmt > 0 && orderAmt < minOrder)
+    throw new Error(`Minimum order amount ₹${minOrder} required for this coupon`);
+
+  // Per-user limit check
   const limit = Number(coupon.per_user_limit) || 0;
+  let usage = {};
+  try { usage = JSON.parse(coupon.usage_count || '{}'); } catch { usage = {}; }
   if (limit > 0 && data.phone) {
     const ph = cleanPhone(data.phone);
-    let usage = {};
-    try { usage = JSON.parse(coupon.usage_count || '{}'); } catch { usage = {}; }
     const used = Number(usage[ph]) || 0;
     if (used >= limit) throw new Error(`Coupon usage limit reached (max ${limit} time${limit > 1 ? 's' : ''} per user)`);
   }
-  return { code: coupon.code, discountType: coupon.discount_type, discountValue: Number(coupon.discount_value) };
+
+  // Total usage limit check
+  const totalLimit = Number(coupon.total_usage_limit) || 0;
+  if (totalLimit > 0) {
+    const totalUsed = Object.values(usage).reduce((s, v) => s + (Number(v) || 0), 0);
+    if (totalUsed >= totalLimit) throw new Error('Coupon has reached its maximum total usage limit');
+  }
+
+  // Calculate discount
+  let discountAmount = 0;
+  const type = coupon.discount_type;
+  const val  = Number(coupon.discount_value) || 0;
+  const cap  = Number(coupon.max_cap) || 0;
+  if (type === 'percent') {
+    discountAmount = orderAmt > 0 ? (orderAmt * val / 100) : val;
+  } else if (type === 'percent_cap') {
+    discountAmount = orderAmt > 0 ? Math.min((orderAmt * val / 100), cap) : 0;
+  } else {
+    discountAmount = val; // fixed
+  }
+
+  return {
+    code: coupon.code, discountType: type, discountValue: val,
+    maxCap: cap, minOrderAmount: minOrder,
+    discountAmount: Math.round(discountAmount * 100) / 100
+  };
 }
 
 async function incrementCouponUsage(code, phone) {
@@ -1345,7 +1377,11 @@ async function createCoupon(data) {
   const { error } = await supabase.from('coupons').insert({
     code: data.code.toUpperCase(), discount_type: data.discountType,
     discount_value: Number(data.discountValue),
+    max_cap: data.discountType === 'percent_cap' ? (Number(data.maxCap) || 0) : 0,
+    min_order_amount: Number(data.minOrderAmount) || 0,
     expiry_date: data.expiryDate || null, user_phone: data.userPhone || null,
+    per_user_limit: Number(data.perUserLimit) || 0,
+    total_usage_limit: Number(data.totalUsageLimit) || 0,
     is_active: true, usage_count: '{}'
   });
   if (error) throw new Error(error.message);
@@ -1357,8 +1393,10 @@ async function adminGetCoupons() {
   if (error) throw new Error(error.message);
   return (coupons || []).map(c => ({
     code: c.code, discountType: c.discount_type, discountValue: c.discount_value,
+    maxCap: c.max_cap || 0, minOrderAmount: c.min_order_amount || 0,
     expiryDate: c.expiry_date, userPhone: c.user_phone, isActive: c.is_active,
     perUserLimit: c.per_user_limit || 0,
+    totalUsageLimit: c.total_usage_limit || 0,
     usageCount: (() => { try { return JSON.parse(c.usage_count || '{}'); } catch { return {}; } })()
   }));
 }
