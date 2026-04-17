@@ -2705,6 +2705,36 @@ function exportUserKhataPDF() {
         orderedItems = itemName + (ordId ? ` <span style="color:#999;font-size:10px">| ${ordId}</span>` : '');
       }
     }
+    // Build Note column: custom note → else order source → else blank
+    let noteCell = '—';
+    const ORDER_ID_RE2 = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+    const stdNoteRe = /^Tiffin Given \(.+?\)\s*\|\s*(ORD-[\w-]+|O[\w]+|PB-[\w-]+)$/i;
+    if (e.type === 'recharge') {
+      // For recharge: show note if present and non-standard
+      const customNote = (e.note || '').replace(ORDER_ID_RE2,'').replace(/^\s*[\|·\-]\s*/,'').trim();
+      noteCell = customNote ? esc(customNote) : 'Amount Added';
+    } else {
+      // For tiffin: check if note has any text beyond standard format
+      const rawNote = e.note || '';
+      const isStdNote = stdNoteRe.test(rawNote.trim());
+      // Extract any text that is not the item/orderId standard part
+      const customPart = rawNote.replace(ORDER_ID_RE2,'').replace(/^Tiffin Given\s*/i,'').replace(/^\(.*?\)\s*\|\s*/,'').trim();
+      if (!isStdNote && customPart) {
+        noteCell = `<span style="color:#1565c0">${esc(customPart)}</span>`;
+      } else if (e.orderSource) {
+        const srcLabel = e.orderSource === 'admin'
+          ? '<span style="color:#c45500;font-weight:700">Admin Order</span>'
+          : '<span style="color:#2a9d8f">User Order</span>';
+        const statusLabel = e.orderStatus
+          ? ` · <span style="color:#6b7280">${esc(e.orderStatus)}</span>`
+          : '';
+        noteCell = srcLabel + statusLabel;
+      } else {
+        noteCell = e.orderStatus
+          ? `<span style="color:#6b7280">${esc(e.orderStatus)}</span>`
+          : '—';
+      }
+    }
     const rowBg = amt >= 0 ? '#f0fdf8' : '#fff5f5';
     return `<tr style="background:${rowBg}">
       <td>${fmtDate(e.date)}</td><td>${fmtTime(e.time)}</td>
@@ -2712,6 +2742,7 @@ function exportUserKhataPDF() {
       <td style="color:${amt>=0?'#2a9d8f':'#e63946'};font-weight:800">${amt>=0?'+':''}₹${Math.abs(amt)}</td>
       <td style="font-weight:800;color:${runBal<0?'#e63946':'#111'}">₹${runBal}</td>
       <td>${orderedItems}</td>
+      <td style="font-size:11px">${noteCell}</td>
     </tr>`;
   }).join('');
   const nowIST = new Date(Date.now() + 5.5*3600*1000);
@@ -2723,7 +2754,7 @@ function exportUserKhataPDF() {
 <div class="hdr"><div><div class="brand-name">🍱 <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="brand-tagline">Ghar ka khana ♥</div><div class="brand-contact">📞 <strong>9889760350</strong><br>Wallet Statement</div></div><span class="period-badge">📅 ${periodLabel}</span></div>
 <div class="info-row"><div><div class="name">${user.name}</div><div style="color:#555">📞 ${user.phone}</div>${user.address?`<div style="color:#777;font-size:12px;margin-top:2px">📍 ${user.address}</div>`:''}</div><div style="text-align:right"><div style="font-size:11px;color:#888">Generated</div><div style="font-size:12px;font-weight:700">${genStr}</div></div></div>
 <div class="bal-row">${openingBal !== 0 ? `<div class="bal-card open"><div class="bal-label">Opening Balance</div><div class="bal-amount" style="font-size:18px;color:#555">₹${openingBal}</div></div>` : ''}<div class="bal-card close"><div class="bal-label">Closing Balance</div><div class="bal-amount">₹${closingBal}</div></div><div class="bal-card open" style="background:#fff8f0;border-color:#f4a261"><div class="bal-label">Transactions</div><div class="bal-amount" style="color:#f4a261">${filtered.length}</div></div></div>
-<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Items Ordered</th></tr></thead><tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#999">No transactions</td></tr>'}</tbody></table>
+<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Items Ordered</th><th>Note</th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#999">No transactions</td></tr>'}</tbody></table>
 <div class="footer"><div>Powered by <strong><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></strong> · 📞 9889760350</div><div>Generated: ${genStr}</div></div>
 </div></body></html>`;
   const w = window.open('', '_blank');
