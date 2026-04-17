@@ -468,29 +468,20 @@ tr:hover td{background:#fafafa}
               <button class="btn btn-ghost" onclick="toggleAllBulk({checked:false})" style="flex:1"><i class="fa-solid fa-xmark"></i> Deselect All</button>
             </div>
             <div id="bulk-auto-info" class="hide" style="background:#fffde7;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;font-weight:600;color:#c67c00"></div>
-            <!-- Sort + Udhar add controls -->
-            <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
-              <div style="flex:1;min-width:160px">
-                <label class="lbl" style="font-size:11px">Sort List By</label>
-                <select id="bulk-sort" class="inp" onchange="sortBulkList()" style="font-size:12px">
-                  <option value="name_asc">Name A→Z</option>
-                  <option value="name_desc">Name Z→A</option>
-                  <option value="bal_desc">Balance High→Low</option>
-                  <option value="bal_asc">Balance Low→High</option>
-                  <option value="plan">Plan Type</option>
-                  <option value="selected_first">Selected First</option>
-                </select>
-              </div>
-              <div style="flex:2;min-width:200px">
-                <label class="lbl" style="font-size:11px">➕ Add Subscriber by Mobile (Udhar / Any Status)</label>
-                <div style="display:flex;gap:6px">
-                  <input id="bulk-udhar-phone" class="inp" type="tel" placeholder="Mobile number" style="flex:1;font-size:13px" oninput="this.value=this.value.replace(/\D/g,'')">
-                  <button class="btn btn-g" style="white-space:nowrap;font-size:12px" onclick="addUdharSubscriber()"><i class="fa-solid fa-user-plus"></i> Add</button>
-                </div>
-              </div>
+            <!-- Sort controls -->
+            <div style="margin-bottom:12px">
+              <label class="lbl" style="font-size:11px">Sort List By</label>
+              <select id="bulk-sort" class="inp" onchange="sortBulkList()" style="font-size:12px">
+                <option value="name_asc">Name A→Z</option>
+                <option value="name_desc">Name Z→A</option>
+                <option value="bal_desc">Balance High→Low</option>
+                <option value="bal_asc">Balance Low→High</option>
+                <option value="plan">Plan Type</option>
+                <option value="selected_first">Selected First</option>
+              </select>
             </div>
             <div id="bulk-udhar-list" style="display:none;background:#fff3e0;border-radius:10px;padding:10px 14px;margin-bottom:12px">
-              <div style="font-size:12px;font-weight:700;color:#c67c00;margin-bottom:6px"><i class="fa-solid fa-hand-holding-dollar"></i> Udhar / Manual Additions</div>
+              <div style="font-size:12px;font-weight:700;color:#c67c00;margin-bottom:6px"><i class="fa-solid fa-hand-holding-dollar"></i> Manually Added (Udhar / Force)</div>
               <div id="bulk-udhar-items"></div>
             </div>
             <div class="tc" style="margin-top:4px">
@@ -2459,29 +2450,7 @@ function sortBulkList(){
   });
 }
 
-// ── Udhar add by mobile ──
-async function addUdharSubscriber(){
-  const ph=(doc('bulk-udhar-phone').value||'').replace(/\D/g,'');
-  if(!ph||ph.length<10){ toast('Enter valid mobile number'); return; }
-  if(_bulkUdharSubs.find(s=>String(s.phone).replace(/\D/g,'')==ph)){ toast('Already in udhar list'); return; }
-  if(_bulkSubs.find(s=>String(s.phone).replace(/\D/g,'')==ph)){ toast('Already in main list'); return; }
-  try{
-    const subs=await api('adminGetSubscribers');
-    const found=subs.find(s=>String(s.phone).replace(/\D/g,'')==ph);
-    if(!found){ toast('❌ Subscriber not found for '+ph); return; }
-    const khata=await api('adminGetAllKhata').catch(()=>[]);
-    const balMap={};
-    khata.forEach(k=>{ balMap[String(k.phone).replace(/\D/g,'')]=Number(k.balance)||0; });
-    const bal=balMap[ph]||0;
-    const entry={...found, _bal:bal, _isUdhar:true};
-    _bulkUdharSubs.push(entry);
-    _bulkSubs.push(entry);
-    renderBulkSubTable(_bulkSubs);
-    renderUdharList();
-    doc('bulk-udhar-phone').value='';
-    toast(`✅ ${found.name} added as Udhar (Bal: ₹${bal})`);
-  }catch(e){ toast('❌ '+e.message); }
-}
+// addUdharSubscriber removed — use addAnySubToOrder instead
 
 function renderUdharList(){
   const wrap=doc('bulk-udhar-list');
