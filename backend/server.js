@@ -133,6 +133,11 @@ app.post('/api', async (req, res) => {
       case 'getAnalytics':             result = await getAnalytics();              break;
       case 'getUsers':                 result = await getUsers();                  break;
 
+      // ── NEW USER COUPON SENT (Supabase) ───────────────────
+      case 'getNuCouponSent':          result = await getNuCouponSent();           break;
+      case 'markNuCouponSent':         result = await markNuCouponSent(data);      break;
+      case 'deleteOldNuCouponSent':    result = await deleteOldNuCouponSent();     break;
+
       // ── DATA CLEANUP ──────────────────────────────────────
       case 'deleteOldData':            result = await deleteOldData(data);         break;
       case 'deleteOldOrders':          result = await deleteOldOrders(data);       break;
@@ -1843,6 +1848,39 @@ async function getUsers() {
     isSubscriber: !!u.is_subscriber,
     createdAt:    u.created_at
   }));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NEW USER COUPON SENT — Supabase (today + yesterday only)
+// ═══════════════════════════════════════════════════════════════
+
+async function getNuCouponSent() {
+  const { data, error } = await supabase
+    .from('nu_coupon_sent')
+    .select('phone');
+  if (error) throw new Error(error.message);
+  return (data || []).map(r => String(r.phone));
+}
+
+async function markNuCouponSent(payload) {
+  const phone = String(payload.phone || '').replace(/\D/g, '');
+  if (!phone) throw new Error('phone required');
+  const { error } = await supabase
+    .from('nu_coupon_sent')
+    .upsert({ phone, sent_at: new Date().toISOString() }, { onConflict: 'phone' });
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
+
+async function deleteOldNuCouponSent() {
+  // Keep today + yesterday; delete anything older than 2 days
+  const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+  const { error, count } = await supabase
+    .from('nu_coupon_sent')
+    .delete({ count: 'exact' })
+    .lt('sent_at', cutoff);
+  if (error) throw new Error(error.message);
+  return { deleted: count || 0 };
 }
 
 // ═══════════════════════════════════════════════════════════════
