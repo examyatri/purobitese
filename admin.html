@@ -154,6 +154,20 @@ tr:hover td{background:#fafafa}
 /* staff-hide: hidden for staff role */
 .staff-hide{display:none!important}
 
+/* ── CLICKABLE STAT CARDS ── */
+.st-card.clickable{cursor:pointer;transition:transform .18s,box-shadow .18s}
+.st-card.clickable:hover{transform:translateY(-3px);box-shadow:var(--shl)}
+.st-card.clickable:active{transform:scale(.97)}
+/* ── STAT DETAIL MODAL ── */
+#mo-stat-detail .mo-box{max-width:600px}
+.sd-item{padding:11px 14px;border-bottom:1px solid #f3f3f3;font-size:13px}
+.sd-item:last-child{border-bottom:none}
+.sd-item:hover{background:#fafafa}
+.sd-empty{text-align:center;padding:32px;color:#999;font-size:14px}
+.sd-loading{text-align:center;padding:32px;color:#999;font-size:13px}
+.sd-hdr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.sd-count{font-size:12px;font-weight:700;color:var(--gr);background:#f3f4f6;padding:4px 10px;border-radius:20px}
+
 /* ── TOP PROGRESS BAR ── */
 #nprogress{pointer-events:none;position:fixed;top:0;left:0;width:100%;z-index:99999}
 #nprogress .bar{background:var(--grad);height:3px;width:0%;transition:width .3s ease,opacity .4s ease;position:relative}
@@ -288,13 +302,13 @@ tr:hover td{background:#fafafa}
       <!-- DASHBOARD -->
       <div class="pg-v act" id="pg-dashboard">
         <div class="st-grid" id="st-grid">
-          <div class="st-card admin-only"><div class="st-ico">📦</div><div class="st-lbl">Today's Orders</div><div class="st-val" id="s-tod-ord">—</div></div>
-          <div class="st-card revenue-card"><div class="st-ico">💰</div><div class="st-lbl">Today's Revenue</div><div class="st-val" id="s-tod-rev">—</div></div>
-          <div class="st-card revenue-card"><div class="st-ico">📅</div><div class="st-lbl">Monthly Revenue</div><div class="st-val" id="s-mo-rev">—</div></div>
+          <div class="st-card admin-only clickable" onclick="openStatDetail('today-orders')"><div class="st-ico">📦</div><div class="st-lbl">Today's Orders</div><div class="st-val" id="s-tod-ord">—</div></div>
+          <div class="st-card revenue-card clickable" onclick="openStatDetail('today-revenue')"><div class="st-ico">💰</div><div class="st-lbl">Today's Revenue</div><div class="st-val" id="s-tod-rev">—</div></div>
+          <div class="st-card revenue-card clickable" onclick="openStatDetail('monthly-revenue')"><div class="st-ico">📅</div><div class="st-lbl">Monthly Revenue</div><div class="st-val" id="s-mo-rev">—</div></div>
           <div class="st-card revenue-card admin-only"><div class="st-ico">🏦</div><div class="st-lbl">Total Wallet Balance</div><div class="st-val" id="s-wallet-bal" style="color:var(--g)">—</div></div>
-          <div class="st-card"><div class="st-ico">🛒</div><div class="st-lbl">Total Orders</div><div class="st-val" id="s-tot-ord">—</div></div>
-          <div class="st-card"><div class="st-ico">👥</div><div class="st-lbl">Total Users</div><div class="st-val" id="s-users">—</div></div>
-          <div class="st-card"><div class="st-ico">👑</div><div class="st-lbl">Subscribers</div><div class="st-val" id="s-subs">—</div></div>
+          <div class="st-card clickable" onclick="openStatDetail('total-orders')"><div class="st-ico">🛒</div><div class="st-lbl">Total Orders</div><div class="st-val" id="s-tot-ord">—</div></div>
+          <div class="st-card clickable" onclick="openStatDetail('total-users')"><div class="st-ico">👥</div><div class="st-lbl">Total Users</div><div class="st-val" id="s-users">—</div></div>
+          <div class="st-card clickable" onclick="openStatDetail('subscribers')"><div class="st-ico">👑</div><div class="st-lbl">Subscribers</div><div class="st-val" id="s-subs">—</div></div>
         </div>
       </div>
 
@@ -3499,6 +3513,117 @@ async function submitThali(){
   }catch(e){ toast('❌ '+e.message); }
 }
 
+// ════════════════════════════════════════════════
+// DASHBOARD STAT CARD DRILL-DOWN  (v-clickable)
+// ════════════════════════════════════════════════
+async function openStatDetail(type){
+  const mo=doc('mo-stat-detail');
+  const title=doc('sd-title');
+  const body=doc('sd-body');
+  const countEl=doc('sd-count');
+  if(!mo) return;
+
+  // Config per card type
+  const cfg={
+    'today-orders':   {label:"📦 Today's Orders",   ico:'📦'},
+    'today-revenue':  {label:"💰 Today's Revenue",   ico:'💰'},
+    'monthly-revenue':{label:"📅 Monthly Revenue",   ico:'📅'},
+    'total-orders':   {label:"🛒 All Orders",         ico:'🛒'},
+    'total-users':    {label:"👥 All Users",           ico:'👥'},
+    'subscribers':    {label:"👑 Subscribers",         ico:'👑'},
+  };
+  const c=cfg[type]||{label:type,ico:'📊'};
+  title.textContent=c.label;
+  countEl.textContent='';
+  body.innerHTML='<div class="sd-loading"><div class="spin" style="display:inline-block;border-color:rgba(0,0,0,.1);border-top-color:var(--p);margin-bottom:8px"></div><br>Loading...</div>';
+  mo.classList.remove('hide');
+
+  try{
+    const todayStr=todayIST(); // existing utility
+    const thisMonth=todayStr.substring(0,7); // "YYYY-MM"
+
+    if(type==='today-orders'||type==='total-orders'){
+      // Use cached orders if loaded, else fetch
+      let ords=_ords.length?_ords:await api('adminGetOrders');
+      if(type==='today-orders') ords=ords.filter(o=>normDate(o.date)===todayStr&&o.orderStatus!=='rejected');
+      else ords=ords.filter(o=>o.orderStatus!=='rejected');
+      ords=[...ords].sort(ordNewest);
+      countEl.textContent=ords.length+' orders';
+      body.innerHTML=ords.length?ords.map(o=>{
+        let items=[]; try{items=safeP(o.items);}catch{}
+        const itemStr=items.map(i=>esc(i.name)+(i.qty>1?` ×${i.qty}`:'')).join(', ')||'—';
+        const stClass={'pending':'b-o','preparing':'b-y','out for delivery':'b-bl','delivered':'b-g','rejected':'b-r'}[o.orderStatus]||'b-gr';
+        return `<div class="sd-item">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div>
+              <div style="font-weight:700;font-size:13px">${esc(o.name||'—')}</div>
+              <div style="font-size:11px;color:#999;margin-top:2px">${esc(o.phone||'')} · ${esc(fmtDate(o.date))} ${esc(fmtTime(o.time||''))}</div>
+              <div style="font-size:12px;color:#555;margin-top:3px">${itemStr}</div>
+            </div>
+            <div style="text-align:right;white-space:nowrap">
+              <div style="font-weight:800;font-size:14px">₹${Number(o.finalAmount||0).toFixed(0)}</div>
+              <span class="bdg ${stClass}" style="margin-top:4px">${esc(o.orderStatus)}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join(''):'<div class="sd-empty">No orders found</div>';
+
+    } else if(type==='today-revenue'||type==='monthly-revenue'){
+      let ords=_ords.length?_ords:await api('adminGetOrders');
+      if(type==='today-revenue')
+        ords=ords.filter(o=>normDate(o.date)===todayStr&&o.orderStatus!=='rejected');
+      else
+        ords=ords.filter(o=>normDate(o.date).substring(0,7)===thisMonth&&o.orderStatus!=='rejected');
+      ords=[...ords].sort(ordNewest);
+      const total=ords.reduce((s,o)=>s+Number(o.finalAmount||0),0);
+      countEl.textContent=`${ords.length} txns · ₹${total}`;
+      body.innerHTML=ords.length?ords.map(o=>{
+        const stClass={'pending':'b-o','preparing':'b-y','out for delivery':'b-bl','delivered':'b-g'}[o.orderStatus]||'b-gr';
+        return `<div class="sd-item">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <div style="font-weight:700">${esc(o.name||'—')}</div>
+              <div style="font-size:11px;color:#999;margin-top:2px">${esc(o.phone||'')} · ${esc(fmtDate(o.date))} ${esc(fmtTime(o.time||''))} · <span class="bdg ${stClass}" style="font-size:10px">${esc(o.orderStatus)}</span></div>
+            </div>
+            <div style="font-weight:800;font-size:15px;color:var(--g);white-space:nowrap">+₹${Number(o.finalAmount||0).toFixed(0)}</div>
+          </div>
+        </div>`;
+      }).join(''):'<div class="sd-empty">No transactions found</div>';
+
+    } else if(type==='total-users'){
+      let users=_users.length?_users:await api('getUsers');
+      countEl.textContent=users.length+' users';
+      body.innerHTML=users.length?users.map(u=>`<div class="sd-item">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-weight:700">${esc(u.name||'—')}</div>
+            <div style="font-size:11px;color:#999;margin-top:2px">${esc(u.phone||'')}${u.email?' · '+esc(u.email):''}</div>
+          </div>
+          <span class="bdg ${u.isSubscriber?'b-g':'b-gr'}" style="font-size:10px">${u.isSubscriber?'Subscriber':'Daily'}</span>
+        </div>
+      </div>`).join(''):'<div class="sd-empty">No users found</div>';
+
+    } else if(type==='subscribers'){
+      let subs=_subs.length?_subs:await api('adminGetSubscribers');
+      countEl.textContent=subs.length+' subscribers';
+      body.innerHTML=subs.length?subs.map(s=>`<div class="sd-item">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-weight:700">${esc(s.name||'—')}</div>
+            <div style="font-size:11px;color:#999;margin-top:2px">${esc(s.phone||'')}${s.address?' · '+esc(s.address):''}</div>
+          </div>
+          <div style="text-align:right">
+            <span class="bdg b-g" style="font-size:10px">${esc(s.plan||'both')}</span>
+            ${s.walletBalance!==undefined?`<div style="font-size:12px;font-weight:700;color:var(--g);margin-top:3px">₹${s.walletBalance}</div>`:''}
+          </div>
+        </div>
+      </div>`).join(''):'<div class="sd-empty">No subscribers found</div>';
+    }
+  }catch(e){
+    body.innerHTML=`<div class="sd-empty" style="color:var(--p)">❌ Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
 async function toggleThaliActive(thaliId,isActive){
   try{
     await api('updateThali',{thali_id:thaliId,is_active:!isActive});
@@ -3556,5 +3681,18 @@ async function submitUserPasswordReset(){
   }catch(e){ toast('❌ '+e.message); }
 }
 </script>
+
+<!-- STAT DETAIL MODAL -->
+<div class="mo hide" id="mo-stat-detail" onclick="if(event.target===this)closeMo('mo-stat-detail')">
+  <div class="mo-box" style="max-width:600px">
+    <div class="sd-hdr">
+      <span class="mo-t" id="sd-title" style="margin-bottom:0"></span>
+      <span class="sd-count" id="sd-count"></span>
+    </div>
+    <div id="sd-body" style="max-height:60vh;overflow-y:auto;border:1px solid #f0f0f0;border-radius:12px"></div>
+    <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-stat-detail')">Close</button></div>
+  </div>
+</div>
+
 </body>
 </html>
