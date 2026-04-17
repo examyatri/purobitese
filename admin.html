@@ -1082,11 +1082,14 @@ tr:hover td{background:#fafafa}
   <div class="mo-t">Create Coupon</div>
   <div id="notif-cpn-hint" style="display:none;background:#fffbe6;border:1.5px solid #f59e0b;border-radius:9px;padding:9px 12px;font-size:12px;color:#92400e;margin-bottom:12px"><i class="fa-solid fa-bell" style="margin-right:5px"></i>Creating coupon for new user. After clicking <strong>Create</strong>, the code will be <strong>auto-copied</strong> to your clipboard. Then go back to <strong>Notifications → WhatsApp</strong> to send it.</div>
   <div class="fg"><label class="lbl">Code *</label><input id="cp-code" class="inp" type="text" placeholder="e.g. SAVE50" style="text-transform:uppercase"></div>
-  <div class="fg"><label class="lbl">Type *</label><select id="cp-type" class="inp"><option value="percent">Percentage (%)</option><option value="fixed">Fixed (₹)</option></select></div>
-  <div class="fg"><label class="lbl">Value *</label><input id="cp-val" class="inp" type="number" placeholder="e.g. 20"></div>
+  <div class="fg"><label class="lbl">Type *</label><select id="cp-type" class="inp" onchange="cpnTypeChange()"><option value="percent">Percentage (%)</option><option value="fixed">Fixed (₹)</option><option value="percent_cap">% Off upto ₹ (Zomato-style)</option></select></div>
+  <div class="fg"><label class="lbl" id="cp-val-lbl">Value *</label><input id="cp-val" class="inp" type="number" placeholder="e.g. 20"></div>
+  <div class="fg hide" id="cp-cap-fg"><label class="lbl">Maximum Discount Cap (₹) *</label><input id="cp-cap" class="inp" type="number" min="1" placeholder="e.g. 80 → max ₹80 off"><div style="font-size:11px;color:#6b7280;margin-top:4px">e.g. 50% off upto ₹80 means customer saves 50% but never more than ₹80</div></div>
+  <div class="fg"><label class="lbl">Min Order Amount (₹) <span style="color:#6b7280;font-weight:400">(optional)</span></label><input id="cp-minord" class="inp" type="number" min="0" placeholder="e.g. 100 → only valid on orders ≥ ₹100"></div>
   <div class="fg"><label class="lbl">Expiry Date</label><input id="cp-exp" class="inp" type="date" placeholder="Select expiry date"></div>
   <div class="fg"><label class="lbl">User Phone (blank = all users)</label><input id="cp-ph" class="inp" type="tel" placeholder="Specific phone number"></div>
-  <div class="fg"><label class="lbl">Per-User Usage Limit (0 = unlimited)</label><input id="cp-limit" class="inp" type="number" min="0" value="0" placeholder="e.g. 1 for one-time use per person"></div>
+  <div class="fg"><label class="lbl">Per-User Usage Limit <span style="color:#6b7280;font-weight:400">(0 = unlimited)</span></label><input id="cp-limit" class="inp" type="number" min="0" value="1" placeholder="e.g. 1 for one-time use per user"></div>
+  <div class="fg"><label class="lbl">Total Coupon Usage Limit <span style="color:#6b7280;font-weight:400">(0 = unlimited)</span></label><input id="cp-total-limit" class="inp" type="number" min="0" value="0" placeholder="e.g. 100 → coupon expires after 100 total uses"></div>
   <div class="mo-ft"><button class="btn btn-ghost" onclick="closeMo('mo-cpn');_notifCouponPhone=null;if(doc('notif-cpn-hint'))doc('notif-cpn-hint').style.display='none'">Cancel</button><button class="btn btn-p" onclick="submitCpn()"><i class="fa-solid fa-check"></i> Create</button></div>
 </div></div>
 
@@ -2824,17 +2827,29 @@ async function loadCpns(){
     });
     doc('cpn-tb').innerHTML=coupons.length?coupons.map(c=>{
       const limit=Number(c.perUserLimit)||0;
-      // Count total uses across all users
+      const totalLimit=Number(c.totalUsageLimit)||0;
       const usageObj=c.usageCount||{};
       const totalUses=Object.values(usageObj).reduce((s,v)=>s+(Number(v)||0),0);
-      const limitStr=limit===0?`<span style="color:#999">Unlimited</span>`:`${totalUses}/${limit} used`;
+      const limitStr=limit===0?`<span style="color:#999">∞/user</span>`:`${totalUses}/${limit}/user`;
+      const totalStr=totalLimit>0?` · ${totalUses}/${totalLimit} total`:'';
+      const minOrd=Number(c.minOrderAmount)||0;
+      // Value display
+      let valDisplay='';
+      if(c.discountType==='percent_cap'){
+        valDisplay=`<strong>${c.discountValue}% off</strong> <span style="font-size:11px;color:#f97316">upto ₹${c.maxCap||'?'}</span>`;
+      } else if(c.discountType==='percent'||String(c.discountType).includes('percent')){
+        valDisplay=`<strong>${c.discountValue}%</strong>`;
+      } else {
+        valDisplay=`<strong>₹${c.discountValue}</strong>`;
+      }
+      const typeLabel=c.discountType==='percent_cap'?'% upto ₹':c.discountType==='percent'?'Percent':'Fixed';
       return `<tr>
         <td><code style="font-weight:700;font-size:13px">${esc(c.code)}</code></td>
-        <td>${esc(c.discountType)}</td>
-        <td><strong>${c.discountType.includes('percent')?c.discountValue+'%':'₹'+c.discountValue}</strong></td>
-        <td>${c.expiryDate||'<span style="color:#999">No expiry</span>'}</td>
+        <td><span style="font-size:12px">${typeLabel}</span></td>
+        <td>${valDisplay}${minOrd>0?`<br><span style="font-size:10px;color:#6b7280">Min ₹${minOrd}</span>`:''}</td>
+        <td>${c.expiryDate||'<span style="color:#999">—</span>'}</td>
         <td>${c.userPhone?`<code>${esc(c.userPhone)}</code>`:'<span style="color:#999">All</span>'}</td>
-        <td style="font-size:12px">${limitStr}</td>
+        <td style="font-size:12px">${limitStr}${totalStr}</td>
         <td><span class="bdg ${String(c.isActive).toUpperCase()==='TRUE'?'b-g':'b-r'}">${String(c.isActive).toUpperCase()==='TRUE'?'Active':'Inactive'}</span></td>
         <td><button class="btn btn-sm btn-red" onclick="delCpn('${esc(c.code)}')"><i class="fa-solid fa-trash"></i></button></td>
       </tr>`;
@@ -2842,32 +2857,52 @@ async function loadCpns(){
   }catch(e){ toast('Error: '+e.message); }
 }
 
+function cpnTypeChange(){
+  const t=doc('cp-type').value;
+  const capFg=doc('cp-cap-fg');
+  const valLbl=doc('cp-val-lbl');
+  if(t==='percent_cap'){
+    capFg.classList.remove('hide');
+    valLbl.textContent='Percentage (%) *';
+    doc('cp-val').placeholder='e.g. 50';
+  } else {
+    capFg.classList.add('hide');
+    valLbl.textContent='Value *';
+    doc('cp-val').placeholder=t==='fixed'?'e.g. 50':'e.g. 20';
+  }
+}
 function openCpnModal(){
-  ['cp-code','cp-val','cp-exp','cp-ph'].forEach(id=>doc(id).value='');
+  ['cp-code','cp-val','cp-exp','cp-ph','cp-cap','cp-minord'].forEach(id=>{if(doc(id))doc(id).value='';});
   doc('cp-type').value='percent';
+  cpnTypeChange();
   _notifCouponPhone = null;
   if(doc('notif-cpn-hint')) doc('notif-cpn-hint').style.display='none';
-  // Auto-fill today as min expiry reference — use IST date, not UTC
   const today=PB.todayYMD();
   if(doc('cp-exp')) doc('cp-exp').min=today;
-  doc('cp-limit').value='0';
+  doc('cp-limit').value='1';
+  doc('cp-total-limit').value='0';
   doc('mo-cpn').classList.remove('hide');
 }
 async function submitCpn(){
+  const type=doc('cp-type').value;
   const data={
     code:doc('cp-code').value.trim().toUpperCase(),
-    discountType:doc('cp-type').value,
+    discountType:type,
     discountValue:doc('cp-val').value,
+    maxCap:type==='percent_cap'?(Number(doc('cp-cap').value)||0):0,
+    minOrderAmount:Number(doc('cp-minord').value)||0,
     expiryDate:doc('cp-exp').value,
     userPhone:doc('cp-ph').value.trim(),
-    perUserLimit:Number(doc('cp-limit').value)||0
+    perUserLimit:Number(doc('cp-limit').value)||0,
+    totalUsageLimit:Number(doc('cp-total-limit').value)||0
   };
   if(!data.code||!data.discountValue) return toast('Code and value required');
+  if(type==='percent_cap'&&!data.maxCap) return toast('Cap amount required for % upto type');
+  if(type==='percent_cap'&&(Number(data.discountValue)<1||Number(data.discountValue)>99)) return toast('Percentage must be between 1–99');
   try{
     await api('createCoupon',data);
     closeMo('mo-cpn');
     loadCpns();
-    // If triggered from notification flow, copy code & store for WA button
     if(_notifCouponPhone && data.code){
       _notifPendingCoupons[_notifCouponPhone] = data.code;
       try{ await navigator.clipboard.writeText(data.code); } catch(e){}
@@ -4599,9 +4634,11 @@ function notifGenCoupon(phone, notifId) {
   notifMarkRead(notifId);
   _notifCouponPhone = phone;
   // Pre-fill phone and open coupon create modal directly (no page switch needed)
-  ['cp-code','cp-val','cp-exp'].forEach(id=>{ if(doc(id)) doc(id).value=''; });
+  ['cp-code','cp-val','cp-exp','cp-cap','cp-minord'].forEach(id=>{ if(doc(id)) doc(id).value=''; });
   if(doc('cp-type')) doc('cp-type').value='percent';
+  cpnTypeChange();
   if(doc('cp-limit')) doc('cp-limit').value='1';
+  if(doc('cp-total-limit')) doc('cp-total-limit').value='0';
   if(doc('cp-ph')) doc('cp-ph').value = phone;
   const today=PB.todayYMD();
   if(doc('cp-exp')) doc('cp-exp').min=today;
