@@ -1,145 +1,169 @@
-// ═══════════════════════════════════════════════════════════
-// Puro Bite — Service Worker
-// Hosting: GitHub Pages (subfolder) + Render API
-//
-// Strategy:
-//   • App shell (HTML, icons) → Cache First
-//   • API calls (onrender.com) → Network Only (always fresh)
-//   • Google Fonts / CDN assets → Cache First with long TTL
-//   • Everything else → Network First with cache fallback
-//
-// Uses relative URLs — works on any origin or subfolder
-// (GitHub Pages /purobitese/ or a future custom domain /)
-// ═══════════════════════════════════════════════════════════
+// Puro Bite Service Worker
+const CACHE_VERSION = ‘v3’;
+const STATIC_CACHE = `purobite-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `purobite-dynamic-${CACHE_VERSION}`;
+const API_CACHE = `purobite-api-${CACHE_VERSION}`;
 
-const SW_VERSION  = 'pb-v2';
-const SHELL_CACHE = `${SW_VERSION}-shell`;
-const ASSET_CACHE = `${SW_VERSION}-assets`;
-
-// Relative paths — resolve correctly regardless of subfolder depth
-const SHELL_URLS = [
-  './',
-  './index.html',
-  './admin.html',
-  './rider.html',
-  './manifest.json',
-  './manifest-admin.json',
-  './manifest-rider.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+// Files to pre-cache on install
+const STATIC_FILES = [
+‘./index.html’,
+‘./admin.html’,
+‘./rider.html’,
+‘./manifest.json’,
+‘./manifest-admin.json’,
+‘./manifest-rider.json’,
+‘./icons/icon-72.png’,
+‘./icons/icon-96.png’,
+‘./icons/icon-128.png’,
+‘./icons/icon-144.png’,
+‘./icons/icon-152.png’,
+‘./icons/icon-192.png’,
+‘./icons/icon-384.png’,
+‘./icons/icon-512.png’,
 ];
 
-// ── INSTALL — pre-cache app shell ────────────────────────────
-self.addEventListener('install', e => {
-  self.skipWaiting();
-  e.waitUntil(
-    caches.open(SHELL_CACHE).then(cache =>
-      Promise.allSettled(
-        SHELL_URLS.map(url =>
-          cache.add(url).catch(() => console.warn('[SW] Could not cache:', url))
-        )
-      )
-    )
-  );
+// Install: pre-cache static files
+self.addEventListener(‘install’, event => {
+event.waitUntil(
+caches.open(STATIC_CACHE).then(cache => {
+console.log(’[SW] Pre-caching static files’);
+return cache.addAll(STATIC_FILES);
+}).then(() => self.skipWaiting())
+);
 });
 
-// ── ACTIVATE — purge old caches ──────────────────────────────
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys
-          .filter(k => k !== SHELL_CACHE && k !== ASSET_CACHE)
-          .map(k => { console.log('[SW] Removing old cache:', k); return caches.delete(k); })
-      ))
-      .then(() => self.clients.claim())
-  );
+// Activate: clean up old caches
+self.addEventListener(‘activate’, event => {
+event.waitUntil(
+caches.keys().then(keys => {
+return Promise.all(
+keys
+.filter(k => ![STATIC_CACHE, DYNAMIC_CACHE, API_CACHE].includes(k))
+.map(k => {
+console.log(’[SW] Deleting old cache:’, k);
+return caches.delete(k);
+})
+);
+}).then(() => self.clients.claim())
+);
 });
 
-// ── FETCH ─────────────────────────────────────────────────────
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+// Fetch: smart caching strategy
+self.addEventListener(‘fetch’, event => {
+const url = new URL(event.request.url);
 
-  // 1. Render API — NETWORK ONLY (never cache API responses)
-  if (url.hostname.includes('onrender.com') ||
-      url.pathname.endsWith('/api')) {
-    return;
-  }
+// Skip non-GET and chrome-extension requests
+if (event.request.method !== ‘GET’) return;
+if (url.protocol === ‘chrome-extension:’) return;
 
-  // 2. Google Fonts + CDN — CACHE FIRST
-  if (url.hostname.includes('fonts.googleapis.com') ||
-      url.hostname.includes('fonts.gstatic.com') ||
-      url.hostname.includes('cdnjs.cloudflare.com')) {
-    e.respondWith(
-      caches.open(ASSET_CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          if (cached) return cached;
-          return fetch(e.request).then(res => {
-            if (res.ok) cache.put(e.request, res.clone());
-            return res;
-          });
-        })
-      )
-    );
-    return;
-  }
+// API calls (Render backend) → Network first, fallback to cache
+if (url.hostname.includes(‘onrender.com’) || url.hostname.includes(‘supabase.co’)) {
+event.respondWith(networkFirst(event.request, API_CACHE));
+return;
+}
 
-  // 3. HTML navigation — STALE WHILE REVALIDATE
-  if (e.request.mode === 'navigate' ||
-      url.pathname.endsWith('.html') ||
-      url.pathname.endsWith('/')) {
-    e.respondWith(
-      caches.open(SHELL_CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          const networkFetch = fetch(e.request)
-            .then(res => { if (res.ok) cache.put(e.request, res.clone()); return res; })
-            .catch(() => cached);
-          return cached || networkFetch;
-        })
-      )
-    );
-    return;
-  }
+// Google Fonts, CDN → Stale while revalidate
+if (
+url.hostname.includes(‘fonts.googleapis.com’) ||
+url.hostname.includes(‘fonts.gstatic.com’) ||
+url.hostname.includes(‘cdnjs.cloudflare.com’)
+) {
+event.respondWith(staleWhileRevalidate(event.request, DYNAMIC_CACHE));
+return;
+}
 
-  // 4. Icons, manifests, images — CACHE FIRST
-  if (url.pathname.includes('/icons/') ||
-      url.pathname.endsWith('.json')   ||
-      url.pathname.endsWith('.png')    ||
-      url.pathname.endsWith('.jpg')    ||
-      url.pathname.endsWith('.svg')    ||
-      url.pathname.endsWith('.ico')) {
-    e.respondWith(
-      caches.open(ASSET_CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          if (cached) return cached;
-          return fetch(e.request).then(res => {
-            if (res.ok) cache.put(e.request, res.clone());
-            return res;
-          });
-        })
-      )
-    );
-    return;
-  }
+// Same-origin static files → Cache first
+if (url.origin === self.location.origin) {
+event.respondWith(cacheFirst(event.request, STATIC_CACHE));
+return;
+}
 
-  // 5. Anything else — NETWORK FIRST with cache fallback
-  e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        if (res.ok) caches.open(ASSET_CACHE).then(c => c.put(e.request, res.clone()));
-        return res;
-      })
-      .catch(() =>
-        caches.match(e.request).then(cached =>
-          cached || new Response('Offline — please check your internet connection.', {
-            status: 503, headers: { 'Content-Type': 'text/plain' }
-          })
-        )
-      )
-  );
+// Everything else → Network first
+event.respondWith(networkFirst(event.request, DYNAMIC_CACHE));
 });
 
-// ── MESSAGE — force update from app ──────────────────────────
-self.addEventListener('message', e => {
-  if (e.data === 'SKIP_WAITING') self.skipWaiting();
+// ── Strategies ──────────────────────────────────────
+
+async function cacheFirst(request, cacheName) {
+const cached = await caches.match(request);
+if (cached) return cached;
+try {
+const response = await fetch(request);
+if (response.ok) {
+const cache = await caches.open(cacheName);
+cache.put(request, response.clone());
+}
+return response;
+} catch {
+return new Response(‘Offline – please check your connection.’, {
+status: 503,
+headers: { ‘Content-Type’: ‘text/plain’ }
 });
+}
+}
+
+async function networkFirst(request, cacheName) {
+try {
+const response = await fetch(request);
+if (response.ok) {
+const cache = await caches.open(cacheName);
+cache.put(request, response.clone());
+}
+return response;
+} catch {
+const cached = await caches.match(request);
+if (cached) return cached;
+return new Response(JSON.stringify({ error: ‘Offline’ }), {
+status: 503,
+headers: { ‘Content-Type’: ‘application/json’ }
+});
+}
+}
+
+async function staleWhileRevalidate(request, cacheName) {
+const cache = await caches.open(cacheName);
+const cached = await cache.match(request);
+const fetchPromise = fetch(request).then(response => {
+if (response.ok) cache.put(request, response.clone());
+return response;
+}).catch(() => cached);
+return cached || fetchPromise;
+}
+
+// ── Push Notifications ───────────────────────────────
+
+self.addEventListener(‘push’, event => {
+let data = { title: ‘Puro Bite’, body: ‘You have a new update!’, icon: ‘./icons/icon-192.png’ };
+if (event.data) {
+try { data = { …data, …event.data.json() }; } catch {}
+}
+event.waitUntil(
+self.registration.showNotification(data.title, {
+body: data.body,
+icon: data.icon || ‘./icons/icon-192.png’,
+badge: ‘./icons/icon-72.png’,
+vibrate: [200, 100, 200],
+data: data.url || ‘/’,
+})
+);
+});
+
+self.addEventListener(‘notificationclick’, event => {
+event.notification.close();
+event.waitUntil(
+clients.openWindow(event.notification.data || ‘/’)
+);
+});
+
+// ── Background Sync ──────────────────────────────────
+
+self.addEventListener(‘sync’, event => {
+if (event.tag === ‘sync-orders’) {
+event.waitUntil(syncPendingOrders());
+}
+});
+
+async function syncPendingOrders() {
+// Placeholder: implement IndexedDB-based offline order queue if needed
+console.log(’[SW] Background sync triggered for orders’);
+}
