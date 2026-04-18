@@ -29,7 +29,7 @@ app.get('/ping', (req, res) => {
   res.status(200).json({ status: 'alive', time: new Date().toISOString() });
 });
 app.get('/', (req, res) => {
-  res.status(200).json({ app: 'Puro Bite API v14', status: 'running' });
+  res.status(200).json({ app: 'Tiffo API v14', status: 'running' });
 });
 
 // ── MAIN API ROUTE ────────────────────────────────────────────
@@ -244,7 +244,7 @@ async function purgeOldNotifications() {
 
 // ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Puro Bite API v14 running on port ' + PORT));
+app.listen(PORT, () => console.log('Tiffo API v14 running on port ' + PORT));
 
 // ── SELF PING — keeps Render awake ───────────────────────────
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || '';
@@ -1624,16 +1624,43 @@ async function riderLogin(data) {
 
 async function getRiderOrders(data) {
   if (!data.riderId) throw new Error('riderId required');
-  // v14: rider sees verified/preparing/out for delivery — not raw pending
-  const { data: assigned, error: e1 } = await supabase.from('orders').select('*')
+
+  // ── Optional date filter from rider UI ──────────────────────
+  // data.dateFilter: 'all' | 'today' | 'yesterday' | 'daybeforeyesterday'
+  const dateFilter = data.dateFilter || 'all';
+  function _istDaysAgo(n) {
+    const d = new Date(Date.now() + 5.5 * 3600000);
+    d.setUTCDate(d.getUTCDate() - n);
+    return d.getUTCFullYear() + '-' +
+      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getUTCDate()).padStart(2, '0');
+  }
+  const todayIST     = _istDaysAgo(0);
+  const yesterdayIST = _istDaysAgo(1);
+  const dbyIST       = _istDaysAgo(2);
+
+  // Build date-filtered query helper
+  function applyDateFilter(query) {
+    if (dateFilter === 'today')              return query.eq('order_date', todayIST);
+    if (dateFilter === 'yesterday')          return query.eq('order_date', yesterdayIST);
+    if (dateFilter === 'daybeforeyesterday') return query.eq('order_date', dbyIST);
+    return query; // 'all' — no date restriction
+  }
+
+  // Assigned orders for this rider
+  let q1 = supabase.from('orders').select('*')
     .eq('rider_id', data.riderId)
     .in('order_status', ['verified', 'preparing', 'out for delivery', 'delivered']);
+  q1 = applyDateFilter(q1);
+  const { data: assigned, error: e1 } = await q1;
   if (e1) throw new Error(e1.message);
 
   // Unassigned orders that are verified/preparing — visible to all riders
-  const { data: unassigned, error: e2 } = await supabase.from('orders').select('*')
+  let q2 = supabase.from('orders').select('*')
     .is('rider_id', null)
     .in('order_status', ['verified', 'preparing']);
+  q2 = applyDateFilter(q2);
+  const { data: unassigned, error: e2 } = await q2;
   if (e2) throw new Error(e2.message);
 
   const seen   = new Set();
@@ -1848,9 +1875,33 @@ async function getKhata(data) {
       note:           t.note || '',
       runningBalance: running,
       date:           istDateStr(ist),
-      time:           istTimeStr(ist)
+      time:           istTimeStr(ist),
+      orderSource:    null,
+      orderStatus:    null
     };
   });
+
+  // Attach orderSource + orderStatus for tiffin entries (for PDF Note column)
+  const ORDER_ID_RE = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+  const tiffentries = entries.filter(e => e.type !== 'recharge' && e.note);
+  const orderIds = [...new Set(tiffentries.map(e => { const m = e.note.match(ORDER_ID_RE); return m ? m[1] : null; }).filter(Boolean))];
+  if (orderIds.length) {
+    const { data: ordRows } = await supabase.from('orders')
+      .select('order_id, order_source, order_status')
+      .in('order_id', orderIds);
+    if (ordRows && ordRows.length) {
+      const ordMap = {};
+      ordRows.forEach(r => { ordMap[r.order_id] = r; });
+      entries.forEach(e => {
+        if (e.type === 'recharge') return;
+        const m = e.note.match(ORDER_ID_RE);
+        if (m && ordMap[m[1]]) {
+          e.orderSource = ordMap[m[1]].order_source || 'user';
+          e.orderStatus = ordMap[m[1]].order_status || null;
+        }
+      });
+    }
+  }
 
   const computedBal = running;
   // Sync wallet table to match transaction sum
