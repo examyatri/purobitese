@@ -316,19 +316,13 @@ tr:hover td{background:#fafafa}
         <option value="staff">Staff</option>
       </select>
     </div>
-    <div class="fg" id="a-em-fg"><label class="lbl">Email</label><input id="a-em" class="inp" type="email" placeholder="admin@email.com" oninput="var e=document.getElementById('login-err');if(e)e.style.display='none'"></div>
+    <div class="fg" id="a-em-fg"><label class="lbl">Username</label><input id="a-em" class="inp" type="text" placeholder="admin" oninput="var e=document.getElementById('login-err');if(e)e.style.display='none'"></div>
     <div class="fg" id="a-uid-fg" style="display:none"><label class="lbl">Staff Username</label><input id="a-uid" class="inp" type="text" placeholder="username"></div>
     <div id="admin-creds-hint" class="creds-hint">✅ Credentials filled from last session</div>
     <div class="fg"><label class="lbl">Password</label><div class="pw-wrap"><input id="a-pw" class="inp" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" class="pw-eye" onclick="togglePw('a-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button></div></div>
     <button class="btn btn-p btn-full" id="login-btn" onclick="doLogin()"><i class="fa-solid fa-lock-open"></i> Access Dashboard</button>
     <div id="login-err" style="display:none;margin-top:10px;padding:10px 14px;background:#fde8ea;border-radius:10px;font-size:13px;font-weight:600;color:#c1121f;text-align:center"></div>
-    <div style="margin-top:14px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
-      <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">⚙️ Credentials Setup</div>
-      <div style="font-size:12px;color:#64748b;line-height:1.6">
-        Default: <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin@tiffo.com</code> / <code style="background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:11px">admin123</code><br>
-        To change: Login → <strong>Settings</strong> → <strong>Reset Admin Password</strong>.
-      </div>
-    </div>
+
   </div>
 </div>
 
@@ -603,8 +597,8 @@ tr:hover td{background:#fafafa}
               <div class="settings-item-left">
                 <div class="settings-item-icon" style="background:#fff0f1"><span>🔐</span></div>
                 <div>
-                  <div class="settings-item-text">Change Admin Password</div>
-                  <div class="settings-item-desc">Update hashed password in Settings sheet</div>
+                  <div class="settings-item-text">Change Admin Credentials</div>
+                  <div class="settings-item-desc">Update login username or password</div>
                 </div>
               </div>
               <i class="fa-solid fa-chevron-right settings-item-arrow"></i>
@@ -682,24 +676,40 @@ tr:hover td{background:#fafafa}
           </div>
         </div>
 
-        <!-- SUB: Change Admin Password -->
+        <!-- SUB: Change Admin Credentials -->
         <div class="settings-sub" id="settings-sub-admin-pw">
           <div class="settings-sub-header">
             <button class="settings-back-btn" onclick="closeSettingsSub()"><i class="fa-solid fa-arrow-left"></i></button>
-            <div class="settings-sub-title">🔐 Change Admin Password</div>
+            <div class="settings-sub-title">🔐 Change Admin Credentials</div>
           </div>
           <div class="tc" style="max-width:520px">
             <div style="padding:18px">
-              <div class="fg"><label class="lbl">New Password</label>
+              <!-- Current password — always required for verification -->
+              <div class="fg"><label class="lbl">Current Password <span style="color:var(--p)">*</span></label>
+                <div class="pw-wrap">
+                  <input id="cred-cur-pw" class="inp" type="password" placeholder="Enter current password">
+                  <button type="button" class="pw-eye" onclick="togglePw('cred-cur-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
+                </div>
+              </div>
+              <div style="border-top:1px dashed #e5e7eb;margin:16px 0 14px"></div>
+              <!-- New username (optional) -->
+              <div class="fg"><label class="lbl">New Username <span style="color:#94a3b8;font-weight:400;font-size:11px">(leave blank to keep current)</span></label>
+                <input id="cred-new-uid" class="inp" type="text" placeholder="New login username">
+              </div>
+              <!-- New password (optional) -->
+              <div class="fg"><label class="lbl">New Password <span style="color:#94a3b8;font-weight:400;font-size:11px">(leave blank to keep current)</span></label>
                 <div class="pw-wrap">
                   <input id="new-admin-pw" class="inp" type="password" placeholder="Min 6 characters">
                   <button type="button" class="pw-eye" onclick="togglePw('new-admin-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
                 </div>
               </div>
-              <div class="fg"><label class="lbl">Confirm Password</label>
-                <input id="new-admin-pw-confirm" class="inp" type="password" placeholder="Re-enter password">
+              <div class="fg"><label class="lbl">Confirm New Password</label>
+                <input id="new-admin-pw-confirm" class="inp" type="password" placeholder="Re-enter new password">
               </div>
-              <button class="btn btn-dk" onclick="saveAdminPassword()"><i class="fa-solid fa-key"></i> Update Password</button>
+              <div style="font-size:12px;color:#64748b;background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:14px;border:1px solid #e2e8f0">
+                💡 Fill only what you want to change. Current password is always required.
+              </div>
+              <button class="btn btn-dk" onclick="saveAdminCredentials()"><i class="fa-solid fa-key"></i> Update Credentials</button>
             </div>
           </div>
         </div>
@@ -1590,7 +1600,7 @@ async function doLogin(){
   const role=doc('a-role').value;
   const pw=doc('a-pw').value.trim();
   if(!pw){ toast('Password required'); return; }
-  if(role==='admin' && !doc('a-em').value.trim()){ toast('Email required'); return; }
+  if(role==='admin' && !doc('a-em').value.trim()){ toast('Username required'); return; }
   if(role==='staff' && !doc('a-uid').value.trim()){ toast('Username required'); return; }
 
   const btn=doc('login-btn');
@@ -1603,8 +1613,8 @@ async function doLogin(){
 
   try{
     if(role==='admin'){
-      const em=doc('a-em').value.trim().toLowerCase();
-      const admin=await api('adminLogin',{email:em,password:pw});
+      const em=doc('a-em').value.trim();
+      const admin=await api('adminLogin',{username:em,password:pw});
       Session.set({...admin,role:'admin'});
       ACreds.save('admin',em,pw);
       showApp(Session.get());
@@ -3347,22 +3357,40 @@ async function submitRider(){
 // ════════════════════════════════════════════════
 // ADMIN PASSWORD RESET (Settings page)
 // ════════════════════════════════════════════════
-async function saveAdminPassword(){
-  const pw=doc('new-admin-pw').value;
-  const pw2=doc('new-admin-pw-confirm').value;
-  if(!pw||pw.length<6){ toast('Password must be at least 6 characters'); return; }
-  if(pw!==pw2){ toast('❌ Passwords do not match'); return; }
-  // Always pass the logged-in admin email so server knows which account to update
-  const sess=Session.get();
-  if(!sess||!sess.email){ toast('❌ Session expired. Please re-login.'); return; }
+async function saveAdminCredentials(){
+  const curPw  = doc('cred-cur-pw').value;
+  const newUid = doc('cred-new-uid').value.trim();
+  const newPw  = doc('new-admin-pw').value;
+  const newPw2 = doc('new-admin-pw-confirm').value;
+
+  if(!curPw){ toast('Current password is required'); return; }
+  if(!newUid && !newPw){ toast('Enter a new username, new password, or both'); return; }
+  if(newPw && newPw.length < 6){ toast('New password must be at least 6 characters'); return; }
+  if(newPw && newPw !== newPw2){ toast('❌ New passwords do not match'); return; }
+
+  const sess = Session.get();
+  if(!sess || !sess.username){ toast('❌ Session expired. Please re-login.'); return; }
+
   try{
-    await api('resetAdminPassword',{email:sess.email, newPassword:pw});
+    const effectiveNewPw = newPw || curPw;
+    await api('resetAdminPassword',{ username: sess.username, oldPassword: curPw, newPassword: effectiveNewPw });
+
+    if(newUid && newUid !== sess.username){
+      if(!sess.id){ toast('❌ Session missing staff ID. Re-login and try again.'); return; }
+      await api('updateStaff',{ id: sess.id, username: newUid });
+      Session.set({...sess, username: newUid});
+      ACreds.save('admin', newUid, newPw || curPw);
+      toast('✅ Username'+(newPw?' and password':'')+' updated! Re-logging in...');
+      setTimeout(()=>doLogout(), 2000);
+    } else {
+      if(newPw) ACreds.save('admin', sess.username, newPw);
+      toast('✅ Password updated successfully!');
+    }
+
+    doc('cred-cur-pw').value='';
+    doc('cred-new-uid').value='';
     doc('new-admin-pw').value='';
     doc('new-admin-pw-confirm').value='';
-    toast('✅ Password updated! Use new password on next login.');
-    // Update saved credentials so autofill stays correct
-    const saved=ACreds.get();
-    if(saved) ACreds.save(saved.role,saved.id,pw);
   }catch(e){ toast('❌ '+e.message); }
 }
 
