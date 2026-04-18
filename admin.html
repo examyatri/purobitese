@@ -802,7 +802,7 @@ function addBulkItemRow() {
   const container = document.getElementById('bulk-selected-items');
   if (!container) return;
   const rowId = Date.now();
-  const opts = _menuCache.map(m=>`<option value="${m.id}" data-price="${m.price||0}">${m.name} (₹${m.price||0})</option>`).join('');
+  const opts = _menuCache.map(m=>`<option value="${m.item_id}" data-price="${m.price||0}">${m.name} (₹${m.price||0})</option>`).join('');
   const div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:8px;align-items:center';
   div.id = `bulk-row-${rowId}`;
@@ -818,8 +818,8 @@ function collectBulkItems() {
   return Array.from(rows).map(row => {
     const sel = row.querySelector('select');
     const qty = parseInt(row.querySelector('input')?.value) || 1;
-    const item = _menuCache.find(m => m.id == sel?.value);
-    return item ? { id: item.id, name: item.name, qty, price: item.price||0 } : null;
+    const item = _menuCache.find(m => m.item_id == sel?.value);
+    return item ? { item_id: item.item_id, name: item.name, qty, price: item.price||0 } : null;
   }).filter(Boolean);
 }
 
@@ -913,13 +913,13 @@ function renderMenuTable() {
       <td><b>${m.name}</b>${m.variants?.length?`<br><small style="color:#94a3b8">${m.variants.length} variant(s)</small>`:''}</td>
       <td style="font-size:13px">${m.category||'—'}</td>
       <td>₹${m.price||0}</td>
-      <td><input type="number" value="${m.stock_grams??''}" placeholder="∞" style="width:80px;padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateStock(${m.id},this.value)"></td>
+      <td><input type="number" value="${m.stock_grams??''}" placeholder="∞" style="width:80px;padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateStock('${m.item_id}',this.value)"></td>
       <td><span style="font-size:12px;padding:3px 10px;border-radius:20px;background:${m.highlight&&m.highlight!=='none'?'#fef3c7':'#f1f5f9'};color:${m.highlight&&m.highlight!=='none'?'#92400e':'#64748b'}">${m.highlight||'none'}</span></td>
-      <td><label class="toggle-sw"><input type="checkbox" ${m.is_active?'checked':''} onchange="toggleMenuActive(${m.id},this.checked)"><span class="toggle-sl"></span></label></td>
+      <td><label class="toggle-sw"><input type="checkbox" ${m.is_active?'checked':''} onchange="toggleMenuActive('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openMenuModal(${m.id})"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteMenuItem(${m.id})"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openMenuModal('${m.item_id}')"><i class="fa fa-edit"></i></button>
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteMenuItem('${m.item_id}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`).join('') :
@@ -927,17 +927,17 @@ function renderMenuTable() {
 }
 
 async function updateStock(id, val) {
-  try { await api('updateMenuItem', { id, stock_grams: val === '' ? null : parseFloat(val) }); aToast('Stock updated'); }
+  try { await api('updateMenuItem', { item_id: id, stock_grams: val === '' ? null : parseFloat(val) }); aToast('Stock updated'); }
   catch(e) { aToast(e.message); }
 }
 
 async function toggleMenuActive(id, active) {
-  try { await api('updateMenuItem', { id, is_active: active }); aToast(active?'Item activated':'Item deactivated'); }
+  try { await api('updateMenuItem', { item_id: id, is_active: active }); aToast(active?'Item activated':'Item deactivated'); }
   catch(e) { aToast(e.message); loadMenu(); }
 }
 
 function openMenuModal(editId = null) {
-  const m = editId ? _menuItems.find(x => x.id === editId) : null;
+  const m = editId ? _menuItems.find(x => x.item_id === editId) : null;
   const variants = m?.variants?.length ? m.variants : [];
   const variantRows = variants.map((v,i) => buildVariantRow(i, v.label, v.price)).join('');
   openMo(`
@@ -997,7 +997,7 @@ function collectMenuForm(id=null) {
     is_active:   document.getElementById('mf-active')?.checked,
     variants
   };
-  if (id) data.id = id;
+  if (id) data.item_id = id;
   return data;
 }
 
@@ -1015,7 +1015,7 @@ async function saveMenuItem(isEdit, editId) {
 
 async function deleteMenuItem(id) {
   confirmAction('Delete this menu item?', async function() {
-    try { await api('deleteMenuItem', { id }); loadMenu(); aToast('Deleted'); }
+    try { await api('deleteMenuItem', { item_id: id }); loadMenu(); aToast('Deleted'); }
     catch(e) { aToast(e.message); }
   });
 }
@@ -1043,12 +1043,12 @@ function renderThaliTable() {
       <td style="font-size:12px;max-width:160px">${t.description||'—'}</td>
       <td>₹${t.price||0}</td>
       <td>${t.stock_qty??'∞'}</td>
-      <td><label class="toggle-sw"><input type="checkbox" ${t.is_active?'checked':''} onchange="toggleThaliActive(${t.id},this.checked)"><span class="toggle-sl"></span></label></td>
+      <td><label class="toggle-sw"><input type="checkbox" ${t.is_active?'checked':''} onchange="toggleThaliActive('${t.thali_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openThaliModal(${t.id})"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-g" style="padding:5px 10px;font-size:12px" onclick="openThaliItemsModal(${t.id},'${t.name}')">Items</button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteThali(${t.id})"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openThaliModal('${t.thali_id}')"><i class="fa fa-edit"></i></button>
+          <button class="btn btn-g" style="padding:5px 10px;font-size:12px" onclick="openThaliItemsModal('${t.thali_id}','${t.name}')">Items</button>
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteThali('${t.thali_id}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`).join('') :
@@ -1056,7 +1056,7 @@ function renderThaliTable() {
 }
 
 function openThaliModal(editId = null) {
-  const t = editId ? _thalis.find(x => x.id === editId) : null;
+  const t = editId ? _thalis.find(x => x.thali_id === editId) : null;
   openMo(`
     <div class="mo-title">${t ? 'Edit Thali' : 'Add Thali'}</div>
     <div class="field"><label>Name</label><input id="tf-name" value="${t?.name||''}"></div>
@@ -1084,21 +1084,21 @@ async function saveThali(isEdit, editId) {
     is_active: document.getElementById('tf-active')?.checked
   };
   if (!data.name) { aToast('Name required'); return; }
-  if (isEdit) data.id = editId;
+  if (isEdit) data.thali_id = editId;
   try {
-    await api(isEdit ? 'updateThali' : 'addThali', data);
+    await api(isEdit ? 'updateThali' : 'createThali', data);
     closeMo(); loadThalis(); aToast(isEdit ? 'Thali updated' : 'Thali added');
   } catch(e) { aToast(e.message); }
 }
 
 async function toggleThaliActive(id, active) {
-  try { await api('updateThali', { id, is_active: active }); aToast(active?'Activated':'Deactivated'); }
+  try { await api('updateThali', { thali_id: id, is_active: active }); aToast(active?'Activated':'Deactivated'); }
   catch(e) { aToast(e.message); loadThalis(); }
 }
 
 async function deleteThali(id) {
   confirmAction('Delete this thali?', async function() {
-    try { await api('deleteThali', { id }); loadThalis(); aToast('Deleted'); }
+    try { await api('deleteThali', { thali_id: id }); loadThalis(); aToast('Deleted'); }
     catch(e) { aToast(e.message); }
   });
 }
@@ -1111,10 +1111,10 @@ async function openThaliItemsModal(thaliId, thaliName) {
     const linkedHtml = linked.length ? linked.map(li => `
       <div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #f1f5f9">
         <span style="flex:1">${li.name} ${li.variant_label?`(${li.variant_label})`:''}</span>
-        <button class="btn btn-danger" style="padding:3px 10px;font-size:12px" onclick="removeThaliItem(${thaliId},${li.id},this)">×</button>
+        <button class="btn btn-danger" style="padding:3px 10px;font-size:12px" onclick="removeThaliItem('${thaliId}',${li.id},this)">×</button>
       </div>`).join('') : '<div style="color:#94a3b8;padding:12px">No items linked</div>';
 
-    const menuOpts = menuItems.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    const menuOpts = menuItems.map(m => `<option value="${m.item_id}">${m.name}</option>`).join('');
     openMo(`
       <div class="mo-title">Items — ${thaliName}</div>
       <div style="margin-bottom:16px">${linkedHtml}</div>
@@ -1134,7 +1134,7 @@ async function addThaliItem(thaliId, thaliName) {
   const menuItemId = document.getElementById('ti-menu-sel')?.value;
   const variantLabel = document.getElementById('ti-variant')?.value.trim();
   try {
-    await api('addThaliItem', { thaliId, menuItemId, variantLabel });
+    await api('addThaliItem', { thali_id: thaliId, menu_item_id: menuItemId, variant_label: variantLabel });
     aToast('Item added');
     openThaliItemsModal(thaliId, thaliName);
   } catch(e) { aToast(e.message); }
@@ -1523,11 +1523,11 @@ function renderRidersTable() {
       <td>${r.phone}</td>
       <td>${r.vehicle||'—'}</td>
       <td>${r.zone||'—'}</td>
-      <td><label class="toggle-sw"><input type="checkbox" ${r.is_active?'checked':''} onchange="toggleRiderActive(${r.id},this.checked)"><span class="toggle-sl"></span></label></td>
+      <td><label class="toggle-sw"><input type="checkbox" ${r.is_active?'checked':''} onchange="toggleRiderActive('${r.rider_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openRiderModal(${r.id})"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteRider(${r.id})"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openRiderModal('${r.rider_id}')"><i class="fa fa-edit"></i></button>
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteRider('${r.rider_id}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`).join('') :
@@ -1535,7 +1535,7 @@ function renderRidersTable() {
 }
 
 function openRiderModal(editId = null) {
-  const r = editId ? _riders.find(x => x.id === editId) : null;
+  const r = editId ? _riders.find(x => x.rider_id === editId) : null;
   openMo(`
     <div class="mo-title">${r ? 'Edit Rider' : 'Add Rider'}</div>
     <div class="field"><label>Name</label><input id="rf-name" value="${r?.name||''}"></div>
@@ -1565,22 +1565,22 @@ async function saveRider(isEdit, editId) {
   const pw = document.getElementById('rf-pw')?.value;
   if (!isEdit && !pw) { aToast('Password required for new rider'); return; }
   if (pw) data.password = pw;
-  if (isEdit) data.id = editId;
+  if (isEdit) data.rider_id = editId;
   if (!data.name || !data.phone) { aToast('Name and phone required'); return; }
   try {
-    await api(isEdit ? 'updateRider' : 'addRider', data);
+    await api(isEdit ? 'updateRider' : 'createRider', data);
     closeMo(); loadRiders(); aToast(isEdit ? 'Rider updated' : 'Rider added');
   } catch(e) { aToast(e.message); }
 }
 
 async function toggleRiderActive(id, active) {
-  try { await api('updateRider', { id, is_active: active }); aToast(active?'Activated':'Deactivated'); }
+  try { await api('updateRider', { rider_id: id, is_active: active }); aToast(active?'Activated':'Deactivated'); }
   catch(e) { aToast(e.message); loadRiders(); }
 }
 
 async function deleteRider(id) {
   confirmAction('Delete this rider?', async function() {
-    try { await api('deleteRider', { id }); loadRiders(); aToast('Deleted'); }
+    try { await api('deleteRider', { rider_id: id }); loadRiders(); aToast('Deleted'); }
     catch(e) { aToast(e.message); }
   });
 }
@@ -1694,8 +1694,8 @@ function renderStaffTable() {
       <td style="font-size:12px">${fmtDate(s.created_at)}</td>
       <td>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openStaffModal(${s.id})"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteStaff(${s.id},'${s.username}')"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openStaffModal('${s.id}')"><i class="fa fa-edit"></i></button>
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteStaff('${s.id}','${s.username}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`).join('') :
@@ -1733,7 +1733,7 @@ async function saveStaff(isEdit, editId) {
   if (isEdit) data.id = editId;
   if (!data.username || !data.name) { aToast('Username and name required'); return; }
   try {
-    await api(isEdit ? 'updateStaff' : 'addStaff', data);
+    await api(isEdit ? 'updateStaff' : 'createStaff', data);
     closeMo(); loadStaff(); aToast(isEdit ? 'Staff updated' : 'Staff added');
   } catch(e) { aToast(e.message); }
 }

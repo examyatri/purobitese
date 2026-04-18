@@ -1818,21 +1818,21 @@ function renderOrderList(orders) {
     const items = o.items ? (typeof o.items === 'string' ? JSON.parse(o.items) : o.items) : [];
     const itemsHtml = items.slice(0, 3).map(i => `• ${i.name} × ${i.qty}`).join('<br>');
     const extra = items.length > 3 ? `<br><span style="color:var(--gr);font-size:12px">+${items.length-3} more</span>` : '';
-    const payBadge = o.payment_method === 'wallet'
+    const payBadge = (o.user_type === 'subscriber')
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
       : `<span class="ord-pay-badge">💵 Cash</span>`;
     return `<div class="order-card">
       <div class="ord-hd">
         <div class="ord-id">#${o.order_id || o.id}</div>
-        <span class="status-badge ${getStatusClass(o.status)}">${(o.status||'pending').replace(/_/g,' ')}</span>
+        <span class="status-badge ${getStatusClass(o.order_status)}">${(o.order_status||'pending').replace(/_/g,' ')}</span>
       </div>
       <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-bottom:6px">
-        ${fmtDate(o.created_at)} ${fmtTime(o.order_time || '')}
+        ${fmtDate(o.created_at)} ${fmtTime(o.time || '')}
       </div>
       <div class="ord-items">${itemsHtml}${extra}</div>
       <div class="ord-foot">
         <div style="display:flex;align-items:center;gap:8px">
-          <span class="ord-total">₹${o.total || 0}</span>
+          <span class="ord-total">₹${o.final_amount || o.total_amount || 0}</span>
           ${payBadge}
         </div>
         <button class="ord-help-btn" onclick="openWA(CFG.WA,'Hi! Help with order #${o.order_id||o.id}')">
