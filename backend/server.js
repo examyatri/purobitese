@@ -961,6 +961,7 @@ async function createOrder(data) {
   const ist     = getIST();
   const orderId = generateOrderId(ist);
   const ph      = cleanPhone(data.phone);
+  const isSub   = data.userType === 'subscriber' && data.payFromWallet;
   const amount  = Number(data.finalAmount) || 0;
 
   // ── Step 1: Verify subscriber status from DB (v14 fix) ─────
@@ -1023,7 +1024,6 @@ async function createOrder(data) {
     user_type:      data.userType || 'daily',
     payment_status: 'pending',
     order_status:   'pending',
-    order_source:   'user',
     order_date:     istDateStr(ist),
     order_time:     istTimeStr(ist)
   }).select().single();
