@@ -1826,8 +1826,13 @@ function renderCart() {
 
 function calcDisc(coupon, sub) {
   const dtype = coupon.discountType || coupon.discount_type;
-  const dval  = coupon.discountValue || coupon.discount_value;
-  return dtype === 'percent' ? Math.round(sub * dval / 100) : Number(dval);
+  const dval  = Number(coupon.discountValue || coupon.discount_value) || 0;
+  const cap   = Number(coupon.maxCap || coupon.max_cap) || 0;
+  if (dtype === 'percent' || dtype === 'percent_cap') {
+    const raw = Math.round(sub * dval / 100);
+    return (dtype === 'percent_cap' && cap > 0) ? Math.min(raw, cap) : raw;
+  }
+  return dval;
 }
 
 async function applyCoupon() {
@@ -1836,10 +1841,10 @@ async function applyCoupon() {
   msg.textContent = 'Checking...'; msg.className = 'cpn-msg'; msg.classList.remove('hide');
   try {
     const user = Auth.get();
-    const c = await api('applyCoupon', { code, phone: user?.phone });
-    _coupon = c;
     const cart = Cart.get(), sub = cart.reduce((s, i) => s + i.price * i.qty, 0);
-    const disc = calcDisc(c, sub);
+    const res = await api('applyCoupon', { code, phone: user?.phone, orderAmount: sub });
+    _coupon = res.coupon || res;
+    const disc = calcDisc(_coupon, sub);
     msg.textContent = `✅ ${code} applied! You save ₹${disc}`; msg.className = 'cpn-msg ok';
     msg.classList.remove('hide');
     launchConfetti();

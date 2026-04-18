@@ -3036,32 +3036,29 @@ async function loadCpns(){
       return (a.code||'').localeCompare(b.code||''); // default code_az
     });
     doc('cpn-tb').innerHTML=coupons.length?coupons.map(c=>{
-      const limit=Number(c.perUserLimit)||0;
-      const totalLimit=Number(c.totalUsageLimit)||0;
-      const usageObj=c.usageCount||{};
-      const totalUses=Object.values(usageObj).reduce((s,v)=>s+(Number(v)||0),0);
-      const limitStr=limit===0?`<span style="color:#999">∞/user</span>`:`${totalUses}/${limit}/user`;
-      const totalStr=totalLimit>0?` · ${totalUses}/${totalLimit} total`:'';
-      const minOrd=Number(c.minOrderAmount)||0;
+      const totalUses=(c.used_count)||0;
+      const maxUsage=Number(c.max_usage)||0;
+      const limitStr=maxUsage===0?`<span style="color:#999">∞ uses</span>`:`${totalUses}/${maxUsage} used`;
+      const minOrd=Number(c.min_order)||0;
       // Value display
       let valDisplay='';
-      if(c.discountType==='percent_cap'){
-        valDisplay=`<strong>${c.discountValue}% off</strong> <span style="font-size:11px;color:#f97316">upto ₹${c.maxCap||'?'}</span>`;
-      } else if(c.discountType==='percent'||String(c.discountType).includes('percent')){
-        valDisplay=`<strong>${c.discountValue}%</strong>`;
+      if(c.discount_type==='percent_cap'){
+        valDisplay=`<strong>${c.discount_value}% off</strong> <span style="font-size:11px;color:#f97316">upto ₹${c.max_cap||'?'}</span>`;
+      } else if(c.discount_type==='percent'||String(c.discount_type).includes('percent')){
+        valDisplay=`<strong>${c.discount_value}%</strong>`;
       } else {
-        valDisplay=`<strong>₹${c.discountValue}</strong>`;
+        valDisplay=`<strong>₹${c.discount_value}</strong>`;
       }
-      const typeLabel=c.discountType==='percent_cap'?'% upto ₹':c.discountType==='percent'?'Percent':'Fixed';
+      const typeLabel=c.discount_type==='percent_cap'?'% upto ₹':c.discount_type==='percent'?'Percent':'Fixed';
       return `<tr>
         <td><code style="font-weight:700;font-size:13px">${esc(c.code)}</code></td>
         <td><span style="font-size:12px">${typeLabel}</span></td>
         <td>${valDisplay}${minOrd>0?`<br><span style="font-size:10px;color:#6b7280">Min ₹${minOrd}</span>`:''}</td>
-        <td>${c.expiryDate||'<span style="color:#999">—</span>'}</td>
-        <td>${c.userPhone?`<code>${esc(c.userPhone)}</code>`:'<span style="color:#999">All</span>'}</td>
-        <td style="font-size:12px">${limitStr}${totalStr}</td>
-        <td><span class="bdg ${String(c.isActive).toUpperCase()==='TRUE'?'b-g':'b-r'}">${String(c.isActive).toUpperCase()==='TRUE'?'Active':'Inactive'}</span></td>
-        <td><button class="btn btn-sm btn-red" onclick="delCpn('${esc(c.code)}')"><i class="fa-solid fa-trash"></i></button></td>
+        <td>${c.expiry_date||'<span style="color:#999">—</span>'}</td>
+        <td>${c.user_phone?`<code>${esc(c.user_phone)}</code>`:'<span style="color:#999">All</span>'}</td>
+        <td style="font-size:12px">${limitStr}</td>
+        <td><span class="bdg ${c.is_active?'b-g':'b-r'}">${c.is_active?'Active':'Inactive'}</span></td>
+        <td><button class="btn btn-sm btn-red" onclick="delCpn('${esc(c.id)}','${esc(c.code)}')"><i class="fa-solid fa-trash"></i></button></td>
       </tr>`;
     }).join(''):'<tr><td colspan="8" style="text-align:center;padding:28px;color:#999">No coupons</td></tr>';
   }catch(e){ toast('Error: '+e.message); }
@@ -3096,19 +3093,19 @@ function openCpnModal(){
 async function submitCpn(){
   const type=doc('cp-type').value;
   const data={
-    code:doc('cp-code').value.trim().toUpperCase(),
-    discountType:type,
-    discountValue:doc('cp-val').value,
-    maxCap:type==='percent_cap'?(Number(doc('cp-cap').value)||0):0,
-    minOrderAmount:Number(doc('cp-minord').value)||0,
-    expiryDate:doc('cp-exp').value,
-    userPhone:doc('cp-ph').value.trim(),
-    perUserLimit:Number(doc('cp-limit').value)||0,
-    totalUsageLimit:Number(doc('cp-total-limit').value)||0
+    code:         doc('cp-code').value.trim().toUpperCase(),
+    discount_type: type,
+    discount_value: Number(doc('cp-val').value),
+    max_cap:      type==='percent_cap'?(Number(doc('cp-cap').value)||0):0,
+    min_order:    Number(doc('cp-minord').value)||0,
+    expiry_date:  doc('cp-exp').value,
+    user_phone:   doc('cp-ph').value.trim(),
+    max_usage:    Number(doc('cp-total-limit').value)||0,
+    is_active:    true
   };
-  if(!data.code||!data.discountValue) return toast('Code and value required');
-  if(type==='percent_cap'&&!data.maxCap) return toast('Cap amount required for % upto type');
-  if(type==='percent_cap'&&(Number(data.discountValue)<1||Number(data.discountValue)>99)) return toast('Percentage must be between 1–99');
+  if(!data.code||!data.discount_value) return toast('Code and value required');
+  if(type==='percent_cap'&&!data.max_cap) return toast('Cap amount required for % upto type');
+  if(type==='percent_cap'&&(Number(data.discount_value)<1||Number(data.discount_value)>99)) return toast('Percentage must be between 1–99');
   try{
     await api('createCoupon',data);
     closeMo('mo-cpn');
@@ -3125,9 +3122,9 @@ async function submitCpn(){
   catch(e){ toast('❌ '+e.message); }
 }
 
-async function delCpn(code){
+async function delCpn(id,code){
   if(!confirm(`Delete coupon "${code}"?`)) return;
-  try{ await api('deleteCoupon',{code}); toast('✅ Deleted'); loadCpns(); }
+  try{ await api('deleteCoupon',{id}); toast('✅ Deleted'); loadCpns(); }
   catch(e){ toast('❌ '+e.message); }
 }
 
