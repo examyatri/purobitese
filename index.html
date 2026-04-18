@@ -1624,6 +1624,11 @@ async function doLogin() {
     const user = await api('login', { phone, password: pw });
     Auth.set(user);
     Creds.save(phone, pw);
+    // Seed subscriber cache from login response so next bootApp visit is instant
+    Store.setJSON('pb_sub', {
+      isSubscriber:  !!user.isSubscriber,
+      pauseDelivery: user.pauseDelivery || 'none'
+    });
     await initApp();
   } catch(e) {
     toast('❌ ' + e.message);
@@ -1651,34 +1656,7 @@ async function doSignup() {
 async function initApp() {
   const user = Auth.get(); if (!user) return;
 
-  // Fetch Khata flag
-  try {
-    const ke = await api('getKhataEnabled');
-    _khataEnabled = ke.enabled !== false;
-  } catch { _khataEnabled = true; }
-  applyKhataVisibility();
-
-  // ── v14: Fresh subscriber check from server (not just login response) ──
-  let subData = null;
-  try {
-    subData = await api('checkSubscriber', { phone: user.phone });
-    Store.setJSON('pb_sub', subData);
-  } catch {}
-  const cachedSub = subData || Store.getJSON('pb_sub');
-  const isSub = cachedSub?.isSubscriber;
-
-  applyKhataVisibility();
-
-  if (isSub && _khataEnabled) {
-    try {
-      const kd = await api('getKhata', { phone: user.phone });
-      updateWalletUI(Number(kd.balance) || 0);
-    } catch {}
-  } else {
-    updateWalletUI(null);
-  }
-  applyPauseState(cachedSub?.pauseDelivery || 'none');
-  updateBadge();
+  // ── STEP 1: Show home screen and load menu immediately (Priority #1) ──
   doc('pg-auth').classList.replace('here','left');
   doc('pg-home').classList.remove('right','left');
   doc('pg-home').classList.add('here');
@@ -1687,8 +1665,60 @@ async function initApp() {
   history.pushState({ page: 'pg-home' }, '', '#pg-home');
   updateBottomNav('pg-home');
   showAppUI();
-  loadMenu();
+  loadMenu();          // menu loads first — no waiting
   startPolling();
+
+  // ── STEP 2: After screen is visible, fetch sub + wallet in background ──
+  // Use the isSubscriber already returned by login to seed the UI instantly,
+  // then re-verify from server and update if anything changed.
+  const loginSub = Store.getJSON('pb_sub');
+  const loginIsSub = !!loginSub?.isSubscriber;
+  if (loginIsSub) {
+    applyKhataVisibility();
+    applyPauseState(loginSub?.pauseDelivery || 'none');
+    updateBadge();
+  }
+
+  // Background: getKhataEnabled + checkSubscriber + wallet — all non-blocking
+  _loadSubAndWalletInBackground(user.phone);
+}
+
+// ── Shared background loader used by both initApp and bootApp ──
+async function _loadSubAndWalletInBackground(phone) {
+  try {
+    // Run khata-enabled check and subscriber check in parallel
+    const [keRes, subRes] = await Promise.allSettled([
+      api('getKhataEnabled'),
+      api('checkSubscriber', { phone })
+    ]);
+
+    if (keRes.status === 'fulfilled') {
+      _khataEnabled = keRes.value.enabled !== false;
+    }
+
+    let isSub = false;
+    if (subRes.status === 'fulfilled') {
+      const fresh = subRes.value;
+      Store.setJSON('pb_sub', fresh);
+      isSub = !!fresh.isSubscriber;
+      applyPauseState(fresh.pauseDelivery || 'none');
+    } else {
+      isSub = getSub(); // fall back to cached value
+    }
+
+    applyKhataVisibility();
+    updateBadge();
+
+    // Fetch wallet balance only if subscriber
+    if (isSub && _khataEnabled) {
+      try {
+        const kd = await api('getKhata', { phone });
+        updateWalletUI(Number(kd.balance) || 0);
+      } catch {}
+    } else {
+      updateWalletUI(null);
+    }
+  } catch {}
 }
 
 // ══════════════════════════════════════════════
@@ -2857,20 +2887,17 @@ function bootApp() {
   const savedSub  = Store.getJSON('pb_sub');
   if (savedSess && savedSess.userId) {
     Auth.set(savedSess);
-    api('getKhataEnabled').then(ke => {
-      _khataEnabled = ke.enabled !== false;
-      applyKhataVisibility();
-    }).catch(() => {});
-    const isSub = savedSub?.isSubscriber;
-    if (isSub && _khataEnabled) {
-      api('getKhata', { phone: savedSess.phone })
-        .then(kd => updateWalletUI(Number(kd.balance) || 0))
-        .catch(() => { if (_walletBal !== null) updateWalletUI(_walletBal); });
-    }
+
+    // ── STEP 1: Apply cached state instantly from localStorage (no API needed) ──
+    const isSub = !!savedSub?.isSubscriber;
     const proBadge = doc('acct-pro-badge'); if (proBadge) proBadge.classList.toggle('hide', !isSub);
-    const tifBan = doc('tif-ban'); if (tifBan) tifBan.classList.toggle('hide', !!isSub);
+    const tifBan = doc('tif-ban'); if (tifBan) tifBan.classList.toggle('hide', isSub);
     applyPauseState(savedSub?.pauseDelivery || 'none');
+    if (isSub && _walletBal !== null) updateWalletUI(_walletBal);
+    applyKhataVisibility();
     updateBadge();
+
+    // ── STEP 2: Show home screen and start menu load (Priority #1) ──
     doc('pg-auth').classList.replace('here','left');
     doc('pg-home').classList.remove('right','left');
     doc('pg-home').classList.add('here');
@@ -2879,34 +2906,13 @@ function bootApp() {
     history.pushState({ page: 'pg-home' }, '', '#pg-home');
     updateBottomNav('pg-home');
     showAppUI();
-    loadMenu();
+    loadMenu();      // menu is #1 priority — fires immediately
     startPolling();
     loader.classList.add('fade-out');
     setTimeout(() => { loader.style.display = 'none'; }, 300);
 
-    // ── v14: Background subscriber re-verification ──
-    api('checkSubscriber', { phone: savedSess.phone }).then(fresh => {
-      Store.setJSON('pb_sub', fresh);
-      const wasSubCached = !!isSub;
-      const isSubNow     = !!fresh.isSubscriber;
-      if (wasSubCached !== isSubNow) {
-        applyKhataVisibility();
-        applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
-        updateBadge();
-        if (isSubNow && _khataEnabled) {
-          api('getKhata', { phone: savedSess.phone })
-            .then(kd => updateWalletUI(Number(kd.balance) || 0))
-            .catch(() => {});
-        } else { updateWalletUI(null); }
-      } else if (isSubNow) {
-        applyPauseState(fresh.pauseDelivery || 'none');
-        if (_khataEnabled) {
-          api('getKhata', { phone: savedSess.phone })
-            .then(kd => updateWalletUI(Number(kd.balance) || 0))
-            .catch(() => {});
-        }
-      }
-    }).catch(() => {});
+    // ── STEP 3: Verify sub + wallet from server in background (never blocks UI) ──
+    _loadSubAndWalletInBackground(savedSess.phone);
     return;
   }
 
@@ -2943,22 +2949,8 @@ window.addEventListener('pageshow', e => {
         }
         startPolling();
       }
-      api('checkSubscriber', { phone: saved.phone }).then(fresh => {
-        const cached = Store.getJSON('pb_sub') || {};
-        Store.setJSON('pb_sub', fresh);
-        const wasSubCached = !!cached.isSubscriber;
-        const isSubNow     = !!fresh.isSubscriber;
-        if (wasSubCached !== isSubNow) {
-          const pb = doc('acct-pro-badge'); if (pb) pb.classList.toggle('hide', !isSubNow);
-          const tb = doc('tif-ban'); if (tb) tb.classList.toggle('hide', isSubNow);
-          applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
-          applyKhataVisibility();
-          if (!isSubNow) updateWalletUI(null);
-          updateBadge();
-        } else if (isSubNow) {
-          applyPauseState(fresh.pauseDelivery || 'none');
-        }
-      }).catch(() => {});
+      // Re-verify sub + wallet silently in background on tab restore
+      _loadSubAndWalletInBackground(saved.phone);
     } else {
       stopPolling();
       document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
