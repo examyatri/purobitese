@@ -638,7 +638,7 @@ textarea.inp{resize:vertical;min-height:72px}
 </div>
 
 <!-- ═══ PAGE 2: HOME ═══ -->
-<div class="pg right" id="pg-home" style="overflow:hidden;display:flex;flex-direction:column;">
+<div class="pg right" id="pg-home" style="overflow:hidden;display:flex;flex-direction:column;height:100%;">
   <div class="home-top">
     <div><div class="logo-n"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="logo-t">Ghar ka khana ♥</div></div>
     <div class="t-acts">
@@ -2953,9 +2953,16 @@ function bootApp() {
     const loginBusy  = doc('btn-login')  && doc('btn-login').disabled;
     const signupBusy = doc('btn-signup') && doc('btn-signup').disabled;
     if (loginBusy || signupBusy) return;
+    // Force-hide loader if it got stuck
+    const loader = doc('app-loader');
+    if (loader && loader.style.display !== 'none') {
+      loader.classList.add('fade-out');
+      setTimeout(() => { loader.style.display = 'none'; }, 300);
+    }
+    // If still no visible page, reload to #pg-home
     const visible = document.querySelector('.pg.here');
-    if (!visible || !visible.offsetHeight) { location.replace(location.pathname); }
-  }, 20000);
+    if (!visible) { location.replace(location.pathname + '#pg-home'); }
+  }, 5000);
 })();
 
 window.addEventListener('pageshow', e => {
