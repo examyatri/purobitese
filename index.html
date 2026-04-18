@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Tiffo – Ghar ka Khana</title>
 <meta name="description" content="Home-cooked meals delivered fresh. Order tiffin online.">
@@ -1665,34 +1668,7 @@ async function doSignup() {
 async function initApp() {
   const user = Auth.get(); if (!user) return;
 
-  // Fetch Khata flag
-  try {
-    const ke = await api('getKhataEnabled');
-    _khataEnabled = ke.enabled !== false;
-  } catch { _khataEnabled = true; }
-  applyKhataVisibility();
-
-  // ── v14: Fresh subscriber check from server (not just login response) ──
-  let subData = null;
-  try {
-    subData = await api('checkSubscriber', { phone: user.phone });
-    Store.setJSON('pb_sub', subData);
-  } catch {}
-  const cachedSub = subData || Store.getJSON('pb_sub');
-  const isSub = cachedSub?.isSubscriber;
-
-  applyKhataVisibility();
-
-  if (isSub && _khataEnabled) {
-    try {
-      const kd = await api('getKhata', { phone: user.phone });
-      updateWalletUI(Number(kd.balance) || 0);
-    } catch {}
-  } else {
-    updateWalletUI(null);
-  }
-  applyPauseState(cachedSub?.pauseDelivery || 'none');
-  updateBadge();
+  // ── Step 1: Show home screen immediately ─────────────────────
   doc('pg-auth').classList.replace('here','left');
   doc('pg-home').classList.remove('right','left');
   doc('pg-home').classList.add('here');
@@ -1703,6 +1679,38 @@ async function initApp() {
   showAppUI();
   loadMenu();
   startPolling();
+
+  // ── Step 2: Load wallet/subscriber in background (non-blocking) ──
+  (async () => {
+    try {
+      const ke = await api('getKhataEnabled');
+      _khataEnabled = ke.enabled !== false;
+    } catch { _khataEnabled = true; }
+    applyKhataVisibility();
+
+    let subData = null;
+    try {
+      subData = await api('checkSubscriber', { phone: user.phone });
+      Store.setJSON('pb_sub', subData);
+    } catch {}
+    const cachedSub = subData || Store.getJSON('pb_sub');
+    const isSub = cachedSub?.isSubscriber;
+
+    const pb = doc('acct-pro-badge'); if (pb) pb.classList.toggle('hide', !isSub);
+    const tb = doc('tif-ban');        if (tb) tb.classList.toggle('hide', !!isSub);
+    applyKhataVisibility();
+    applyPauseState(cachedSub?.pauseDelivery || 'none');
+    updateBadge();
+
+    if (isSub && _khataEnabled) {
+      try {
+        const kd = await api('getKhata', { phone: user.phone });
+        updateWalletUI(Number(kd.balance) || 0);
+      } catch {}
+    } else {
+      updateWalletUI(null);
+    }
+  })().catch(() => {});
 }
 
 // ══════════════════════════════════════════════
@@ -3012,7 +3020,9 @@ async function bootApp() {
     const isExpected =
       e.message.includes('Unauthorized') || e.message.includes('401') ||
       e.message.includes('No session')   || e.message.includes('not found') ||
-      e.message.includes('login')        || e.message.includes('API error');
+      e.message.includes('login')        || e.message.includes('API error') ||
+      e.message.includes('timed out')    || e.message.includes('Failed to fetch') ||
+      e.message.includes('NetworkError') || e.message.includes('Load failed');
 
     if (!isExpected) {
       // Real network / server error → show retry UI, never blank screen
