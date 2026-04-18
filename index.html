@@ -1368,6 +1368,7 @@ function launchConfetti() {
 // ══════════════════════════════════════════════
 let stack = ['pg-auth'];
 let _navLock = false;
+let _bootDone = false;
 
 function nav(id) {
   if (_navLock) return;
@@ -1402,7 +1403,7 @@ function _goBack() {
 }
 
 window.addEventListener('popstate', () => {
-  if (_navLock) return;
+  if (_navLock || !_bootDone) return;
   if (stack.length >= 2) { _goBack(); }
   else { history.pushState({ page: stack[0] }, '', '#' + stack[0]); }
 });
@@ -1683,8 +1684,7 @@ async function initApp() {
   doc('pg-home').classList.remove('right','left');
   doc('pg-home').classList.add('here');
   stack = ['pg-auth','pg-home'];
-  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
-  history.pushState({ page: 'pg-home' }, '', '#pg-home');
+  history.replaceState({ page: 'pg-home' }, '', '#pg-home');
   updateBottomNav('pg-home');
   showAppUI();
   loadMenu();
@@ -2907,14 +2907,13 @@ function bootApp() {
     doc('pg-home').classList.remove('right','left');
     doc('pg-home').classList.add('here');
     stack = ['pg-auth','pg-home'];
-    history.replaceState({ page: 'pg-auth' }, '', location.pathname);
-    history.pushState({ page: 'pg-home' }, '', '#pg-home');
+    history.replaceState({ page: 'pg-home' }, '', '#pg-home');
     updateBottomNav('pg-home');
     showAppUI();
     loadMenu();
     startPolling();
     loader.classList.add('fade-out');
-    setTimeout(() => { loader.style.display = 'none'; }, 300);
+    setTimeout(() => { loader.style.display = 'none'; _bootDone = true; }, 300);
 
     // ── v14: Background subscriber re-verification ──
     api('checkSubscriber', { phone: savedSess.phone }).then(fresh => {
@@ -2946,6 +2945,7 @@ function bootApp() {
   Store.remove('pb_user');
   loader.classList.add('fade-out');
   setTimeout(() => { loader.style.display = 'none'; }, 300);
+  _bootDone = true;
 }
 
 (function blankScreenGuard() {
