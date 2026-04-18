@@ -692,7 +692,7 @@ app.post('/api', async (req, res) => {
         const today = istDateStr(ist);
         if (coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
         if (coupon.used_count >= coupon.max_usage) return res.json({ success: false, error: 'Coupon fully used' });
-        const usedBy = JSON.parse(coupon.used_by || '[]');
+        let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
         if (usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
         if (data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
         await supabase.from('coupons').update({
@@ -937,7 +937,7 @@ app.post('/api', async (req, res) => {
 
       case 'getKhata': {
         const phone = cleanPhone(data.phone);
-        const { data: entries } = await supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: true });
+        const { data: entries } = await supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: false });
         const { data: sumRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
         return res.json({ success: true, balance: sumRow?.balance || 0, entries: entries || [] });
       }
@@ -1234,7 +1234,7 @@ app.post('/api', async (req, res) => {
           const today = istDateStr(ist);
           if (coupon.expiry_date && coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
           if (coupon.max_usage && (coupon.used_count||0) >= coupon.max_usage) return res.json({ success: false, error: 'Coupon fully used' });
-          const usedBy = JSON.parse(coupon.used_by || '[]');
+          let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
           if (data.phone && usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
           if (coupon.min_order && data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
           return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, min_order: coupon.min_order } }); }
