@@ -431,15 +431,18 @@ app.post('/api', async (req, res) => {
       }
 
       case 'updateMenuItem': {
+        const mid = data.item_id || data.id; // normalize: frontend may send data.id
         const updates = { ...data };
         delete updates.item_id;
+        delete updates.id;
         if (Array.isArray(updates.variants)) updates.variants = JSON.stringify(updates.variants);
-        await supabase.from('menu_items').update(updates).eq('item_id', data.item_id);
+        await supabase.from('menu_items').update(updates).eq('item_id', mid);
         return res.json({ success: true });
       }
 
       case 'deleteMenuItem': {
-        await supabase.from('menu_items').delete().eq('item_id', data.item_id);
+        const mid = data.item_id || data.id;
+        await supabase.from('menu_items').delete().eq('item_id', mid);
         return res.json({ success: true });
       }
 
@@ -477,6 +480,7 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, thalis: result });
       }
 
+      case 'addThali':
       case 'createThali': {
         const thali_id = generateThaliId(ist);
         await supabase.from('thalis').insert({
@@ -493,15 +497,18 @@ app.post('/api', async (req, res) => {
       }
 
       case 'updateThali': {
+        const tid = data.thali_id || data.id; // normalize: frontend may send data.id
         const updates = { ...data };
         delete updates.thali_id;
-        await supabase.from('thalis').update(updates).eq('thali_id', data.thali_id);
+        delete updates.id;
+        await supabase.from('thalis').update(updates).eq('thali_id', tid);
         return res.json({ success: true });
       }
 
       case 'deleteThali': {
-        await supabase.from('thali_items').delete().eq('thali_id', data.thali_id);
-        await supabase.from('thalis').delete().eq('thali_id', data.thali_id);
+        const tid = data.thali_id || data.id;
+        await supabase.from('thali_items').delete().eq('thali_id', tid);
+        await supabase.from('thalis').delete().eq('thali_id', tid);
         return res.json({ success: true });
       }
 
@@ -828,6 +835,7 @@ app.post('/api', async (req, res) => {
 
       // ── RIDERS ────────────────────────────────────────────────────────────
 
+      case 'addRider':
       case 'createRider': {
         const rider_id = await generateRiderId(ist);
         const hash     = await bcrypt.hash(data.password, SALT_ROUNDS);
@@ -844,18 +852,21 @@ app.post('/api', async (req, res) => {
       }
 
       case 'updateRider': {
+        const rid = data.rider_id || data.id; // normalize: frontend sends data.id
         const updates = { ...data };
         delete updates.rider_id;
+        delete updates.id;
         if (data.password) {
           updates.password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
           delete updates.password;
         }
-        await supabase.from('riders').update(updates).eq('rider_id', data.rider_id);
+        await supabase.from('riders').update(updates).eq('rider_id', rid);
         return res.json({ success: true });
       }
 
       case 'deleteRider': {
-        await supabase.from('riders').update({ is_active: false }).eq('rider_id', data.rider_id);
+        const rid = data.rider_id || data.id;
+        await supabase.from('riders').update({ is_active: false }).eq('rider_id', rid);
         return res.json({ success: true });
       }
 
@@ -886,6 +897,7 @@ app.post('/api', async (req, res) => {
 
       // ── STAFF ─────────────────────────────────────────────────────────────
 
+      case 'addStaff':
       case 'createStaff': {
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
         await supabase.from('staff').insert({
@@ -1135,6 +1147,16 @@ app.post('/api', async (req, res) => {
       }
 
       // ── NEW USER COUPON ───────────────────────────────────────────────────
+
+      case 'getNuCouponPending': {
+        // Users registered in last 7 days who haven't been sent a coupon yet
+        const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+        const { data: newUsers } = await supabase.from('users').select('phone, name, created_at').gte('created_at', sevenDaysAgo);
+        const { data: sentRows } = await supabase.from('nu_coupon_sent').select('phone');
+        const sentPhones = new Set((sentRows || []).map(r => r.phone));
+        const pending = (newUsers || []).filter(u => !sentPhones.has(u.phone));
+        return res.json({ success: true, records: pending });
+      }
 
       case 'getNuCouponSent': {
         const { data: rows } = await supabase.from('nu_coupon_sent').select('*').order('sent_at', { ascending: false });
