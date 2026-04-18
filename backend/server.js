@@ -29,7 +29,7 @@ app.get('/ping', (req, res) => {
   res.status(200).json({ status: 'alive', time: new Date().toISOString() });
 });
 app.get('/', (req, res) => {
-  res.status(200).json({ app: 'Tiffo API v14', status: 'running' });
+  res.status(200).json({ app: 'Puro Bite API v14', status: 'running' });
 });
 
 // ── MAIN API ROUTE ────────────────────────────────────────────
@@ -138,23 +138,12 @@ app.post('/api', async (req, res) => {
       case 'markNuCouponSent':         result = await markNuCouponSent(data);      break;
       case 'deleteOldNuCouponSent':    result = await deleteOldNuCouponSent();     break;
 
-      // ── NOTIFICATIONS ─────────────────────────────────────
-      case 'getNotifications':         result = await getNotifications(data);      break;
-      case 'markNotificationRead':     result = await markNotificationRead(data);  break;
-      case 'markNotificationGroupRead':result = await markNotificationGroupRead(data); break;
-      case 'deleteNotification':       result = await deleteNotification(data);    break;
-      case 'deleteNotificationsByRange':result = await deleteNotificationsByRange(data); break;
-      case 'purgeOldNotifications':    result = await purgeOldNotifications();     break;
-      case 'createNotification':       result = await createNotification(data);    break;
-
       // ── DATA CLEANUP ──────────────────────────────────────
       case 'deleteOldData':            result = await deleteOldData(data);         break;
       case 'deleteOldOrders':          result = await deleteOldOrders(data);       break;
       case 'deleteOldTransactions':    result = await deleteOldTransactions(data); break;
       case 'previewDeleteOrders':      result = await previewDeleteOrders(data);   break;
       case 'previewDeleteTransactions':result = await previewDeleteTransactions(data); break;
-      case 'previewDeleteNotifications':result = await previewDeleteNotifications(data); break;
-      case 'masterDelete':             result = await masterDelete(data);          break;
 
       default: return res.json({ success: false, error: 'Unknown action: ' + action });
     }
@@ -165,86 +154,9 @@ app.post('/api', async (req, res) => {
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// NOTIFICATIONS
-// ═══════════════════════════════════════════════════════════════
-
-async function createNotification(data) {
-  const { error } = await supabase.from('notifications').insert({
-    type:       data.type,
-    priority:   data.priority || 'normal',
-    group_id:   data.group_id || null,
-    title:      data.title,
-    body:       data.body,
-    meta:       data.meta || {},
-    is_read:    false,
-    created_at: new Date().toISOString()
-  });
-  if (error) console.error('[notif] insert error:', error.message);
-  return { ok: !error };
-}
-
-async function getNotifications(data) {
-  await purgeOldNotifications().catch(() => {});
-  const limit = Number(data?.limit) || 200;
-  const { data: rows, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  return rows || [];
-}
-
-async function markNotificationRead(data) {
-  if (!data.id) throw new Error('id required');
-  const { error } = await supabase.from('notifications')
-    .update({ is_read: true, read_at: new Date().toISOString() })
-    .eq('id', data.id);
-  if (error) throw new Error(error.message);
-  return { ok: true };
-}
-
-async function markNotificationGroupRead(data) {
-  if (!data.group_id) throw new Error('group_id required');
-  const { error } = await supabase.from('notifications')
-    .update({ is_read: true, read_at: new Date().toISOString() })
-    .eq('group_id', data.group_id);
-  if (error) throw new Error(error.message);
-  return { ok: true };
-}
-
-async function deleteNotification(data) {
-  if (!data.id) throw new Error('id required');
-  const { error } = await supabase.from('notifications').delete().eq('id', data.id);
-  if (error) throw new Error(error.message);
-  return { ok: true };
-}
-
-async function deleteNotificationsByRange(data) {
-  if (!data.from || !data.to) throw new Error('from and to dates required');
-  const from = data.from + 'T00:00:00Z';
-  const to   = data.to   + 'T23:59:59Z';
-  const { error, count } = await supabase.from('notifications')
-    .delete({ count: 'exact' })
-    .gte('created_at', from)
-    .lte('created_at', to);
-  if (error) throw new Error(error.message);
-  return { deleted: count || 0 };
-}
-
-async function purgeOldNotifications() {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { error, count } = await supabase.from('notifications')
-    .delete({ count: 'exact' })
-    .lt('created_at', cutoff);
-  if (error) console.error('[notif] purge error:', error.message);
-  return { purged: count || 0 };
-}
-
 // ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Tiffo API v14 running on port ' + PORT));
+app.listen(PORT, () => console.log('Puro Bite API v14 running on port ' + PORT));
 
 // ── SELF PING — keeps Render awake ───────────────────────────
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || '';
@@ -381,8 +293,7 @@ function formatOrder(o) {
     paymentStatus: o.payment_status || 'pending',
     orderStatus: o.order_status || 'pending',
     date: normOrderDate(o.order_date), time: normOrderTime(o.order_time),
-    riderId: o.rider_id || '',
-    orderSource: o.order_source || 'user'
+    riderId: o.rider_id || ''
   };
 }
 
@@ -447,14 +358,7 @@ async function signupUser(data) {
     password: hashed, is_subscriber: false
   }).select().single();
   if (error) throw new Error(error.message);
-  const signupResult = { userId: user.user_id, name: user.name, phone: user.phone, email: user.email || '', address: user.address || '', isSubscriber: false };
-  setImmediate(() => createNotification({
-    type: 'user', priority: 'normal',
-    title: '🟢 New User Registered',
-    body: `${data.name} just signed up`,
-    meta: { phone: ph, name: data.name, address: data.address || '' }
-  }).catch(() => {}));
-  return signupResult;
+  return { userId: user.user_id, name: user.name, phone: user.phone, email: user.email || '', address: user.address || '', isSubscriber: false };
 }
 
 async function loginUser(data) {
@@ -1046,25 +950,7 @@ async function createOrder(data) {
     newBalance = await getWalletBalance(ph);
   }
 
-  const orderResult = { orderId: order.order_id, newBalance };
-  const _notifGroupId = 'order_' + order.order_id;
-  setImmediate(async () => {
-    try {
-      await createNotification({ type:'order', priority:'high', group_id: _notifGroupId,
-        title:'🛒 New Order Placed',
-        body:`${data.name} placed an order of ₹${amount}`,
-        meta:{ phone:ph, name:data.name, order_id:order.order_id,
-               amount, user_type:data.userType||'daily', sub_group:'order', group_id:_notifGroupId }
-      });
-      await createNotification({ type:'transaction', priority:'normal', group_id: _notifGroupId,
-        title:'💳 New Transaction (Order)',
-        body:`Payment linked to order ${order.order_id}`,
-        meta:{ phone:ph, name:data.name, order_id:order.order_id,
-               amount, user_type:data.userType||'daily', sub_group:'txn', group_id:_notifGroupId }
-      });
-    } catch(_) {}
-  });
-  return orderResult;
+  return { orderId: order.order_id, newBalance };
 }
 
 async function getUserOrders(data) {
@@ -1175,7 +1061,6 @@ async function _createSingleOrder(o, { skipDeduction = false, allowOverdraft = f
     user_type:      o.userType || 'subscriber',
     payment_status: 'pending',
     order_status:   'pending',
-    order_source:   'admin',
     order_date:     istDateStr(ist),
     order_time:     istTimeStr(ist)
   }).select().single();
@@ -1279,11 +1164,11 @@ async function adminBulkCreate(data) {
   const success = [], failed = [];
   for (const o of data.orders) {
     const ph = cleanPhone(o.phone);
-    if (alreadyOrderedThisSlot.has(ph) && !o.isUdhar && !o.forceAdd) {
+    if (alreadyOrderedThisSlot.has(ph)) {
       failed.push({ phone: ph, name: o.name, reason: `Already has a ${slotName} order today` });
       continue;
     }
-    if (o.userType !== 'daily' && !o.isUdhar && !o.forceAdd) {
+    if (o.userType !== 'daily') {
       const pauseMode = pauseMap[ph] || 'none';
       const slotPaused =
         pauseMode === 'both' ||
@@ -1297,7 +1182,7 @@ async function adminBulkCreate(data) {
     try {
       const orderId = await _createSingleOrder(
         { ...o, phone: ph, userId: ph, userType: o.userType || 'subscriber' },
-        { skipDeduction: o.userType === 'daily', allowOverdraft: !!o.isUdhar }
+        { skipDeduction: o.userType === 'daily' }
       );
       alreadyOrderedThisSlot.add(ph);
       success.push({ phone: ph, name: o.name, orderId });
@@ -1320,47 +1205,15 @@ async function applyCoupon(data) {
   if (coupon.user_phone && cleanPhone(coupon.user_phone) !== cleanPhone(data.phone || ''))
     throw new Error('Coupon is not valid for this account');
 
-  // Min order check
-  const minOrder = Number(coupon.min_order_amount) || 0;
-  const orderAmt = Number(data.orderAmount) || 0;
-  if (minOrder > 0 && orderAmt > 0 && orderAmt < minOrder)
-    throw new Error(`Minimum order amount ₹${minOrder} required for this coupon`);
-
-  // Per-user limit check
   const limit = Number(coupon.per_user_limit) || 0;
-  let usage = {};
-  try { usage = JSON.parse(coupon.usage_count || '{}'); } catch { usage = {}; }
   if (limit > 0 && data.phone) {
     const ph = cleanPhone(data.phone);
+    let usage = {};
+    try { usage = JSON.parse(coupon.usage_count || '{}'); } catch { usage = {}; }
     const used = Number(usage[ph]) || 0;
     if (used >= limit) throw new Error(`Coupon usage limit reached (max ${limit} time${limit > 1 ? 's' : ''} per user)`);
   }
-
-  // Total usage limit check
-  const totalLimit = Number(coupon.total_usage_limit) || 0;
-  if (totalLimit > 0) {
-    const totalUsed = Object.values(usage).reduce((s, v) => s + (Number(v) || 0), 0);
-    if (totalUsed >= totalLimit) throw new Error('Coupon has reached its maximum total usage limit');
-  }
-
-  // Calculate discount
-  let discountAmount = 0;
-  const type = coupon.discount_type;
-  const val  = Number(coupon.discount_value) || 0;
-  const cap  = Number(coupon.max_cap) || 0;
-  if (type === 'percent') {
-    discountAmount = orderAmt > 0 ? (orderAmt * val / 100) : val;
-  } else if (type === 'percent_cap') {
-    discountAmount = orderAmt > 0 ? Math.min((orderAmt * val / 100), cap) : 0;
-  } else {
-    discountAmount = val; // fixed
-  }
-
-  return {
-    code: coupon.code, discountType: type, discountValue: val,
-    maxCap: cap, minOrderAmount: minOrder,
-    discountAmount: Math.round(discountAmount * 100) / 100
-  };
+  return { code: coupon.code, discountType: coupon.discount_type, discountValue: Number(coupon.discount_value) };
 }
 
 async function incrementCouponUsage(code, phone) {
@@ -1379,11 +1232,7 @@ async function createCoupon(data) {
   const { error } = await supabase.from('coupons').insert({
     code: data.code.toUpperCase(), discount_type: data.discountType,
     discount_value: Number(data.discountValue),
-    max_cap: data.discountType === 'percent_cap' ? (Number(data.maxCap) || 0) : 0,
-    min_order_amount: Number(data.minOrderAmount) || 0,
     expiry_date: data.expiryDate || null, user_phone: data.userPhone || null,
-    per_user_limit: Number(data.perUserLimit) || 0,
-    total_usage_limit: Number(data.totalUsageLimit) || 0,
     is_active: true, usage_count: '{}'
   });
   if (error) throw new Error(error.message);
@@ -1395,10 +1244,8 @@ async function adminGetCoupons() {
   if (error) throw new Error(error.message);
   return (coupons || []).map(c => ({
     code: c.code, discountType: c.discount_type, discountValue: c.discount_value,
-    maxCap: c.max_cap || 0, minOrderAmount: c.min_order_amount || 0,
     expiryDate: c.expiry_date, userPhone: c.user_phone, isActive: c.is_active,
     perUserLimit: c.per_user_limit || 0,
-    totalUsageLimit: c.total_usage_limit || 0,
     usageCount: (() => { try { return JSON.parse(c.usage_count || '{}'); } catch { return {}; } })()
   }));
 }
@@ -1431,13 +1278,6 @@ async function pauseUserDelivery(data) {
   const mode = data.mode || 'none';
   const { error } = await supabase.from('subscribers').update({ pause_delivery: mode }).eq('phone', ph);
   if (error) throw new Error(error.message);
-  if (mode && mode !== 'none') {
-    setImmediate(() => createNotification({ type:'pause', priority:'normal',
-      title:'⏸️ Subscription Paused',
-      body:`${data.name || ph} paused delivery (${mode})`,
-      meta:{ phone:ph, name:data.name||ph, mode }
-    }).catch(()=>{}));
-  }
   return { pauseDelivery: mode };
 }
 
@@ -1624,43 +1464,16 @@ async function riderLogin(data) {
 
 async function getRiderOrders(data) {
   if (!data.riderId) throw new Error('riderId required');
-
-  // ── Optional date filter from rider UI ──────────────────────
-  // data.dateFilter: 'all' | 'today' | 'yesterday' | 'daybeforeyesterday'
-  const dateFilter = data.dateFilter || 'all';
-  function _istDaysAgo(n) {
-    const d = new Date(Date.now() + 5.5 * 3600000);
-    d.setUTCDate(d.getUTCDate() - n);
-    return d.getUTCFullYear() + '-' +
-      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getUTCDate()).padStart(2, '0');
-  }
-  const todayIST     = _istDaysAgo(0);
-  const yesterdayIST = _istDaysAgo(1);
-  const dbyIST       = _istDaysAgo(2);
-
-  // Build date-filtered query helper
-  function applyDateFilter(query) {
-    if (dateFilter === 'today')              return query.eq('order_date', todayIST);
-    if (dateFilter === 'yesterday')          return query.eq('order_date', yesterdayIST);
-    if (dateFilter === 'daybeforeyesterday') return query.eq('order_date', dbyIST);
-    return query; // 'all' — no date restriction
-  }
-
-  // Assigned orders for this rider
-  let q1 = supabase.from('orders').select('*')
+  // v14: rider sees verified/preparing/out for delivery — not raw pending
+  const { data: assigned, error: e1 } = await supabase.from('orders').select('*')
     .eq('rider_id', data.riderId)
     .in('order_status', ['verified', 'preparing', 'out for delivery', 'delivered']);
-  q1 = applyDateFilter(q1);
-  const { data: assigned, error: e1 } = await q1;
   if (e1) throw new Error(e1.message);
 
   // Unassigned orders that are verified/preparing — visible to all riders
-  let q2 = supabase.from('orders').select('*')
+  const { data: unassigned, error: e2 } = await supabase.from('orders').select('*')
     .is('rider_id', null)
     .in('order_status', ['verified', 'preparing']);
-  q2 = applyDateFilter(q2);
-  const { data: unassigned, error: e2 } = await q2;
   if (e2) throw new Error(e2.message);
 
   const seen   = new Set();
@@ -1795,14 +1608,6 @@ async function rechargeWallet(data) {
     created_at: ist.toISOString()
   });
   if (kErr) console.error('[khata] recharge insert failed:', kErr.message, '| phone:', ph);
-  // Fire notification only for explicit admin/staff recharges (has rechargedBy set)
-  if (data.rechargedBy) {
-    setImmediate(() => createNotification({ type:'recharge', priority:'normal',
-      title:'🔁 Wallet Recharged',
-      body:`₹${amt} added to ${data.userName||ph} by ${data.rechargedBy}`,
-      meta:{ phone:ph, name:data.userName||ph, amount:amt, note:data.note||'Recharge', recharged_by:data.rechargedBy }
-    }).catch(()=>{}));
-  }
   return { newBalance: newBal };
 }
 
@@ -1875,33 +1680,9 @@ async function getKhata(data) {
       note:           t.note || '',
       runningBalance: running,
       date:           istDateStr(ist),
-      time:           istTimeStr(ist),
-      orderSource:    null,
-      orderStatus:    null
+      time:           istTimeStr(ist)
     };
   });
-
-  // Attach orderSource + orderStatus for tiffin entries (for PDF Note column)
-  const ORDER_ID_RE = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
-  const tiffentries = entries.filter(e => e.type !== 'recharge' && e.note);
-  const orderIds = [...new Set(tiffentries.map(e => { const m = e.note.match(ORDER_ID_RE); return m ? m[1] : null; }).filter(Boolean))];
-  if (orderIds.length) {
-    const { data: ordRows } = await supabase.from('orders')
-      .select('order_id, order_source, order_status')
-      .in('order_id', orderIds);
-    if (ordRows && ordRows.length) {
-      const ordMap = {};
-      ordRows.forEach(r => { ordMap[r.order_id] = r; });
-      entries.forEach(e => {
-        if (e.type === 'recharge') return;
-        const m = e.note.match(ORDER_ID_RE);
-        if (m && ordMap[m[1]]) {
-          e.orderSource = ordMap[m[1]].order_source || 'user';
-          e.orderStatus = ordMap[m[1]].order_status || null;
-        }
-      });
-    }
-  }
 
   const computedBal = running;
   // Sync wallet table to match transaction sum
@@ -2187,56 +1968,4 @@ async function deleteOldData(data) {
     ordersError:   orders.error || null,
     txnsError:     txns.error   || null
   };
-}
-
-// ── Preview notifications count before cutoff (for master delete preview) ──
-async function previewDeleteNotifications(data) {
-  _parseCutoff(data.cutoffDate, 5);
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .lt('created_at', data.cutoffDate + 'T00:00:00Z');
-  if (error) throw new Error(error.message);
-  return { count: count || 0 };
-}
-
-// ── Master Delete: bulk delete khata transactions + orders + notifications ──
-async function masterDelete(data) {
-  const { txnCutoffDate, otherCutoffDate } = data;
-  const result = {};
-
-  // 1. Delete Khata Transactions (min 45 days)
-  if (txnCutoffDate) {
-    _parseCutoff(txnCutoffDate, 45);
-    const { error, count } = await supabase
-      .from('khata_transactions')
-      .delete({ count: 'exact' })
-      .lt('created_at', txnCutoffDate + 'T00:00:00Z');
-    if (error) throw new Error('Khata delete failed: ' + error.message);
-    result.deletedTransactions = count || 0;
-  }
-
-  // 2. Delete Old Orders (min 5 days)
-  if (otherCutoffDate) {
-    _parseCutoff(otherCutoffDate, 5);
-    const ids = await _orderIdsBefore(otherCutoffDate);
-    let deletedOrders = 0;
-    for (let i = 0; i < ids.length; i += 500) {
-      const batch = ids.slice(i, i + 500);
-      const { error, count } = await supabase.from('orders').delete({ count: 'exact' }).in('order_id', batch);
-      if (error) throw new Error('Orders delete failed: ' + error.message);
-      deletedOrders += count || batch.length;
-    }
-    result.deletedOrders = deletedOrders;
-
-    // 3. Delete Notifications (min 5 days, same cutoff as orders)
-    const { error: ne, count: nc } = await supabase
-      .from('notifications')
-      .delete({ count: 'exact' })
-      .lt('created_at', otherCutoffDate + 'T00:00:00Z');
-    if (ne) throw new Error('Notifications delete failed: ' + ne.message);
-    result.deletedNotifications = nc || 0;
-  }
-
-  return result;
 }
