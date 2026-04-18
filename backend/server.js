@@ -1,1971 +1,1219 @@
-const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
-const app = express();
-app.use(express.json());
-app.use(express.text({ type: 'text/plain' }));
+'use strict';
 
-// ── CORS ──────────────────────────────────────────────────────
+// ─── DEPENDENCIES ────────────────────────────────────────────────────────────
+const express = require('express');
+const https   = require('https');
+const { createClient } = require('@supabase/supabase-js');
+const bcrypt  = require('bcryptjs');
+
+// ─── SETUP ───────────────────────────────────────────────────────────────────
+const app = express();
+
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
 
-// ── SUPABASE CLIENT ───────────────────────────────────────────
+app.use(express.json());
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY
 );
+
 const SECURE_API_KEY = process.env.API_KEY;
-if (!SECURE_API_KEY) {
-  console.error('[FATAL] API_KEY environment variable is not set. Server will reject all requests.');
-}
+if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 
-// ── KEEP-ALIVE PING ───────────────────────────────────────────
-app.get('/ping', (req, res) => {
-  res.status(200).json({ status: 'alive', time: new Date().toISOString() });
-});
-app.get('/', (req, res) => {
-  res.status(200).json({ app: 'Puro Bite API v14', status: 'running' });
-});
+const SALT_ROUNDS = 10;
 
-// ── MAIN API ROUTE ────────────────────────────────────────────
-app.post('/api', async (req, res) => {
-  if (typeof req.body === 'string') {
-    try { req.body = JSON.parse(req.body); } catch {}
-  }
-  try {
-    const { action, data = {}, apiKey } = req.body;
-    if (apiKey !== SECURE_API_KEY) return res.json({ success: false, error: 'Unauthorized' });
-    let result;
-    switch (action) {
-      // ── AUTH ──────────────────────────────────────────────
-      case 'login':                    result = await loginUser(data);              break;
-      case 'signup':                   result = await signupUser(data);             break;
-      case 'adminLogin':               result = await adminLogin(data);             break;
-      case 'staffLogin':               result = await staffLogin(data);             break;
-      case 'updateProfile':            result = await updateProfile(data);          break;
-      case 'resetAdminPassword':       result = await resetAdminPassword(data);     break;
-      case 'resetUserPassword':        result = await resetUserPassword(data);      break; // NEW v14
-
-      // ── MENU ──────────────────────────────────────────────
-      case 'getMenu':                  result = await getMenu(data);                break;
-      case 'adminGetMenu':             result = await adminGetMenu();               break;
-      case 'addMenuItem':              result = await addMenuItem(data);            break;
-      case 'updateMenuItem':           result = await updateMenuItem(data);         break;
-      case 'deleteMenuItem':           result = await deleteMenuItem(data);         break;
-      case 'updateMenuOrder':          result = await updateMenuOrder(data);        break;
-      case 'updateMenuStock':          result = await updateMenuStock(data);        break; // NEW v14
-
-      // ── THALI ─────────────────────────────────────────────
-      case 'getThalis':                result = await getThalis();                  break; // NEW v14
-      case 'adminGetThalis':           result = await adminGetThalis();             break; // NEW v14
-      case 'createThali':              result = await createThali(data);            break; // NEW v14
-      case 'updateThali':              result = await updateThali(data);            break; // NEW v14
-      case 'deleteThali':              result = await deleteThali(data);            break; // NEW v14
-      case 'addThaliItem':             result = await addThaliItem(data);           break; // NEW v14
-      case 'removeThaliItem':          result = await removeThaliItem(data);        break; // NEW v14
-
-      // ── ORDERS ────────────────────────────────────────────
-      case 'createOrder':              result = await createOrder(data);            break;
-      case 'getUserOrders':            result = await getUserOrders(data);          break;
-      case 'adminGetOrders':           result = await adminGetOrders();             break;
-      case 'getOrdersByDate':          result = await getOrdersByDate(data);        break;
-      case 'updateOrderStatus':        result = await updateOrderStatus(data);      break;
-      case 'rejectOrder':              result = await rejectOrder(data);            break;
-      case 'bulkOrdersWithBalance':    result = await bulkOrdersWithBalance(data);  break;
-      case 'adminBulkCreate':          result = await adminBulkCreate(data);        break;
-      case 'forceUdharOrder':          result = await forceUdharOrder(data);        break;
-
-      // ── COUPONS ───────────────────────────────────────────
-      case 'applyCoupon':              result = await applyCoupon(data);            break;
-      case 'createCoupon':             result = await createCoupon(data);           break;
-      case 'adminGetCoupons':          result = await adminGetCoupons();            break;
-      case 'deleteCoupon':             result = await deleteCoupon(data);           break;
-
-      // ── SUBSCRIBERS ───────────────────────────────────────
-      case 'checkSubscriber':          result = await checkSubscriber(data);        break;
-      case 'pauseUserDelivery':        result = await pauseUserDelivery(data);      break;
-      case 'getSubscriberPauseStatus': result = await getSubscriberPauseStatus(data); break;
-      case 'adminGetSubscribers':      result = await adminGetSubscribers();        break;
-      case 'addSubscriber':            result = await addSubscriber(data);          break;
-      case 'updateSubscriber':         result = await updateSubscriber(data);       break;
-      case 'removeSubscriber':         result = await removeSubscriber(data);       break;
-      case 'getUserByPhone':           result = await getUserByPhone(data);         break;
-      case 'adminCreateUser':          result = await adminCreateUser(data);        break;
-      case 'promoteToSubscriber':      result = await promoteToSubscriber(data);    break;
-
-      // ── RIDERS ────────────────────────────────────────────
-      case 'createRider':              result = await createRider(data);            break;
-      case 'updateRider':              result = await updateRider(data);            break;
-      case 'deleteRider':              result = await deleteRider(data);            break;
-      case 'riderLogin':               result = await riderLogin(data);             break;
-      case 'getRiderOrders':           result = await getRiderOrders(data);         break;
-      case 'getRiders':                result = await getRiders();                  break;
-      case 'assignRider':              result = await assignRider(data);            break;
-
-      // ── STAFF ─────────────────────────────────────────────
-      case 'createStaff':              result = await createStaff(data);            break;
-      case 'updateStaff':              result = await updateStaff(data);            break;
-      case 'deleteStaff':              result = await deleteStaff(data);            break;
-      case 'getStaff':                 result = await getStaff();                   break;
-
-      // ── WALLET / KHATA ────────────────────────────────────
-      case 'getKhata':                 result = await getKhata(data);              break;
-      case 'getSubscriberBalance':     result = await getSubscriberBalance(data);  break;
-      case 'rechargeWallet':           result = await rechargeWallet(data);        break;
-      case 'manualRefund':             result = await manualRefund(data);          break;
-      case 'adminGetAllKhata':         result = await adminGetAllKhata();          break;
-      case 'addKhataEntry':            result = await addKhataEntry(data);         break;
-
-      // ── SETTINGS ──────────────────────────────────────────
-      case 'getOrderCutoff':           result = await getOrderCutoff();            break;
-      case 'setOrderCutoff':           result = await setOrderCutoff(data);        break;
-      case 'getWeeklySchedule':        result = await getWeeklySchedule();         break;
-      case 'setWeeklySchedule':        result = await setWeeklySchedule(data);     break;
-      case 'getKhataEnabled':          result = await getKhataEnabled();           break;
-      case 'setKhataEnabled':          result = await setKhataEnabled(data);       break;
-
-      // ── ANALYTICS / USERS ─────────────────────────────────
-      case 'getAnalytics':             result = await getAnalytics();              break;
-      case 'getUsers':                 result = await getUsers();                  break;
-
-      // ── NEW USER COUPON SENT (Supabase) ───────────────────
-      case 'getNuCouponSent':          result = await getNuCouponSent();           break;
-      case 'markNuCouponSent':         result = await markNuCouponSent(data);      break;
-      case 'deleteOldNuCouponSent':    result = await deleteOldNuCouponSent();     break;
-
-      // ── DATA CLEANUP ──────────────────────────────────────
-      case 'deleteOldData':            result = await deleteOldData(data);         break;
-      case 'deleteOldOrders':          result = await deleteOldOrders(data);       break;
-      case 'deleteOldTransactions':    result = await deleteOldTransactions(data); break;
-      case 'previewDeleteOrders':      result = await previewDeleteOrders(data);   break;
-      case 'previewDeleteTransactions':result = await previewDeleteTransactions(data); break;
-
-      default: return res.json({ success: false, error: 'Unknown action: ' + action });
-    }
-    return res.json({ success: true, data: result });
-  } catch (err) {
-    console.error('API Error:', err);
-    return res.json({ success: false, error: err.message });
-  }
-});
-
-// ── START SERVER ──────────────────────────────────────────────
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Puro Bite API v14 running on port ' + PORT));
-
-// ── SELF PING — keeps Render awake ───────────────────────────
+// ─── SELF-PING ────────────────────────────────────────────────────────────────
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || '';
 if (SELF_URL) {
-  const https = require('https');
   setInterval(() => {
-    https.get(SELF_URL + '/ping', (res) => {
-      console.log('[KeepAlive] Pinged at ' + new Date().toISOString() + ' — status: ' + res.statusCode);
-    }).on('error', (e) => {
-      console.error('[KeepAlive] Ping failed:', e.message);
-    });
+    https.get(SELF_URL + '/ping', r => console.log('[keep-alive]', r.statusCode))
+         .on('error', e => console.error('[keep-alive error]', e.message));
   }, 10 * 60 * 1000);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════
-
-function getIST() { return new Date(Date.now() + 5.5 * 3600000); }
-
-// ── ID GENERATORS ─────────────────────────────────────────────
-// Order ID  : ORD-20250414-143022-AB7K2
-// Thali ID  : THALI-20250414-143022-AB7K2
-// Rider ID  : RDR-14042025-0001
-// Menu ID   : MENU-AB7K2
-// TXN ID    : TXN-20250414-143022-AB7K2
-// User ID   : phone number (10-digit)
-function generateId(prefix, ist) {
-  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let rand = '';
-  for (let i = 0; i < 5; i++) rand += CHARS[Math.floor(Math.random() * CHARS.length)];
-  if (!ist) return `${prefix}-${rand}`;
-  const yyyy = ist.getUTCFullYear();
-  const mm   = String(ist.getUTCMonth() + 1).padStart(2, '0');
-  const dd   = String(ist.getUTCDate()).padStart(2, '0');
-  const HH   = String(ist.getUTCHours()).padStart(2, '0');
-  const MM   = String(ist.getUTCMinutes()).padStart(2, '0');
-  const SS   = String(ist.getUTCSeconds()).padStart(2, '0');
-  return `${prefix}-${yyyy}${mm}${dd}-${HH}${MM}${SS}-${rand}`;
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function getIST() {
+  return new Date(Date.now() + 5.5 * 3_600_000);
 }
+
+function istDateStr(d) {
+  const y  = d.getUTCFullYear();
+  const m  = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function istTimeStr(d) {
+  let h  = d.getUTCHours();
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${String(h).padStart(2, '0')}:${min} ${ampm}`;
+}
+
+function cleanPhone(p) {
+  return String(p).replace(/\D/g, '');
+}
+
+function rand5() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+function generateId(prefix, ist) {
+  const y   = ist.getUTCFullYear();
+  const mo  = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const d   = String(ist.getUTCDate()).padStart(2, '0');
+  const h   = String(ist.getUTCHours()).padStart(2, '0');
+  const mi  = String(ist.getUTCMinutes()).padStart(2, '0');
+  const s   = String(ist.getUTCSeconds()).padStart(2, '0');
+  return `${prefix}-${y}${mo}${d}-${h}${mi}${s}-${rand5()}`;
+}
+
 function generateOrderId(ist)  { return generateId('ORD',   ist); }
 function generateThaliId(ist)  { return generateId('THALI', ist); }
 function generateTxnId(ist)    { return generateId('TXN',   ist); }
 
 async function generateRiderId(ist) {
-  const dd   = String(ist.getUTCDate()).padStart(2, '0');
-  const mm   = String(ist.getUTCMonth() + 1).padStart(2, '0');
-  const yyyy = String(ist.getUTCFullYear());
-  const prefix = `RDR-${dd}${mm}${yyyy}`;
-  const { count } = await supabase
+  const d   = String(ist.getUTCDate()).padStart(2, '0');
+  const mo  = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const y   = ist.getUTCFullYear();
+  const prefix = `RDR-${d}${mo}${y}-`;
+  const { data: rows } = await supabase
     .from('riders')
-    .select('rider_id', { count: 'exact', head: true })
+    .select('rider_id')
     .like('rider_id', `${prefix}%`);
-  const seq = String((count || 0) + 1).padStart(4, '0');
-  return `${prefix}-${seq}`;
-}
-
-// ── DATE/TIME UTILITIES ───────────────────────────────────────
-function istDateStr(d) {
-  return d.getUTCFullYear() + '-' +
-    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getUTCDate()).padStart(2, '0');
-}
-function istTimeStr(d) {
-  let h = d.getUTCHours(), m = d.getUTCMinutes();
-  const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' ' + p;
-}
-function cleanPhone(p) { return String(p || '').replace(/\D/g, ''); }
-
-function _istFromEpoch(ms) { return new Date(ms + 5.5 * 3600000); }
-function _ymd(d) {
-  return d.getUTCFullYear() + '-' +
-    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getUTCDate()).padStart(2, '0');
+  const n = String(((rows || []).length) + 1).padStart(4, '0');
+  return `${prefix}${n}`;
 }
 
 function normOrderDate(v) {
   if (!v) return '';
-  const s = String(v).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const p = s.split('/');
-    return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  if (v instanceof Date) return istDateStr(new Date(v.getTime() + 5.5 * 3_600_000));
+  const s = String(v);
+  // DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [dd, mm, yyyy] = s.split('/');
+    return `${yyyy}-${mm}-${dd}`;
   }
-  if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) return s.replace(/\//g, '-');
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
-    const raw = new Date(s);
-    if (!isNaN(raw.getTime())) return _ymd(_istFromEpoch(raw.getTime()));
+  // YYYY-MM-DD (possibly with time suffix)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // Excel serial
+  const n = Number(s);
+  if (!isNaN(n) && n > 40000) {
+    const d = new Date((n - 25569) * 86400000);
+    return istDateStr(d);
   }
-  if (v instanceof Date && !isNaN(v.getTime())) return _ymd(_istFromEpoch(v.getTime()));
-  if (/^\d+(\.\d+)?$/.test(s)) {
-    const serial = parseFloat(s);
-    if (serial > 40000 && serial < 60000) {
-      const raw = new Date((serial - 25569) * 86400000);
-      if (!isNaN(raw.getTime())) return _ymd(_istFromEpoch(raw.getTime()));
-    }
-  }
-  return '';
+  return s;
 }
 
 function normOrderTime(v) {
   if (!v) return '';
-  const s = String(v).trim().replace(/[\u00a0\u202f\u2009]/g, ' ');
-  const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (ampm) return String(ampm[1]).padStart(2,'0') + ':' + ampm[2] + ' ' + ampm[3].toUpperCase();
-  const h24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-  if (h24) {
-    let h = parseInt(h24[1]), mn = parseInt(h24[2]);
-    const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-    return String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' ' + p;
+  if (v instanceof Date) {
+    const ist = new Date(v.getTime() + 5.5 * 3_600_000);
+    return istTimeStr(ist);
   }
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
-    const raw = new Date(s);
-    if (!isNaN(raw.getTime())) {
-      const ist = _istFromEpoch(raw.getTime());
-      let h = ist.getUTCHours(), mn = ist.getUTCMinutes();
-      const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-      return String(h).padStart(2, '0') + ':' + String(mn).padStart(2, '0') + ' ' + p;
-    }
+  const s = String(v).trim();
+  if (/AM|PM/i.test(s)) return s.toUpperCase();
+  // HH:MM 24h
+  if (/^\d{1,2}:\d{2}$/.test(s)) {
+    let [h, m] = s.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
   }
   return s;
 }
 
 function formatOrder(o) {
   return {
-    orderId: o.order_id, userId: o.user_id,
-    name: o.name, phone: o.phone, address: o.address,
-    items: typeof o.items === 'string' ? o.items : JSON.stringify(o.items),
-    totalAmount: o.total_amount, deliveryCharge: o.delivery_charge,
-    finalAmount: Number(o.final_amount) || 0,
-    couponCode: o.coupon_code || '', discount: o.discount || 0,
-    userType: o.user_type || 'daily',
-    paymentStatus: o.payment_status || 'pending',
-    orderStatus: o.order_status || 'pending',
-    date: normOrderDate(o.order_date), time: normOrderTime(o.order_time),
-    riderId: o.rider_id || ''
+    ...o,
+    date:  normOrderDate(o.date),
+    time:  normOrderTime(o.time),
+    items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
   };
 }
 
 function formatMenuItem(i) {
-  let variants = [];
-  try { variants = i.variant ? JSON.parse(i.variant) : []; } catch { variants = []; }
   return {
-    itemId: i.item_id, name: i.name, category: i.category || '',
-    price: Number(i.price) || 0, variants,
-    imageUrl: i.image_url || '', menuType: i.menu_type || 'morning',
-    availability: i.availability, sortOrder: i.sort_order || 9999,
-    highlight: i.highlight || '',
-    // v14: stock fields
-    stockGrams: i.stock_grams !== null && i.stock_grams !== undefined
-      ? Number(i.stock_grams)
-      : null   // null = unlimited
+    ...i,
+    variants: typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || [])
   };
 }
 
 function formatThali(t, items = []) {
-  return {
-    thaliId:     t.thali_id,
-    name:        t.name,
-    description: t.description || '',
-    price:       Number(t.price) || 0,
-    imageUrl:    t.image_url || '',
-    isActive:    t.is_active,
-    stockQty:    t.stock_qty !== null && t.stock_qty !== undefined
-      ? Number(t.stock_qty)
-      : null,
-    createdAt:   t.created_at,
-    items:       items.map(i => ({
-      id:              i.id,
-      menuItemId:      i.menu_item_id,
-      menuItemName:    i.menu_item_name || '',
-      variantLabel:    i.variant_label,
-      variantPrice:    Number(i.variant_price) || 0,
-      variantGrams:    i.variant_grams !== null ? Number(i.variant_grams) : null,
-      quantityInThali: Number(i.quantity_in_thali) || 1
-    }))
-  };
+  return { ...t, items };
 }
 
-function getDefaultDay(d, name) {
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return { day: name || days[d], open: true, openTime: '07:00', lunchStart: '07:00', lunchEnd: '11:00' };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════
-
-async function signupUser(data) {
-  if (!data.phone || !data.password || !data.name) throw new Error('Name, phone, password required');
-  const ph = cleanPhone(data.phone);
-  const { data: existing } = await supabase.from('users').select('phone').eq('phone', ph).maybeSingle();
-  if (existing) throw new Error('Phone already registered');
-  const hashed = await bcrypt.hash(String(data.password).trim(), 10);
-  const { data: user, error } = await supabase.from('users').insert({
-    user_id: ph, name: data.name, phone: ph,
-    email: data.email || '', address: data.address || '',
-    password: hashed, is_subscriber: false
-  }).select().single();
-  if (error) throw new Error(error.message);
-  return { userId: user.user_id, name: user.name, phone: user.phone, email: user.email || '', address: user.address || '', isSubscriber: false };
-}
-
-async function loginUser(data) {
-  if (!data.phone || !data.password) throw new Error('Phone and password required');
-  const ph       = cleanPhone(data.phone);
-  const password = String(data.password).trim();
-  const { data: user } = await supabase.from('users').select('*').eq('phone', ph).maybeSingle();
-  if (!user) throw new Error('User not found');
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) throw new Error('Incorrect password');
-
-  // v14 FIX: Always verify subscriber status from DB at login time
-  // Check both is_subscriber flag AND active row in subscribers table
-  const { data: sub } = await supabase
-    .from('subscribers')
-    .select('is_active')
-    .eq('phone', ph)
-    .maybeSingle();
-  const isSubscriber = !!(sub && sub.is_active);
-
-  // Sync flag if out of date
-  if (user.is_subscriber !== isSubscriber) {
-    await supabase.from('users').update({ is_subscriber: isSubscriber }).eq('phone', ph);
-  }
-
-  return {
-    userId:       user.user_id,
-    name:         user.name,
-    phone:        user.phone,
-    email:        user.email  || '',
-    address:      user.address || '',
-    isSubscriber           // always fresh from DB
-  };
-}
-
-async function adminLogin(data) {
-  if (!data.email || !data.password) throw new Error('Email and password required');
-  const email    = String(data.email).trim().toLowerCase();
-  const password = String(data.password).trim();
-  const { data: setting } = await supabase.from('admin_settings').select('*').eq('admin_id', email).maybeSingle();
-  if (!setting) throw new Error('Admin not found');
-  const match = await bcrypt.compare(password, setting.password_hash);
-  if (!match) throw new Error('Incorrect password');
-  return { email, name: 'Admin', role: 'admin' };
-}
-
-async function staffLogin(data) {
-  if (!data.username || !data.password) throw new Error('Username and password required');
-  const username = String(data.username).trim().toLowerCase();
-  const password = String(data.password).trim();
-  const { data: s } = await supabase.from('staff').select('*').eq('username', username).maybeSingle();
-  if (!s) throw new Error('Invalid credentials');
-  const match = await bcrypt.compare(password, s.password);
-  if (!match) throw new Error('Invalid credentials');
-  if (s.status !== 'active') throw new Error('Account is inactive');
-  return { username: s.username, name: s.name, role: 'staff' };
-}
-
-async function updateProfile(data) {
-  if (!data.userId) throw new Error('userId required');
-  const updates = {};
-  if (data.name    !== undefined) updates.name    = data.name;
-  if (data.email   !== undefined) updates.email   = data.email;
-  if (data.address !== undefined) updates.address = data.address;
-  if (data.newPassword) updates.password = await bcrypt.hash(String(data.newPassword), 10);
-  const { error } = await supabase.from('users').update(updates).eq('user_id', data.userId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function resetAdminPassword(data) {
-  if (!data.email) throw new Error('email required');
-  if (!data.newPassword || String(data.newPassword).length < 6) throw new Error('Password must be 6+ chars');
-  const email  = String(data.email).trim().toLowerCase();
-  const { data: row } = await supabase.from('admin_settings').select('admin_id').eq('admin_id', email).maybeSingle();
-  if (!row) throw new Error('Admin account not found');
-  const hashed = await bcrypt.hash(String(data.newPassword), 10);
-  const { error } = await supabase.from('admin_settings').update({ password_hash: hashed }).eq('admin_id', email);
-  if (error) throw new Error(error.message);
-  return { success: true, message: 'Admin password updated' };
-}
-
-// v14 NEW: Admin resets a user's password by phone number
-async function resetUserPassword(data) {
-  if (!data.phone)       throw new Error('phone required');
-  if (!data.newPassword || String(data.newPassword).trim().length < 6)
-    throw new Error('New password must be at least 6 characters');
-  const ph = cleanPhone(data.phone);
-  // Confirm user exists
-  const { data: user } = await supabase.from('users').select('user_id, name').eq('phone', ph).maybeSingle();
-  if (!user) throw new Error('No user found with this phone number');
-  const hashed = await bcrypt.hash(String(data.newPassword).trim(), 10);
-  const { error } = await supabase.from('users').update({ password: hashed }).eq('phone', ph);
-  if (error) throw new Error(error.message);
-  return { success: true, userName: user.name, phone: ph };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MENU
-// ═══════════════════════════════════════════════════════════════
-
-async function getMenu(data) {
-  const ist = getIST();
-  const h   = ist.getUTCHours() + ist.getUTCMinutes() / 60;
-  const dow = ist.getUTCDay();
-
-  let lunchCutoffH = 11.5;
-  try {
-    const { data: rows } = await supabase
-      .from('admin_settings')
-      .select('admin_id, access_level')
-      .in('admin_id', [`schedule_${dow}`, 'cutoff_day']);
-    if (rows && rows.length) {
-      const map = {};
-      rows.forEach(r => { map[r.admin_id] = r.access_level; });
-      const schedRaw = map[`schedule_${dow}`];
-      if (schedRaw) {
-        const sched = JSON.parse(schedRaw);
-        if (sched && sched.lunchEnd) {
-          const [sh, sm] = sched.lunchEnd.split(':').map(Number);
-          lunchCutoffH = sh + sm / 60;
-        }
-      } else if (map['cutoff_day']) {
-        const [ch, cm] = map['cutoff_day'].split(':').map(Number);
-        lunchCutoffH = ch + cm / 60;
-      }
-    }
-  } catch (_) {}
-
-  const menuType = h < lunchCutoffH ? 'morning' : 'evening';
-  const { data: items, error } = await supabase
-    .from('menu')
-    .select('*')
-    .eq('availability', true)
-    .eq('menu_type', menuType)
-    .order('sort_order', { ascending: true });
-  if (error) throw new Error(error.message);
-  return (items || []).map(formatMenuItem);
-}
-
-async function adminGetMenu() {
-  const { data: items, error } = await supabase
-    .from('menu').select('*').order('sort_order', { ascending: true });
-  if (error) throw new Error(error.message);
-  return (items || []).map(formatMenuItem);
-}
-
-async function addMenuItem(data) {
-  if (!data.name) throw new Error('Item name required');
-  const { data: items } = await supabase.from('menu')
-    .select('sort_order').order('sort_order', { ascending: false }).limit(1);
-  const maxSort    = items?.[0]?.sort_order || 0;
-  const menuItemId = generateId('MENU');
-  const row = {
-    item_id:    menuItemId,
-    name:       data.name,
-    category:   data.category  || '',
-    price:      Number(data.price) || 0,
-    variant:    data.variants ? JSON.stringify(data.variants) : null,
-    image_url:  data.imageUrl  || '',
-    menu_type:  data.menuType  || 'morning',
-    availability: true,
-    highlight:  data.highlight || '',
-    sort_order: data.sortOrder || (maxSort + 1)
-  };
-  // v14: stock_grams
-  if (data.stockGrams !== undefined && data.stockGrams !== null && data.stockGrams !== '') {
-    row.stock_grams = Number(data.stockGrams);
-  }
-  const { data: item, error } = await supabase.from('menu').insert(row).select().single();
-  if (error) throw new Error(error.message);
-  return { itemId: item.item_id };
-}
-
-async function updateMenuItem(data) {
-  if (!data.itemId) throw new Error('itemId required');
-  const updates = {};
-  if (data.name         !== undefined) updates.name         = data.name;
-  if (data.category     !== undefined) updates.category     = data.category;
-  if (data.price        !== undefined) updates.price        = Number(data.price);
-  if (data.variants     !== undefined) updates.variant      = JSON.stringify(data.variants);
-  if (data.imageUrl     !== undefined) updates.image_url    = data.imageUrl;
-  if (data.menuType     !== undefined) updates.menu_type    = data.menuType;
-  if (data.availability !== undefined) updates.availability = data.availability === 'TRUE' || data.availability === true;
-  if (data.highlight    !== undefined) updates.highlight    = data.highlight;
-  if (data.sortOrder    !== undefined) updates.sort_order   = Number(data.sortOrder);
-  // v14: allow null (unlimited) or a number
-  if (data.stockGrams !== undefined) {
-    updates.stock_grams = (data.stockGrams === null || data.stockGrams === '')
-      ? null
-      : Number(data.stockGrams);
-  }
-  const { error } = await supabase.from('menu').update(updates).eq('item_id', data.itemId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function deleteMenuItem(data) {
-  if (!data.itemId) throw new Error('itemId required');
-  const { error } = await supabase.from('menu').delete().eq('item_id', data.itemId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function updateMenuOrder(data) {
-  if (!data.items || !Array.isArray(data.items)) throw new Error('items array required');
-  const results = await Promise.all(
-    data.items.map(item =>
-      supabase.from('menu').update({ sort_order: Number(item.sortOrder) }).eq('item_id', item.itemId)
-    )
-  );
-  const failed = results
-    .map((r, i) => r.error ? `item ${data.items[i].itemId}: ${r.error.message}` : null)
-    .filter(Boolean);
-  if (failed.length) throw new Error('Some items failed to reorder: ' + failed.join('; '));
-  return true;
-}
-
-// v14 NEW: Admin updates stock directly (increase/decrease/reset)
-async function updateMenuStock(data) {
-  if (!data.itemId) throw new Error('itemId required');
-  const stockGrams = (data.stockGrams === null || data.stockGrams === '' || data.stockGrams === undefined)
-    ? null
-    : Number(data.stockGrams);
-  const { error } = await supabase
-    .from('menu')
-    .update({ stock_grams: stockGrams })
-    .eq('item_id', data.itemId);
-  if (error) throw new Error(error.message);
-  return { itemId: data.itemId, stockGrams };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STOCK DEDUCTION HELPERS (v14)
-// ═══════════════════════════════════════════════════════════════
-
-// Deduct stock for a list of cart items.
-// Each item must have: itemId, selectedVariant (label), qty
-// selectedVariantGrams is resolved from the variant list in menu.
-// Returns { success: true } or throws with the item name that failed.
-async function _deductMenuStock(cartItems) {
-  if (!cartItems || !cartItems.length) return;
-
-  // Collect all unique itemIds we need to check
-  const itemIds = [...new Set(
-    cartItems.filter(i => i.itemId && !i.isThali).map(i => i.itemId)
-  )];
-  if (!itemIds.length) return;
-
-  // Fetch current stock + variants for those items
-  const { data: menuRows, error } = await supabase
-    .from('menu')
-    .select('item_id, name, stock_grams, variant')
-    .in('item_id', itemIds);
-  if (error) throw new Error(error.message);
-
-  const menuMap = {};
-  (menuRows || []).forEach(r => { menuMap[r.item_id] = r; });
-
-  // Build deduction map: itemId → total grams to deduct
-  const deductions = {};
-  for (const ci of cartItems) {
-    if (ci.isThali) continue; // thali stock handled separately
-    const row = menuMap[ci.itemId];
-    if (!row || row.stock_grams === null || row.stock_grams === undefined) continue; // unlimited
-
-    // Parse variant to find gram weight
-    let variants = [];
-    try { variants = row.variant ? JSON.parse(row.variant) : []; } catch {}
-    const variant = variants.find(v => v.label === ci.selectedVariant);
-    const grams   = variant?.grams ? Number(variant.grams) : 0;
-    if (!grams) continue; // variant has no gram tracking
-
-    const totalDeduct = grams * (Number(ci.qty) || 1);
-    deductions[ci.itemId] = (deductions[ci.itemId] || 0) + totalDeduct;
-  }
-
-  // Validate and deduct
-  for (const [itemId, deductGrams] of Object.entries(deductions)) {
-    const row = menuMap[itemId];
-    if (row.stock_grams < deductGrams) {
-      throw new Error(`"${row.name}" is out of stock or has insufficient quantity available`);
-    }
-    const newStock = row.stock_grams - deductGrams;
-    const { error: upErr } = await supabase
-      .from('menu')
-      .update({ stock_grams: newStock })
-      .eq('item_id', itemId);
-    if (upErr) throw new Error(`Stock update failed for ${row.name}: ` + upErr.message);
-  }
-}
-
-// Deduct thali stock + all its component variant stocks
-async function _deductThaliStock(thaliId, qty) {
-  qty = Number(qty) || 1;
-
-  // 1. Deduct thali-level stock_qty
-  const { data: thali, error: tErr } = await supabase
-    .from('thalis')
-    .select('thali_id, name, stock_qty')
-    .eq('thali_id', thaliId)
-    .maybeSingle();
-  if (tErr) throw new Error(tErr.message);
-  if (!thali) throw new Error('Thali not found: ' + thaliId);
-
-  if (thali.stock_qty !== null && thali.stock_qty !== undefined) {
-    if (thali.stock_qty < qty) throw new Error(`"${thali.name}" thali is out of stock`);
-    await supabase.from('thalis')
-      .update({ stock_qty: thali.stock_qty - qty })
-      .eq('thali_id', thaliId);
-  }
-
-  // 2. Deduct each component's menu item stock
-  const { data: components } = await supabase
-    .from('thali_items')
-    .select('menu_item_id, variant_grams, quantity_in_thali')
-    .eq('thali_id', thaliId);
-
-  for (const comp of (components || [])) {
-    if (!comp.variant_grams) continue; // no gram tracking for this component
-    const gramsNeeded = comp.variant_grams * comp.quantity_in_thali * qty;
-
-    const { data: menuItem } = await supabase
-      .from('menu')
-      .select('name, stock_grams')
-      .eq('item_id', comp.menu_item_id)
-      .maybeSingle();
-    if (!menuItem || menuItem.stock_grams === null) continue; // unlimited
-
-    if (menuItem.stock_grams < gramsNeeded) {
-      throw new Error(`A component of "${thali.name}" (${menuItem.name}) is out of stock`);
-    }
-    await supabase.from('menu')
-      .update({ stock_grams: menuItem.stock_grams - gramsNeeded })
-      .eq('item_id', comp.menu_item_id);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// THALI (v14 NEW)
-// ═══════════════════════════════════════════════════════════════
-
-// Helper: fetch thali items with menu item names joined
-async function _getThaliItems(thaliId) {
-  const { data: rows, error } = await supabase
-    .from('thali_items')
-    .select('*')
-    .eq('thali_id', thaliId);
-  if (error) return [];
-  if (!rows || !rows.length) return [];
-
-  // Fetch menu item names in one query
-  const menuIds = [...new Set(rows.map(r => r.menu_item_id))];
-  const { data: menuRows } = await supabase
-    .from('menu')
-    .select('item_id, name')
-    .in('item_id', menuIds);
-  const nameMap = {};
-  (menuRows || []).forEach(m => { nameMap[m.item_id] = m.name; });
-
-  return rows.map(r => ({ ...r, menu_item_name: nameMap[r.menu_item_id] || '' }));
-}
-
-// User-facing: only active thalis
-async function getThalis() {
-  const { data: thalis, error } = await supabase
-    .from('thalis')
-    .select('*')
-    .eq('is_active', true)
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-
-  const result = [];
-  for (const t of (thalis || [])) {
-    const items = await _getThaliItems(t.thali_id);
-    result.push(formatThali(t, items));
-  }
-  return result;
-}
-
-// Admin-facing: all thalis
-async function adminGetThalis() {
-  const { data: thalis, error } = await supabase
-    .from('thalis')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-
-  const result = [];
-  for (const t of (thalis || [])) {
-    const items = await _getThaliItems(t.thali_id);
-    result.push(formatThali(t, items));
-  }
-  return result;
-}
-
-async function createThali(data) {
-  if (!data.name) throw new Error('Thali name required');
-  if (!data.price || Number(data.price) <= 0) throw new Error('Thali price required');
-  const ist     = getIST();
-  const thaliId = generateThaliId(ist);
-  const row = {
-    thali_id:    thaliId,
-    name:        data.name,
-    description: data.description || '',
-    price:       Number(data.price),
-    image_url:   data.imageUrl || '',
-    is_active:   data.isActive !== false,
-    stock_qty:   (data.stockQty !== undefined && data.stockQty !== null && data.stockQty !== '')
-      ? Number(data.stockQty)
-      : null
-  };
-  const { error } = await supabase.from('thalis').insert(row);
-  if (error) throw new Error(error.message);
-
-  // Add components if provided
-  if (data.items && Array.isArray(data.items) && data.items.length) {
-    await _saveThaliItems(thaliId, data.items);
-  }
-  return { thaliId };
-}
-
-async function updateThali(data) {
-  if (!data.thaliId) throw new Error('thaliId required');
-  const updates = {};
-  if (data.name        !== undefined) updates.name        = data.name;
-  if (data.description !== undefined) updates.description = data.description;
-  if (data.price       !== undefined) updates.price       = Number(data.price);
-  if (data.imageUrl    !== undefined) updates.image_url   = data.imageUrl;
-  if (data.isActive    !== undefined) updates.is_active   = data.isActive;
-  if (data.stockQty    !== undefined) {
-    updates.stock_qty = (data.stockQty === null || data.stockQty === '') ? null : Number(data.stockQty);
-  }
-  const { error } = await supabase.from('thalis').update(updates).eq('thali_id', data.thaliId);
-  if (error) throw new Error(error.message);
-
-  // If items array supplied, replace all components
-  if (data.items && Array.isArray(data.items)) {
-    // Delete existing
-    await supabase.from('thali_items').delete().eq('thali_id', data.thaliId);
-    // Re-insert
-    if (data.items.length) await _saveThaliItems(data.thaliId, data.items);
-  }
-  return true;
-}
-
-async function deleteThali(data) {
-  if (!data.thaliId) throw new Error('thaliId required');
-  // thali_items cascade deletes automatically
-  const { error } = await supabase.from('thalis').delete().eq('thali_id', data.thaliId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function addThaliItem(data) {
-  if (!data.thaliId || !data.menuItemId || !data.variantLabel) {
-    throw new Error('thaliId, menuItemId, variantLabel required');
-  }
-  const row = {
-    thali_id:         data.thaliId,
-    menu_item_id:     data.menuItemId,
-    variant_label:    data.variantLabel,
-    variant_price:    Number(data.variantPrice)    || 0,
-    variant_grams:    data.variantGrams !== undefined && data.variantGrams !== null
-      ? Number(data.variantGrams) : null,
-    quantity_in_thali: Number(data.quantityInThali) || 1
-  };
-  const { error } = await supabase.from('thali_items').insert(row);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function removeThaliItem(data) {
-  if (!data.id) throw new Error('thali_item id required');
-  const { error } = await supabase.from('thali_items').delete().eq('id', data.id);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-// Internal helper: insert multiple thali items at once
-async function _saveThaliItems(thaliId, items) {
-  const rows = items.map(i => ({
-    thali_id:          thaliId,
-    menu_item_id:      i.menuItemId,
-    variant_label:     i.variantLabel,
-    variant_price:     Number(i.variantPrice)    || 0,
-    variant_grams:     (i.variantGrams !== undefined && i.variantGrams !== null && i.variantGrams !== '')
-      ? Number(i.variantGrams) : null,
-    quantity_in_thali: Number(i.quantityInThali) || 1
-  }));
-  const { error } = await supabase.from('thali_items').insert(rows);
-  if (error) throw new Error('Failed to save thali components: ' + error.message);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ORDERS
-// ═══════════════════════════════════════════════════════════════
-
-async function createOrder(data) {
-  if (!data.userId) throw new Error('userId required');
-  const items = Array.isArray(data.items) ? data.items : JSON.parse(data.items || '[]');
-  if (!items.length) throw new Error('Cart is empty');
-
-  const ist     = getIST();
-  const orderId = generateOrderId(ist);
-  const ph      = cleanPhone(data.phone);
-  const isSub   = data.userType === 'subscriber' && data.payFromWallet;
-  const amount  = Number(data.finalAmount) || 0;
-
-  // ── Step 1: Verify subscriber status from DB (v14 fix) ─────
-  if (data.userType === 'subscriber') {
-    const { data: sub } = await supabase
-      .from('subscribers')
-      .select('is_active')
-      .eq('phone', ph)
-      .maybeSingle();
-    if (!sub || !sub.is_active) {
-      // Not actually a subscriber — treat as daily user, no wallet deduction
-      data.userType     = 'daily';
-      data.payFromWallet = false;
-    }
-  }
-  const isSub2 = data.userType === 'subscriber' && data.payFromWallet;
-
-  // ── Step 2: Deduct wallet FIRST (before order insert) ──────
-  if (isSub2 && amount > 0) {
-    const itemSummary = items.map(i =>
-      i.name + (i.selectedVariant ? ` (${i.selectedVariant})` : '') + ` ×${i.qty}`
-    ).join(', ');
-    const noteText = `Tiffin Given (${itemSummary}) | ${orderId}`;
-    await deductWalletBalance(ph, amount, noteText, ph); // v14: user_id = phone
-  }
-
-  // ── Step 3: Deduct menu stock (v14) ────────────────────────
-  try {
-    // Regular items
-    await _deductMenuStock(items);
-    // Thali items
-    for (const ci of items) {
-      if (ci.isThali && ci.itemId) {
-        await _deductThaliStock(ci.itemId, ci.qty || 1);
-      }
-    }
-  } catch (stockErr) {
-    // Refund wallet if stock deduction failed
-    if (isSub2 && amount > 0) {
-      try {
-        await rechargeWallet({ phone: ph, amount, note: `Auto-refund — stock error on order ${orderId}` });
-      } catch (_) {}
-    }
-    throw stockErr;
-  }
-
-  // ── Step 4: Insert order ────────────────────────────────────
-  const { data: order, error } = await supabase.from('orders').insert({
-    order_id:       orderId,
-    user_id:        data.userId,
-    name:           data.name,
-    phone:          ph,
-    address:        data.address,
-    items,
-    total_amount:   Number(data.totalAmount)    || 0,
-    delivery_charge: Number(data.deliveryCharge) || 0,
-    final_amount:   amount,
-    coupon_code:    data.couponCode || '',
-    discount:       Number(data.discount)        || 0,
-    user_type:      data.userType || 'daily',
-    payment_status: 'pending',
-    order_status:   'pending',
-    order_date:     istDateStr(ist),
-    order_time:     istTimeStr(ist)
-  }).select().single();
-
-  if (error) {
-    // Auto-refund wallet on order insert failure
-    if (isSub2 && amount > 0) {
-      try {
-        await rechargeWallet({ phone: ph, amount, note: `Auto-refund — order ${orderId} failed to save` });
-      } catch (_) { console.error(`[createOrder] Auto-refund failed for ${ph} ₹${amount}`); }
-    }
-    throw new Error(error.message);
-  }
-
-  if (data.couponCode) await incrementCouponUsage(data.couponCode, ph);
-
-  // Return new wallet balance for immediate UI update (subscribers)
-  let newBalance = null;
-  if (isSub2) {
-    newBalance = await getWalletBalance(ph);
-  }
-
-  return { orderId: order.order_id, newBalance };
-}
-
-async function getUserOrders(data) {
-  if (!data.userId) throw new Error('userId required');
-  const { data: orders, error } = await supabase
-    .from('orders').select('*')
-    .eq('user_id', data.userId)
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (orders || []).map(formatOrder);
-}
-
-async function adminGetOrders() {
-  const { data: orders, error } = await supabase
-    .from('orders').select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (orders || []).map(formatOrder);
-}
-
-async function getOrdersByDate(data) {
-  const date = data.date || istDateStr(getIST());
-  const { data: orders, error } = await supabase
-    .from('orders')
-    .select('phone, order_date, order_status')
-    .eq('order_date', date)
-    .neq('order_status', 'rejected');
-  if (error) throw new Error(error.message);
-  return (orders || []).map(o => ({
-    phone: cleanPhone(o.phone), date: o.order_date, status: o.order_status
-  }));
-}
-
-// v14: valid statuses — pending → verified → preparing → out for delivery → delivered | rejected
-const VALID_ORDER_STATUSES = ['pending','verified','preparing','out for delivery','delivered','rejected'];
-
-async function updateOrderStatus(data) {
-  if (!data.orderId) throw new Error('orderId required');
-  if (data.status && !VALID_ORDER_STATUSES.includes(data.status)) {
-    throw new Error(`Invalid status: ${data.status}. Valid: ${VALID_ORDER_STATUSES.join(', ')}`);
-  }
-  const updates = {};
-  if (data.status)        updates.order_status   = data.status;
-  if (data.paymentStatus) updates.payment_status = data.paymentStatus;
-  if (data.riderId)       updates.rider_id       = data.riderId;
-  const { error } = await supabase.from('orders').update(updates).eq('order_id', data.orderId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function rejectOrder(data) {
-  if (!data.orderId) throw new Error('orderId required');
-  const { data: order, error: fetchErr } = await supabase
-    .from('orders')
-    .select('order_id, user_id, phone, final_amount, user_type, payment_status, order_status')
-    .eq('order_id', data.orderId)
-    .maybeSingle();
-  if (fetchErr) throw new Error(fetchErr.message);
-  if (!order) throw new Error('Order not found');
-  if (order.order_status === 'rejected') {
-    return { rejected: true, refunded: 0, alreadyRejected: true };
-  }
-  const { error } = await supabase
-    .from('orders').update({ order_status: 'rejected' }).eq('order_id', data.orderId);
-  if (error) throw new Error(error.message);
-
-  const refundMode = data.refundMode || 'none';
-  const amt        = Number(data.refundAmount) || Number(order.final_amount) || 0;
-  let refundedAmount = 0;
-  if (refundMode === 'wallet' && amt > 0) {
-    const ph   = cleanPhone(order.phone);
-    const note = data.refundNote
-      ? `Refund — ${data.refundNote} | order ${order.order_id}`
-      : `Refund — rejected order ${order.order_id}`;
-    await rechargeWallet({ phone: ph, amount: amt, note });
-    refundedAmount = amt;
-  }
-  return { rejected: true, refunded: refundedAmount, refundMode };
-}
-
-// ── INTERNAL SINGLE ORDER CREATOR ────────────────────────────
-async function _createSingleOrder(o, { skipDeduction = false, allowOverdraft = false } = {}) {
-  const ph     = cleanPhone(o.phone);
-  const amount = Number(o.finalAmount) || 0;
-  const items  = Array.isArray(o.items) ? o.items : JSON.parse(o.items || '[]');
-  const userId = o.userId || ph; // v14: user_id = phone
-
-  if (!skipDeduction && !allowOverdraft && amount > 0 && o.userType !== 'daily') {
-    const bal = await getWalletBalance(ph);
-    if (bal < amount) throw new Error(`Insufficient balance ₹${bal} (need ₹${amount})`);
-  }
-
-  const ist     = getIST();
-  const orderId = generateOrderId(ist);
-
-  const { data: order, error } = await supabase.from('orders').insert({
-    order_id:       orderId,
-    user_id:        userId,
-    name:           o.name,
-    phone:          ph,
-    address:        o.address || '',
-    items,
-    total_amount:   amount,
-    delivery_charge: 0,
-    final_amount:   amount,
-    coupon_code:    '',
-    discount:       0,
-    user_type:      o.userType || 'subscriber',
-    payment_status: 'pending',
-    order_status:   'pending',
-    order_date:     istDateStr(ist),
-    order_time:     istTimeStr(ist)
-  }).select().single();
-  if (error) throw new Error(error.message);
-
-  if (!skipDeduction && amount > 0 && o.userType !== 'daily') {
-    const itemSummary = items.map(i =>
-      i.name + (i.selectedVariant ? ` (${i.selectedVariant})` : '') + ` ×${i.qty}`
-    ).join(', ');
-    // v14: user_id = phone
-    await deductWalletBalance(ph, amount, `Tiffin Given (${itemSummary || 'tiffin'}) | ${order.order_id}`, ph);
-  }
-
-  return order.order_id;
-}
-
-async function forceUdharOrder(data) {
-  if (!data.phone) throw new Error('phone required');
-  const items  = Array.isArray(data.items) ? data.items : JSON.parse(data.items || '[]');
-  const ph     = cleanPhone(data.phone);
-  const amount = Number(data.amount) || Number(data.finalAmount) || 0;
-  const orderId = await _createSingleOrder({
-    phone: ph, name: data.name, address: data.address || '',
-    items, finalAmount: amount,
-    userId: ph, // v14: user_id = phone
-    userType: 'subscriber'
-  }, { allowOverdraft: true });
-  const newBal = await getWalletBalance(ph);
-  return { orderId, newBalance: newBal };
-}
-
-async function bulkOrdersWithBalance(data) {
-  if (!data.orders || !Array.isArray(data.orders)) throw new Error('orders array required');
-  const nowIST   = getIST();
-  const istHour  = nowIST.getUTCHours();
-  const slotName = istHour < 12 ? 'morning' : 'evening';
-
-  const allPhones = data.orders.map(o => cleanPhone(o.phone));
-  const { data: pauseRows } = await supabase
-    .from('subscribers')
-    .select('phone, pause_delivery')
-    .in('phone', allPhones);
-  const pauseMap = {};
-  (pauseRows || []).forEach(r => { pauseMap[cleanPhone(r.phone)] = r.pause_delivery || 'none'; });
-
-  const success = [], failed = [];
-  for (const o of data.orders) {
-    const ph        = cleanPhone(o.phone);
-    const pauseMode = pauseMap[ph] || 'none';
-    const slotPaused =
-      pauseMode === 'both' ||
-      (pauseMode === 'lunch'  && slotName === 'morning') ||
-      (pauseMode === 'dinner' && slotName === 'evening');
-    if (slotPaused) {
-      failed.push({ phone: ph, name: o.name, reason: `Delivery paused (${pauseMode}) for ${slotName} slot` });
-      continue;
-    }
-    try {
-      const orderId = await _createSingleOrder({ ...o, phone: ph, userId: ph, userType: 'subscriber' });
-      success.push({ phone: ph, name: o.name, orderId });
-    } catch (err) { failed.push({ phone: ph, name: o.name, reason: err.message }); }
-  }
-  return { success, failed, slot: slotName };
-}
-
-async function adminBulkCreate(data) {
-  if (!data.orders || !Array.isArray(data.orders)) throw new Error('orders array required');
-  const nowIST   = getIST();
-  const istHour  = nowIST.getUTCHours();
-  const slotName = istHour < 12 ? 'morning' : 'evening';
-  const todayStr = istDateStr(nowIST);
-
-  const { data: todayOrders } = await supabase
-    .from('orders')
-    .select('phone, order_time')
-    .eq('order_date', todayStr)
-    .neq('order_status', 'rejected');
-
-  const alreadyOrderedThisSlot = new Set();
-  (todayOrders || []).forEach(o => {
-    const normalised = normOrderTime(o.order_time || '');
-    const match = normalised.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (match) {
-      let h = parseInt(match[1]);
-      const isPM = match[3].toUpperCase() === 'PM';
-      if (isPM && h !== 12) h += 12;
-      if (!isPM && h === 12) h = 0;
-      const orderSlot = h < 12 ? 'morning' : 'evening';
-      if (orderSlot === slotName) alreadyOrderedThisSlot.add(cleanPhone(o.phone));
-    }
-  });
-
-  const allPhones = data.orders.map(o => cleanPhone(o.phone));
-  const { data: pauseRows } = await supabase
-    .from('subscribers')
-    .select('phone, pause_delivery')
-    .in('phone', allPhones);
-  const pauseMap = {};
-  (pauseRows || []).forEach(r => { pauseMap[cleanPhone(r.phone)] = r.pause_delivery || 'none'; });
-
-  const success = [], failed = [];
-  for (const o of data.orders) {
-    const ph = cleanPhone(o.phone);
-    if (alreadyOrderedThisSlot.has(ph)) {
-      failed.push({ phone: ph, name: o.name, reason: `Already has a ${slotName} order today` });
-      continue;
-    }
-    if (o.userType !== 'daily') {
-      const pauseMode = pauseMap[ph] || 'none';
-      const slotPaused =
-        pauseMode === 'both' ||
-        (pauseMode === 'lunch'  && slotName === 'morning') ||
-        (pauseMode === 'dinner' && slotName === 'evening');
-      if (slotPaused) {
-        failed.push({ phone: ph, name: o.name, reason: `Delivery paused (${pauseMode}) for ${slotName} slot` });
-        continue;
-      }
-    }
-    try {
-      const orderId = await _createSingleOrder(
-        { ...o, phone: ph, userId: ph, userType: o.userType || 'subscriber' },
-        { skipDeduction: o.userType === 'daily' }
-      );
-      alreadyOrderedThisSlot.add(ph);
-      success.push({ phone: ph, name: o.name, orderId });
-    } catch (err) { failed.push({ phone: ph, name: o.name, reason: err.message }); }
-  }
-  return { success, failed, slot: slotName };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COUPONS
-// ═══════════════════════════════════════════════════════════════
-
-async function applyCoupon(data) {
-  if (!data.code) throw new Error('Coupon code required');
-  const { data: coupon } = await supabase
-    .from('coupons').select('*').eq('code', data.code.toUpperCase()).maybeSingle();
-  if (!coupon) throw new Error('Invalid coupon code');
-  if (!coupon.is_active) throw new Error('Coupon is not active');
-  if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) throw new Error('Coupon has expired');
-  if (coupon.user_phone && cleanPhone(coupon.user_phone) !== cleanPhone(data.phone || ''))
-    throw new Error('Coupon is not valid for this account');
-
-  const limit = Number(coupon.per_user_limit) || 0;
-  if (limit > 0 && data.phone) {
-    const ph = cleanPhone(data.phone);
-    let usage = {};
-    try { usage = JSON.parse(coupon.usage_count || '{}'); } catch { usage = {}; }
-    const used = Number(usage[ph]) || 0;
-    if (used >= limit) throw new Error(`Coupon usage limit reached (max ${limit} time${limit > 1 ? 's' : ''} per user)`);
-  }
-  return { code: coupon.code, discountType: coupon.discount_type, discountValue: Number(coupon.discount_value) };
-}
-
-async function incrementCouponUsage(code, phone) {
-  try {
-    const { data: coupon } = await supabase.from('coupons').select('usage_count').eq('code', code).maybeSingle();
-    if (!coupon) return;
-    let usage = {};
-    try { usage = JSON.parse(coupon.usage_count || '{}'); } catch { usage = {}; }
-    usage[phone] = (usage[phone] || 0) + 1;
-    await supabase.from('coupons').update({ usage_count: JSON.stringify(usage) }).eq('code', code);
-  } catch {}
-}
-
-async function createCoupon(data) {
-  if (!data.code || !data.discountType || !data.discountValue) throw new Error('code, discountType, discountValue required');
-  const { error } = await supabase.from('coupons').insert({
-    code: data.code.toUpperCase(), discount_type: data.discountType,
-    discount_value: Number(data.discountValue),
-    expiry_date: data.expiryDate || null, user_phone: data.userPhone || null,
-    is_active: true, usage_count: '{}'
-  });
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function adminGetCoupons() {
-  const { data: coupons, error } = await supabase.from('coupons').select('*');
-  if (error) throw new Error(error.message);
-  return (coupons || []).map(c => ({
-    code: c.code, discountType: c.discount_type, discountValue: c.discount_value,
-    expiryDate: c.expiry_date, userPhone: c.user_phone, isActive: c.is_active,
-    perUserLimit: c.per_user_limit || 0,
-    usageCount: (() => { try { return JSON.parse(c.usage_count || '{}'); } catch { return {}; } })()
-  }));
-}
-
-async function deleteCoupon(data) {
-  if (!data.code) throw new Error('code required');
-  const { error } = await supabase.from('coupons').delete().eq('code', data.code.toUpperCase());
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SUBSCRIBERS
-// ═══════════════════════════════════════════════════════════════
-
-async function checkSubscriber(data) {
-  if (!data.phone) return { isSubscriber: false, pauseDelivery: 'none' };
-  const ph = cleanPhone(data.phone);
-  const { data: sub } = await supabase
-    .from('subscribers').select('is_active, pause_delivery').eq('phone', ph).maybeSingle();
-  const isSubscriber = !!(sub && sub.is_active);
-  // v14: sync users flag while we're here
-  await supabase.from('users').update({ is_subscriber: isSubscriber }).eq('phone', ph);
-  return { isSubscriber, pauseDelivery: sub?.pause_delivery || 'none' };
-}
-
-async function pauseUserDelivery(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph   = cleanPhone(data.phone);
-  const mode = data.mode || 'none';
-  const { error } = await supabase.from('subscribers').update({ pause_delivery: mode }).eq('phone', ph);
-  if (error) throw new Error(error.message);
-  return { pauseDelivery: mode };
-}
-
-async function getSubscriberPauseStatus(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph = cleanPhone(data.phone);
-  const { data: sub } = await supabase.from('subscribers').select('pause_delivery').eq('phone', ph).maybeSingle();
-  return { pauseDelivery: sub?.pause_delivery || 'none' };
-}
-
-async function adminGetSubscribers() {
-  const { data: subs,    error } = await supabase.from('subscribers').select('*');
-  if (error) throw new Error(error.message);
-  const { data: wallets } = await supabase.from('wallet').select('*');
-  const balMap = {};
-  (wallets || []).forEach(w => { balMap[cleanPhone(w.user_phone)] = Number(w.balance) || 0; });
-  return (subs || []).map(s => ({
-    phone:         s.phone,
-    name:          s.name || '',
-    address:       s.address || '',
-    startDate:     s.start_date,
-    plan:          s.plan || s.plan_type || 'both',
-    status:        s.is_active ? 'active' : 'paused',
-    pauseDelivery: s.pause_delivery || 'none',
-    balance:       balMap[cleanPhone(s.phone)] || 0
-  }));
-}
-
-async function addSubscriber(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph = cleanPhone(data.phone);
-  const { error } = await supabase.from('subscribers').insert({
-    phone: ph, name: data.name || '', address: data.address || '',
-    plan: data.plan || 'both', plan_type: data.plan || 'both',
-    is_active: true, start_date: new Date().toISOString().split('T')[0]
-  });
-  if (error) throw new Error(error.message);
-  // v14: sync is_subscriber on users table
-  await supabase.from('users').update({ is_subscriber: true }).eq('phone', ph);
-  if (data.initialRecharge && Number(data.initialRecharge) > 0) {
-    await rechargeWallet({ phone: ph, amount: data.initialRecharge, note: 'Initial recharge' });
-  }
-  return true;
-}
-
-async function updateSubscriber(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph      = cleanPhone(data.phone);
-  const updates = {};
-  if (data.name    !== undefined) updates.name      = data.name;
-  if (data.address !== undefined) updates.address   = data.address;
-  if (data.plan    !== undefined) { updates.plan = data.plan; updates.plan_type = data.plan; }
-  if (data.status  !== undefined) updates.is_active = data.status === 'active';
-  const { error } = await supabase.from('subscribers').update(updates).eq('phone', ph);
-  if (error) throw new Error(error.message);
-  // Sync is_subscriber flag
-  if (data.status !== undefined) {
-    await supabase.from('users')
-      .update({ is_subscriber: data.status === 'active' })
-      .eq('phone', ph);
-  }
-  return true;
-}
-
-async function removeSubscriber(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph = cleanPhone(data.phone);
-  const { error } = await supabase.from('subscribers').delete().eq('phone', ph);
-  if (error) throw new Error(error.message);
-  await supabase.from('users').update({ is_subscriber: false }).eq('phone', ph);
-  return true;
-}
-
-async function getUserByPhone(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph = cleanPhone(data.phone);
-  const { data: user } = await supabase.from('users').select('*').eq('phone', ph).maybeSingle();
-  if (!user) throw new Error('No registered user found with this phone number');
-  const { data: sub } = await supabase.from('subscribers').select('is_active').eq('phone', ph).maybeSingle();
-  const isSubscriber  = !!(sub && sub.is_active);
-  const balance       = await getWalletBalance(ph);
-  return {
-    userId:       user.user_id,
-    name:         user.name,
-    phone:        user.phone,
-    email:        user.email    || '',
-    address:      user.address  || '',
-    isSubscriber,
-    balance
-  };
-}
-
-async function adminCreateUser(data) {
-  if (!data.phone || !data.name || !data.password) throw new Error('phone, name, password required');
-  const ph = cleanPhone(data.phone);
-  const { data: existing } = await supabase.from('users').select('phone').eq('phone', ph).maybeSingle();
-  if (existing) throw new Error('Phone already registered');
-  const hashed = await bcrypt.hash(String(data.password).trim(), 10);
-  const { data: user, error } = await supabase.from('users').insert({
-    user_id: ph, name: data.name, phone: ph,
-    email: data.email || '', address: data.address || '',
-    password: hashed, is_subscriber: false
-  }).select().single();
-  if (error) throw new Error(error.message);
-  if (data.makeSubscriber) {
-    const { error: sErr } = await supabase.from('subscribers').insert({
-      phone: ph, name: data.name, address: data.address || '',
-      plan: data.plan || 'both', plan_type: data.plan || 'both',
-      is_active: true, start_date: new Date().toISOString().split('T')[0]
-    });
-    if (!sErr) {
-      await supabase.from('users').update({ is_subscriber: true }).eq('phone', ph);
-      if (data.initialRecharge && Number(data.initialRecharge) > 0) {
-        await rechargeWallet({ phone: ph, amount: data.initialRecharge, note: 'Initial recharge on account creation' });
-      }
-    }
-  }
-  return { userId: user.user_id, name: user.name, phone: user.phone };
-}
-
-async function promoteToSubscriber(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph = cleanPhone(data.phone);
-  const { data: existing } = await supabase.from('subscribers').select('phone').eq('phone', ph).maybeSingle();
-  if (existing) throw new Error('User is already a subscriber');
-  const { error } = await supabase.from('subscribers').insert({
-    phone: ph, name: data.name || '', address: data.address || '',
-    plan: data.plan || 'both', plan_type: data.plan || 'both',
-    is_active: true, start_date: new Date().toISOString().split('T')[0]
-  });
-  if (error) throw new Error(error.message);
-  await supabase.from('users').update({ is_subscriber: true }).eq('phone', ph);
-  if (data.initialRecharge && Number(data.initialRecharge) > 0) {
-    await rechargeWallet({ phone: ph, amount: data.initialRecharge, note: 'Promoted to subscriber' });
-  }
-  return { promoted: true, phone: ph };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// RIDERS
-// ═══════════════════════════════════════════════════════════════
-
-async function createRider(data) {
-  if (!data.name || !data.email || !data.password) throw new Error('name, email, password required');
-  const hashed     = await bcrypt.hash(String(data.password), 10);
-  const riderEmail = String(data.email).trim().toLowerCase();
-  const ist        = getIST();
-  const riderId    = await generateRiderId(ist);
-  const { data: rider, error } = await supabase.from('riders').insert({
-    rider_id: riderId, name: data.name, email: riderEmail, password: hashed
-  }).select().single();
-  if (error) throw new Error(error.message);
-  return { riderId: rider.rider_id };
-}
-
-async function updateRider(data) {
-  if (!data.riderId) throw new Error('riderId required');
-  const updates = {};
-  if (data.name  !== undefined) updates.name  = data.name;
-  if (data.email !== undefined) updates.email = String(data.email).trim().toLowerCase();
-  if (data.password && data.password.length >= 6) updates.password = await bcrypt.hash(String(data.password).trim(), 10);
-  const { error } = await supabase.from('riders').update(updates).eq('rider_id', data.riderId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function deleteRider(data) {
-  if (!data.riderId) throw new Error('riderId required');
-  const { error } = await supabase.from('riders').delete().eq('rider_id', data.riderId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function riderLogin(data) {
-  if (!data.email || !data.password) throw new Error('Email and password required');
-  const email    = String(data.email).trim().toLowerCase();
-  const password = String(data.password).trim();
-  const { data: rider } = await supabase.from('riders').select('*').eq('email', email).maybeSingle();
-  if (!rider) throw new Error('Invalid credentials');
-  const match = await bcrypt.compare(password, rider.password);
-  if (!match) throw new Error('Invalid credentials');
-  return { riderId: rider.rider_id, name: rider.name, email: rider.email };
-}
-
-async function getRiderOrders(data) {
-  if (!data.riderId) throw new Error('riderId required');
-  // v14: rider sees verified/preparing/out for delivery — not raw pending
-  const { data: assigned, error: e1 } = await supabase.from('orders').select('*')
-    .eq('rider_id', data.riderId)
-    .in('order_status', ['verified', 'preparing', 'out for delivery', 'delivered']);
-  if (e1) throw new Error(e1.message);
-
-  // Unassigned orders that are verified/preparing — visible to all riders
-  const { data: unassigned, error: e2 } = await supabase.from('orders').select('*')
-    .is('rider_id', null)
-    .in('order_status', ['verified', 'preparing']);
-  if (e2) throw new Error(e2.message);
-
-  const seen   = new Set();
-  const orders = [...(assigned || []), ...(unassigned || [])].filter(o => {
-    if (seen.has(o.order_id)) return false;
-    seen.add(o.order_id); return true;
-  });
-  return orders.map(formatOrder);
-}
-
-async function getRiders() {
-  const { data: riders, error } = await supabase.from('riders').select('rider_id, name, email');
-  if (error) throw new Error(error.message);
-  return (riders || []).map(r => ({ riderId: r.rider_id, name: r.name, email: r.email }));
-}
-
-async function assignRider(data) {
-  if (!data.orderId || !data.riderId) throw new Error('orderId and riderId required');
-  const { error } = await supabase.from('orders').update({ rider_id: data.riderId }).eq('order_id', data.orderId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STAFF
-// ═══════════════════════════════════════════════════════════════
-
-async function createStaff(data) {
-  if (!data.username || !data.name || !data.password) throw new Error('username, name, password required');
-  if (data.password.length < 6) throw new Error('Password must be 6+ chars');
-  const staffUsername = String(data.username).trim().toLowerCase();
-  const hashed        = await bcrypt.hash(String(data.password).trim(), 10);
-  const { error } = await supabase.from('staff').insert({
-    username: staffUsername, name: data.name, password: hashed, status: 'active'
-  });
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function updateStaff(data) {
-  if (!data.username) throw new Error('username required');
-  const updates = {};
-  if (data.name   !== undefined) updates.name   = data.name;
-  if (data.status !== undefined) updates.status = data.status;
-  if (data.password && data.password.length >= 6) updates.password = await bcrypt.hash(String(data.password), 10);
-  const { error } = await supabase.from('staff').update(updates).eq('username', data.username);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function deleteStaff(data) {
-  if (!data.username) throw new Error('username required');
-  const { error } = await supabase.from('staff').delete().eq('username', data.username);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
-async function getStaff() {
-  const { data: staff, error } = await supabase.from('staff').select('username, name, status, created_at');
-  if (error) throw new Error(error.message);
-  return (staff || []).map(s => ({ username: s.username, name: s.name, status: s.status, createdAt: s.created_at }));
-}
-
-// ═══════════════════════════════════════════════════════════════
-// WALLET / KHATA
-// ═══════════════════════════════════════════════════════════════
-
-async function getWalletBalance(phone) {
-  const ph = cleanPhone(phone);
-  const { data: w } = await supabase.from('wallet').select('balance').eq('user_phone', ph).maybeSingle();
-  return Number(w?.balance) || 0;
-}
+// ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
 async function _atomicWalletUpdate(phone, delta) {
-  const ph = cleanPhone(phone);
-  await supabase.from('wallet').upsert(
-    { user_phone: ph, balance: 0, last_updated: new Date().toISOString() },
-    { onConflict: 'user_phone', ignoreDuplicates: true }
-  );
-  const { data, error } = await supabase.rpc('wallet_atomic_update', {
-    p_phone: ph, p_delta: delta
-  });
-  if (error) {
-    const currentBal = await getWalletBalance(ph);
-    const newBal     = currentBal + delta;
-    await supabase.from('wallet').upsert(
-      { user_phone: ph, balance: newBal, last_updated: new Date().toISOString() },
-      { onConflict: 'user_phone' }
-    );
-    return newBal;
-  }
-  return Number(data) || 0;
+  const { data: rows } = await supabase
+    .from('khata_summary')
+    .select('balance')
+    .eq('phone', phone)
+    .single();
+  const newBalance = ((rows?.balance) ?? 0) + delta;
+  await supabase
+    .from('khata_summary')
+    .upsert({ phone, balance: newBalance, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+  return newBalance;
 }
 
-// v14 FIX: Always set BOTH user_id=phone AND user_phone=phone
-async function deductWalletBalance(phone, amount, note, userId) {
-  const ph     = cleanPhone(phone);
-  const uid    = cleanPhone(userId || phone); // v14: user_id = phone
-  const newBal = await _atomicWalletUpdate(ph, -amount);
-  const ist    = getIST();
-  const { error: kErr } = await supabase.from('khata_transactions').insert({
-    user_id:    uid,   // v14: always phone number
-    user_phone: ph,
-    amount:     -amount,
-    type:       'debit',
-    note:       note || '',
-    created_at: ist.toISOString()
-  });
-  if (kErr) console.error('[khata] deduct insert failed:', kErr.message, '| phone:', ph);
-  return newBal;
-}
-
-async function getSubscriberBalance(data) {
-  if (!data.phone) throw new Error('phone required');
-  return { balance: await getWalletBalance(data.phone) };
-}
-
-// v14 FIX: Always set both user_id and user_phone in recharge
-async function rechargeWallet(data) {
-  if (!data.phone || !data.amount) throw new Error('phone and amount required');
-  const ph     = cleanPhone(data.phone);
-  const amt    = Math.abs(Number(data.amount));
-  const newBal = await _atomicWalletUpdate(ph, amt);
-  const ist    = getIST();
-  // v14: user_id = phone (no DB lookup needed)
-  const { error: kErr } = await supabase.from('khata_transactions').insert({
-    user_id:    ph,    // v14: user_id = phone
-    user_phone: ph,
-    amount:     amt,
-    type:       'credit',
-    note:       data.note || 'Recharge',
-    created_at: ist.toISOString()
-  });
-  if (kErr) console.error('[khata] recharge insert failed:', kErr.message, '| phone:', ph);
-  return { newBalance: newBal };
-}
-
-async function addKhataEntry(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph     = cleanPhone(data.phone);
-  const amount = Number(data.amount) || 0;
-  const newBal = await _atomicWalletUpdate(ph, amount);
-  const ist    = getIST();
-  const { error: kErr } = await supabase.from('khata_transactions').insert({
-    user_id:    ph,    // v14: user_id = phone
-    user_phone: ph,
+async function _createTxnEntry(phone, orderId, amount, newBalance, type, source, ist) {
+  await supabase.from('khata_entries').insert({
+    id:              generateTxnId(ist),
+    phone,
+    type,
     amount,
-    type:       amount >= 0 ? 'credit' : 'debit',
-    note:       data.note || '',
-    created_at: ist.toISOString()
+    running_balance: newBalance,
+    note:            'Order ' + orderId,
+    date:            istDateStr(ist),
+    time:            istTimeStr(ist),
+    order_id:        orderId,
+    order_status:    'pending',
+    order_source:    source,
+    created_at:      new Date().toISOString()
   });
-  if (kErr) console.error('[khata] addEntry insert failed:', kErr.message, '| phone:', ph);
-  return { newBalance: newBal };
 }
 
-async function manualRefund(data) {
-  if (!data.phone)                         throw new Error('phone required');
-  if (!data.amount || Number(data.amount) <= 0) throw new Error('amount must be > 0');
-  const ph   = cleanPhone(data.phone);
-  const amt  = Number(data.amount);
-  const note = data.note || `Manual refund${data.orderId ? ' — order ' + data.orderId : ''}`;
-  const result = await rechargeWallet({ phone: ph, amount: amt, note });
-  return { newBalance: result.newBalance, refunded: amt };
+async function _createNotification(fields) {
+  await supabase.from('notifications').insert({
+    id:         generateId('NTF', getIST()),
+    type:       fields.type,
+    priority:   fields.priority,
+    group_id:   fields.group_id,
+    title:      fields.title,
+    body:       fields.body,
+    meta:       JSON.stringify(fields.meta || {}),
+    is_read:    false,
+    read_at:    null,
+    created_at: new Date().toISOString()
+  });
 }
 
-async function getKhata(data) {
-  if (!data.phone) throw new Error('phone required');
-  const ph = cleanPhone(data.phone);
-
-  // v14: user_id = phone — fetch all rows by either field (covers legacy data too)
-  const { data: byPhone } = await supabase
-    .from('khata_transactions')
-    .select('*')
-    .or(`user_phone.eq.${ph},user_id.eq.${ph}`)
-    .order('created_at', { ascending: true });
-
-  // Deduplicate by id (in case a row matched both conditions)
-  const seen = new Set();
-  const txns = (byPhone || []).filter(t => {
-    if (seen.has(t.id)) return false;
-    seen.add(t.id); return true;
-  });
-
-  // Backfill any orphans that are missing user_id or user_phone
-  const orphans = txns.filter(t => !t.user_id || !t.user_phone);
-  if (orphans.length) {
-    await supabase.from('khata_transactions')
-      .update({ user_id: ph, user_phone: ph })
-      .in('id', orphans.map(t => t.id));
+async function _deductThaliStock(thali_id, qty = 1) {
+  const { data: row } = await supabase
+    .from('thalis')
+    .select('stock_qty')
+    .eq('thali_id', thali_id)
+    .single();
+  if (row && row.stock_qty !== null) {
+    await supabase
+      .from('thalis')
+      .update({ stock_qty: Math.max(0, row.stock_qty - qty) })
+      .eq('thali_id', thali_id);
   }
-
-  let running = 0;
-  const entries = txns.map(t => {
-    running += Number(t.amount) || 0;
-    // FIX v14: created_at is stored as IST time via getIST().toISOString()
-    // (i.e. IST clock value written into UTC field — no offset should be added).
-    // Reading it as a plain Date and using UTC accessors gives the correct IST time.
-    const ist = new Date(t.created_at);
-    return {
-      entryId:        t.id,
-      phone:          ph,
-      type:           t.type === 'credit' ? 'recharge' : 'tiffin_given',
-      amount:         Number(t.amount),
-      note:           t.note || '',
-      runningBalance: running,
-      date:           istDateStr(ist),
-      time:           istTimeStr(ist)
-    };
-  });
-
-  const computedBal = running;
-  // Sync wallet table to match transaction sum
-  await supabase.from('wallet').upsert(
-    { user_phone: ph, balance: computedBal, last_updated: new Date().toISOString() },
-    { onConflict: 'user_phone' }
-  );
-  return { entries, balance: computedBal };
 }
 
-async function adminGetAllKhata() {
-  const [
-    { data: subs },
-    { data: wallets },
-    { data: txnCounts }
-  ] = await Promise.all([
-    supabase.from('subscribers').select('phone, name'),
-    supabase.from('wallet').select('user_phone, balance'),
-    // v14: count by user_phone (always set now)
-    supabase.from('khata_transactions').select('user_phone, id')
-  ]);
-
-  const balMap = {};
-  (wallets || []).forEach(w => {
-    if (w.user_phone) balMap[cleanPhone(w.user_phone)] = Number(w.balance) || 0;
-  });
-
-  const countMap = {};
-  (txnCounts || []).forEach(t => {
-    const ph = t.user_phone ? cleanPhone(t.user_phone) : null;
-    if (!ph) return;
-    countMap[ph] = (countMap[ph] || 0) + 1;
-  });
-
-  return (subs || []).map(s => {
-    const ph = cleanPhone(s.phone);
-    return {
-      phone:      s.phone,
-      name:       s.name || '',
-      balance:    balMap[ph] || 0,
-      entryCount: countMap[ph] || 0,
-      entries:    []
-    };
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════════════════════════════
-
-async function upsertSetting(key, value) {
-  await supabase.from('admin_settings').upsert(
-    { admin_id: key, access_level: String(value) },
-    { onConflict: 'admin_id' }
-  );
-}
-
-async function getOrderCutoff() {
-  const { data: rows } = await supabase.from('admin_settings').select('*');
-  const map = {};
-  (rows || []).forEach(r => { map[r.admin_id] = r.access_level; });
-  const sched = {};
-  for (let d = 0; d <= 6; d++) {
-    try { sched[d] = JSON.parse(map['schedule_' + d] || 'null') || getDefaultDay(d); }
-    catch { sched[d] = getDefaultDay(d); }
-  }
-  return {
-    enabled:     map['cutoff_enabled'] === 'true',
-    cutoffDay:   map['cutoff_day']   || '11:30',
-    cutoffNight: map['cutoff_night'] || '20:00',
-    schedule:    sched
-  };
-}
-
-async function setOrderCutoff(data) {
-  await upsertSetting('cutoff_enabled', data.enabled ? 'true' : 'false');
-  if (data.cutoffDay)   await upsertSetting('cutoff_day',   data.cutoffDay);
-  if (data.cutoffNight) await upsertSetting('cutoff_night', data.cutoffNight);
-  return true;
-}
-
-async function getWeeklySchedule() {
-  const { data: rows } = await supabase.from('admin_settings').select('*');
-  const map = {};
-  (rows || []).forEach(r => { map[r.admin_id] = r.access_level; });
-  const result = {};
-  for (let d = 0; d <= 6; d++) {
-    try { result[d] = JSON.parse(map['schedule_' + d] || 'null') || getDefaultDay(d); }
-    catch { result[d] = getDefaultDay(d); }
-  }
-  return result;
-}
-
-async function setWeeklySchedule(data) {
-  if (!data.schedule) throw new Error('schedule required');
-  for (let d = 0; d <= 6; d++) {
-    if (data.schedule[d]) await upsertSetting('schedule_' + d, JSON.stringify(data.schedule[d]));
-  }
-  return true;
-}
-
-async function getKhataEnabled() {
-  const { data } = await supabase.from('admin_settings')
-    .select('access_level').eq('admin_id', 'khata_enabled').maybeSingle();
-  const v = data?.access_level;
-  return { enabled: v === null || v === undefined || v === 'true' || v === '1' };
-}
-
-async function setKhataEnabled(data) {
-  await upsertSetting('khata_enabled', data.enabled ? 'true' : 'false');
-  return true;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ANALYTICS
-// ═══════════════════════════════════════════════════════════════
-
-async function getAnalytics() {
-  const ist   = getIST();
-  const today = istDateStr(ist);
-  const { data: orders  } = await supabase.from('orders').select('final_amount, order_date, order_status');
-  const { data: users   } = await supabase.from('users').select('user_id');
-  const { data: subs    } = await supabase.from('subscribers').select('phone');
-  const { data: wallets } = await supabase.from('wallet').select('balance');
-
-  const activeOrders  = (orders || []).filter(o => o.order_status !== 'rejected');
-  const todayOrders   = activeOrders.filter(o => normOrderDate(o.order_date) === today);
-  const todayRevenue  = todayOrders.reduce((s, o) => s + (Number(o.final_amount) || 0), 0);
-  const thisMonth     = ist.getUTCMonth(), thisYear = ist.getUTCFullYear();
-  const monthlyRevenue = activeOrders.filter(o => {
-    if (!o.order_date) return false;
-    const norm = normOrderDate(o.order_date);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(norm)) {
-      const [y, m] = norm.split('-');
-      return parseInt(m) - 1 === thisMonth && parseInt(y) === thisYear;
+async function _deductMenuStock(items) {
+  for (const item of items) {
+    if (item.isThali === true) {
+      await _deductThaliStock(item.item_id, item.qty || 1);
+    } else {
+      const { data: row } = await supabase
+        .from('menu_items')
+        .select('stock_grams')
+        .eq('item_id', item.item_id)
+        .single();
+      if (row && row.stock_grams !== null) {
+        await supabase
+          .from('menu_items')
+          .update({ stock_grams: Math.max(0, row.stock_grams - (item.stock_grams || 100) * item.qty) })
+          .eq('item_id', item.item_id);
+      }
     }
-    return false;
-  }).reduce((s, o) => s + (Number(o.final_amount) || 0), 0);
-  const totalWalletBalance = (wallets || []).reduce((s, w) => s + (Number(w.balance) || 0), 0);
-
-  return {
-    todayOrders:      todayOrders.length,
-    todayRevenue,
-    monthlyRevenue,
-    totalOrders:      activeOrders.length,
-    totalUsers:       (users || []).length,
-    totalSubscribers: (subs  || []).length,
-    totalWalletBalance
-  };
-}
-
-async function getUsers() {
-  const { data: users, error } = await supabase
-    .from('users')
-    .select('user_id, name, phone, email, address, is_subscriber, created_at');
-  if (error) throw new Error(error.message);
-  return (users || []).map(u => ({
-    userId:       u.user_id,
-    name:         u.name,
-    phone:        u.phone,
-    email:        u.email    || '',
-    address:      u.address  || '',
-    isSubscriber: !!u.is_subscriber,
-    createdAt:    u.created_at
-  }));
-}
-
-// ═══════════════════════════════════════════════════════════════
-// NEW USER COUPON SENT — Supabase (today + yesterday only)
-// ═══════════════════════════════════════════════════════════════
-
-async function getNuCouponSent() {
-  const { data, error } = await supabase
-    .from('nu_coupon_sent')
-    .select('phone');
-  if (error) throw new Error(error.message);
-  return (data || []).map(r => String(r.phone));
-}
-
-async function markNuCouponSent(payload) {
-  const phone = String(payload.phone || '').replace(/\D/g, '');
-  if (!phone) throw new Error('phone required');
-  const { error } = await supabase
-    .from('nu_coupon_sent')
-    .upsert({ phone, sent_at: new Date().toISOString() }, { onConflict: 'phone' });
-  if (error) throw new Error(error.message);
-  return { ok: true };
-}
-
-async function deleteOldNuCouponSent() {
-  // Keep today + yesterday; delete anything older than 2 days
-  const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-  const { error, count } = await supabase
-    .from('nu_coupon_sent')
-    .delete({ count: 'exact' })
-    .lt('sent_at', cutoff);
-  if (error) throw new Error(error.message);
-  return { deleted: count || 0 };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// DATA CLEANUP
-// ═══════════════════════════════════════════════════════════════
-
-function _parseCutoff(cutoffDate, minDays) {
-  if (!cutoffDate) throw new Error('cutoffDate required (YYYY-MM-DD)');
-  const cut = new Date(cutoffDate + 'T00:00:00Z');
-  if (isNaN(cut.getTime())) throw new Error('Invalid cutoffDate format');
-  const minCutoff = new Date(Date.now() + 5.5 * 3600000);
-  minCutoff.setUTCDate(minCutoff.getUTCDate() - minDays);
-  if (cut > minCutoff) throw new Error(`Cutoff date must be at least ${minDays} days in the past`);
-  return cut;
-}
-
-function _daysAgoIST(n) {
-  const d = new Date(Date.now() + 5.5 * 3600000);
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.getUTCFullYear() + '-' +
-    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getUTCDate()).padStart(2, '0');
-}
-
-async function _orderIdsBefore(cutoffDate) {
-  const { data: rows, error } = await supabase.from('orders').select('order_id, order_date');
-  if (error) throw new Error(error.message);
-  return (rows || [])
-    .filter(o => { const norm = normOrderDate(o.order_date); return norm && norm < cutoffDate; })
-    .map(o => o.order_id);
-}
-
-async function deleteOldOrders(data) {
-  _parseCutoff(data.cutoffDate, 5);
-  const ids = await _orderIdsBefore(data.cutoffDate);
-  if (!ids.length) return { deleted: 0, cutoffDate: data.cutoffDate };
-  let deleted = 0;
-  for (let i = 0; i < ids.length; i += 500) {
-    const batch = ids.slice(i, i + 500);
-    const { error, count } = await supabase.from('orders').delete({ count: 'exact' }).in('order_id', batch);
-    if (error) throw new Error(error.message);
-    deleted += count || batch.length;
   }
-  return { deleted, cutoffDate: data.cutoffDate };
 }
 
-async function previewDeleteOrders(data) {
-  _parseCutoff(data.cutoffDate, 5);
-  const ids = await _orderIdsBefore(data.cutoffDate);
-  return { count: ids.length };
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer' }) {
+  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  let discount = 0;
+  if (coupon) {
+    if (coupon.discount_type === 'percent') {
+      discount = Math.round(subtotal * coupon.discount_value / 100);
+    } else if (coupon.discount_type === 'flat') {
+      discount = coupon.discount_value;
+    }
+  }
+  const finalAmount = subtotal + deliveryCharge - discount;
+  const orderId  = generateOrderId(ist);
+  const dateStr  = istDateStr(ist);
+  const timeStr  = istTimeStr(ist);
+  let newBal = null;
+
+  if (khataEnabled && user.is_subscriber) {
+    newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
+    const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
+    await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
+    await _createNotification({
+      type:     'order',
+      priority: 'high',
+      group_id: orderId,
+      title:    'New Order',
+      body:     user.name + ' placed order ' + orderId,
+      meta:     { orderId, phone: user.phone }
+    });
+  }
+
+  await _deductMenuStock(items);
+
+  await supabase.from('orders').insert({
+    order_id:        orderId,
+    user_id:         user.phone,
+    name:            user.name,
+    phone:           user.phone,
+    address:         user.address,
+    items:           JSON.stringify(items),
+    total_amount:    subtotal,
+    delivery_charge: deliveryCharge,
+    final_amount:    finalAmount,
+    coupon_code:     coupon?.code || null,
+    discount,
+    order_status:    'pending',
+    payment_status:  'pending',
+    user_type:       user.is_subscriber ? 'subscriber' : 'daily',
+    rider_id:        null,
+    date:            dateStr,
+    time:            timeStr,
+    created_at:      new Date().toISOString()
+  });
+
+  return { orderId, finalAmount, walletBalance: newBal };
 }
 
-async function deleteOldTransactions(data) {
-  _parseCutoff(data.cutoffDate, 45);
-  const { error, count } = await supabase
-    .from('khata_transactions')
-    .delete({ count: 'exact' })
-    .lt('created_at', data.cutoffDate + 'T00:00:00Z');
-  if (error) throw new Error(error.message);
-  return { deleted: count || 0, cutoffDate: data.cutoffDate };
-}
+// ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v1' }));
+app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
-async function previewDeleteTransactions(data) {
-  _parseCutoff(data.cutoffDate, 45);
-  const { count, error } = await supabase
-    .from('khata_transactions')
-    .select('*', { count: 'exact', head: true })
-    .lt('created_at', data.cutoffDate + 'T00:00:00Z');
-  if (error) throw new Error(error.message);
-  return { count: count || 0 };
-}
+// ─── MAIN ENDPOINT ────────────────────────────────────────────────────────────
+app.post('/api', async (req, res) => {
+  const { action, data = {}, apiKey } = req.body;
 
-async function deleteOldData(data) {
-  const months        = Number(data.months) || 3;
-  const ordersCutoff  = _daysAgoIST(months * 30);
-  const txnMinCutoff  = _daysAgoIST(45);
-  const txnCutoff     = ordersCutoff < txnMinCutoff ? ordersCutoff : txnMinCutoff;
-  const orders = await deleteOldOrders({ cutoffDate: ordersCutoff })
-    .catch(e => ({ deleted: 0, error: e.message }));
-  const txns   = await deleteOldTransactions({ cutoffDate: txnCutoff })
-    .catch(e => ({ deleted: 0, error: e.message }));
-  return {
-    deletedOrders: orders.deleted, deletedKhata: txns.deleted,
-    ordersCutoff,  txnCutoff,
-    ordersError:   orders.error || null,
-    txnsError:     txns.error   || null
-  };
-}
+  if (apiKey !== SECURE_API_KEY) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const ist = getIST();
+
+  try {
+    switch (action) {
+
+      // ── AUTH ──────────────────────────────────────────────────────────────
+
+      case 'checkSession': {
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+        if (!user) return res.json({ success: false, error: 'Session invalid' });
+        const valid = await bcrypt.compare(data.password, user.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Session invalid' });
+        const { data: sub }     = await supabase.from('subscribers').select('*').eq('phone', phone).single();
+        const { data: balRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        const { password_hash, ...safeUser } = user;
+        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
+      }
+
+      case 'login': {
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+        if (!user) return res.json({ success: false, error: 'Session invalid' });
+        const valid = await bcrypt.compare(data.password, user.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Session invalid' });
+        const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
+        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        const { password_hash, ...safeUser } = user;
+        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
+      }
+
+      case 'signup': {
+        const phone = cleanPhone(data.phone);
+        const { data: existing } = await supabase.from('users').select('phone').eq('phone', phone).single();
+        if (existing) return res.json({ success: false, error: 'Phone already registered' });
+        const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
+        const createdAt = new Date().toISOString();
+        await supabase.from('users').insert({
+          user_id:       phone,
+          name:          data.name,
+          phone,
+          email:         data.email || null,
+          address:       data.address || null,
+          password_hash: hash,
+          created_at:    createdAt
+        });
+        return res.json({
+          success: true,
+          user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
+          subscriber:    null,
+          walletBalance: 0
+        });
+      }
+
+      case 'adminLogin': {
+        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
+        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
+        const valid = await bcrypt.compare(data.password, staff.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
+        const { password_hash, ...safeStaff } = staff;
+        return res.json({ success: true, staff: safeStaff });
+      }
+
+      case 'staffLogin': {
+        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
+        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
+        const valid = await bcrypt.compare(data.password, staff.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
+        const { password_hash, ...safeStaff } = staff;
+        return res.json({ success: true, staff: safeStaff });
+      }
+
+      case 'updateProfile': {
+        const phone = cleanPhone(data.phone);
+        const updates = {};
+        if (data.name    !== undefined) updates.name    = data.name;
+        if (data.email   !== undefined) updates.email   = data.email;
+        if (data.address !== undefined) updates.address = data.address;
+        await supabase.from('users').update(updates).eq('phone', phone);
+        return res.json({ success: true });
+      }
+
+      case 'resetAdminPassword': {
+        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
+        if (!staff) return res.json({ success: false, error: 'User not found' });
+        const valid = await bcrypt.compare(data.oldPassword, staff.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Wrong current password' });
+        const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+        await supabase.from('staff').update({ password_hash: hash }).eq('username', data.username);
+        return res.json({ success: true });
+      }
+
+      case 'resetUserPassword': {
+        const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+        await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
+        return res.json({ success: true });
+      }
+
+      // ── MENU ──────────────────────────────────────────────────────────────
+
+      case 'getMenu': {
+        const { data: rows } = await supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true });
+        return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
+      }
+
+      case 'adminGetMenu': {
+        const { data: rows } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
+        return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
+      }
+
+      case 'addMenuItem': {
+        await supabase.from('menu_items').insert({
+          item_id:     data.item_id || generateId('ITEM', ist),
+          name:        data.name,
+          category:    data.category,
+          image_url:   data.image_url || null,
+          variants:    JSON.stringify(data.variants || []),
+          price:       data.price,
+          highlight:   data.highlight || null,
+          sort_order:  data.sort_order || 99,
+          is_active:   true,
+          stock_grams: data.stock_grams ?? null,
+          created_at:  new Date().toISOString()
+        });
+        return res.json({ success: true });
+      }
+
+      case 'updateMenuItem': {
+        const updates = { ...data };
+        delete updates.item_id;
+        if (Array.isArray(updates.variants)) updates.variants = JSON.stringify(updates.variants);
+        await supabase.from('menu_items').update(updates).eq('item_id', data.item_id);
+        return res.json({ success: true });
+      }
+
+      case 'deleteMenuItem': {
+        await supabase.from('menu_items').delete().eq('item_id', data.item_id);
+        return res.json({ success: true });
+      }
+
+      case 'updateMenuOrder': {
+        for (const entry of (data.order || [])) {
+          await supabase.from('menu_items').update({ sort_order: entry.sort_order }).eq('item_id', entry.item_id);
+        }
+        return res.json({ success: true });
+      }
+
+      case 'updateMenuStock': {
+        await supabase.from('menu_items').update({ stock_grams: data.stock_grams }).eq('item_id', data.item_id);
+        return res.json({ success: true });
+      }
+
+      // ── THALIS ────────────────────────────────────────────────────────────
+
+      case 'getThalis': {
+        const { data: thalis } = await supabase.from('thalis').select('*').eq('is_active', true);
+        const result = [];
+        for (const t of (thalis || [])) {
+          const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', t.thali_id);
+          result.push(formatThali(t, items || []));
+        }
+        return res.json({ success: true, thalis: result });
+      }
+
+      case 'adminGetThalis': {
+        const { data: thalis } = await supabase.from('thalis').select('*');
+        const result = [];
+        for (const t of (thalis || [])) {
+          const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', t.thali_id);
+          result.push(formatThali(t, items || []));
+        }
+        return res.json({ success: true, thalis: result });
+      }
+
+      case 'createThali': {
+        const thali_id = generateThaliId(ist);
+        await supabase.from('thalis').insert({
+          thali_id,
+          name:        data.name,
+          description: data.description || null,
+          image_url:   data.image_url || null,
+          price:       data.price,
+          stock_qty:   data.stock_qty ?? null,
+          is_active:   true,
+          created_at:  new Date().toISOString()
+        });
+        return res.json({ success: true, thali_id });
+      }
+
+      case 'updateThali': {
+        const updates = { ...data };
+        delete updates.thali_id;
+        await supabase.from('thalis').update(updates).eq('thali_id', data.thali_id);
+        return res.json({ success: true });
+      }
+
+      case 'deleteThali': {
+        await supabase.from('thali_items').delete().eq('thali_id', data.thali_id);
+        await supabase.from('thalis').delete().eq('thali_id', data.thali_id);
+        return res.json({ success: true });
+      }
+
+      case 'addThaliItem': {
+        await supabase.from('thali_items').insert({
+          thali_id:       data.thali_id,
+          menu_item_id:   data.menu_item_id,
+          variant_label:  data.variant_label || null,
+          menu_item_name: data.menu_item_name || null,
+          created_at:     new Date().toISOString()
+        });
+        return res.json({ success: true });
+      }
+
+      case 'removeThaliItem': {
+        await supabase.from('thali_items').delete().eq('id', data.id);
+        return res.json({ success: true });
+      }
+
+      // ── ORDERS ────────────────────────────────────────────────────────────
+
+      case 'createOrder': {
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+        if (!user) return res.json({ success: false, error: 'User not found' });
+        const address = data.address || user.address;
+        if (!address) return res.json({ success: false, error: 'Delivery address required' });
+        const { data: khataRow } = await supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single();
+        const khataEnabled = JSON.parse(khataRow?.value || 'false');
+        const { data: subRow } = await supabase.from('subscribers').select('*').eq('phone', phone).single();
+        user.is_subscriber = !!subRow;
+        user.address = address;
+        if (user.is_subscriber && khataEnabled) {
+          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+          const currentBal = balRow?.balance || 0;
+          const subtotal   = data.items.reduce((s, i) => s + i.price * i.qty, 0);
+          const dc         = data.deliveryCharge || 0;
+          let disc = 0;
+          if (data.coupon) {
+            disc = data.coupon.discount_type === 'percent'
+              ? Math.round(subtotal * data.coupon.discount_value / 100)
+              : data.coupon.discount_value;
+          }
+          const finalEst = subtotal + dc - disc;
+          if (currentBal < finalEst) return res.json({ success: false, error: 'Insufficient wallet balance' });
+        }
+        const result = await _createSingleOrder({
+          user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
+          khataEnabled, ist, coupon: data.coupon || null, source: 'customer'
+        });
+        return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
+      }
+
+      case 'getUserOrders': {
+        const { data: rows } = await supabase
+          .from('orders').select('*')
+          .eq('user_id', cleanPhone(data.phone))
+          .order('created_at', { ascending: false });
+        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+      }
+
+      case 'adminGetOrders': {
+        let query = supabase.from('orders').select('*');
+        if (data.date) query = query.eq('date', data.date);
+        query = query.order('created_at', { ascending: false });
+        const { data: rows } = await query;
+        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+      }
+
+      case 'getOrdersByDate': {
+        const { data: rows } = await supabase
+          .from('orders').select('*')
+          .eq('date', data.date)
+          .order('created_at', { ascending: false });
+        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+      }
+
+      case 'updateOrderStatus': {
+        const updates = { order_status: data.status };
+        if (data.riderId) updates.rider_id = data.riderId;
+        await supabase.from('orders').update(updates).eq('order_id', data.orderId);
+        if (data.status === 'delivered') {
+          await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
+        }
+        return res.json({ success: true });
+      }
+
+      case 'rejectOrder': {
+        const { data: order } = await supabase.from('orders').select('*').eq('order_id', data.orderId).single();
+        await supabase.from('orders').update({ order_status: 'rejected' }).eq('order_id', data.orderId);
+        if (order && order.user_type === 'subscriber') {
+          const newBal = await _atomicWalletUpdate(order.phone, +order.final_amount);
+          await supabase.from('khata_entries').insert({
+            id:              generateTxnId(ist),
+            phone:           order.phone,
+            type:            'adjustment',
+            amount:          +order.final_amount,
+            running_balance: newBal,
+            note:            'Refund: Order rejected',
+            date:            istDateStr(ist),
+            time:            istTimeStr(ist),
+            order_id:        data.orderId,
+            order_status:    'rejected',
+            order_source:    'admin',
+            created_at:      new Date().toISOString()
+          });
+          await _createNotification({
+            type:     'order',
+            priority: 'high',
+            group_id: data.orderId,
+            title:    'Order Rejected',
+            body:     'Order ' + data.orderId + ' rejected. ₹' + order.final_amount + ' refunded.',
+            meta:     { orderId: data.orderId, phone: order.phone }
+          });
+        }
+        return res.json({ success: true });
+      }
+
+      case 'bulkOrdersWithBalance': {
+        const today = istDateStr(ist);
+        const { data: subs } = await supabase.from('subscribers').select('*').gte('plan_end', today);
+        const success = [], skipped = [];
+        for (const sub of (subs || [])) {
+          const { data: user } = await supabase.from('users').select('*').eq('phone', sub.phone).single();
+          if (!user) continue;
+          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', sub.phone).single();
+          const balance = balRow?.balance || 0;
+          if (balance >= (data.orderAmount || 0)) {
+            const result = await _createSingleOrder({
+              user: { ...user, is_subscriber: true },
+              items: data.items, deliveryCharge: data.deliveryCharge || 0,
+              khataEnabled: true, ist, coupon: null, source: 'admin'
+            });
+            success.push({ phone: sub.phone, orderId: result.orderId });
+          } else {
+            skipped.push({ phone: sub.phone, reason: 'low balance', balance });
+          }
+        }
+        return res.json({ success: true, created: success.length, skipped: skipped.length, details: { success, skipped } });
+      }
+
+      case 'adminBulkCreate': {
+        const today = istDateStr(ist);
+        const { data: subs } = await supabase.from('subscribers').select('*').gte('plan_end', today);
+        const success = [], skipped = [];
+        for (const sub of (subs || [])) {
+          const { data: user } = await supabase.from('users').select('*').eq('phone', sub.phone).single();
+          if (!user) continue;
+          const result = await _createSingleOrder({
+            user: { ...user, is_subscriber: true },
+            items: data.items, deliveryCharge: data.deliveryCharge || 0,
+            khataEnabled: true, ist, coupon: null, source: 'admin'
+          });
+          success.push({ phone: sub.phone, orderId: result.orderId });
+        }
+        return res.json({ success: true, created: success.length, skipped: skipped.length, details: { success, skipped } });
+      }
+
+      case 'forceUdharOrder': {
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+        if (!user) return res.json({ success: false, error: 'User not found' });
+        user.is_subscriber = true;
+        const result = await _createSingleOrder({
+          user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
+          khataEnabled: true, ist, source: 'admin'
+        });
+        return res.json({ success: true, orderId: result.orderId, walletBalance: result.walletBalance });
+      }
+
+      case 'assignRider': {
+        await supabase.from('orders').update({ rider_id: data.riderId }).eq('order_id', data.orderId);
+        return res.json({ success: true });
+      }
+
+      // ── COUPONS ──────────────────────────────────────────────────────────
+
+      case 'applyCoupon': {
+        const { data: coupon } = await supabase.from('coupons').select('*').eq('code', data.code.toUpperCase()).single();
+        if (!coupon || !coupon.is_active) return res.json({ success: false, error: 'Invalid coupon' });
+        const today = istDateStr(ist);
+        if (coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
+        if (coupon.used_count >= coupon.max_usage) return res.json({ success: false, error: 'Coupon fully used' });
+        const usedBy = JSON.parse(coupon.used_by || '[]');
+        if (usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
+        if (data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
+        await supabase.from('coupons').update({
+          used_count: coupon.used_count + 1,
+          used_by:    JSON.stringify([...usedBy, data.phone])
+        }).eq('id', coupon.id);
+        return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, min_order: coupon.min_order } });
+      }
+
+      case 'createCoupon': {
+        await supabase.from('coupons').insert({
+          code:           data.code.toUpperCase(),
+          discount_type:  data.discount_type,
+          discount_value: data.discount_value,
+          min_order:      data.min_order,
+          max_usage:      data.max_usage,
+          used_count:     0,
+          expiry_date:    data.expiry_date,
+          is_active:      true,
+          used_by:        '[]'
+        });
+        return res.json({ success: true });
+      }
+
+      case 'adminGetCoupons': {
+        const { data: rows } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+        const coupons = (rows || []).map(c => ({ ...c, used_by: JSON.parse(c.used_by || '[]') }));
+        return res.json({ success: true, coupons });
+      }
+
+      case 'deleteCoupon': {
+        await supabase.from('coupons').delete().eq('id', data.id);
+        return res.json({ success: true });
+      }
+
+      // ── SUBSCRIBERS ──────────────────────────────────────────────────────
+
+      case 'checkSubscriber': {
+        const { data: row } = await supabase.from('subscribers').select('*').eq('phone', cleanPhone(data.phone)).single();
+        return res.json({ success: true, isSubscriber: !!row, subscriber: row || null });
+      }
+
+      case 'getSubscriberPauseStatus': {
+        const { data: row } = await supabase.from('subscribers').select('pause_delivery').eq('phone', cleanPhone(data.phone)).single();
+        return res.json({ success: true, pauseMode: row?.pause_delivery || 'none' });
+      }
+
+      case 'pauseUserDelivery': {
+        const allowed = ['none', 'lunch', 'dinner', 'both'];
+        if (!allowed.includes(data.mode)) return res.json({ success: false, error: 'Invalid mode' });
+        await supabase.from('subscribers').update({ pause_delivery: data.mode }).eq('phone', cleanPhone(data.phone));
+        return res.json({ success: true, pauseMode: data.mode });
+      }
+
+      case 'adminGetSubscribers': {
+        const { data: subs } = await supabase.from('subscribers').select('*');
+        const enriched = [];
+        for (const s of (subs || [])) {
+          const { data: u }   = await supabase.from('users').select('name, address').eq('phone', s.phone).single();
+          const { data: bal } = await supabase.from('khata_summary').select('balance').eq('phone', s.phone).single();
+          enriched.push({ ...s, name: u?.name || null, address: u?.address || null, balance: bal?.balance || 0 });
+        }
+        return res.json({ success: true, subscribers: enriched });
+      }
+
+      case 'addSubscriber': {
+        await supabase.from('subscribers').insert({
+          phone:          cleanPhone(data.phone),
+          plan_start:     data.plan_start,
+          plan_end:       data.plan_end,
+          notes:          data.notes || '',
+          pause_delivery: 'none',
+          created_at:     new Date().toISOString()
+        });
+        return res.json({ success: true });
+      }
+
+      case 'updateSubscriber': {
+        await supabase.from('subscribers').update({
+          plan_start: data.plan_start,
+          plan_end:   data.plan_end,
+          notes:      data.notes
+        }).eq('phone', cleanPhone(data.phone));
+        return res.json({ success: true });
+      }
+
+      case 'removeSubscriber': {
+        await supabase.from('subscribers').delete().eq('phone', cleanPhone(data.phone));
+        return res.json({ success: true });
+      }
+
+      case 'getUserByPhone': {
+        const { data: user } = await supabase.from('users').select('*').eq('phone', cleanPhone(data.phone)).single();
+        if (!user) return res.json({ success: false, error: 'User not found' });
+        const { password_hash, ...safe } = user;
+        return res.json({ success: true, user: safe });
+      }
+
+      case 'adminCreateUser': {
+        const phone = cleanPhone(data.phone);
+        const hash  = await bcrypt.hash(data.password, SALT_ROUNDS);
+        await supabase.from('users').insert({
+          user_id:       phone,
+          name:          data.name,
+          phone,
+          email:         data.email || null,
+          address:       data.address || null,
+          password_hash: hash,
+          created_at:    new Date().toISOString()
+        });
+        if (data.addAsSubscriber) {
+          await supabase.from('subscribers').insert({
+            phone,
+            plan_start:     data.plan_start || istDateStr(ist),
+            plan_end:       data.plan_end   || istDateStr(ist),
+            notes:          data.notes      || '',
+            pause_delivery: 'none',
+            created_at:     new Date().toISOString()
+          });
+        }
+        return res.json({ success: true });
+      }
+
+      case 'promoteToSubscriber': {
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('phone').eq('phone', phone).single();
+        if (!user) return res.json({ success: false, error: 'User not found' });
+        const { data: existing } = await supabase.from('subscribers').select('phone').eq('phone', phone).single();
+        if (existing) return res.json({ success: false, error: 'Already a subscriber' });
+        await supabase.from('subscribers').insert({
+          phone,
+          plan_start:     data.plan_start,
+          plan_end:       data.plan_end,
+          notes:          '',
+          pause_delivery: 'none',
+          created_at:     new Date().toISOString()
+        });
+        return res.json({ success: true });
+      }
+
+      // ── RIDERS ────────────────────────────────────────────────────────────
+
+      case 'createRider': {
+        const rider_id = await generateRiderId(ist);
+        const hash     = await bcrypt.hash(data.password, SALT_ROUNDS);
+        await supabase.from('riders').insert({
+          rider_id,
+          name:          data.name,
+          phone:         cleanPhone(data.phone),
+          password_hash: hash,
+          vehicle:       data.vehicle || null,
+          zone:          data.zone    || null,
+          is_active:     true
+        });
+        return res.json({ success: true, rider_id });
+      }
+
+      case 'updateRider': {
+        const updates = { ...data };
+        delete updates.rider_id;
+        if (data.password) {
+          updates.password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
+          delete updates.password;
+        }
+        await supabase.from('riders').update(updates).eq('rider_id', data.rider_id);
+        return res.json({ success: true });
+      }
+
+      case 'deleteRider': {
+        await supabase.from('riders').update({ is_active: false }).eq('rider_id', data.rider_id);
+        return res.json({ success: true });
+      }
+
+      case 'riderLogin': {
+        const { data: rider } = await supabase.from('riders').select('*').eq('rider_id', data.riderId).single();
+        if (!rider) return res.json({ success: false, error: 'Invalid credentials' });
+        const valid = await bcrypt.compare(data.password, rider.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
+        const { password_hash, ...safe } = rider;
+        return res.json({ success: true, rider: safe });
+      }
+
+      case 'getRiderOrders': {
+        const twoDaysAgo = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
+        const { data: rows } = await supabase
+          .from('orders').select('*')
+          .eq('rider_id', data.riderId)
+          .gte('date', twoDaysAgo)
+          .order('created_at', { ascending: false });
+        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+      }
+
+      case 'getRiders': {
+        const { data: rows } = await supabase.from('riders').select('*').eq('is_active', true);
+        const safe = (rows || []).map(r => { const { password_hash, ...s } = r; return s; });
+        return res.json({ success: true, riders: safe });
+      }
+
+      // ── STAFF ─────────────────────────────────────────────────────────────
+
+      case 'createStaff': {
+        const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
+        await supabase.from('staff').insert({
+          id:            generateId('STF', ist),
+          username:      data.username,
+          name:          data.name,
+          password_hash: hash,
+          role:          data.role || 'staff',
+          created_at:    new Date().toISOString()
+        });
+        return res.json({ success: true });
+      }
+
+      case 'updateStaff': {
+        const updates = { ...data };
+        delete updates.id;
+        if (data.password) {
+          updates.password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
+          delete updates.password;
+        }
+        await supabase.from('staff').update(updates).eq('id', data.id);
+        return res.json({ success: true });
+      }
+
+      case 'deleteStaff': {
+        await supabase.from('staff').delete().eq('id', data.id);
+        return res.json({ success: true });
+      }
+
+      case 'getStaff': {
+        const { data: rows } = await supabase.from('staff').select('*');
+        const safe = (rows || []).map(s => { const { password_hash, ...r } = s; return r; });
+        return res.json({ success: true, staff: safe });
+      }
+
+      // ── WALLET / KHATA ────────────────────────────────────────────────────
+
+      case 'getKhata': {
+        const phone = cleanPhone(data.phone);
+        const { data: entries } = await supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: true });
+        const { data: sumRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        return res.json({ success: true, balance: sumRow?.balance || 0, entries: entries || [] });
+      }
+
+      case 'getSubscriberBalance': {
+        const { data: row } = await supabase.from('khata_summary').select('balance').eq('phone', cleanPhone(data.phone)).single();
+        return res.json({ success: true, balance: row?.balance || 0 });
+      }
+
+      case 'rechargeWallet': {
+        const phone  = cleanPhone(data.phone);
+        const amount = Number(data.amount);
+        const newBal = await _atomicWalletUpdate(phone, amount);
+        await supabase.from('khata_entries').insert({
+          id:              generateTxnId(ist),
+          phone,
+          type:            'recharge',
+          amount,
+          running_balance: newBal,
+          note:            data.note || 'Wallet recharge',
+          date:            istDateStr(ist),
+          time:            istTimeStr(ist),
+          order_id:        null,
+          order_status:    null,
+          order_source:    'admin',
+          created_at:      new Date().toISOString()
+        });
+        await _createNotification({
+          type: 'wallet', priority: 'normal', group_id: phone,
+          title: 'Wallet Recharged',
+          body:  '₹' + amount + ' added to wallet. New balance: ₹' + newBal,
+          meta:  { phone, amount, newBal }
+        });
+        return res.json({ success: true, newBalance: newBal });
+      }
+
+      case 'manualRefund': {
+        const phone  = cleanPhone(data.phone);
+        const amount = Number(data.amount);
+        const newBal = await _atomicWalletUpdate(phone, amount);
+        await supabase.from('khata_entries').insert({
+          id:              generateTxnId(ist),
+          phone,
+          type:            'adjustment',
+          amount,
+          running_balance: newBal,
+          note:            data.note || 'Manual adjustment',
+          date:            istDateStr(ist),
+          time:            istTimeStr(ist),
+          order_id:        data.order_id || null,
+          order_status:    null,
+          order_source:    'admin',
+          created_at:      new Date().toISOString()
+        });
+        await _createNotification({
+          type: 'wallet', priority: 'normal', group_id: phone,
+          title: 'Wallet Adjustment',
+          body:  '₹' + amount + ' adjusted. New balance: ₹' + newBal,
+          meta:  { phone, amount, newBal }
+        });
+        return res.json({ success: true, newBalance: newBal });
+      }
+
+      case 'adminGetAllKhata': {
+        const { data: rows } = await supabase.from('khata_summary').select('*');
+        const enriched = [];
+        for (const k of (rows || [])) {
+          const { data: u } = await supabase.from('users').select('name').eq('phone', k.phone).single();
+          enriched.push({ ...k, name: u?.name || null });
+        }
+        return res.json({ success: true, khata: enriched });
+      }
+
+      case 'addKhataEntry': {
+        const phone  = cleanPhone(data.phone);
+        const amount = Number(data.amount);
+        await supabase.from('khata_entries').insert({
+          id:              generateTxnId(ist),
+          phone,
+          type:            data.type,
+          amount,
+          running_balance: data.running_balance ?? null,
+          note:            data.note || '',
+          date:            data.date || istDateStr(ist),
+          time:            data.time || istTimeStr(ist),
+          order_id:        data.order_id || null,
+          order_status:    data.order_status || null,
+          order_source:    data.order_source || 'admin',
+          created_at:      new Date().toISOString()
+        });
+        await _atomicWalletUpdate(phone, amount);
+        return res.json({ success: true });
+      }
+
+      // ── SETTINGS ──────────────────────────────────────────────────────────
+
+      case 'getOrderCutoff': {
+        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'order_cutoff_config').single();
+        return res.json({ success: true, config: row ? JSON.parse(row.value) : null });
+      }
+
+      case 'setOrderCutoff': {
+        await supabase.from('admin_settings').upsert({ key: 'order_cutoff_config', value: JSON.stringify(data.config), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        return res.json({ success: true });
+      }
+
+      case 'getWeeklySchedule': {
+        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'weekly_schedule').single();
+        return res.json({ success: true, schedule: row ? JSON.parse(row.value) : null });
+      }
+
+      case 'setWeeklySchedule': {
+        await supabase.from('admin_settings').upsert({ key: 'weekly_schedule', value: JSON.stringify(data.schedule), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        return res.json({ success: true });
+      }
+
+      case 'getKhataEnabled': {
+        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single();
+        return res.json({ success: true, enabled: JSON.parse(row?.value || 'false') === true });
+      }
+
+      case 'setKhataEnabled': {
+        await supabase.from('admin_settings').upsert({ key: 'khata_enabled', value: JSON.stringify(!!data.enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        return res.json({ success: true });
+      }
+
+      // ── ANALYTICS ─────────────────────────────────────────────────────────
+
+      case 'getAnalytics': {
+        const today      = istDateStr(ist);
+        const monthStart = today.slice(0, 7) + '-01';
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+        const [
+          r1, r2, r3, r4, r5, r6, r7, r8
+        ] = await Promise.all([
+          supabase.from('orders').select('*', { count: 'exact', head: true }).eq('date', today),
+          supabase.from('orders').select('final_amount').eq('date', today).neq('order_status', 'rejected'),
+          supabase.from('orders').select('final_amount').gte('date', monthStart).neq('order_status', 'rejected'),
+          supabase.from('orders').select('*', { count: 'exact', head: true }),
+          supabase.from('users').select('*', { count: 'exact', head: true }),
+          supabase.from('subscribers').select('*', { count: 'exact', head: true }),
+          supabase.from('khata_summary').select('balance'),
+          supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo)
+        ]);
+        const todayRevenue = (r2.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
+        const monthRevenue = (r3.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
+        const totalWalletBalance = (r7.data || []).reduce((s, k) => s + (k.balance || 0), 0);
+        return res.json({
+          success: true,
+          todayOrders:         r1.count || 0,
+          todayRevenue,
+          monthRevenue,
+          totalOrders:         r4.count || 0,
+          totalUsers:          r5.count || 0,
+          subscriberCount:     r6.count || 0,
+          totalWalletBalance,
+          newUsers30d:         r8.count || 0
+        });
+      }
+
+      case 'getUsers': {
+        const { data: rows } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
+        return res.json({ success: true, users: safe });
+      }
+
+      // ── NOTIFICATIONS ─────────────────────────────────────────────────────
+
+      case 'getNotifications': {
+        const cutoff = new Date(Date.now() - 24 * 3_600_000).toISOString();
+        await supabase.from('notifications').delete().lt('created_at', cutoff);
+        const { data: rows } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+        const list       = rows || [];
+        const unreadCount = list.filter(n => !n.is_read).length;
+        return res.json({ success: true, notifications: list, unreadCount });
+      }
+
+      case 'createNotification': {
+        await _createNotification(data);
+        return res.json({ success: true });
+      }
+
+      case 'markNotificationRead': {
+        await supabase.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', data.id);
+        return res.json({ success: true });
+      }
+
+      case 'markNotificationGroupRead': {
+        await supabase.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('group_id', data.group_id);
+        return res.json({ success: true });
+      }
+
+      case 'deleteNotification': {
+        await supabase.from('notifications').delete().eq('id', data.id);
+        return res.json({ success: true });
+      }
+
+      case 'deleteNotificationsByRange': {
+        const { count } = await supabase.from('notifications').delete({ count: 'exact' }).gte('created_at', data.from).lte('created_at', data.to);
+        return res.json({ success: true, deleted: count || 0 });
+      }
+
+      case 'purgeOldNotifications': {
+        const cutoff = new Date(Date.now() - 24 * 3_600_000).toISOString();
+        await supabase.from('notifications').delete().lt('created_at', cutoff);
+        return res.json({ success: true });
+      }
+
+      // ── NEW USER COUPON ───────────────────────────────────────────────────
+
+      case 'getNuCouponSent': {
+        const { data: rows } = await supabase.from('nu_coupon_sent').select('*').order('sent_at', { ascending: false });
+        return res.json({ success: true, records: rows || [] });
+      }
+
+      case 'markNuCouponSent': {
+        await supabase.from('nu_coupon_sent').upsert({
+          phone:       cleanPhone(data.phone),
+          sent_at:     new Date().toISOString(),
+          coupon_code: data.coupon_code
+        }, { onConflict: 'phone' });
+        return res.json({ success: true });
+      }
+
+      case 'deleteOldNuCouponSent': {
+        const cutoff = new Date(Date.now() - 90 * 86_400_000).toISOString();
+        const { count } = await supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', cutoff);
+        return res.json({ success: true, deleted: count || 0 });
+      }
+
+      // ── DATA CLEANUP ──────────────────────────────────────────────────────
+
+      case 'previewDeleteOrders': {
+        const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', data.before_date);
+        return res.json({ success: true, count: count || 0 });
+      }
+
+      case 'previewDeleteTransactions': {
+        const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', data.before_date);
+        return res.json({ success: true, count: count || 0 });
+      }
+
+      case 'previewDeleteNotifications': {
+        const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', data.before_date);
+        return res.json({ success: true, count: count || 0 });
+      }
+
+      case 'deleteOldOrders': {
+        const { count } = await supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before_date);
+        return res.json({ success: true, deleted: count || 0 });
+      }
+
+      case 'deleteOldTransactions': {
+        const { count } = await supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before_date);
+        return res.json({ success: true, deleted: count || 0 });
+      }
+
+      case 'deleteOldData': {
+        const [r1, r2] = await Promise.all([
+          supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before_date),
+          supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before_date)
+        ]);
+        return res.json({ success: true, ordersDeleted: r1.count || 0, txnsDeleted: r2.count || 0 });
+      }
+
+      case 'masterDelete': {
+        if (data.confirm !== 'DELETE_ALL_TIFFO_DATA') {
+          return res.json({ success: false, error: 'Confirmation string mismatch' });
+        }
+        await Promise.all([
+          supabase.from('orders').delete().neq('order_id', ''),
+          supabase.from('khata_entries').delete().neq('id', ''),
+          supabase.from('notifications').delete().neq('id', ''),
+          supabase.from('nu_coupon_sent').delete().neq('phone', '')
+        ]);
+        return res.json({ success: true, message: 'Master delete completed' });
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      default:
+        return res.status(400).json({ success: false, error: 'Unknown action: ' + action });
+    }
+  } catch (err) {
+    console.error(`[${action}] ERROR:`, err.message);
+    return res.json({ success: false, error: err.message });
+  }
+});
+
+// ─── LISTEN ───────────────────────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`[Tiffo API] running on port ${PORT}`));
