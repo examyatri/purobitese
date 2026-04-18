@@ -200,7 +200,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date/Time</th><th>Rider</th><th>Actions</th></tr></thead>
-              <tbody id="orders-tbody"><tr>${skRow(9)}</tr></tbody>
+              <tbody id="orders-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -239,7 +239,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Highlight</th><th>Active</th><th>Actions</th></tr></thead>
-              <tbody id="menu-tbody"><tr>${skRow(8)}</tr></tbody>
+              <tbody id="menu-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -255,7 +255,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Image</th><th>Name</th><th>Description</th><th>Price</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
-              <tbody id="thalis-tbody"><tr>${skRow(7)}</tr></tbody>
+              <tbody id="thalis-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -271,7 +271,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Min Order</th><th>Max Usage</th><th>Used</th><th>Expiry</th><th>Active</th><th>Actions</th></tr></thead>
-              <tbody id="coupons-tbody"><tr>${skRow(9)}</tr></tbody>
+              <tbody id="coupons-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -300,7 +300,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Plan Start</th><th>Plan End</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="subs-tbody"><tr>${skRow(8)}</tr></tbody>
+              <tbody id="subs-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -319,7 +319,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Joined</th><th>Actions</th></tr></thead>
-              <tbody id="users-tbody"><tr>${skRow(6)}</tr></tbody>
+              <tbody id="users-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -335,7 +335,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Rider ID</th><th>Name</th><th>Phone</th><th>Vehicle</th><th>Zone</th><th>Active</th><th>Actions</th></tr></thead>
-              <tbody id="riders-tbody"><tr>${skRow(7)}</tr></tbody>
+              <tbody id="riders-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -348,7 +348,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Balance</th><th>Actions</th></tr></thead>
-              <tbody id="khata-tbody"><tr>${skRow(4)}</tr></tbody>
+              <tbody id="khata-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -364,7 +364,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead>
-              <tbody id="staff-tbody"><tr>${skRow(5)}</tr></tbody>
+              <tbody id="staff-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -672,8 +672,48 @@ function openStatDetail(type) {
   const labels = { todayOrders:"Today's Orders", todayRevenue:"Today's Revenue", monthRevenue:"Monthly Revenue",
     wallet:'Wallet Balances', totalOrders:'Total Orders', users:'All Users', subscribers:'Subscribers', newUsers:'New Users (30d)' };
   openMo(`<div class="mo-title">${labels[type]||type}</div>
-    <p style="color:#64748b">Loading details…</p>
+    <div id="stat-detail-body"><p style="color:#64748b">Loading details…</p></div>
     <button class="btn btn-outline" style="margin-top:20px" onclick="closeMo()">Close</button>`);
+  _loadStatDetail(type);
+}
+
+async function _loadStatDetail(type) {
+  const el = document.getElementById('stat-detail-body');
+  if (!el) return;
+  try {
+    if (type === 'todayOrders' || type === 'totalOrders') {
+      const dateFilter = type === 'todayOrders' ? { date: new Date(Date.now()+5.5*3600000).toISOString().slice(0,10) } : {};
+      const res = await api('adminGetOrders', dateFilter);
+      const orders = res.orders || [];
+      if (!orders.length) { el.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:20px">No orders found</p>'; return; }
+      el.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;font-size:13px;border-collapse:collapse">
+        <thead><tr style="border-bottom:1px solid #e5e7eb">
+          <th style="padding:8px 6px;text-align:left">Order ID</th>
+          <th style="padding:8px 6px;text-align:left">Customer</th>
+          <th style="padding:8px 6px;text-align:right">Amount</th>
+          <th style="padding:8px 6px;text-align:left">Status</th>
+        </tr></thead>
+        <tbody>${orders.map(o=>`<tr style="border-bottom:1px solid #f1f5f9">
+          <td style="padding:7px 6px"><code style="font-size:11px">${o.order_id}</code></td>
+          <td style="padding:7px 6px">${o.name||'—'}<br><small style="color:#94a3b8">${o.phone||''}</small></td>
+          <td style="padding:7px 6px;text-align:right">₹${o.final_amount||0}</td>
+          <td style="padding:7px 6px">${statusBadge(o.order_status)}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+    } else if (type === 'users' || type === 'newUsers') {
+      showPage('p-users');
+      closeMo();
+    } else if (type === 'subscribers') {
+      showPage('p-subs');
+      closeMo();
+    } else if (type === 'wallet') {
+      showPage('p-khata');
+      closeMo();
+    } else {
+      el.innerHTML = '<p style="color:#94a3b8;text-align:center;padding:20px">Navigate to the relevant section for details.</p>';
+    }
+  } catch(e) {
+    el.innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">Failed to load: ${e.message}</p>`;
+  }
 }
 
 // ─── ORDERS ───────────────────────────────────────────────
