@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Tiffo – Ghar ka Khana</title>
 <meta name="description" content="Home-cooked meals delivered fresh. Order tiffin online.">
@@ -610,10 +607,10 @@ textarea.inp{resize:vertical;min-height:72px}
     <div id="f-login">
       <div id="creds-hint" class="creds-hint">✅ Credentials filled from last session</div>
       <div class="fg"><label class="lbl">Phone Number</label>
-        <input id="l-ph" class="inp" type="tel" maxlength="10" placeholder="10-digit mobile number" inputmode="numeric" autocomplete="username"></div>
+        <input id="l-ph" class="inp" type="tel" maxlength="10" placeholder="10-digit mobile number" inputmode="numeric"></div>
       <div class="fg"><label class="lbl">Password</label>
         <div class="pw-wrap">
-          <input id="l-pw" class="inp" type="password" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+          <input id="l-pw" class="inp" type="password" placeholder="Your password" onkeydown="if(event.key==='Enter')doLogin()">
           <button type="button" class="pw-eye" onclick="togglePw('l-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
         </div></div>
       <button class="btn btn-p" id="btn-login" onclick="doLogin()"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
@@ -632,7 +629,7 @@ textarea.inp{resize:vertical;min-height:72px}
         <textarea id="s-ad" class="inp" rows="2" placeholder="House no, Street, Area, City"></textarea></div>
       <div class="fg"><label class="lbl">Create Password</label>
         <div class="pw-wrap">
-          <input id="s-pw" class="inp" type="password" placeholder="Min 6 characters" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()">
+          <input id="s-pw" class="inp" type="password" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doSignup()">
           <button type="button" class="pw-eye" onclick="togglePw('s-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
         </div></div>
       <button class="btn btn-p" id="btn-signup" onclick="doSignup()"><i class="fa-solid fa-user-plus"></i> Create Account</button>
@@ -1287,21 +1284,16 @@ function openWA(phone, msg) {
 // ══════════════════════════════════════════════
 async function api(action, data = {}, _retry = 1) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 65000);
+  const timer = setTimeout(() => controller.abort(), 22000);
   try {
     const r = await fetch(CFG.GAS, {
       method: 'POST',
-      credentials: 'include',   // ← sends HttpOnly session cookie on every call
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, data, apiKey: CFG.KEY }),
       signal: controller.signal
     });
     clearTimeout(timer);
-    // GAS can return HTML error pages — guard against JSON parse failure
-    const text = await r.text();
-    let res;
-    try { res = JSON.parse(text); }
-    catch { console.error('[API] Non-JSON response:', text.slice(0,200)); throw new Error('Server error. Try again.'); }
+    const res = await r.json();
     if (!res.success) throw new Error(res.error || 'API error');
     return res.data;
   } catch(e) {
@@ -1548,26 +1540,21 @@ function hideAbout(e) {
 // ══════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════
-// ── AUTH STATE MACHINE ────────────────────────────────────────
-// 'loading' | 'authenticated' | 'unauthenticated'  — never null/undefined
-let _authState = 'loading';
-let _session   = null;
-
+let _session = null;
 const Creds = {
   save: (phone, pw) => Store.setJSON('pb_creds', { phone, pw }),
   get:  ()         => Store.getJSON('pb_creds'),
   clear: ()        => Store.remove('pb_creds')
 };
-// SessStore removed — no localStorage for auth tokens.
-// Sessions are managed via HttpOnly cookies set by the server.
+const SessStore = {
+  save: (u) => { try { localStorage.setItem('pb_user_sess', JSON.stringify(u)); } catch {} },
+  get:  ()  => { try { return JSON.parse(localStorage.getItem('pb_user_sess')); } catch { return null; } },
+  clear:()  => { try { localStorage.removeItem('pb_user_sess'); } catch {} }
+};
 const Auth = {
-  get:   ()  => _session,
-  // Called ONLY after server confirms the session
-  set:   (u) => { _session = u; _authState = 'authenticated'; },
-  clear: ()  => {
-    _session = null; _authState = 'unauthenticated';
-    Store.remove('pb_sub'); Store.remove('pb_menu_cache');
-  }
+  get:   () => _session,
+  set:   u  => { _session = u; SessStore.save(u); },
+  clear: () => { _session = null; Store.remove('pb_sub'); SessStore.clear(); }
 };
 
 function togglePw(inputId, btn) {
@@ -1589,11 +1576,9 @@ function autofillCreds() {
   }
 }
 
-async function doLogout() {
+function doLogout() {
   if (!confirm('Logout karna chahte hain?')) return;
   stopPolling();
-  // Invalidate session on server first (best-effort)
-  try { await api('logout', {}, 0); } catch {}
   Auth.clear(); Cart.clear(); _coupon = null; _walletBal = null;
   _pauseDelivery = 'none';
   Store.remove('pb_menu_cache');
@@ -1635,19 +1620,15 @@ async function doLogin() {
   if (phone.length !== 10) return toast('Valid 10-digit number');
   const btn = doc('btn-login');
   btn.innerHTML = '<span class="spin"></span> Logging in...'; btn.disabled = true;
-  // Show warm-up message after 5s if still waiting
-  const _warmTimer = setTimeout(() => { if (btn.disabled) btn.innerHTML = '<span class="spin"></span> Server warm ho raha hai... (30-60s)'; }, 5000);
   try {
-    // Step 1: Authenticate — server sets HttpOnly session cookie
     const user = await api('login', { phone, password: pw });
     Auth.set(user);
     Creds.save(phone, pw);
-    // Step 2: Run post-login setup + navigate
     await initApp();
   } catch(e) {
     toast('❌ ' + e.message);
     if (e.message.includes('password') || e.message.includes('not found')) Creds.save('', '');
-  } finally { clearTimeout(_warmTimer); btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
+  } finally { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
 }
 
 async function doSignup() {
@@ -1670,7 +1651,34 @@ async function doSignup() {
 async function initApp() {
   const user = Auth.get(); if (!user) return;
 
-  // ── Step 1: Show home screen immediately ─────────────────────
+  // Fetch Khata flag
+  try {
+    const ke = await api('getKhataEnabled');
+    _khataEnabled = ke.enabled !== false;
+  } catch { _khataEnabled = true; }
+  applyKhataVisibility();
+
+  // ── v14: Fresh subscriber check from server (not just login response) ──
+  let subData = null;
+  try {
+    subData = await api('checkSubscriber', { phone: user.phone });
+    Store.setJSON('pb_sub', subData);
+  } catch {}
+  const cachedSub = subData || Store.getJSON('pb_sub');
+  const isSub = cachedSub?.isSubscriber;
+
+  applyKhataVisibility();
+
+  if (isSub && _khataEnabled) {
+    try {
+      const kd = await api('getKhata', { phone: user.phone });
+      updateWalletUI(Number(kd.balance) || 0);
+    } catch {}
+  } else {
+    updateWalletUI(null);
+  }
+  applyPauseState(cachedSub?.pauseDelivery || 'none');
+  updateBadge();
   doc('pg-auth').classList.replace('here','left');
   doc('pg-home').classList.remove('right','left');
   doc('pg-home').classList.add('here');
@@ -1681,38 +1689,6 @@ async function initApp() {
   showAppUI();
   loadMenu();
   startPolling();
-
-  // ── Step 2: Load wallet/subscriber in background (non-blocking) ──
-  (async () => {
-    try {
-      const ke = await api('getKhataEnabled');
-      _khataEnabled = ke.enabled !== false;
-    } catch { _khataEnabled = true; }
-    applyKhataVisibility();
-
-    let subData = null;
-    try {
-      subData = await api('checkSubscriber', { phone: user.phone });
-      Store.setJSON('pb_sub', subData);
-    } catch {}
-    const cachedSub = subData || Store.getJSON('pb_sub');
-    const isSub = cachedSub?.isSubscriber;
-
-    const pb = doc('acct-pro-badge'); if (pb) pb.classList.toggle('hide', !isSub);
-    const tb = doc('tif-ban');        if (tb) tb.classList.toggle('hide', !!isSub);
-    applyKhataVisibility();
-    applyPauseState(cachedSub?.pauseDelivery || 'none');
-    updateBadge();
-
-    if (isSub && _khataEnabled) {
-      try {
-        const kd = await api('getKhata', { phone: user.phone });
-        updateWalletUI(Number(kd.balance) || 0);
-      } catch {}
-    } else {
-      updateWalletUI(null);
-    }
-  })().catch(() => {});
 }
 
 // ══════════════════════════════════════════════
@@ -2729,36 +2705,6 @@ function exportUserKhataPDF() {
         orderedItems = itemName + (ordId ? ` <span style="color:#999;font-size:10px">| ${ordId}</span>` : '');
       }
     }
-    // Build Note column: custom note → else order source → else blank
-    let noteCell = '—';
-    const ORDER_ID_RE2 = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
-    const stdNoteRe = /^Tiffin Given \(.+?\)\s*\|\s*(ORD-[\w-]+|O[\w]+|PB-[\w-]+)$/i;
-    if (e.type === 'recharge') {
-      // For recharge: show note if present and non-standard
-      const customNote = (e.note || '').replace(ORDER_ID_RE2,'').replace(/^\s*[\|·\-]\s*/,'').trim();
-      noteCell = customNote ? esc(customNote) : 'Amount Added';
-    } else {
-      // For tiffin: check if note has any text beyond standard format
-      const rawNote = e.note || '';
-      const isStdNote = stdNoteRe.test(rawNote.trim());
-      // Extract any text that is not the item/orderId standard part
-      const customPart = rawNote.replace(ORDER_ID_RE2,'').replace(/^Tiffin Given\s*/i,'').replace(/^\(.*?\)\s*\|\s*/,'').trim();
-      if (!isStdNote && customPart) {
-        noteCell = `<span style="color:#1565c0">${esc(customPart)}</span>`;
-      } else if (e.orderSource) {
-        const srcLabel = e.orderSource === 'admin'
-          ? '<span style="color:#c45500;font-weight:700">Admin Order</span>'
-          : '<span style="color:#2a9d8f">User Order</span>';
-        const statusLabel = e.orderStatus
-          ? ` · <span style="color:#6b7280">${esc(e.orderStatus)}</span>`
-          : '';
-        noteCell = srcLabel + statusLabel;
-      } else {
-        noteCell = e.orderStatus
-          ? `<span style="color:#6b7280">${esc(e.orderStatus)}</span>`
-          : '—';
-      }
-    }
     const rowBg = amt >= 0 ? '#f0fdf8' : '#fff5f5';
     return `<tr style="background:${rowBg}">
       <td>${fmtDate(e.date)}</td><td>${fmtTime(e.time)}</td>
@@ -2766,7 +2712,6 @@ function exportUserKhataPDF() {
       <td style="color:${amt>=0?'#2a9d8f':'#e63946'};font-weight:800">${amt>=0?'+':''}₹${Math.abs(amt)}</td>
       <td style="font-weight:800;color:${runBal<0?'#e63946':'#111'}">₹${runBal}</td>
       <td>${orderedItems}</td>
-      <td style="font-size:11px">${noteCell}</td>
     </tr>`;
   }).join('');
   const nowIST = new Date(Date.now() + 5.5*3600*1000);
@@ -2778,7 +2723,7 @@ function exportUserKhataPDF() {
 <div class="hdr"><div><div class="brand-name">🍱 <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="brand-tagline">Ghar ka khana ♥</div><div class="brand-contact">📞 <strong>9889760350</strong><br>Wallet Statement</div></div><span class="period-badge">📅 ${periodLabel}</span></div>
 <div class="info-row"><div><div class="name">${user.name}</div><div style="color:#555">📞 ${user.phone}</div>${user.address?`<div style="color:#777;font-size:12px;margin-top:2px">📍 ${user.address}</div>`:''}</div><div style="text-align:right"><div style="font-size:11px;color:#888">Generated</div><div style="font-size:12px;font-weight:700">${genStr}</div></div></div>
 <div class="bal-row">${openingBal !== 0 ? `<div class="bal-card open"><div class="bal-label">Opening Balance</div><div class="bal-amount" style="font-size:18px;color:#555">₹${openingBal}</div></div>` : ''}<div class="bal-card close"><div class="bal-label">Closing Balance</div><div class="bal-amount">₹${closingBal}</div></div><div class="bal-card open" style="background:#fff8f0;border-color:#f4a261"><div class="bal-label">Transactions</div><div class="bal-amount" style="color:#f4a261">${filtered.length}</div></div></div>
-<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Items Ordered</th><th>Note</th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#999">No transactions</td></tr>'}</tbody></table>
+<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Items Ordered</th></tr></thead><tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#999">No transactions</td></tr>'}</tbody></table>
 <div class="footer"><div>Powered by <strong><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></strong> · 📞 9889760350</div><div>Generated: ${genStr}</div></div>
 </div></body></html>`;
   const w = window.open('', '_blank');
@@ -2888,220 +2833,145 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ══════════════════════════════════════════════
-// STARTUP — production-grade auth lifecycle
+// STARTUP
 // ══════════════════════════════════════════════
-
-// ── Transition helpers ─────────────────────────────────────────
-function _transitionToHome() {
-  doc('pg-auth').classList.replace('here','left');
-  doc('pg-home').classList.remove('right','left');
-  doc('pg-home').classList.add('here');
-  stack = ['pg-auth','pg-home'];
-  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
-  history.pushState({ page: 'pg-home' }, '', '#pg-home');
-  updateBottomNav('pg-home');
-  showAppUI();
-}
-
-function _transitionToLogin() {
-  document.querySelectorAll('.pg').forEach(p => {
-    p.classList.remove('here','left'); p.classList.add('right');
-  });
-  doc('pg-auth').classList.remove('right');
-  doc('pg-auth').classList.add('here');
-  stack = ['pg-auth'];
-  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
-  hideAppUI(); hideFab(); autofillCreds();
-}
-
-function _hideLoader() {
+function bootApp() {
   const loader = doc('app-loader');
-  if (!loader) return;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', { scope: './' }).then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        if (newSW) {
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[SW] New version available');
+            }
+          });
+        }
+      });
+    }).catch(err => console.warn('[SW] Registration failed:', err));
+  }
+  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+
+  const savedSess = SessStore.get();
+  const savedSub  = Store.getJSON('pb_sub');
+  if (savedSess && savedSess.userId) {
+    Auth.set(savedSess);
+    api('getKhataEnabled').then(ke => {
+      _khataEnabled = ke.enabled !== false;
+      applyKhataVisibility();
+    }).catch(() => {});
+    const isSub = savedSub?.isSubscriber;
+    if (isSub && _khataEnabled) {
+      api('getKhata', { phone: savedSess.phone })
+        .then(kd => updateWalletUI(Number(kd.balance) || 0))
+        .catch(() => { if (_walletBal !== null) updateWalletUI(_walletBal); });
+    }
+    const proBadge = doc('acct-pro-badge'); if (proBadge) proBadge.classList.toggle('hide', !isSub);
+    const tifBan = doc('tif-ban'); if (tifBan) tifBan.classList.toggle('hide', !!isSub);
+    applyPauseState(savedSub?.pauseDelivery || 'none');
+    updateBadge();
+    doc('pg-auth').classList.replace('here','left');
+    doc('pg-home').classList.remove('right','left');
+    doc('pg-home').classList.add('here');
+    stack = ['pg-auth','pg-home'];
+    history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+    history.pushState({ page: 'pg-home' }, '', '#pg-home');
+    updateBottomNav('pg-home');
+    showAppUI();
+    loadMenu();
+    startPolling();
+    loader.classList.add('fade-out');
+    setTimeout(() => { loader.style.display = 'none'; }, 300);
+
+    // ── v14: Background subscriber re-verification ──
+    api('checkSubscriber', { phone: savedSess.phone }).then(fresh => {
+      Store.setJSON('pb_sub', fresh);
+      const wasSubCached = !!isSub;
+      const isSubNow     = !!fresh.isSubscriber;
+      if (wasSubCached !== isSubNow) {
+        applyKhataVisibility();
+        applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
+        updateBadge();
+        if (isSubNow && _khataEnabled) {
+          api('getKhata', { phone: savedSess.phone })
+            .then(kd => updateWalletUI(Number(kd.balance) || 0))
+            .catch(() => {});
+        } else { updateWalletUI(null); }
+      } else if (isSubNow) {
+        applyPauseState(fresh.pauseDelivery || 'none');
+        if (_khataEnabled) {
+          api('getKhata', { phone: savedSess.phone })
+            .then(kd => updateWalletUI(Number(kd.balance) || 0))
+            .catch(() => {});
+        }
+      }
+    }).catch(() => {});
+    return;
+  }
+
+  autofillCreds();
+  Store.remove('pb_user');
   loader.classList.add('fade-out');
   setTimeout(() => { loader.style.display = 'none'; }, 300);
 }
 
-// No-blank-screen safety: replace loader with retry button on network errors
-function _showRetryUI(msg) {
-  const loader = doc('app-loader');
-  if (!loader) return;
-  loader.innerHTML =
-    '<div class="logo-mark"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>' +
-    '<div style="font-size:13px;color:#555;margin:12px 0;text-align:center;max-width:260px;">' +
-      (msg || 'Something went wrong') +
-    '</div>' +
-    '<button onclick="location.reload()" ' +
-      'style="background:#e63946;color:#fff;border:none;border-radius:10px;' +
-             'padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer;">' +
-      'Retry' +
-    '</button>';
-  loader.style.display = '';
-  loader.classList.remove('fade-out');
-}
-
-// ── Post-login data load ───────────────────────────────────────
-// Loads khata flag, subscriber status, wallet balance, pause state.
-// Non-blocking — called after Auth.set(user) is already done.
-async function _postLoginSetup(user) {
-  try {
-    const ke = await api('getKhataEnabled');
-    _khataEnabled = ke.enabled !== false;
-  } catch { _khataEnabled = true; }
-  applyKhataVisibility();
-
-  let subData = null;
-  try {
-    subData = await api('checkSubscriber', { phone: user.phone });
-    Store.setJSON('pb_sub', subData);
-  } catch {}
-
-  const isSub = subData?.isSubscriber;
-  const pb = doc('acct-pro-badge'); if (pb) pb.classList.toggle('hide', !isSub);
-  const tb = doc('tif-ban');        if (tb) tb.classList.toggle('hide', !!isSub);
-  applyPauseState(subData?.pauseDelivery || 'none');
-  updateBadge();
-
-  if (isSub && _khataEnabled) {
-    try {
-      const kd = await api('getKhata', { phone: user.phone });
-      updateWalletUI(Number(kd.balance) || 0);
-    } catch {}
-  } else {
-    updateWalletUI(null);
-  }
-}
-
-// ── initApp — called after login / signup ─────────────────────
-async function initApp() {
-  const user = Auth.get(); if (!user) return;
-  await _postLoginSetup(user);
-  _transitionToHome();
-  loadMenu();
-  startPolling();
-}
-
-// ── bootApp — STRICT LIFECYCLE ────────────────────────────────
-// Step 1: show loader (never a blank screen)
-// Step 2: call /api/me with credentials to verify session
-// Step 3: 200 → Home | 401/no session → Login | error → Retry UI
-async function bootApp() {
-  _authState = 'loading';
-  const loaderMsg = doc('loader-msg');
-  if (loaderMsg) loaderMsg.textContent = 'Loading your account...';
-
-  // Register SW — non-blocking, must not delay auth check
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { scope: './' })
-      .then(reg => {
-        reg.addEventListener('updatefound', () => {
-          const newSW = reg.installing;
-          if (!newSW) return;
-          newSW.addEventListener('statechange', () => {
-            if (newSW.state === 'activated') {
-              console.log('[SW] New version active — reloading for fresh assets');
-              location.reload();
-            }
-          });
-        });
-      })
-      .catch(err => console.warn('[SW] Registration failed:', err));
-  }
-
-  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
-
-  // ── Server session check ──────────────────────────────────────
-  // Your GAS backend needs a 'me' action that:
-  //   • reads the session cookie / your session store
-  //   • returns { success:true, data: userObject } if valid
-  //   • returns { success:false, error:'Unauthorized' } if not
-  // Until that's added, every boot routes to login (safe fallback).
-  let user = null;
-  try {
-    user = await api('me', {}, 0); // 0 retries — fast-fail is correct here
-  } catch(e) {
-    const isExpected =
-      e.message.includes('Unauthorized') || e.message.includes('401') ||
-      e.message.includes('No session')   || e.message.includes('not found') ||
-      e.message.includes('login')        || e.message.includes('API error') ||
-      e.message.includes('timed out')    || e.message.includes('Failed to fetch') ||
-      e.message.includes('NetworkError') || e.message.includes('Load failed');
-
-    if (!isExpected) {
-      // Real network / server error → show retry UI, never blank screen
-      _showRetryUI('Connection issue.<br>Check your internet and try again.');
-      return;
-    }
-    // Expected 401 → fall through to login
-  }
-
-  if (user && user.userId) {
-    // ✅ Server confirmed valid session
-    Auth.set(user);
-    if (loaderMsg) loaderMsg.textContent = 'Welcome back!';
-    // Load secondary data in background — don't block the transition
-    _postLoginSetup(user).catch(() => {});
-    _transitionToHome();
-    loadMenu();
-    startPolling();
-  } else {
-    // ❌ No valid session
-    _authState = 'unauthenticated';
-    _transitionToLogin();
-  }
-
-  _hideLoader();
-}
-
-// ── pageshow — back/forward cache & PWA resume ────────────────
-// Re-validates session on tab resume rather than trusting stale state
-window.addEventListener('pageshow', e => {
-  if (!e.persisted) return; // fresh load handled by bootApp
-
-  if (_authState === 'authenticated' && _session) {
-    // Silent background re-verify
-    api('me', {}, 0)
-      .then(fresh => {
-        if (fresh && fresh.userId) {
-          Auth.set(fresh);
-          _postLoginSetup(fresh).catch(() => {});
-          startPolling();
-        } else {
-          // Session expired while tab was in BF cache
-          stopPolling();
-          Auth.clear();
-          _transitionToLogin();
-          toast('Session expired. Please log in again.');
-        }
-      })
-      .catch(() => {}); // network error on resume — keep current state, don't kick user
-  } else {
-    _transitionToLogin();
-  }
-});
-
-// ── Blank screen safety net ───────────────────────────────────
-// If 10 s pass and no page is visible and nothing is in flight → reload
 (function blankScreenGuard() {
   setTimeout(() => {
-    if (_authState === 'loading') return;                  // still in boot
-    if (doc('btn-login')?.disabled)  return;              // login in flight
-    if (doc('btn-signup')?.disabled) return;              // signup in flight
+    const loginBusy  = doc('btn-login')  && doc('btn-login').disabled;
+    const signupBusy = doc('btn-signup') && doc('btn-signup').disabled;
+    if (loginBusy || signupBusy) return;
     const visible = document.querySelector('.pg.here');
-    if (!visible || !visible.offsetHeight) {
-      console.warn('[Guard] Blank screen — reloading');
-      location.replace(location.pathname);
-    }
-  }, 10000);
+    if (!visible || !visible.offsetHeight) { location.replace(location.pathname); }
+  }, 8000);
 })();
 
-// ── Global error boundary ─────────────────────────────────────
-window.addEventListener('error', e => {
-  console.error('[Global]', e.error || e.message);
-});
-window.addEventListener('unhandledrejection', e => {
-  console.error('[Promise]', e.reason);
+window.addEventListener('pageshow', e => {
+  if (e.persisted) {
+    const saved = SessStore.get();
+    if (saved && saved.userId) {
+      if (!_session) {
+        Auth.set(saved);
+        showAppUI();
+        const cur = stack[stack.length - 1];
+        if (!cur || cur === 'pg-auth') {
+          doc('pg-auth').classList.replace('here','left');
+          doc('pg-home').classList.remove('right','left');
+          doc('pg-home').classList.add('here');
+          stack = ['pg-auth','pg-home'];
+          updateBottomNav('pg-home');
+        }
+        startPolling();
+      }
+      api('checkSubscriber', { phone: saved.phone }).then(fresh => {
+        const cached = Store.getJSON('pb_sub') || {};
+        Store.setJSON('pb_sub', fresh);
+        const wasSubCached = !!cached.isSubscriber;
+        const isSubNow     = !!fresh.isSubscriber;
+        if (wasSubCached !== isSubNow) {
+          const pb = doc('acct-pro-badge'); if (pb) pb.classList.toggle('hide', !isSubNow);
+          const tb = doc('tif-ban'); if (tb) tb.classList.toggle('hide', isSubNow);
+          applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
+          applyKhataVisibility();
+          if (!isSubNow) updateWalletUI(null);
+          updateBadge();
+        } else if (isSubNow) {
+          applyPauseState(fresh.pauseDelivery || 'none');
+        }
+      }).catch(() => {});
+    } else {
+      stopPolling();
+      document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+      doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
+      stack = ['pg-auth'];
+      hideAppUI(); hideFab();
+      autofillCreds();
+    }
+  }
 });
 
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', bootApp); }
 else { bootApp(); }
 </script>
+</body>
+</html>
