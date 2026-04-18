@@ -1,0 +1,3008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Tiffo – Ghar ka Khana</title>
+<meta name="description" content="Home-cooked meals delivered fresh. Order tiffin online.">
+<meta name="theme-color" content="#e63946">
+<!-- PWA Manifest -->
+<link rel="manifest" href="./manifest.json">
+<!-- iOS PWA -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tiffo">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="shortcut icon" href="./icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{
+  --p:#e63946;--pd:#c1121f;--pl:#fde8ea;
+  --grad:linear-gradient(135deg,#e63946,#f4591d);
+  --g:#2a9d8f;--gl:#e8f5f3;
+  --o:#f4a261;--y:#ffd166;
+  --dk:#111827;--gr:#6b7280;--lt:#f8f5f2;--wh:#fff;
+  --sh:0 2px 12px rgba(0,0,0,.07);--shl:0 8px 32px rgba(0,0,0,.14);
+  --r:clamp(10px,2.5vw,14px);--rl:clamp(14px,3.5vw,20px);
+  --ff:'Sora',sans-serif;--fb:'DM Sans',sans-serif;
+  --bnav-h:64px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --pg-pad:clamp(10px,4vw,20px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%}
+body{font-family:var(--fb);color:var(--dk);width:100%;max-width:540px;margin:0 auto;
+     position:relative;height:100%;overflow:hidden;background:var(--lt);
+     -webkit-font-smoothing:antialiased;}
+@media(min-width:541px){body{border-left:1px solid #ede8e4;border-right:1px solid #ede8e4;box-shadow:0 0 40px rgba(0,0,0,.08)}}
+
+/* ── LOADER ── */
+#app-loader{position:fixed;inset:0;background:#fff;z-index:99999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .3s}
+#app-loader.fade-out{opacity:0;pointer-events:none}
+#app-loader .logo-mark{font-family:var(--ff);font-size:28px;font-weight:900}
+#app-loader .tagline{font-size:12px;color:var(--gr);font-weight:600;font-style:italic}
+#app-loader .loader-ring{width:36px;height:36px;border:3px solid var(--pl);border-top-color:var(--p);border-radius:50%;animation:sp .8s linear infinite}
+
+/* ── PAGE SYSTEM ── */
+.pg{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;background:var(--lt);
+    transition:transform .28s cubic-bezier(.4,0,.2,1),opacity .28s;
+    will-change:transform;display:flex;flex-direction:column;-webkit-overflow-scrolling:touch}
+.pg.right{transform:translateX(100%);opacity:0;pointer-events:none}
+.pg.left{transform:translateX(-100%);opacity:0;pointer-events:none}
+.pg.here{transform:none;opacity:1;pointer-events:all}
+
+/* ── UTILS ── */
+.hide{display:none!important}
+h1,h2,h3,h4{font-family:var(--ff)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:clamp(11px,3vw,14px) clamp(16px,5vw,22px);
+     border-radius:var(--r);font-family:var(--ff);font-weight:700;font-size:clamp(13px,3.5vw,14px);border:none;
+     cursor:pointer;transition:all .18s;-webkit-appearance:none;text-decoration:none;touch-action:manipulation}
+.btn:active{transform:scale(.96)}
+.btn-p{background:var(--grad);color:#fff;width:100%;box-shadow:0 4px 18px rgba(230,57,70,.35)}
+.btn-p:hover{filter:brightness(1.08)}
+.btn-p:disabled{background:#ccc;box-shadow:none;cursor:not-allowed;transform:none;filter:none}
+.btn-g{background:var(--g);color:#fff;width:100%}
+.btn-dk{background:var(--dk);color:#fff;width:100%}
+.btn-out{background:transparent;border:2px solid var(--p);color:var(--p);width:100%}
+.btn-ghost{background:rgba(0,0,0,.06);color:var(--dk);border:none}
+.btn-danger{background:#fff1f2;color:var(--p);border:2px solid var(--pl);width:100%}
+.btn-sm{padding:8px 14px;font-size:12px;border-radius:10px}
+.inp{width:100%;padding:clamp(11px,3vw,14px) clamp(12px,4vw,16px);background:#fff;border:2px solid #ede8e4;border-radius:var(--r);
+     font-family:var(--fb);font-size:clamp(14px,3.8vw,15px);font-weight:500;color:var(--dk);outline:none;transition:border-color .18s;-webkit-appearance:none}
+.inp:focus{border-color:var(--p);background:#fff}
+.inp::placeholder{color:#b0a8a3}
+textarea.inp{resize:vertical;min-height:72px}
+.card{background:#fff;border-radius:var(--rl);padding:clamp(14px,4vw,18px);box-shadow:var(--sh);border:1px solid rgba(0,0,0,.04)}
+.bdg{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.b-g{background:var(--gl);color:var(--g)}.b-r{background:var(--pl);color:var(--p)}
+.b-o{background:#fff3e0;color:#c45500}.b-y{background:#fffde7;color:#c67c00}
+.lbl{font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+.fg{margin-bottom:14px}
+.spin{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite;display:inline-block}
+.icon-spin{animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:calc(var(--bnav-h) + 14px);left:50%;transform:translateX(-50%) translateY(16px);
+       background:var(--dk);color:#fff;padding:12px 22px;border-radius:30px;font-weight:600;
+       font-size:13px;z-index:9999;opacity:0;transition:all .28s;pointer-events:none;
+       white-space:nowrap;max-width:min(88%,460px);font-family:var(--ff)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.sk{background:linear-gradient(90deg,#f0ece8 25%,#e8e4e0 50%,#f0ece8 75%);background-size:200% 100%;animation:shim 1.4s infinite;border-radius:var(--r)}
+.sk-lg{height:196px;margin-bottom:14px;border-radius:var(--rl)}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;
+  display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px);animation:fadein .2s ease}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.modal-box{background:#fff;border-radius:28px 28px 0 0;padding:clamp(20px,5vw,28px) clamp(16px,5vw,22px) 44px;width:100%;max-width:540px;
+  animation:slideup .3s cubic-bezier(.4,0,.2,1);position:relative;max-height:92vh;overflow-y:auto}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-close{position:absolute;top:14px;right:16px;width:34px;height:34px;border-radius:50%;
+  background:#f3f4f6;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#6b7280}
+.modal-emoji{font-size:52px;text-align:center;margin-bottom:10px}
+.modal-title{font-family:var(--ff);font-size:22px;font-weight:800;text-align:center;color:var(--dk);margin-bottom:16px}
+.modal-body p{font-size:15px;line-height:1.7;color:#374151;padding:8px 0;border-bottom:1px solid #f3f4f6}
+.modal-body p:last-child{border-bottom:none}
+
+/* ── BOTTOM NAV ── */
+.bnav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:540px;
+  background:#fff;border-top:1px solid #ede8e4;
+  padding:6px 0 env(safe-area-inset-bottom,8px);
+  display:flex;justify-content:space-around;
+  z-index:500;box-shadow:0 -4px 24px rgba(0,0,0,.10);
+  border-radius:20px 20px 0 0;
+}
+.bn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;
+    cursor:pointer;padding:4px 6px;touch-action:manipulation;min-width:52px;flex:1}
+.bn i{font-size:19px;color:var(--gr)}
+.bn span{font-size:10px;font-weight:700;color:var(--gr);font-family:var(--ff)}
+.bn.act i,.bn.act span{color:var(--p)}
+
+/* ── WALLET NAV BTN ── */
+.bn-wallet-pill{
+  background:var(--grad);border-radius:20px;padding:6px 12px;
+  display:flex;align-items:center;gap:6px;margin-bottom:2px;
+  box-shadow:0 4px 12px rgba(230,57,70,.30);
+}
+.bn-wallet-pill i{font-size:14px;color:#fff}
+.bn-wallet-pill span{font-size:12px;font-weight:800;color:#fff;font-family:var(--ff)}
+#bn-wallet span.nav-lbl{font-size:10px;font-weight:700;color:var(--p)}
+
+/* ── PTR INDICATOR ── */
+.ptr-indicator{position:fixed;top:56px;left:50%;transform:translateX(-50%) translateY(-64px);
+  background:#fff;border-radius:50%;width:44px;height:44px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 16px rgba(0,0,0,.14);transition:opacity .2s;
+  opacity:0;z-index:300;pointer-events:none}
+.ptr-indicator.visible{opacity:1}
+.ptr-indicator i{font-size:18px;color:var(--p);transition:transform .3s}
+.ptr-indicator.ready i{transform:rotate(180deg);color:var(--g)}
+.ptr-indicator.loading i{animation:sp .7s linear infinite}
+
+/* ── PAGE BODY ── */
+.pg-body{
+  padding:var(--pg-pad);
+  padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);
+  word-break:break-word;overflow-wrap:anywhere;
+}
+#pg-home .pg-body{padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px)}
+
+/* ══ AUTH PAGE ══ */
+#pg-auth{background:linear-gradient(170deg,#fff5f5 0%,#fff 65%)}
+.auth-brand{text-align:center;padding:clamp(16px,5vw,24px) clamp(16px,5vw,20px) 0;display:flex;flex-direction:column;align-items:center}
+.auth-logo-n{font-family:var(--ff);font-size:32px;font-weight:900;letter-spacing:-1px}
+.auth-logo-t{font-size:13px;color:var(--gr);font-weight:600;font-style:italic;margin-top:2px}
+.auth-hero{padding:clamp(36px,8vw,60px) 26px 28px}
+.auth-hero .em{font-size:clamp(52px,14vw,72px);display:block;margin-bottom:16px;animation:bob .7s ease}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.auth-hero h1{font-family:var(--ff);font-size:clamp(28px,7vw,40px);font-weight:800;line-height:1.18;margin-bottom:10px}
+.auth-hero h1 em{font-style:normal;color:var(--p)}
+.auth-hero p{color:var(--gr);font-size:clamp(13px,3.5vw,15px);line-height:1.6}
+.auth-body{background:#fff;border-radius:28px 28px 0 0;padding:clamp(20px,5vw,32px) clamp(16px,5vw,28px) 44px;flex:1;box-shadow:0 -6px 32px rgba(0,0,0,.09)}
+.atabs{display:flex;background:var(--lt);border-radius:12px;padding:3px;margin-bottom:22px}
+.atab{flex:1;padding:10px;text-align:center;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;color:var(--gr);border:none;background:none;transition:all .18s;font-family:var(--ff);touch-action:manipulation}
+.atab.act{background:#fff;color:var(--p);box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.btn-forgot{display:block;width:100%;margin-top:12px;padding:11px;background:transparent;
+  border:none;color:#25d366;font-family:var(--ff);font-weight:700;font-size:13px;
+  cursor:pointer;text-align:center;border-radius:var(--r);transition:background .18s}
+.btn-forgot:hover{background:#f0fdf4}
+.btn-forgot i{margin-right:5px}
+
+/* ══ PAGE HEADER ══ */
+.tnav{position:sticky;top:0;z-index:80;background:#fff;padding:clamp(10px,3vw,13px) clamp(12px,4vw,16px);
+      display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(0,0,0,.07);flex-shrink:0}
+.bk-btn{width:38px;height:38px;border-radius:12px;background:var(--lt);border:none;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;color:var(--dk);font-size:15px;
+        flex-shrink:0;touch-action:manipulation}
+.pg-title{font-family:var(--ff);font-size:clamp(15px,4.5vw,17px);font-weight:800;flex:1}
+
+/* ══ HOME ══ */
+.home-top{position:sticky;top:0;z-index:80;background:#fff;padding:clamp(10px,3vw,13px) clamp(12px,4vw,16px);
+          display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+.logo-n{font-family:var(--ff);font-size:21px;font-weight:800}
+.logo-t{font-size:10px;color:var(--gr);font-weight:600;font-style:italic;margin-top:1px}
+.t-acts{display:flex;gap:8px;align-items:center}
+.t-btn{width:38px;height:38px;border-radius:12px;background:var(--lt);border:none;cursor:pointer;
+       display:flex;align-items:center;justify-content:center;color:var(--gr);font-size:15px;position:relative;touch-action:manipulation}
+.t-btn:active{transform:scale(.92)}
+
+/* ══ CART HEADER BADGE ══ */
+.cart-hdr-badge{
+  position:absolute;top:-5px;right:-5px;
+  background:var(--p);color:#fff;
+  font-size:9px;font-weight:800;
+  min-width:17px;height:17px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 3px;pointer-events:none;
+  box-shadow:0 1px 4px rgba(230,57,70,.4);
+  font-family:var(--ff);
+}
+
+/* ══ ADDED TO CART NOTIFICATION ══ */
+#cart-notif{
+  position:fixed;top:0;left:0;right:0;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+.cart-notif-pill{
+  background:linear-gradient(135deg,#1b1b1b,#2d2d2d);
+  color:#fff;font-size:13px;font-weight:700;
+  padding:10px 20px;border-radius:0 0 20px 20px;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  transform:translateY(-100%);
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  font-family:var(--ff);
+}
+.cart-notif-pill.show{transform:translateY(0)}
+.cart-notif-pill .notif-icon{font-size:16px}
+.cart-notif-pill .notif-count{
+  background:var(--p);color:#fff;font-size:10px;font-weight:800;
+  padding:2px 7px;border-radius:20px;margin-left:4px;
+}
+
+/* Account header button */
+#acct-hdr-btn{
+  width:38px;height:38px;border-radius:50%;
+  background:var(--grad);border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 10px rgba(230,57,70,.30);touch-action:manipulation;transition:all .18s;
+}
+#acct-hdr-btn i{font-size:17px;color:#fff}
+#acct-hdr-btn:active{transform:scale(.92)}
+
+.cb{position:absolute;top:-4px;right:-4px;background:var(--p);color:#fff;width:17px;height:17px;
+    border-radius:50%;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+
+.tif-ban{background:linear-gradient(135deg,#f4a261,#e76f51);color:#fff;border-radius:var(--r);
+         padding:13px 16px;display:flex;align-items:center;justify-content:space-between;
+         margin-bottom:14px;cursor:pointer;border:none;width:100%;text-align:left;touch-action:manipulation}
+.tif-ban h4{font-size:13px;font-weight:700;margin-bottom:2px}
+.tif-ban p{font-size:11px;opacity:.9}
+
+/* ══ RESTAURANT TOGGLE ══ */
+.rest-toggle-wrap{
+  display:flex;align-items:center;justify-content:space-between;
+  background:#fff;border-radius:var(--r);padding:13px 16px;
+  margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);
+  border:2px solid #ede8e4;
+}
+.rest-toggle-left{display:flex;align-items:center;gap:10px}
+.rest-toggle-icon{font-size:22px;line-height:1}
+.rest-toggle-title{font-size:13px;font-weight:800;color:var(--dk)}
+.rest-toggle-sub{font-size:11px;color:var(--gr);margin-top:1px}
+.mesh-switch{position:relative;width:54px;height:28px;flex-shrink:0}
+.mesh-switch input{opacity:0;width:0;height:0;position:absolute}
+.mesh-slider{
+  position:absolute;inset:0;border-radius:28px;cursor:pointer;
+  background:linear-gradient(135deg,#e63946,#c1121f);
+  transition:background .3s;display:flex;align-items:center;
+  padding:3px;box-shadow:inset 0 1px 4px rgba(0,0,0,.2);
+}
+.mesh-slider::before{
+  content:'';width:22px;height:22px;border-radius:50%;background:#fff;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 2px 6px rgba(0,0,0,.25);flex-shrink:0;
+}
+.mesh-switch input:checked + .mesh-slider{
+  background:linear-gradient(135deg,#2a9d8f,#1d7a6f);
+}
+.mesh-switch input:checked + .mesh-slider::before{
+  transform:translateX(26px);
+}
+.pause-sheet{
+  position:fixed;bottom:-100%;left:0;right:0;z-index:500;
+  background:#fff;border-radius:24px 24px 0 0;
+  padding:20px 20px 36px;
+  box-shadow:0 -4px 30px rgba(0,0,0,.18);
+  transition:bottom .35s cubic-bezier(.34,1,.64,1);
+  max-width:480px;margin:0 auto;
+}
+.pause-sheet.open{bottom:0}
+.pause-sheet-handle{width:40px;height:4px;border-radius:2px;background:#e0d9d4;margin:0 auto 18px}
+.pause-sheet-title{font-family:var(--ff);font-size:17px;font-weight:800;text-align:center;margin-bottom:6px}
+.pause-sheet-sub{font-size:12px;color:var(--gr);text-align:center;margin-bottom:20px}
+.pause-opt{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-radius:var(--r);border:2px solid #ede8e4;
+  margin-bottom:10px;cursor:pointer;transition:all .15s;background:#fafaf9;
+}
+.pause-opt:active{transform:scale(.97)}
+.pause-opt.sel{border-color:var(--p);background:var(--pl)}
+.pause-opt-left{display:flex;align-items:center;gap:10px}
+.pause-opt-icon{font-size:20px}
+.pause-opt-title{font-size:13px;font-weight:700;color:var(--dk)}
+.pause-opt-sub{font-size:11px;color:var(--gr)}
+.pause-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:499;display:none}
+#rest-mesh-overlay{
+  position:absolute;inset:0;z-index:10;pointer-events:none;
+  background:repeating-linear-gradient(
+    45deg,rgba(0,0,0,.04) 0px,rgba(0,0,0,.04) 1px,
+    transparent 1px,transparent 8px
+  );display:none;
+}
+#rest-paused-notice{
+  display:none;
+  background:linear-gradient(135deg,#e63946,#c1121f);
+  color:#fff;border-radius:var(--r);padding:13px 16px;margin-bottom:14px;
+  align-items:center;gap:12px;font-size:13px;font-weight:700;
+}
+.sec-t{font-family:var(--ff);font-size:clamp(17px,4.5vw,20px);font-weight:800;margin-bottom:3px}
+.sec-s{font-size:clamp(11px,3vw,13px);color:var(--gr);margin-bottom:12px;line-height:1.4}
+
+/* ══ MENU CARD ══ */
+.m-grid{display:flex;flex-direction:column;gap:1px;background:rgba(0,0,0,.05);border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)}
+.m-card{background:#fff;display:flex;align-items:flex-start;gap:0;padding:0;position:relative;transition:background .15s}
+.m-card:active{background:#fafafa}
+.m-card+.m-card{border-top:1px solid #f3f0ed}
+.m-body{flex:1;padding:14px 12px 14px 14px;min-width:0}
+.m-img-wrap{width:clamp(96px,26vw,120px);height:clamp(96px,26vw,120px);flex-shrink:0;margin:10px 10px 10px 0;border-radius:var(--r);overflow:hidden;position:relative}
+.m-img{width:100%;height:100%;object-fit:cover;background:linear-gradient(135deg,#fde8ea,#f4a261);display:block}
+.m-name{font-family:var(--ff);font-size:clamp(14px,3.5vw,16px);font-weight:700;margin-bottom:3px;line-height:1.3;word-break:break-word}
+.m-cat{font-size:clamp(11px,2.8vw,12px);color:var(--gr);margin-bottom:8px;line-height:1.4}
+.var-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.var-pill{padding:4px 10px;border-radius:20px;border:1.5px solid #ede8e4;background:#fff;
+          font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--dk);touch-action:manipulation;white-space:nowrap}
+.var-pill.sel{border-color:var(--p);background:var(--pl);color:var(--p)}
+.m-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:auto}
+.m-price{font-family:var(--ff);font-size:clamp(15px,4vw,17px);font-weight:800}
+.add-btn{background:var(--grad);color:#fff;border:none;padding:8px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--ff);touch-action:manipulation;box-shadow:0 2px 8px rgba(230,57,70,.25);white-space:nowrap}
+.add-btn:disabled{background:#ccc!important;box-shadow:none;cursor:not-allowed}
+.qty-ctl{display:flex;align-items:center;gap:8px;background:var(--pl);border-radius:10px;padding:3px}
+.q-btn{width:30px;height:30px;border-radius:8px;background:#fff;border:none;cursor:pointer;font-size:16px;font-weight:800;color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.1);touch-action:manipulation;display:flex;align-items:center;justify-content:center}
+.q-n{font-size:14px;font-weight:800;min-width:18px;text-align:center;font-family:var(--ff);color:var(--p)}
+.m-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:5px;width:fit-content}
+
+/* ══ STOCK BADGE ══ */
+.stock-badge{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 8px;
+  border-radius:6px;font-size:10px;font-weight:700;margin-bottom:4px;
+}
+.stock-low{background:#fff3e0;color:#c45500}
+.stock-oos{background:#f3f4f6;color:#6b7280}
+
+/* ══ THALI SECTION ══ */
+.thali-section{margin-bottom:20px}
+.thali-section-title{
+  font-family:var(--ff);font-size:17px;font-weight:800;margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.thali-grid{display:flex;flex-direction:column;gap:1px;background:rgba(0,0,0,.05);
+            border-radius:var(--rl);overflow:hidden;box-shadow:var(--sh)}
+.thali-card{background:linear-gradient(145deg,#fff,#fdf9f5);padding:14px;display:flex;gap:12px;position:relative}
+.thali-card+.thali-card{border-top:1px solid #f3f0ed}
+.thali-img{width:88px;height:88px;border-radius:12px;object-fit:cover;flex-shrink:0;background:linear-gradient(135deg,#fde8ea,#f4a261)}
+.thali-body{flex:1;min-width:0}
+.thali-name{font-family:var(--ff);font-size:15px;font-weight:700;margin-bottom:4px}
+.thali-desc{font-size:11px;color:var(--gr);margin-bottom:6px;line-height:1.4}
+.thali-contents{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.thali-comp{font-size:10px;background:#fdf0e0;color:#c45500;border-radius:6px;padding:2px 7px;font-weight:600}
+.thali-foot{display:flex;align-items:center;justify-content:space-between}
+.thali-price{font-family:var(--ff);font-size:16px;font-weight:800}
+.thali-oos{background:#f3f4f6;color:#6b7280;border:none;padding:8px 16px;border-radius:10px;font-size:13px;font-weight:700;font-family:var(--ff);cursor:not-allowed}
+
+/* ══ CART ══ */
+.c-item{background:#fff;border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:10px;border:1px solid rgba(0,0,0,.04)}
+.c-img{width:56px;height:56px;border-radius:12px;object-fit:cover;background:var(--lt);flex-shrink:0}
+.c-info{flex:1;min-width:0}
+.c-name{font-family:var(--ff);font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-var{font-size:11px;color:var(--gr);font-weight:500;margin-top:1px}
+.c-price{font-size:13px;color:var(--gr);margin-top:2px}
+.bill{background:#fff;border-radius:var(--rl);padding:clamp(14px,4vw,18px);box-shadow:var(--sh);margin-top:14px;border:1px solid rgba(0,0,0,.04)}
+.br{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:14px;font-weight:600}
+.br.tot{border-top:2px dashed #ede8e4;margin-top:8px;padding-top:14px;font-family:var(--ff);font-size:17px;font-weight:800}
+.muted{color:var(--gr)}.green{color:var(--g)}
+.del-note{background:var(--gl);border-radius:var(--r);padding:10px 14px;font-size:12px;font-weight:600;color:var(--g);margin-top:10px}
+.del-note.warn{background:#fff3e0;color:#c45500}
+
+/* ══ COUPON in CART ══ */
+.cpn-section{background:#fff;border-radius:var(--rl);padding:16px;box-shadow:var(--sh);margin-top:14px;border:1px solid rgba(0,0,0,.04)}
+.cpn-section-title{font-size:12px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.cpn-row{display:flex;gap:8px}
+.cpn-row .inp{flex:1;font-size:14px}
+.cpn-btn{padding:14px 16px;background:var(--dk);color:#fff;border:none;border-radius:var(--r);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;font-family:var(--ff);touch-action:manipulation}
+.cpn-msg{font-size:12px;font-weight:600;margin-top:7px;padding:7px 12px;border-radius:10px}
+.cpn-msg.ok{background:var(--gl);color:var(--g)}.cpn-msg.err{background:var(--pl);color:var(--p)}
+
+/* ══ CONFETTI CANVAS ══ */
+#confetti-canvas{
+  position:fixed;inset:0;z-index:9998;pointer-events:none;
+  opacity:0;transition:opacity .3s;
+}
+#confetti-canvas.active{opacity:1}
+
+/* ══ SUCCESS (non-subscriber) ══ */
+.suc-wrap{padding:clamp(40px,10vw,60px) 22px 36px;text-align:center;flex:1;display:flex;flex-direction:column;align-items:center}
+.suc-ico{width:96px;height:96px;background:var(--gl);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:22px;animation:pop .4s ease}
+@keyframes pop{0%{transform:scale(0)}80%{transform:scale(1.1)}100%{transform:scale(1)}}
+.suc-t{font-family:var(--ff);font-size:24px;font-weight:800;margin-bottom:8px}
+.suc-s{color:var(--gr);font-size:14px;margin-bottom:24px}
+.dt-card{background:#fff;border-radius:var(--rl);padding:18px;box-shadow:var(--sh);margin-bottom:18px;width:100%;text-align:left;border:1px solid rgba(0,0,0,.04)}
+.dt-h{font-size:11px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.dt-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--lt);font-size:14px;font-weight:600}
+.dt-row:last-child{border-bottom:none}
+
+/* ══ SUCCESS SUBSCRIBER ══ */
+#pg-success-sub .suc-ico{background:linear-gradient(135deg,#e8f5f3,#c8ede6)}
+.wallet-deduct-card{
+  background:linear-gradient(135deg,#111827,#1f2937);
+  border-radius:var(--rl);padding:18px 20px;margin-bottom:18px;width:100%;
+  display:flex;align-items:center;gap:14px;
+}
+.wallet-deduct-card i{font-size:28px;color:#fbbf24}
+.wallet-deduct-info{text-align:left}
+.wallet-deduct-info .wdi-label{font-size:11px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.wallet-deduct-info .wdi-amount{font-family:var(--ff);font-size:22px;font-weight:800;color:#fff;margin-bottom:2px}
+.wallet-deduct-info .wdi-bal{font-size:12px;color:rgba(255,255,255,.65)}
+
+/* ══ ORDER SUCCESS SCREEN (new unified) ══ */
+.suc-order-id{
+  background:var(--lt);border-radius:var(--r);padding:10px 16px;
+  font-family:var(--ff);font-size:13px;font-weight:700;
+  color:var(--p);margin-bottom:20px;width:100%;text-align:center;
+  border:2px dashed var(--pl);
+}
+
+/* ══ ORDERS ══ */
+.ord-card{background:#fff;border-radius:var(--rl);padding:16px;box-shadow:var(--sh);margin-bottom:12px;border:1px solid rgba(0,0,0,.04)}
+.ord-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.ord-id{font-family:var(--ff);font-size:13px;font-weight:700}
+.ord-dt{font-size:11px;color:var(--gr);margin-top:2px}
+.ord-items{font-size:12px;color:var(--gr);margin-bottom:10px;line-height:1.6}
+.ord-ft{display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--lt)}
+.ord-amt{font-family:var(--ff);font-size:16px;font-weight:800}
+
+/* ══ ACCOUNT PAGE ══ */
+.acct-hero{background:var(--grad);padding:clamp(28px,7vw,44px) 20px clamp(40px,10vw,60px);text-align:center;position:relative}
+.acct-avatar{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.25);
+             display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 12px;border:3px solid rgba(255,255,255,.5)}
+.acct-name{font-family:var(--ff);font-size:20px;font-weight:800;color:#fff}
+.acct-phone{font-size:13px;color:rgba(255,255,255,.8);margin-top:4px}
+.acct-sub-tag{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.2);
+              color:#fff;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;margin-top:8px}
+.acct-card{background:#fff;border-radius:var(--rl);padding:18px;box-shadow:var(--sh);margin-bottom:14px;border:1px solid rgba(0,0,0,.04)}
+.acct-card-title{font-family:var(--ff);font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.save-msg{font-size:12px;font-weight:600;margin-top:8px;padding:8px 12px;border-radius:10px;display:none}
+.save-msg.ok{background:var(--gl);color:var(--g);display:block}
+.save-msg.err{background:var(--pl);color:var(--p);display:block}
+
+/* ══ ACCOUNT PANEL MODAL ══ */
+#acct-panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8500;
+  display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px)}
+#acct-panel-box{background:#fff;border-radius:28px 28px 0 0;padding:0 0 44px;width:100%;max-width:520px;
+  animation:slideup .3s cubic-bezier(.4,0,.2,1);position:relative;max-height:88vh;overflow-y:auto}
+.ap-hero{background:var(--grad);padding:28px 22px 24px;text-align:center;border-radius:28px 28px 0 0}
+.ap-avatar{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.25);
+           display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 10px;border:3px solid rgba(255,255,255,.45)}
+.ap-name{font-family:var(--ff);font-size:18px;font-weight:800;color:#fff;margin-bottom:2px}
+.ap-phone{font-size:12px;color:rgba(255,255,255,.8)}
+.ap-sub-tag{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.2);
+            color:#fff;border-radius:14px;padding:3px 10px;font-size:10px;font-weight:700;margin-top:6px}
+.ap-body{padding:18px 22px 0}
+.ap-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f3f0ed}
+.ap-row:last-child{border-bottom:none}
+.ap-row-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ap-row-label{font-size:12px;color:var(--gr);font-weight:600;margin-bottom:2px}
+.ap-row-val{font-size:14px;font-weight:700;color:var(--dk)}
+.ap-actions{padding:18px 22px 0;display:flex;flex-direction:column;gap:10px}
+.ap-close-btn{position:absolute;top:14px;right:16px;width:32px;height:32px;border-radius:50%;
+  background:rgba(255,255,255,.2);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
+
+/* ══ EMPTY ══ */
+.empty{text-align:center;padding:52px 20px}
+.empty .em{font-size:60px;display:block;margin-bottom:14px}
+.empty h3{font-family:var(--ff);font-size:18px;font-weight:700;margin-bottom:6px}
+.empty p{color:var(--gr);font-size:13px}
+
+/* ══ FLOATING CART BTN ══ */
+.cart-fab{display:none;position:fixed;bottom:calc(var(--bnav-h) + 10px);left:50%;transform:translateX(-50%);
+  background:var(--grad);color:#fff;border:none;border-radius:50px;padding:13px 26px;
+  font-family:var(--ff);font-size:15px;font-weight:800;cursor:pointer;
+  box-shadow:0 6px 24px rgba(230,57,70,.45);z-index:900;
+  align-items:center;gap:10px;min-width:180px;justify-content:center;
+  animation:fabIn .25s ease;white-space:nowrap;touch-action:manipulation}
+.cart-fab.show{display:flex}
+.cart-fab-count{background:rgba(255,255,255,.25);border-radius:20px;padding:2px 9px;font-size:13px;font-weight:800}
+@keyframes fabIn{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ── PASSWORD TOGGLE ── */
+.pw-wrap{position:relative}
+.pw-wrap .inp{padding-right:46px}
+.pw-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--gr);font-size:15px;padding:4px;touch-action:manipulation}
+.creds-hint{font-size:11px;font-weight:700;color:var(--g);margin-bottom:10px;padding:7px 12px;background:var(--gl);border-radius:9px;display:none}
+.creds-hint.show{display:block}
+
+/* ── WA button ── */
+.btn-wa{background:#25d366!important;color:#fff!important}
+.btn-wa:hover{background:#1ebe5d!important}
+
+/* ══ CUTOFF BANNER ══ */
+.cutoff-ban{
+  display:flex;align-items:center;justify-content:space-between;
+  border-radius:var(--r);padding:13px 16px;margin-bottom:14px;
+  border-left:4px solid rgba(255,255,255,.45);
+  background:linear-gradient(135deg,#e63946,#c1121f);
+}
+.cutoff-ban-left{display:flex;align-items:center;gap:12px}
+.cutoff-ban-icon{font-size:22px;line-height:1}
+.cutoff-ban-title{font-size:13px;font-weight:800;color:#fff;letter-spacing:.01em}
+.cutoff-ban-sub{font-size:11px;color:rgba(255,255,255,.82);font-weight:500;margin-top:2px}
+.cutoff-dot{width:9px;height:9px;border-radius:50%;background:#fff;opacity:.7;
+  box-shadow:0 0 0 3px rgba(255,255,255,.25);flex-shrink:0}
+
+/* ══ SEARCH BAR ══ */
+.menu-search-wrap{padding:0 0 10px;position:relative}
+.menu-search-inp{
+  width:100%;padding:11px 46px 11px 16px;background:#fff;
+  border:2px solid #ede8e4;border-radius:50px;font-family:var(--fb);
+  font-size:14px;color:var(--dk);outline:none;transition:border-color .18s;
+  box-sizing:border-box;-webkit-appearance:none;
+}
+.menu-search-inp:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(230,57,70,.1)}
+.menu-search-inp::placeholder{color:#b0a8a3}
+.menu-search-btn{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
+  background:var(--grad);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:14px;touch-action:manipulation;transition:transform .15s,opacity .15s;
+  box-shadow:0 2px 6px rgba(230,57,70,.30);
+}
+.menu-search-btn:active{transform:translateY(-50%) scale(.88);opacity:.85}
+
+/* ══ CATEGORY CHIPS ══ */
+.cat-chips-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:12px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.cat-chips-wrap::-webkit-scrollbar{display:none}
+.cat-chips{display:flex;gap:6px;padding:2px 0 4px;width:max-content;min-width:100%}
+.cat-chip{
+  display:inline-flex;align-items:center;gap:4px;padding:6px 14px;
+  border-radius:50px;font-size:11px;font-weight:700;font-family:var(--ff);
+  border:1.5px solid #e8e3de;background:#fff;color:var(--gr);
+  cursor:pointer;white-space:nowrap;touch-action:manipulation;transition:all .15s;
+  flex-shrink:0;
+}
+.cat-chip:active{transform:scale(.94)}
+.cat-chip.act{background:var(--dk);border-color:var(--dk);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+
+/* ══ HIGHLIGHT BADGES ══ */
+.m-badge-bestseller{background:#fff1f2;color:#c1121f}
+.m-badge-chef{background:#ede9fe;color:#6d28d9}
+.m-badge-recommended{background:var(--gl);color:#1e7e71}
+.m-badge-new{background:#fffde7;color:#c67c00}
+
+@media(min-width:400px){
+  .m-img-wrap{width:clamp(108px,28vw,128px);height:clamp(108px,28vw,128px)}
+  .auth-hero{padding:64px 32px 32px}
+}
+@media(max-width:340px){
+  .m-name{font-size:13px}
+  .m-price{font-size:14px}
+  .add-btn{padding:7px 12px;font-size:12px}
+  .m-img-wrap{width:88px;height:88px}
+  .bn span{font-size:9px}
+  .pg-title{font-size:15px}
+}
+.tnav .pg-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw}
+</style>
+</head>
+<body>
+
+<!-- Confetti Canvas -->
+<canvas id="confetti-canvas"></canvas>
+
+<div id="app-loader">
+  <div class="logo-mark"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>
+  <div class="tagline">Ghar ka khana ♥</div>
+  <div class="loader-ring"></div>
+  <div id="loader-msg" style="font-size:12px;color:var(--gr);font-weight:600;margin-top:4px;min-height:18px">Loading your account...</div>
+</div>
+
+<div class="ptr-indicator" id="ptr-ind"><i class="fa-solid fa-arrow-rotate-right"></i></div>
+
+<!-- ═══ PAGE 1: AUTH ═══ -->
+<div class="pg here" id="pg-auth">
+  <div class="auth-brand">
+    <div class="auth-logo-n"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>
+    <div class="auth-logo-t">Ghar ka khana ♥</div>
+  </div>
+  <div class="auth-hero">
+    <span class="em">🍱</span>
+    <h1>Ghar jaisa<br><em>khana</em>,<br>aapke liye!</h1>
+    <p>Home-cooked meals delivered fresh. Free home delivery on monthly plan.</p>
+  </div>
+  <div class="auth-body">
+    <div class="atabs" id="atab-bar">
+      <button class="atab act" onclick="switchTab('login',this)">Login</button>
+      <button class="atab" onclick="switchTab('signup',this)">Sign Up</button>
+    </div>
+    <div id="f-login">
+      <div id="creds-hint" class="creds-hint">✅ Credentials filled from last session</div>
+      <div class="fg"><label class="lbl">Phone Number</label>
+        <input id="l-ph" class="inp" type="tel" maxlength="10" placeholder="10-digit mobile number" inputmode="numeric"></div>
+      <div class="fg"><label class="lbl">Password</label>
+        <div class="pw-wrap">
+          <input id="l-pw" class="inp" type="password" placeholder="Your password" onkeydown="if(event.key==='Enter')doLogin()">
+          <button type="button" class="pw-eye" onclick="togglePw('l-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
+        </div></div>
+      <button class="btn btn-p" id="btn-login" onclick="doLogin()"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+      <button class="btn-forgot" onclick="forgotPassword()">
+        <i class="fa-brands fa-whatsapp"></i> Forgot Password? Get help on WhatsApp
+      </button>
+    </div>
+    <div id="f-signup" class="hide">
+      <div class="fg"><label class="lbl">Full Name</label>
+        <input id="s-nm" class="inp" type="text" placeholder="Your full name"></div>
+      <div class="fg"><label class="lbl">Phone Number</label>
+        <input id="s-ph" class="inp" type="tel" maxlength="10" placeholder="10-digit mobile number" inputmode="numeric"></div>
+      <div class="fg"><label class="lbl">Email (Optional)</label>
+        <input id="s-em" class="inp" type="email" placeholder="email@example.com"></div>
+      <div class="fg"><label class="lbl">Delivery Address</label>
+        <textarea id="s-ad" class="inp" rows="2" placeholder="House no, Street, Area, City"></textarea></div>
+      <div class="fg"><label class="lbl">Create Password</label>
+        <div class="pw-wrap">
+          <input id="s-pw" class="inp" type="password" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doSignup()">
+          <button type="button" class="pw-eye" onclick="togglePw('s-pw',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button>
+        </div></div>
+      <button class="btn btn-p" id="btn-signup" onclick="doSignup()"><i class="fa-solid fa-user-plus"></i> Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 2: HOME ═══ -->
+<div class="pg right" id="pg-home" style="overflow:hidden;display:flex;flex-direction:column;">
+  <div class="home-top">
+    <div><div class="logo-n"><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="logo-t">Ghar ka khana ♥</div></div>
+    <div class="t-acts">
+      <button class="t-btn" id="cart-hdr-btn" onclick="nav('pg-cart')" title="View Cart" style="position:relative">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span id="cart-hdr-badge" class="cart-hdr-badge hide">0</span>
+      </button>
+      <div style="position:relative;display:inline-flex">
+        <button id="acct-hdr-btn" onclick="openAccountPanel()" title="My Account">
+          <i class="fa-solid fa-circle-user"></i>
+        </button>
+        <span id="acct-pro-badge" class="hide" style="position:absolute;top:-5px;right:-5px;background:linear-gradient(135deg,#f9c74f,#f3722c);color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:8px;line-height:1.3;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.25);">PRO</span>
+      </div>
+    </div>
+  </div>
+  <div id="home-scroll" style="flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;position:relative;">
+    <div id="rest-mesh-overlay"></div>
+    <div class="pg-body" style="padding-top:14px;">
+      <div id="rest-paused-notice">
+        <span style="font-size:20px">🔴</span>
+        <div>
+          <div style="font-weight:800" id="rest-paused-msg">Restaurant paused</div>
+          <div style="font-size:11px;opacity:.82">Tap the switch above to resume delivery</div>
+        </div>
+      </div>
+      <div id="rest-toggle-wrap" class="rest-toggle-wrap hide">
+        <div class="rest-toggle-left">
+          <span class="rest-toggle-icon" id="rest-toggle-icon">🟢</span>
+          <div>
+            <div class="rest-toggle-title" id="rest-toggle-title">Pause Your Auto Tiffin</div>
+            <div class="rest-toggle-sub" id="rest-toggle-sub">If you turn this off, no automatic order will be generated.</div>
+          </div>
+        </div>
+        <label class="mesh-switch">
+          <input type="checkbox" id="rest-toggle-chk" checked onchange="onRestToggleChange()">
+          <span class="mesh-slider"></span>
+        </label>
+      </div>
+      <div id="cutoff-banner" class="hide cutoff-ban">
+        <div class="cutoff-ban-left">
+          <span id="cutoff-icon" class="cutoff-ban-icon">⏰</span>
+          <div>
+            <div id="cutoff-msg" class="cutoff-ban-title">Orders closed</div>
+            <div id="cutoff-sub" class="cutoff-ban-sub">Next slot opens soon</div>
+          </div>
+        </div>
+        <div id="cutoff-dot" class="cutoff-dot"></div>
+      </div>
+      <button id="tif-ban" class="tif-ban" onclick="joinTiffin()">
+        <div><h4>🍛 Monthly Tiffin Plan</h4><p>Free Home Delivery + Save ₹200/month</p></div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
+      <div class="sec-t">Today's Menu</div>
+      <div class="sec-s" id="menu-lbl">Loading fresh meals...</div>
+      <div class="menu-search-wrap">
+        <input class="menu-search-inp" id="menu-search" type="text"
+          placeholder="Search roti, sabji, chicken..."
+          onkeydown="if(event.key==='Enter')doMenuSearch()">
+        <button class="menu-search-btn" onclick="doMenuSearch()" title="Search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+      </div>
+      <div class="cat-chips-wrap">
+        <div class="cat-chips" id="cat-chips"></div>
+      </div>
+      <!-- Thali section (shown above regular menu) -->
+      <div id="thali-section" class="thali-section hide">
+        <div class="thali-section-title">🍱 Special Thalis</div>
+        <div class="thali-grid" id="thali-list"></div>
+      </div>
+      <div id="menu-list">
+        <div class="sk sk-lg"></div><div class="sk sk-lg"></div><div class="sk sk-lg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 3: CART ═══ -->
+<div class="pg right" id="pg-cart">
+  <div class="tnav">
+    <button class="bk-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="pg-title">Your Cart</span>
+    <button class="btn-ghost btn btn-sm" onclick="Cart.clear();renderCart()">Clear</button>
+  </div>
+  <div class="pg-body">
+    <div id="cart-list"></div>
+    <!-- COUPON SECTION IN CART (moved from pg-confirm) -->
+    <div id="cart-coupon-section" class="cpn-section hide">
+      <div class="cpn-section-title"><i class="fa-solid fa-tag" style="color:var(--p)"></i> Have a coupon?</div>
+      <div class="cpn-row">
+        <input id="cpn-inp" class="inp" type="text" placeholder="Enter coupon code" style="text-transform:uppercase;font-size:14px">
+        <button class="cpn-btn" onclick="applyCoupon()">Apply</button>
+      </div>
+      <div id="cpn-msg" class="cpn-msg hide"></div>
+    </div>
+    <div id="cart-bill"></div>
+    <div id="del-note"></div>
+    <button class="btn btn-p" id="place-btn" style="margin-top:14px" onclick="placeOrder()">
+      <i class="fa-solid fa-utensils"></i> Place Order
+    </button>
+  </div>
+</div>
+
+<!-- ═══ PAGE 4A: SUCCESS (non-subscriber) ═══ -->
+<div class="pg right" id="pg-success">
+  <div class="suc-wrap">
+    <div class="suc-ico">✅</div>
+    <div class="suc-t">Order Placed!</div>
+    <div class="suc-order-id" id="suc-order-id-ns">—</div>
+    <div class="suc-s" style="color:#e63946;font-weight:700;font-size:15px">🍱 Order sent to restaurant</div>
+    <div class="dt-card" style="border-left:4px solid #2a9d8f">
+      <div class="dt-h">⏰ Estimated Delivery Time</div>
+      <div class="dt-row"><span>🌅</span><div><div style="font-weight:700">Breakfast/Lunch</div><div style="font-size:12px;color:var(--gr)">12:00 PM – 1:00 PM</div></div></div>
+      <div class="dt-row"><span>🌙</span><div><div style="font-weight:700">Dinner</div><div style="font-size:12px;color:var(--gr)">8:00 PM – 9:00 PM</div></div></div>
+    </div>
+    <!-- Payment note - shows immediately -->
+    <div style="width:100%;margin-bottom:16px">
+      <div class="card" style="text-align:left;border-left:4px solid var(--p);background:#fff5f5">
+        <div style="font-weight:800;font-size:15px;margin-bottom:6px;color:var(--p)">📸 Please send payment screenshot on WhatsApp</div>
+        <div style="font-size:13px;color:var(--gr);line-height:1.6">UPI / QR details will be shared by us. Send screenshot after payment to confirm your order.</div>
+      </div>
+    </div>
+    <!-- WhatsApp button (appears after 2.5s) -->
+    <div id="wa-btn-wrap" style="width:100%;margin-bottom:12px;opacity:0;transform:translateY(8px);transition:opacity .4s ease,transform .4s ease">
+      <button class="btn btn-wa" id="wa-open-btn" onclick="openWhatsApp()" style="font-size:15px;gap:10px">
+        <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> 📲 Share Screenshot on WhatsApp
+      </button>
+    </div>
+    <button class="btn btn-out" onclick="nav('pg-home')" style="margin-top:8px"><i class="fa-solid fa-house"></i> Back to Menu</button>
+    <button class="btn btn-ghost" onclick="nav('pg-orders')" style="margin-top:8px"><i class="fa-solid fa-receipt"></i> My Orders</button>
+  </div>
+</div>
+
+<!-- ═══ PAGE 4B: SUCCESS SUBSCRIBER ═══ -->
+<div class="pg right" id="pg-success-sub">
+  <div class="suc-wrap">
+    <div class="suc-ico" style="background:linear-gradient(135deg,#e8f5f3,#c8ede6);font-size:48px">🎉</div>
+    <div class="suc-t">Thanks for your order!</div>
+    <div class="suc-order-id" id="suc-order-id-sub">—</div>
+    <div class="suc-s">Your order is sent to the restaurant</div>
+    <!-- Wallet Deduction Card -->
+    <div class="wallet-deduct-card">
+      <i class="fa-solid fa-wallet"></i>
+      <div class="wallet-deduct-info">
+        <div class="wdi-label">Wallet Deducted</div>
+        <div class="wdi-amount">₹<span id="suc-deducted">0</span></div>
+        <div class="wdi-bal">New balance: ₹<span id="suc-new-bal">—</span></div>
+      </div>
+    </div>
+    <!-- Delivery Time -->
+    <div class="dt-card" style="border-left:4px solid #2a9d8f">
+      <div class="dt-h">⏰ Estimated Delivery Time</div>
+      <div class="dt-row"><span>🌅</span><div><div style="font-weight:700">Breakfast/Lunch</div><div style="font-size:12px;color:var(--gr)">12:00 PM – 1:00 PM</div></div></div>
+      <div class="dt-row"><span>🌙</span><div><div style="font-weight:700">Dinner</div><div style="font-size:12px;color:var(--gr)">8:00 PM – 9:00 PM</div></div></div>
+    </div>
+    <div class="card" style="width:100%;text-align:left;background:var(--gl);border:none;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:var(--g)">
+        <i class="fa-solid fa-circle-check" style="margin-right:6px"></i>
+        Wallet auto-deducted. No payment action needed.
+      </div>
+    </div>
+    <button class="btn btn-out" onclick="nav('pg-home')" style="margin-top:8px"><i class="fa-solid fa-house"></i> Back to Menu</button>
+    <button class="btn btn-ghost" onclick="nav('pg-orders')" style="margin-top:8px"><i class="fa-solid fa-receipt"></i> View My Orders</button>
+  </div>
+</div>
+
+<!-- ═══ PAGE 5: ORDERS ═══ -->
+<div class="pg right" id="pg-orders">
+  <div class="tnav">
+    <button class="bk-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="pg-title">My Orders</span>
+    <button class="btn-ghost btn btn-sm" onclick="manualIndexRefresh()" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+  </div>
+  <div class="pg-body" id="orders-list">
+    <div class="sk sk-lg"></div><div class="sk sk-lg"></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 6: ACCOUNT (full page) ═══ -->
+<div class="pg right" id="pg-account">
+  <div class="tnav">
+    <button class="bk-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="pg-title">My Account</span>
+  </div>
+  <div class="acct-hero" id="acct-hero">
+    <div class="acct-avatar" id="acct-avatar">👤</div>
+    <div class="acct-name" id="acct-name">—</div>
+    <div class="acct-phone" id="acct-phone">—</div>
+    <div id="acct-sub-tag" class="acct-sub-tag hide"><i class="fa-solid fa-crown"></i> Subscriber</div>
+  </div>
+  <div class="pg-body" style="padding-top:20px">
+    <div class="acct-card">
+      <div class="acct-card-title"><i class="fa-solid fa-location-dot" style="color:var(--p)"></i> Delivery Address</div>
+      <div class="fg" style="margin-bottom:8px">
+        <textarea id="acct-address" class="inp" rows="2" placeholder="House no, Street, Area, City"></textarea>
+      </div>
+      <button class="btn btn-p" style="font-size:13px;padding:11px 18px" onclick="saveAddress()">
+        <i class="fa-solid fa-floppy-disk"></i> Save Address
+      </button>
+      <div id="addr-msg" class="save-msg"></div>
+    </div>
+    <div class="acct-card">
+      <div class="acct-card-title"><i class="fa-solid fa-envelope" style="color:var(--g)"></i> Email Address</div>
+      <div class="fg" style="margin-bottom:8px">
+        <input id="acct-email" class="inp" type="email" placeholder="email@example.com">
+      </div>
+      <button class="btn btn-g" style="font-size:13px;padding:11px 18px" onclick="saveEmail()">
+        <i class="fa-solid fa-floppy-disk"></i> Save Email
+      </button>
+      <div id="email-msg" class="save-msg"></div>
+    </div>
+    <div class="acct-card">
+      <div class="acct-card-title"><i class="fa-solid fa-lock" style="color:#f4a261"></i> Change Password</div>
+      <div class="fg"><div class="pw-wrap"><input id="acct-pw-cur" class="inp" type="password" placeholder="Current password"><button type="button" class="pw-eye" onclick="togglePw('acct-pw-cur',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button></div></div>
+      <div class="fg" style="margin-bottom:8px"><div class="pw-wrap"><input id="acct-pw-new" class="inp" type="password" placeholder="New password (min 6 chars)"><button type="button" class="pw-eye" onclick="togglePw('acct-pw-new',this)" tabindex="-1"><i class="fa-solid fa-eye"></i></button></div></div>
+      <button class="btn btn-dk" style="font-size:13px;padding:11px 18px" onclick="savePassword()">
+        <i class="fa-solid fa-key"></i> Update Password
+      </button>
+      <div id="pw-msg" class="save-msg"></div>
+    </div>
+    <div class="acct-card">
+      <div class="acct-card-title"><i class="fa-solid fa-crown" style="color:var(--o)"></i> Monthly Tiffin Plan</div>
+      <div id="acct-sub-info" style="font-size:13px;color:var(--gr);margin-bottom:12px">Loading...</div>
+      <div id="acct-wallet-wrap" class="hide" style="margin-bottom:14px">
+        <div style="background:var(--grad);border-radius:14px;padding:16px 18px;color:#fff;position:relative;overflow:hidden">
+          <div style="font-size:11px;font-weight:700;opacity:.8;letter-spacing:.5px;text-transform:uppercase">Wallet Balance</div>
+          <div style="font-size:32px;font-weight:800;margin:4px 0" id="acct-wallet-bal">₹—</div>
+          <div style="font-size:12px;opacity:.75" id="acct-wallet-sub">Loading...</div>
+          <i class="fa-solid fa-wallet" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:40px;opacity:.15"></i>
+        </div>
+        <button class="btn" style="width:100%;margin-top:10px;background:var(--gl);color:var(--g);font-size:13px;padding:11px" onclick="nav('pg-khata')">
+          <i class="fa-solid fa-book"></i> View Full Khata / Transaction History
+        </button>
+      </div>
+      <button class="btn btn-wa" style="font-size:13px;padding:11px 18px" onclick="joinTiffin()">
+        <i class="fa-brands fa-whatsapp"></i> Join / Enquire on WhatsApp
+      </button>
+    </div>
+    <div class="acct-card" style="cursor:pointer" onclick="showAbout()">
+      <div class="acct-card-title"><i class="fa-solid fa-circle-info" style="color:var(--p)"></i> About <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div>
+      <div style="font-size:13px;color:var(--gr)">App version, our story &amp; more</div>
+    </div>
+    <button class="btn btn-danger" onclick="doLogout()" style="margin-top:4px">
+      <i class="fa-solid fa-right-from-bracket"></i> Logout
+    </button>
+    <div style="height:16px"></div>
+  </div>
+</div>
+
+<!-- ═══ PAGE 7: KHATA / WALLET ═══ -->
+<div class="pg right" id="pg-khata">
+  <div class="tnav">
+    <button class="bk-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="pg-title">My Wallet</span>
+    <button class="btn btn-ghost btn-sm" onclick="loadUserKhata()" style="margin-left:auto" title="Refresh wallet"><i class="fa-solid fa-rotate"></i></button>
+  </div>
+  <div class="pg-body" style="padding-top:20px">
+    <div id="k-wallet-card" style="background:var(--grad);border-radius:var(--rl);padding:22px 20px;color:#fff;margin-bottom:20px;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(230,57,70,.25);transition:background .4s ease,box-shadow .4s ease">
+      <div style="font-size:11px;font-weight:700;opacity:.8;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Wallet Balance</div>
+      <div style="font-size:40px;font-weight:800;margin-bottom:4px" id="k-user-bal">₹—</div>
+      <div style="font-size:12px;opacity:.75" id="k-user-bal-sub">Loading your wallet...</div>
+      <i class="fa-solid fa-wallet" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:60px;opacity:.12"></i>
+    </div>
+    <div style="background:#fff;border-radius:var(--r);padding:14px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.04)">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <input type="date" id="ku-from" class="inp" style="flex:1;min-width:130px;font-size:12px;padding:9px 12px">
+        <input type="date" id="ku-to" class="inp" style="flex:1;min-width:130px;font-size:12px;padding:9px 12px">
+        <button class="btn btn-p" style="padding:10px 14px;font-size:13px" onclick="applyUserKhataFilter()"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        <button class="btn btn-ghost" style="padding:10px 14px;font-size:13px" onclick="resetUserKhataFilter()"><i class="fa-solid fa-xmark"></i> Reset</button>
+      </div>
+      <button class="btn btn-p" style="width:100%;padding:13px;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px" onclick="exportUserKhataPDF()">
+        <i class="fa-solid fa-file-pdf" style="font-size:16px"></i> Generate PDF Statement
+      </button>
+    </div>
+    <div id="k-user-list" style="display:flex;flex-direction:column;gap:8px">
+      <div style="text-align:center;padding:40px;color:#999">Loading transactions...</div>
+    </div>
+    <div style="height:80px"></div>
+  </div>
+</div>
+
+<!-- ═══ RESTAURANT CLOSED POPUP ═══ -->
+<div id="restaurant-closed-popup" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:24px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="font-size:56px;margin-bottom:12px">🌙</div>
+    <h2 style="font-family:'Sora',sans-serif;font-size:20px;font-weight:800;color:#111827;margin-bottom:8px">Restaurant is Closed</h2>
+    <p style="font-size:14px;color:#6b7280;margin-bottom:20px" id="closed-popup-msg">Try after 7:00 AM tomorrow.</p>
+    <button onclick="document.getElementById('restaurant-closed-popup').classList.add('hide')" style="background:var(--p);color:#fff;border:none;border-radius:12px;padding:13px 32px;font-weight:700;font-size:14px;cursor:pointer;width:100%">OK, Got It</button>
+  </div>
+</div>
+
+<!-- ═══ ACCOUNT PANEL (bottom sheet) ═══ -->
+<div id="acct-panel-overlay" class="hide" onclick="closeAccountPanel(event)">
+  <div id="acct-panel-box">
+    <div class="ap-hero">
+      <button class="ap-close-btn" onclick="closeAccountPanel()"><i class="fa-solid fa-xmark"></i></button>
+      <div class="ap-avatar" id="ap-avatar">👤</div>
+      <div class="ap-name" id="ap-name">—</div>
+      <div class="ap-phone" id="ap-phone">—</div>
+      <div id="ap-sub-tag" class="ap-sub-tag hide"><i class="fa-solid fa-crown"></i> Subscriber</div>
+    </div>
+    <div class="ap-body">
+      <div class="ap-row">
+        <div class="ap-row-icon" style="background:#fff5f5"><i class="fa-solid fa-location-dot" style="color:var(--p)"></i></div>
+        <div><div class="ap-row-label">Delivery Address</div><div class="ap-row-val" id="ap-address">—</div></div>
+      </div>
+      <div class="ap-row">
+        <div class="ap-row-icon" style="background:#e8f5f3"><i class="fa-solid fa-envelope" style="color:var(--g)"></i></div>
+        <div><div class="ap-row-label">Email</div><div class="ap-row-val" id="ap-email">—</div></div>
+      </div>
+      <div class="ap-row" id="ap-wallet-row" style="display:none">
+        <div class="ap-row-icon" style="background:#fff3e0"><i class="fa-solid fa-wallet" style="color:#f4a261"></i></div>
+        <div style="flex:1"><div class="ap-row-label">Wallet Balance</div><div class="ap-row-val" id="ap-wallet-bal">₹—</div></div>
+        <button class="btn btn-sm" style="background:var(--gl);color:var(--g);font-size:11px;padding:6px 10px" onclick="closeAccountPanel();nav('pg-khata')">View</button>
+      </div>
+      <div class="ap-row">
+        <div class="ap-row-icon" style="background:#f3f0ed"><i class="fa-solid fa-receipt" style="color:var(--gr)"></i></div>
+        <div style="flex:1"><div class="ap-row-label">My Orders</div><div class="ap-row-val" style="color:var(--gr)">Tap to view</div></div>
+        <button class="btn btn-sm" style="background:var(--lt);color:var(--dk);font-size:11px;padding:6px 10px" onclick="closeAccountPanel();nav('pg-orders')">View</button>
+      </div>
+      <div class="ap-row">
+        <div class="ap-row-icon" style="background:#fff5f5"><i class="fa-solid fa-crown" style="color:var(--o)"></i></div>
+        <div><div class="ap-row-label">Plan Status</div><div class="ap-row-val" id="ap-plan-status">—</div></div>
+      </div>
+    </div>
+    <div class="ap-actions">
+      <button class="btn btn-ghost" onclick="closeAccountPanel();nav('pg-account')">
+        <i class="fa-solid fa-gear"></i> Edit Account Settings
+      </button>
+      <button class="btn btn-danger" onclick="closeAccountPanel();doLogout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Logout
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FIXED UI ═══ -->
+<button class="cart-fab" id="cart-fab" onclick="nav('pg-cart')">
+  <i class="fa-solid fa-bag-shopping"></i>
+  <span>View Cart</span>
+  <span class="cart-fab-count" id="cart-fab-count">0</span>
+</button>
+
+<!-- Bottom Nav -->
+<nav class="bnav hide" id="bottom-nav">
+  <button class="bn act" id="bn-home" onclick="goHome()"><i class="fa-solid fa-house"></i><span>Home</span></button>
+  <button class="bn" id="bn-cart" onclick="nav('pg-cart')" style="position:relative">
+    <i class="fa-solid fa-bag-shopping"></i>
+    <span id="cart-badge" class="hide" style="position:absolute;top:2px;right:4px;background:var(--p);color:#fff;font-size:8px;font-weight:800;min-width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0 2px;font-family:var(--ff)">0</span>
+    <span>Cart</span>
+  </button>
+  <button class="bn" id="bn-orders" onclick="nav('pg-orders')"><i class="fa-solid fa-receipt"></i><span>Orders</span></button>
+  <button class="bn" id="bn-wallet" onclick="openWalletPage()">
+    <div class="bn-wallet-pill">
+      <i class="fa-solid fa-wallet"></i>
+      <span id="bn-wallet-bal">₹—</span>
+    </div>
+    <span class="nav-lbl">Wallet</span>
+  </button>
+  <button class="bn" onclick="openWhatsAppContact()"><i class="fa-brands fa-whatsapp" style="color:#25D366"></i><span style="color:#25D366">Contact</span></button>
+</nav>
+
+<!-- About Modal -->
+<div class="modal-overlay hide" id="about-modal" onclick="hideAbout(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="hideAbout()"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-emoji">🍱</div>
+    <h2 class="modal-title">About <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></h2>
+    <div class="modal-body">
+      <p>Yahan daily menu change hota hai 😄</p>
+      <p>Veg + Non-veg dono available, aur sirf aalu nahi — green sabzi bhi milti hai 🌱</p>
+      <p>Jitni bhook utna order (100g, 200g…)</p>
+      <p>Free home delivery 🚀</p>
+      <p>Bas order karo… free delivery ka maza lo 🚀</p>
+      <p><strong>Flexible khana system</strong></p>
+    </div>
+    <button class="btn btn-p" style="margin-top:18px" onclick="hideAbout()">Got it! 👍</button>
+  </div>
+</div>
+
+<!-- Added to Cart notification -->
+<div id="cart-notif">
+  <div class="cart-notif-pill" id="cart-notif-pill">
+    <span class="notif-icon">🛒</span>
+    <span id="cart-notif-name">Added to cart</span>
+    <span class="notif-count" id="cart-notif-count">1</span>
+  </div>
+</div>
+
+<!-- Pause delivery overlay -->
+<div class="pause-overlay" id="pause-overlay" onclick="closePauseSheet()"></div>
+
+<!-- Pause delivery bottom sheet -->
+<div class="pause-sheet" id="pause-sheet">
+  <div class="pause-sheet-handle"></div>
+  <div class="pause-sheet-title">⏸ Pause Delivery</div>
+  <div class="pause-sheet-sub">Which meals do you want to pause?</div>
+  <div class="pause-opt" id="popt-lunch" onclick="selectPauseOpt('lunch')">
+    <div class="pause-opt-left">
+      <span class="pause-opt-icon">🌅</span>
+      <div>
+        <div class="pause-opt-title">Lunch Only</div>
+        <div class="pause-opt-sub">Skip today's lunch delivery</div>
+      </div>
+    </div>
+    <i class="fa-solid fa-circle" id="popt-lunch-ic" style="color:#ede8e4;font-size:18px"></i>
+  </div>
+  <div class="pause-opt" id="popt-dinner" onclick="selectPauseOpt('dinner')">
+    <div class="pause-opt-left">
+      <span class="pause-opt-icon">🌙</span>
+      <div>
+        <div class="pause-opt-title">Dinner Only</div>
+        <div class="pause-opt-sub">Skip today's dinner delivery</div>
+      </div>
+    </div>
+    <i class="fa-solid fa-circle" id="popt-dinner-ic" style="color:#ede8e4;font-size:18px"></i>
+  </div>
+  <div class="pause-opt" id="popt-both" onclick="selectPauseOpt('both')">
+    <div class="pause-opt-left">
+      <span class="pause-opt-icon">🔴</span>
+      <div>
+        <div class="pause-opt-title">Both Meals</div>
+        <div class="pause-opt-sub">Pause all deliveries</div>
+      </div>
+    </div>
+    <i class="fa-solid fa-circle" id="popt-both-ic" style="color:#ede8e4;font-size:18px"></i>
+  </div>
+  <button class="btn btn-p" style="margin-top:8px" id="pause-confirm-btn" onclick="confirmPause()" disabled>
+    <i class="fa-solid fa-pause"></i> Confirm Pause
+  </button>
+  <button class="btn btn-ghost" style="margin-top:8px" onclick="closePauseSheet()">Cancel</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════
+const CFG = {
+  'GAS': 'https://purobitese-api.onrender.com/api',
+  'KEY': 'PB_SECURE_API_KEY_2026',
+  'WA': '919889760350',
+  'TIFFIN': '919889760350'
+};
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+function doc(id) { return document.getElementById(id); }
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, dur) {
+  const t = doc('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('on'), dur || 3000);
+}
+function safeP(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'object' && v !== null) return v;
+  if (typeof v !== 'string' || !v.trim()) return [];
+  try { return JSON.parse(v); } catch { return []; }
+}
+function getSub() {
+  try { return JSON.parse(localStorage.getItem('pb_sub'))?.isSubscriber || false; } catch { return false; }
+}
+
+// ════════════════════════════════════════════════
+// PB — Global Date/Time Normalisation Utility
+// ════════════════════════════════════════════════
+const PB = {
+  _ist(ms) { return new Date((typeof ms === 'number' ? ms : Date.now()) + 5.5 * 3600000); },
+  toYMD(v) {
+    if (!v && v !== 0) return '';
+    const s = String(v).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+      const p = s.split('/');
+      return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+    }
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(s)) return s.replace(/\//g, '-');
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
+      const raw = new Date(s);
+      if (!isNaN(raw.getTime())) {
+        const ist = PB._ist(raw.getTime());
+        return ist.getUTCFullYear() + '-' + String(ist.getUTCMonth() + 1).padStart(2,'0') + '-' + String(ist.getUTCDate()).padStart(2,'0');
+      }
+    }
+    if (v instanceof Date && !isNaN(v.getTime())) {
+      const ist = PB._ist(v.getTime());
+      return ist.getUTCFullYear() + '-' + String(ist.getUTCMonth() + 1).padStart(2,'0') + '-' + String(ist.getUTCDate()).padStart(2,'0');
+    }
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      const serial = parseFloat(s);
+      if (serial > 40000 && serial < 60000) {
+        const raw = new Date((serial - 25569) * 86400000);
+        if (!isNaN(raw.getTime())) {
+          const ist = PB._ist(raw.getTime());
+          return ist.getUTCFullYear() + '-' + String(ist.getUTCMonth() + 1).padStart(2,'0') + '-' + String(ist.getUTCDate()).padStart(2,'0');
+        }
+      }
+    }
+    return '';
+  },
+  fmtDate(v) {
+    const ymd = PB.toYMD(v);
+    if (!ymd) return String(v || '');
+    const [y, m, d] = ymd.split('-');
+    return `${d}/${m}/${y}`;
+  },
+  fmtTime(v) {
+    if (!v) return '';
+    const s = String(v).trim().replace(/[\u00a0\u202f\u2009]/g, ' ');
+    const ampm = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampm) return String(ampm[1]).padStart(2,'0') + ':' + ampm[2] + ' ' + ampm[3].toUpperCase();
+    const h24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (h24) {
+      let h = parseInt(h24[1]), mn = parseInt(h24[2]);
+      const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+      return String(h).padStart(2,'0') + ':' + String(mn).padStart(2,'0') + ' ' + p;
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/.test(s)) {
+      const raw = new Date(s);
+      if (!isNaN(raw.getTime())) {
+        const ist = PB._ist(raw.getTime());
+        let h = ist.getUTCHours(), mn = ist.getUTCMinutes();
+        const p = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+        return String(h).padStart(2,'0') + ':' + String(mn).padStart(2,'0') + ' ' + p;
+      }
+    }
+    return s;
+  },
+  todayYMD() {
+    const ist = PB._ist();
+    return ist.getUTCFullYear() + '-' + String(ist.getUTCMonth() + 1).padStart(2,'0') + '-' + String(ist.getUTCDate()).padStart(2,'0');
+  },
+  yesterdayYMD() {
+    const ist = PB._ist(Date.now() - 86400000);
+    return ist.getUTCFullYear() + '-' + String(ist.getUTCMonth() + 1).padStart(2,'0') + '-' + String(ist.getUTCDate()).padStart(2,'0');
+  },
+  orderHour(o) {
+    const t = String(o.time || '').replace(/[\u00a0\u202f\u2009]/g, ' ').trim();
+    if (!t) return -1;
+    const m = t.toLowerCase().match(/(\d{1,2}):(\d{2})\s*(am|pm)?/);
+    if (!m) return -1;
+    let h = parseInt(m[1]); const mn = parseInt(m[2]), p = m[3] || '';
+    if (p === 'pm' && h !== 12) h += 12;
+    if (p === 'am' && h === 12) h = 0;
+    return h + mn / 60;
+  }
+};
+function fmtDate(v)   { return PB.fmtDate(v); }
+function fmtTime(v)   { return PB.fmtTime(v); }
+function dateToYMD(v) { return PB.toYMD(v); }
+function todayIST()   { return PB.todayYMD(); }
+
+// ── WALLET STATE ──
+let _walletBal = null;
+// ── RESTAURANT/DELIVERY PAUSE STATE ──
+let _pauseDelivery = 'none';
+let _selectedPauseOpt = null;
+
+function updateWalletUI(bal) {
+  _walletBal = bal;
+  const balStr = (bal !== null && bal !== undefined) ? '₹' + bal : '₹—';
+  const bnBal = doc('bn-wallet-bal'); if (bnBal) bnBal.textContent = balStr;
+  const acctBal = doc('acct-wallet-bal'); if (acctBal) acctBal.textContent = balStr;
+  const apBal = doc('ap-wallet-bal'); if (apBal) apBal.textContent = balStr;
+  const kBal = doc('k-user-bal'); if (kBal && bal !== null) kBal.textContent = balStr;
+  // Dynamic wallet card color: green if balance > 100, red if <= 100
+  const kCard = doc('k-wallet-card');
+  if (kCard && bal !== null && bal !== undefined) {
+    if (bal > 100) {
+      kCard.style.background = 'linear-gradient(135deg,#2a9d8f,#57cc99)';
+      kCard.style.boxShadow = '0 8px 28px rgba(42,157,143,.30)';
+    } else {
+      kCard.style.background = 'linear-gradient(135deg,#e63946,#f4591d)';
+      kCard.style.boxShadow = '0 8px 28px rgba(230,57,70,.25)';
+    }
+  }
+}
+
+async function refreshWalletBalance(revertToBal) {
+  const user = Auth.get();
+  if (!user || !getSub() || !_khataEnabled) return;
+  const delays = [500, 1500];
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const kd = await api('getKhata', { phone: user.phone });
+      const bal = Number(kd.balance) || 0;
+      _userKhataEntries = kd.entries || [];
+      _userKhataFiltered = [..._userKhataEntries];
+      updateWalletUI(bal);
+      const cur = stack[stack.length - 1];
+      if (cur === 'pg-khata') renderUserKhataList(_userKhataFiltered);
+      return;
+    } catch(e) {
+      if (attempt < delays.length) {
+        await new Promise(r => setTimeout(r, delays[attempt]));
+      } else {
+        if (revertToBal !== undefined && revertToBal !== null) updateWalletUI(revertToBal);
+      }
+    }
+  }
+}
+
+function openWalletPage() {
+  if (!_khataEnabled) { toast('Wallet feature is currently unavailable'); return; }
+  if (!getSub()) { toast('💳 Join Monthly Plan to use Wallet'); return; }
+  nav('pg-khata');
+}
+
+// ══════════════════════════════════════════════
+// SAFE STORAGE
+// ══════════════════════════════════════════════
+const Store = {
+  get(key)       { try { return localStorage.getItem(key); } catch { return null; } },
+  set(key, val)  { try { localStorage.setItem(key, val); return true; } catch { return false; } },
+  remove(key)    { try { localStorage.removeItem(key); } catch {} },
+  getJSON(key)   { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } },
+  setJSON(key,v) { try { localStorage.setItem(key, JSON.stringify(v)); return true; } catch { return false; } }
+};
+
+// ══════════════════════════════════════════════
+// WHATSAPP
+// ══════════════════════════════════════════════
+function openWA(phone, msg) {
+  const url = 'https://wa.me/' + phone + (msg ? '?text=' + encodeURIComponent(msg) : '');
+  try {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch(e) { window.open(url, '_blank'); }
+}
+
+// ══════════════════════════════════════════════
+// API
+// ══════════════════════════════════════════════
+async function api(action, data = {}, _retry = 1) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 22000);
+  try {
+    const r = await fetch(CFG.GAS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data, apiKey: CFG.KEY }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    const res = await r.json();
+    if (!res.success) throw new Error(res.error || 'API error');
+    return res.data;
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('Request timed out. Please try again.');
+    if (_retry > 0 && !e.message.includes('required') && !e.message.includes('credentials') && !e.message.includes('registered')) {
+      await new Promise(r => setTimeout(r, 1200));
+      return api(action, data, _retry - 1);
+    }
+    throw e;
+  }
+}
+
+// ══════════════════════════════════════════════
+// CONFETTI
+// ══════════════════════════════════════════════
+function launchConfetti() {
+  const canvas = doc('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.classList.add('active');
+
+  const colors = ['#e63946','#f4591d','#2a9d8f','#f4a261','#ffd166','#06d6a0','#118ab2','#9b5de5'];
+  const pieces = Array.from({length: 120}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height - canvas.height,
+    r: Math.random() * 6 + 4,
+    d: Math.random() * 120 + 30,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    tilt: Math.random() * 10 - 10,
+    tiltAngleIncrement: Math.random() * 0.07 + 0.05,
+    tiltAngle: 0,
+    angle: Math.random() * Math.PI * 2,
+    speed: Math.random() * 3 + 1,
+    opacity: 1
+  }));
+
+  let frame = 0;
+  const maxFrames = 180;
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.opacity;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.r, p.r * 0.4, p.tiltAngle, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      p.y += p.speed * 2;
+      p.tiltAngle += p.tiltAngleIncrement;
+      p.x += Math.sin(p.angle) * 2;
+      p.angle += 0.05;
+      if (frame > maxFrames * 0.6) p.opacity -= 0.015;
+    });
+    frame++;
+    if (frame < maxFrames) {
+      requestAnimationFrame(draw);
+    } else {
+      canvas.classList.remove('active');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  draw();
+}
+
+// ══════════════════════════════════════════════
+// PAGE ROUTER
+// ══════════════════════════════════════════════
+let stack = ['pg-auth'];
+let _navLock = false;
+
+function nav(id) {
+  if (_navLock) return;
+  const cur = stack[stack.length - 1];
+  if (cur === id) return;
+  doc(cur).classList.replace('here', 'left');
+  const pg = doc(id);
+  pg.classList.remove('right', 'left');
+  pg.classList.add('here');
+  stack.push(id);
+  history.pushState({ page: id, depth: stack.length }, '', '#' + id);
+  onEnter(id);
+  updateBottomNav(id);
+}
+
+function back() {
+  if (stack.length < 2) return;
+  _navLock = true;
+  _goBack();
+  history.back();
+  setTimeout(() => { _navLock = false; }, 350);
+}
+
+function _goBack() {
+  if (stack.length < 2) return;
+  const cur  = stack.pop();
+  const prev = stack[stack.length - 1];
+  doc(cur).classList.replace('here', 'right');
+  doc(prev).classList.remove('left');
+  doc(prev).classList.add('here');
+  updateBottomNav(prev);
+}
+
+window.addEventListener('popstate', () => {
+  if (_navLock) return;
+  if (stack.length >= 2) { _goBack(); }
+  else { history.pushState({ page: stack[0] }, '', '#' + stack[0]); }
+});
+
+function updateBottomNav(id) {
+  ['home','cart','orders'].forEach(n => {
+    const b = doc('bn-' + n);
+    if (b) b.classList.toggle('act', id === 'pg-' + n);
+  });
+  const bw = doc('bn-wallet');
+  if (bw) bw.classList.toggle('act', id === 'pg-khata');
+}
+
+function onEnter(id) {
+  if (id === 'pg-home')        { loadMenu(); updateBadge(); }
+  if (id === 'pg-cart')        { renderCart(); hideFab(); }
+  if (id === 'pg-orders')      { loadOrders(); }
+  if (id === 'pg-account')     { renderAccount(); }
+  if (id === 'pg-khata')       { if (_khataEnabled) loadUserKhata(); else { toast('Wallet feature is currently unavailable'); back(); return; } }
+  if (id === 'pg-success')     { hideFab(); }
+  if (id === 'pg-success-sub') { hideFab(); }
+  if (id !== 'pg-home')        { hideFab(); }
+}
+
+function hideFab() {
+  const fab = doc('cart-fab');
+  if (fab) fab.classList.remove('show');
+}
+
+function goHome() {
+  const cur = stack[stack.length - 1];
+  if (cur === 'pg-home') {
+    const el = doc('home-scroll');
+    if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+  } else { nav('pg-home'); }
+}
+
+function showAppUI() { const n = doc('bottom-nav'); if (n) n.classList.remove('hide'); }
+function hideAppUI() { const n = doc('bottom-nav'); if (n) n.classList.add('hide'); }
+
+// ══════════════════════════════════════════════
+// ACCOUNT PANEL
+// ══════════════════════════════════════════════
+function openAccountPanel() {
+  const user = Auth.get(); if (!user) return;
+  const isSub = getSub();
+  doc('ap-avatar').textContent = '👤';
+  doc('ap-name').textContent = user.name || '—';
+  doc('ap-phone').textContent = '📞 ' + (user.phone || '—');
+  doc('ap-address').textContent = user.address || 'Not set';
+  doc('ap-email').textContent = user.email || 'Not set';
+  doc('ap-plan-status').textContent = isSub ? '✅ Active Subscriber' : 'Not subscribed';
+  doc('ap-sub-tag').classList.toggle('hide', !isSub);
+  const walletRow = doc('ap-wallet-row');
+  if (walletRow) walletRow.style.display = isSub ? 'flex' : 'none';
+  if (isSub) {
+    doc('ap-wallet-bal').textContent = _walletBal !== null ? '₹' + _walletBal : '₹—';
+    refreshWalletBalance();
+  }
+  doc('acct-panel-overlay').classList.remove('hide');
+}
+
+function closeAccountPanel(e) {
+  if (e && e.target !== doc('acct-panel-overlay')) return;
+  doc('acct-panel-overlay').classList.add('hide');
+}
+
+// ══════════════════════════════════════════════
+// ABOUT MODAL
+// ══════════════════════════════════════════════
+function showAbout() { doc('about-modal').classList.remove('hide'); }
+function hideAbout(e) {
+  if (e && e.target !== doc('about-modal')) return;
+  doc('about-modal').classList.add('hide');
+}
+
+// ══════════════════════════════════════════════
+// PULL-TO-REFRESH
+// ══════════════════════════════════════════════
+(function setupPTR() {
+  const THRESHOLD = 80;
+  let startY = 0, pulling = false, triggered = false;
+  const ptrActions = {
+    'pg-home'   : () => loadMenu(),
+    'pg-orders' : () => loadOrders(),
+    'pg-khata'  : () => loadUserKhata(),
+    'pg-account': () => { renderAccount(); return Promise.resolve(); },
+  };
+  function getScrollEl(pgId) {
+    const pg = doc(pgId); if (!pg) return null;
+    return pg.querySelector('[id$="-scroll"]') || pg.querySelector('.scroll-wrap') || null;
+  }
+  document.addEventListener('touchstart', e => {
+    const pgId = stack[stack.length - 1];
+    if (!pgId || !ptrActions[pgId]) return;
+    const scrollEl = getScrollEl(pgId);
+    const scrollTop = scrollEl ? scrollEl.scrollTop : window.scrollY;
+    if (scrollTop > 4) return;
+    startY = e.touches[0].clientY; pulling = true; triggered = false;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const pgId = stack[stack.length - 1];
+    const scrollEl = getScrollEl(pgId);
+    const scrollTop = scrollEl ? scrollEl.scrollTop : window.scrollY;
+    if (scrollTop > 4) { pulling = false; resetPTR(); return; }
+    const dist = e.touches[0].clientY - startY;
+    if (dist <= 0) { pulling = false; resetPTR(); return; }
+    const i = doc('ptr-ind'); if (!i) return;
+    const pull = Math.min(dist * 0.55, 60);
+    i.style.transform = `translateX(-50%) translateY(${pull - 64}px)`;
+    i.classList.toggle('visible', dist > 18);
+    i.classList.toggle('ready', dist >= THRESHOLD);
+    triggered = dist >= THRESHOLD;
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if (!pulling) return;
+    pulling = false;
+    const i = doc('ptr-ind'); if (!i) return;
+    if (triggered) {
+      i.style.transform = 'translateX(-50%) translateY(10px)';
+      i.classList.add('loading'); i.classList.remove('ready');
+      const pgId = stack[stack.length - 1];
+      const action = ptrActions[pgId] || manualIndexRefresh;
+      action().finally(() => { resetPTR(); triggered = false; });
+    } else { resetPTR(); }
+  }, { passive: true });
+  function resetPTR() {
+    const i = doc('ptr-ind'); if (!i) return;
+    i.style.transform = 'translateX(-50%) translateY(-64px)';
+    i.classList.remove('visible','ready','loading');
+  }
+})();
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+let _session = null;
+const Creds = {
+  save: (phone, pw) => Store.setJSON('pb_creds', { phone, pw }),
+  get:  ()         => Store.getJSON('pb_creds'),
+  clear: ()        => Store.remove('pb_creds')
+};
+const SessStore = {
+  save: (u) => { try { localStorage.setItem('pb_user_sess', JSON.stringify(u)); } catch {} },
+  get:  ()  => { try { return JSON.parse(localStorage.getItem('pb_user_sess')); } catch { return null; } },
+  clear:()  => { try { localStorage.removeItem('pb_user_sess'); } catch {} }
+};
+const Auth = {
+  get:   () => _session,
+  set:   u  => { _session = u; SessStore.save(u); },
+  clear: () => { _session = null; Store.remove('pb_sub'); SessStore.clear(); }
+};
+
+function togglePw(inputId, btn) {
+  const inp = doc(inputId), icon = btn.querySelector('i');
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; icon.classList.replace('fa-eye','fa-eye-slash'); }
+  else { inp.type = 'password'; icon.classList.replace('fa-eye-slash','fa-eye'); }
+}
+
+function autofillCreds() {
+  const creds = Creds.get();
+  if (creds && creds.phone && creds.pw) {
+    try {
+      doc('l-ph').value = creds.phone;
+      doc('l-pw').value = creds.pw;
+      const hint = doc('creds-hint');
+      if (hint) hint.classList.add('show');
+    } catch {}
+  }
+}
+
+function doLogout() {
+  if (!confirm('Logout karna chahte hain?')) return;
+  stopPolling();
+  Auth.clear(); Cart.clear(); _coupon = null; _walletBal = null;
+  _pauseDelivery = 'none';
+  Store.remove('pb_menu_cache');
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+  doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
+  stack = ['pg-auth'];
+  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+  hideAppUI(); hideFab();
+  updateWalletUI(null);
+  applyPauseState('none');
+  const wrap = doc('rest-toggle-wrap');
+  if (wrap) wrap.classList.add('hide');
+  autofillCreds();
+}
+
+function switchTab(t, el) {
+  doc('f-login').classList.toggle('hide', t !== 'login');
+  doc('f-signup').classList.toggle('hide', t !== 'signup');
+  document.querySelectorAll('.atab').forEach(x => x.classList.remove('act'));
+  el.classList.add('act');
+}
+
+function forgotPassword() {
+  const phone = doc('l-ph').value.trim().replace(/\D/g, '');
+  let msg = 'Namaste! 🙏 Mujhe apna Tiffo password reset karna hai.\n\n';
+  if (phone.length === 10) {
+    msg += `📱 Mera registered mobile number: *${phone}*\n\n`;
+  } else {
+    msg += '📱 Mera registered mobile number: ____________\n\n';
+  }
+  msg += 'Kripya mujhe naya password set karne mein help karein. 🙏';
+  openWA(CFG.WA, msg);
+}
+
+async function doLogin() {
+  const phone = doc('l-ph').value.trim();
+  const pw = doc('l-pw').value.trim();
+  if (!phone || !pw) return toast('Phone aur password daalein');
+  if (phone.length !== 10) return toast('Valid 10-digit number');
+  const btn = doc('btn-login');
+  btn.innerHTML = '<span class="spin"></span> Logging in...'; btn.disabled = true;
+  try {
+    const user = await api('login', { phone, password: pw });
+    Auth.set(user);
+    Creds.save(phone, pw);
+    await initApp();
+  } catch(e) {
+    toast('❌ ' + e.message);
+    if (e.message.includes('password') || e.message.includes('not found')) Creds.save('', '');
+  } finally { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
+}
+
+async function doSignup() {
+  const nm = doc('s-nm').value.trim(), ph = doc('s-ph').value.trim(),
+        em = doc('s-em').value.trim(), ad = doc('s-ad').value.trim(), pw = doc('s-pw').value;
+  if (!nm || !ph || !ad || !pw) return toast('Saari fields bharein');
+  if (ph.length !== 10) return toast('Valid 10-digit number');
+  if (pw.length < 6) return toast('Password 6+ characters');
+  const btn = doc('btn-signup');
+  btn.innerHTML = '<span class="spin"></span> Creating...'; btn.disabled = true;
+  try {
+    const user = await api('signup', { name: nm, phone: ph, email: em, address: ad, password: pw });
+    Auth.set(user);
+    Creds.save(ph, pw);
+    await initApp();
+  } catch(e) { toast('❌ ' + e.message); }
+  finally { btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account'; btn.disabled = false; }
+}
+
+async function initApp() {
+  const user = Auth.get(); if (!user) return;
+
+  // Fetch Khata flag
+  try {
+    const ke = await api('getKhataEnabled');
+    _khataEnabled = ke.enabled !== false;
+  } catch { _khataEnabled = true; }
+  applyKhataVisibility();
+
+  // ── v14: Fresh subscriber check from server (not just login response) ──
+  let subData = null;
+  try {
+    subData = await api('checkSubscriber', { phone: user.phone });
+    Store.setJSON('pb_sub', subData);
+  } catch {}
+  const cachedSub = subData || Store.getJSON('pb_sub');
+  const isSub = cachedSub?.isSubscriber;
+
+  applyKhataVisibility();
+
+  if (isSub && _khataEnabled) {
+    try {
+      const kd = await api('getKhata', { phone: user.phone });
+      updateWalletUI(Number(kd.balance) || 0);
+    } catch {}
+  } else {
+    updateWalletUI(null);
+  }
+  applyPauseState(cachedSub?.pauseDelivery || 'none');
+  updateBadge();
+  doc('pg-auth').classList.replace('here','left');
+  doc('pg-home').classList.remove('right','left');
+  doc('pg-home').classList.add('here');
+  stack = ['pg-auth','pg-home'];
+  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+  history.pushState({ page: 'pg-home' }, '', '#pg-home');
+  updateBottomNav('pg-home');
+  showAppUI();
+  loadMenu();
+  startPolling();
+}
+
+// ══════════════════════════════════════════════
+// ACCOUNT
+// ══════════════════════════════════════════════
+function renderAccount() {
+  const user = Auth.get(); if (!user) return;
+  doc('acct-name').textContent = user.name || '—';
+  doc('acct-phone').textContent = '📞 ' + (user.phone || '—');
+  doc('acct-address').value = user.address || '';
+  doc('acct-email').value = user.email || '';
+  const isSub = getSub();
+  doc('acct-sub-tag').classList.toggle('hide', !isSub);
+  doc('acct-sub-info').textContent = isSub
+    ? '✅ You are an active subscriber with free home delivery!'
+    : 'You are not subscribed yet. Join for free delivery + savings.';
+  ['addr-msg','email-msg','pw-msg'].forEach(id => { doc(id).className = 'save-msg'; doc(id).textContent = ''; });
+  doc('acct-pw-cur').value = ''; doc('acct-pw-new').value = '';
+  const walletWrap = doc('acct-wallet-wrap');
+  if (walletWrap) {
+    const showWallet = isSub && _khataEnabled;
+    walletWrap.classList.toggle('hide', !showWallet);
+    if (showWallet) {
+      doc('acct-wallet-bal').textContent = _walletBal !== null ? '₹' + _walletBal : '₹—';
+      if (_walletBal !== null) {
+        const subTxt = _walletBal < 0 ? '⚠️ Balance negative — please recharge' : _walletBal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+        doc('acct-wallet-sub').textContent = subTxt;
+      } else {
+        doc('acct-wallet-sub').textContent = 'Loading...';
+        refreshWalletBalance().then(() => {
+          const bal = _walletBal || 0;
+          doc('acct-wallet-sub').textContent = bal < 0 ? '⚠️ Balance negative — please recharge' : bal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+        }).catch(() => { doc('acct-wallet-sub').textContent = 'Unable to fetch balance'; });
+      }
+    }
+  }
+}
+
+async function saveAddress() {
+  const user = Auth.get(), address = doc('acct-address').value.trim(), msg = doc('addr-msg');
+  if (!address) { msg.textContent = 'Please enter address'; msg.className = 'save-msg err'; return; }
+  try {
+    await api('updateProfile', { userId: user.userId, address });
+    user.address = address; Auth.set(user);
+    msg.textContent = '✅ Address updated!'; msg.className = 'save-msg ok';
+    setTimeout(() => { msg.className = 'save-msg'; }, 3000);
+  } catch(e) { msg.textContent = '❌ ' + e.message; msg.className = 'save-msg err'; }
+}
+
+async function saveEmail() {
+  const user = Auth.get(), email = doc('acct-email').value.trim(), msg = doc('email-msg');
+  if (!email) { msg.textContent = 'Please enter email'; msg.className = 'save-msg err'; return; }
+  try {
+    await api('updateProfile', { userId: user.userId, email });
+    user.email = email; Auth.set(user);
+    msg.textContent = '✅ Email updated!'; msg.className = 'save-msg ok';
+    setTimeout(() => { msg.className = 'save-msg'; }, 3000);
+  } catch(e) { msg.textContent = '❌ ' + e.message; msg.className = 'save-msg err'; }
+}
+
+async function savePassword() {
+  const user = Auth.get(), curPw = doc('acct-pw-cur').value, newPw = doc('acct-pw-new').value, msg = doc('pw-msg');
+  if (!curPw || !newPw) { msg.textContent = 'Both fields required'; msg.className = 'save-msg err'; return; }
+  if (newPw.length < 6) { msg.textContent = 'New password must be 6+ chars'; msg.className = 'save-msg err'; return; }
+  try {
+    await api('login', { phone: user.phone, password: curPw });
+    await api('updateProfile', { userId: user.userId, newPassword: newPw });
+    msg.textContent = '✅ Password updated!'; msg.className = 'save-msg ok';
+    doc('acct-pw-cur').value = ''; doc('acct-pw-new').value = '';
+    setTimeout(() => { msg.className = 'save-msg'; }, 3000);
+  } catch(e) {
+    msg.textContent = e.message.includes('Incorrect') ? '❌ Current password is wrong' : '❌ ' + e.message;
+    msg.className = 'save-msg err';
+  }
+}
+
+// ══════════════════════════════════════════════
+// CART
+// ══════════════════════════════════════════════
+const Cart = {
+  get:   ()  => Store.getJSON('pb_cart') || [],
+  save:  c   => { Store.setJSON('pb_cart', c); updateBadge(); },
+  clear: ()  => { Store.remove('pb_cart'); updateBadge(); },
+  add:  (item, variantLabel, variantPrice, isThali) => {
+    const cart = Cart.get();
+    const key = ((item.itemId || item.thali_id) + (variantLabel || '')).replace(/['\\/]/g,'_');
+    const idx = cart.findIndex(i => i._key === key);
+    if (idx >= 0) { cart[idx].qty++; }
+    else {
+      const price = variantPrice !== undefined ? variantPrice : item.price;
+      cart.push({ ...item, _key: key, qty: 1, selectedVariant: variantLabel || '', price, _isThali: !!isThali });
+    }
+    Cart.save(cart);
+  },
+  qty: (key, delta) => {
+    const c = Cart.get(), i = c.findIndex(x => x._key === key);
+    if (i >= 0) { c[i].qty += delta; if (c[i].qty <= 0) c.splice(i, 1); }
+    Cart.save(c);
+  }
+};
+
+function updateBadge() {
+  try {
+    const n = Cart.get().reduce((s, i) => s + i.qty, 0);
+    const b = doc('cart-badge');
+    if (b) { b.textContent = n; b.classList.toggle('hide', n === 0); }
+    const hb = doc('cart-hdr-badge');
+    if (hb) { hb.textContent = n; hb.classList.toggle('hide', n === 0); }
+    const fab = doc('cart-fab'), fabCount = doc('cart-fab-count');
+    const onHome = doc('pg-home')?.classList.contains('here');
+    if (fab) {
+      fab.classList.toggle('show', n > 0 && !!onHome);
+      if (fabCount) fabCount.textContent = n + ' item' + (n === 1 ? '' : 's');
+    }
+  } catch {}
+}
+
+// ══════════════════════════════════════════════
+// IMAGE URL
+// ══════════════════════════════════════════════
+function resolveImg(url) {
+  if (!url) return '';
+  url = String(url).trim().replace(/\/$/, '');
+  const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch) return `https://drive.google.com/uc?export=view&id=${driveMatch[1]}`;
+  const driveOpen = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (url.includes('drive.google.com') && driveOpen) return `https://drive.google.com/uc?export=view&id=${driveOpen[1]}`;
+  if (/^https?:\/\/ibb\.co\/[^\/]+$/.test(url)) return '';
+  return url;
+}
+
+// ══════════════════════════════════════════════
+// MENU
+// ══════════════════════════════════════════════
+let _menu = [];
+let _thalis = [];
+let _menuSearch = '';
+let _activeCategory = 'all';
+
+async function loadMenu() {
+  const list = doc('menu-list');
+  const cached = Store.getJSON('pb_menu_cache');
+  if (cached && cached.menu && cached.menu.length) {
+    _menu = cached.menu;
+    buildCategoryChips(_menu);
+    _menuSearch = ''; _activeCategory = 'all';
+    const si = doc('menu-search'); if (si) si.value = '';
+    filterAndRenderMenu();
+    if (cached.lbl) doc('menu-lbl').textContent = cached.lbl;
+  } else {
+    list.innerHTML = '<div class="sk sk-lg"></div><div class="sk sk-lg"></div>';
+  }
+  try {
+    const [menu, cfg, thalisData] = await Promise.all([
+      api('getMenu'),
+      api('getOrderCutoff').catch(() => null),
+      api('getThalis').catch(() => [])
+    ]);
+    _menu = menu;
+    _thalis = Array.isArray(thalisData) ? thalisData : [];
+    window._cutoffCfg = normalizeCfg(cfg);
+    const h = getISTHours();
+    const ist = new Date(Date.now() + 5.5 * 3600000);
+    const d = String(ist.getUTCDate()).padStart(2,'0'), mo = String(ist.getUTCMonth()+1).padStart(2,'0'), y = ist.getUTCFullYear();
+    const _cfgN = window._cutoffCfg;
+    const _todaySched = _cfgN && _cfgN.weeklySchedule ? _cfgN.weeklySchedule[ist.getUTCDay()] : null;
+    const _lunchCutoffH = _todaySched
+      ? timeStrToH(_cfgN.cutoffDay || _todaySched.lunchEnd || '11:30')
+      : timeStrToH((_cfgN && _cfgN.cutoffDay) || '11:30');
+    const isLunch = h < _lunchCutoffH;
+    const lbl = (isLunch ? '🌅 Breakfast / Lunch Menu' : '🌙 Evening / Dinner Menu') + ' · ' + d+'/'+mo+'/'+y;
+    doc('menu-lbl').textContent = lbl;
+    Store.setJSON('pb_menu_cache', { menu, lbl, ts: Date.now() });
+    buildCategoryChips(menu);
+    _menuSearch = '';
+    const si2 = doc('menu-search'); if (si2) si2.value = '';
+    _activeCategory = 'all';
+    filterAndRenderMenu();
+    renderThalis(_thalis);
+    if (cfg) updateCutoffBanner(cfg, h, isLunch ? 'morning' : 'evening');
+  } catch(e) {
+    if (!_menu.length) {
+      doc('menu-list').innerHTML = `<div class="empty"><span class="em">😕</span><h3>Menu load failed</h3><p style="color:#888;font-size:13px;margin-bottom:12px">Internet check karein aur retry karein</p><button class="btn btn-p" style="width:auto;padding:10px 24px" onclick="loadMenu()"><i class="fa-solid fa-rotate-right"></i> Retry</button></div>`;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════
+// THALI RENDERING (v14 NEW)
+// ══════════════════════════════════════════════
+function renderThalis(thalis) {
+  const section = doc('thali-section');
+  const listEl = doc('thali-list');
+  if (!section || !listEl) return;
+  const active = thalis.filter(t => t.is_active !== false);
+  if (!active.length) { section.classList.add('hide'); return; }
+  section.classList.remove('hide');
+  const cart = Cart.get();
+  listEl.innerHTML = active.map(t => {
+    const imgSrc = resolveImg(t.image_url) || `https://picsum.photos/seed/${t.thali_id}/200/200`;
+    const items = Array.isArray(t.items) ? t.items : [];
+    const contentsHtml = items.map(it => `<span class="thali-comp">${esc(it.variant_label || it.menu_item_name || it.name || '')}</span>`).join('');
+    const oos = t.stock_qty !== null && t.stock_qty !== undefined && t.stock_qty <= 0;
+    const key = (t.thali_id || '').replace(/['\\/]/g,'_');
+    const inCart = cart.find(i => i._key === key);
+    const qty = inCart ? inCart.qty : 0;
+    const ctrl = oos
+      ? `<button class="thali-oos" disabled>Out of Stock</button>`
+      : qty > 0
+        ? `<div class="qty-ctl"><button class="q-btn" onclick="Cart.qty('${key}',-1);renderThalis(_thalis)">−</button><span class="q-n">${qty}</span><button class="q-btn" onclick="Cart.qty('${key}',1);renderThalis(_thalis)">+</button></div>`
+        : `<button class="add-btn" onclick="addThaliToCart('${esc(t.thali_id)}')">Add</button>`;
+    return `<div class="thali-card">
+      <img class="thali-img" src="${imgSrc}" alt="${esc(t.name)}" loading="lazy" onerror="this.onerror=null;this.src='https://picsum.photos/seed/thali/200'">
+      <div class="thali-body">
+        <div class="thali-name">${esc(t.name)}</div>
+        ${t.description ? `<div class="thali-desc">${esc(t.description)}</div>` : ''}
+        ${contentsHtml ? `<div class="thali-contents">${contentsHtml}</div>` : ''}
+        <div class="thali-foot">
+          <div class="thali-price">₹${t.price || 0}</div>
+          ${ctrl}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addThaliToCart(thaliId) {
+  const thali = _thalis.find(t => t.thali_id === thaliId);
+  if (!thali) return;
+  Cart.add({ itemId: thali.thali_id, thali_id: thali.thali_id, name: thali.name, imageUrl: thali.image_url || '', price: thali.price || 0 }, '', thali.price || 0, true);
+  showCartNotif(thali.name);
+  renderThalis(_thalis);
+}
+
+function timeStrToH(t) {
+  if (!t) return 0;
+  const parts = String(t).split(':').map(Number);
+  return (parts[0]||0) + (parts[1]||0)/60;
+}
+
+function normalizeCfg(cfg) {
+  if (!cfg) return cfg;
+  if (cfg.schedule && !cfg.weeklySchedule) cfg.weeklySchedule = cfg.schedule;
+  if (!cfg.enabled && cfg.weeklySchedule) cfg.enabled = true;
+  return cfg;
+}
+
+function buildCategoryChips(menu) {
+  const chipsEl = doc('cat-chips'); if (!chipsEl) return;
+  const cats = ['all'];
+  menu.forEach(item => {
+    const cat = (item.category||'').trim();
+    if (cat && !cats.includes(cat)) cats.push(cat);
+  });
+  chipsEl.innerHTML = cats.map(c => {
+    const label = c === 'all' ? '🍽️ All' : c;
+    return `<button class="cat-chip${c==='all'?' act':''}" onclick="setCategory('${c.replace(/'/g,"\\'")}',this)">${label}</button>`;
+  }).join('');
+}
+
+function setCategory(cat, el) {
+  _activeCategory = cat;
+  document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('act'));
+  if (el) el.classList.add('act');
+  filterAndRenderMenu();
+}
+
+let _filterTimer = null;
+function debouncedFilter() {
+  if (_filterTimer) clearTimeout(_filterTimer);
+  _filterTimer = setTimeout(filterAndRenderMenu, 120);
+}
+
+function doMenuSearch() {
+  const val = (doc('menu-search')?.value || '').toLowerCase().trim();
+  _menuSearch = val;
+  if (val) {
+    const chips = document.querySelectorAll('.cat-chip');
+    let matched = false;
+    chips.forEach(chip => {
+      if (chip.textContent.trim().toLowerCase().includes(val)) {
+        chip.click(); matched = true;
+      }
+    });
+    if (!matched) {
+      _activeCategory = 'all';
+      document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('act'));
+      const allChip = document.querySelector('.cat-chip');
+      if (allChip) allChip.classList.add('act');
+      filterAndRenderMenu();
+    }
+  } else {
+    _activeCategory = 'all';
+    document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('act'));
+    const allChip = document.querySelector('.cat-chip');
+    if (allChip) allChip.classList.add('act');
+    filterAndRenderMenu();
+  }
+}
+
+function filterAndRenderMenu() {
+  let filtered = _menu;
+  if (_activeCategory && _activeCategory !== 'all') {
+    filtered = filtered.filter(i => (i.category||'').toLowerCase() === _activeCategory.toLowerCase());
+  }
+  if (_menuSearch) {
+    filtered = filtered.filter(i =>
+      (i.name||'').toLowerCase().includes(_menuSearch) ||
+      (i.category||'').toLowerCase().includes(_menuSearch)
+    );
+  }
+  if (!filtered.length && _menuSearch) {
+    doc('menu-list').innerHTML = `<div class="empty"><span class="em">🔍</span><h3>No results for "${esc(_menuSearch)}"</h3><p>Try a different search term</p></div>`;
+    return;
+  }
+  renderMenu(filtered);
+}
+
+function fmtCutoffTime(t24) {
+  const [h, m] = String(t24 || '').split(':').map(Number);
+  if (isNaN(h)) return t24;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = h % 12 || 12;
+  return h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+}
+
+function getISTHours() {
+  const ist = new Date(Date.now() + 5.5 * 3600000);
+  return ist.getUTCHours() + ist.getUTCMinutes() / 60;
+}
+
+function calcOrderState(cfg, currentH) {
+  // ── Dynamic schedule branch (uses schedule_0…6 from admin_settings) ──
+  if (cfg && cfg.weeklySchedule) {
+    const ist = new Date(Date.now() + 5.5 * 3600000);
+    const dow = ist.getUTCDay();
+    const sched = cfg.weeklySchedule[dow];
+    if (sched) {
+      // Condition 1: day marked closed
+      if (!sched.open) return { closed: true, reason: 'Restaurant closed today', detail: 'We are closed today. See you tomorrow!' };
+
+      const lunchStart  = timeStrToH(sched.lunchStart  || sched.openTime || '07:00');
+      const cutoffDay   = timeStrToH(sched.lunchEnd   || cfg.cutoffDay   || '11:30');
+      const dinnerStart = timeStrToH(sched.dinnerStart || '11:30');
+      const cutoffNight = timeStrToH(sched.dinnerEnd   || cfg.cutoffNight || '19:30');
+
+      const lunchStartFmt  = fmtCutoffTime(sched.lunchStart  || sched.openTime || '07:00');
+      const cutoffDayFmt   = fmtCutoffTime(sched.lunchEnd   || cfg.cutoffDay   || '11:30');
+      const dinnerStartFmt = fmtCutoffTime(sched.dinnerStart || '11:30');
+      const cutoffNightFmt = fmtCutoffTime(sched.dinnerEnd   || cfg.cutoffNight || '19:30');
+
+      // Get tomorrow's lunchStart for "resumes tomorrow" message
+      const tomorrowDow  = (dow + 1) % 7;
+      const tomorrowSched = cfg.weeklySchedule[tomorrowDow];
+      const tomorrowOpen  = tomorrowSched
+        ? fmtCutoffTime(tomorrowSched.lunchStart || tomorrowSched.openTime || '07:00')
+        : '7:00 AM';
+
+      // Condition 2: before lunch starts
+      if (currentH < lunchStart)
+        return { closed: true, reason: 'Orders not started yet', detail: `Orders open at ${lunchStartFmt}`, session: 'morning' };
+
+      // Condition 3: lunch window open
+      if (currentH <= cutoffDay)
+        return { closed: false, reason: 'Orders open', detail: `Lunch orders close at ${cutoffDayFmt}`, session: 'morning' };
+
+      // Condition 4: between lunch cutoff and dinner start
+      if (currentH < dinnerStart)
+        return { closed: true, reason: 'Lunch closed', detail: `Dinner orders start at ${dinnerStartFmt}`, session: 'evening' };
+
+      // Condition 5: dinner window open
+      if (currentH <= cutoffNight)
+        return { closed: false, reason: 'Orders open', detail: `Dinner orders close at ${cutoffNightFmt}`, session: 'evening' };
+
+      // Condition 6: all done for today
+      return { closed: true, reason: 'All orders closed for today', detail: `Lunch & dinner orders resume tomorrow at ${tomorrowOpen}`, session: 'evening' };
+    }
+  }
+  // ── Legacy fallback (no schedule) ──
+  if (!cfg || !cfg.enabled) return { closed: false, reason: '', detail: '' };
+  const dayCutoff   = timeStrToH(cfg.cutoffDay   || '11:30');
+  const nightCutoff = timeStrToH(cfg.cutoffNight || '19:30');
+  const dayFmt   = fmtCutoffTime(cfg.cutoffDay);
+  const nightFmt = fmtCutoffTime(cfg.cutoffNight);
+  if (currentH >= nightCutoff) return { closed: true,  reason: 'All orders closed for today', detail: 'Lunch & dinner orders resume tomorrow at 7:00 AM' };
+  if (currentH >= dayCutoff)   return { closed: false, reason: 'Orders open', detail: `Dinner orders close at ${nightFmt}`, session: 'evening' };
+  if (currentH >= 7)           return { closed: false, reason: 'Orders open', detail: `Lunch orders close at ${dayFmt}`, session: 'morning' };
+  return { closed: true, reason: 'Orders not started yet', detail: `Lunch orders open at 7:00 AM (close at ${dayFmt})` };
+}
+
+function showClosedPopup(detail) {
+  const popup = doc('restaurant-closed-popup'), msg = doc('closed-popup-msg');
+  if (popup) { if (msg) msg.textContent = detail || 'Try after 7:00 AM tomorrow.'; popup.classList.remove('hide'); }
+}
+
+function updateCutoffBanner(cfg, currentH, menuType) {
+  const banner = doc('cutoff-banner'), msgEl = doc('cutoff-msg'), subEl = doc('cutoff-sub'), placeBtn = doc('place-btn');
+  const iconEl = doc('cutoff-icon'), dotEl = doc('cutoff-dot');
+  function applyState(state) {
+    banner.classList.remove('hide');
+    if (msgEl) msgEl.textContent = state.reason;
+    if (subEl) subEl.textContent = state.detail;
+    const isOpen = !state.closed;
+    banner.style.background = isOpen
+      ? 'linear-gradient(135deg,#2a9d8f,#1d7a6f)'
+      : 'linear-gradient(135deg,#e63946,#c1121f)';
+    banner.style.borderLeftColor = isOpen ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.35)';
+    if (iconEl) iconEl.textContent = isOpen ? '🟢' : '⏰';
+    if (dotEl) { dotEl.style.background = isOpen ? '#a8ffec' : '#fff'; dotEl.style.opacity = isOpen ? '1' : '.7'; }
+    if (placeBtn) placeBtn.disabled = state.closed;
+  }
+  // All state decisions now route through calcOrderState with normalizeCfg applied upstream
+  const st = calcOrderState(cfg, currentH);
+  if (!cfg || !cfg.enabled) {
+    const nightH = cfg ? timeStrToH(cfg.cutoffNight || '19:30') : 19.5;
+    const openH  = 7.0;
+    const isNightClosed = currentH >= nightH || currentH < openH;
+    if (isNightClosed) {
+      applyState({ closed: true, reason: 'Restaurant is Closed', detail: currentH >= nightH ? 'Try after 7:00 AM tomorrow.' : 'Opens at 7:00 AM today.' });
+    } else { banner.classList.add('hide'); if (placeBtn) placeBtn.disabled = false; }
+    return;
+  }
+  applyState(st);
+}
+
+const _badgeMap = {
+  bestseller: { cls:'m-badge-bestseller', text:'🔥 Bestseller' },
+  chef:       { cls:'m-badge-chef',       text:"👨‍🍳 Chef's Choice" },
+  recommended:{ cls:'m-badge-recommended',text:'⭐ Recommended' },
+  new:        { cls:'m-badge-new',        text:'🆕 New' }
+};
+
+// ── v14: Stock helpers ──
+function getStockBadgeHtml(item) {
+  if (item.stock_grams === null || item.stock_grams === undefined) return '';
+  const stock = Number(item.stock_grams);
+  if (stock <= 0) return `<div class="stock-badge stock-oos">⛔ Out of Stock</div>`;
+  // Smallest variant grams or 100g default
+  const variants = Array.isArray(item.variants) ? item.variants : [];
+  const smallestVariant = variants.length > 0
+    ? Math.min(...variants.map(v => { const g = parseInt(String(v.label || '').replace(/\D/g,'')); return isNaN(g) ? 100 : g; }))
+    : 100;
+  const lowThreshold = smallestVariant * 20;
+  if (stock <= lowThreshold) return `<div class="stock-badge stock-low">⚠️ Only ${stock}g left!</div>`;
+  return '';
+}
+
+function isOutOfStock(item) {
+  if (item.stock_grams === null || item.stock_grams === undefined) return false;
+  return Number(item.stock_grams) <= 0;
+}
+
+function renderMenu(menu) {
+  if (!menu.length) {
+    doc('menu-list').innerHTML = `<div class="empty"><span class="em">😴</span><h3>Abhi menu nahi hai</h3><p>Baad mein aayein</p></div>`;
+    return;
+  }
+  doc('menu-list').innerHTML = `<div class="m-grid">${menu.map((item, idx) => {
+    const cart = Cart.get();
+    const imgSrc = resolveImg(item.imageUrl) || `https://picsum.photos/seed/${item.itemId}/200/200`;
+    const variants = Array.isArray(item.variants) ? item.variants : [];
+    const varHtml = variants.length >= 1
+      ? `<div class="var-row" id="var-${idx}">${variants.map((v,vi) =>
+          `<button class="var-pill${vi===0?' sel':''}" onclick="selVar(${idx},${vi},'${esc(v.label)}',${v.price})" data-vi="${vi}">${esc(v.label)} ₹${v.price}</button>`
+        ).join('')}</div>`
+      : '';
+    const defPrice = variants.length > 0 ? variants[0].price : item.price;
+    const defLabel = variants.length > 0 ? variants[0].label : '';
+    const key = (item.itemId + (defLabel || '')).replace(/['\\/]/g, '_');
+    const inCart = cart.find(i => i._key === key);
+    const qty = inCart ? inCart.qty : 0;
+    const oos = isOutOfStock(item);
+    const ctrl = oos
+      ? `<button class="add-btn" disabled style="background:#ccc!important;cursor:not-allowed">Out of Stock</button>`
+      : qty > 0
+        ? `<div class="qty-ctl"><button class="q-btn" onclick="Cart.qty('${key}',-1);filterAndRenderMenu()">−</button><span class="q-n">${qty}</span><button class="q-btn" onclick="Cart.qty('${key}',1);filterAndRenderMenu()">+</button></div>`
+        : `<button class="add-btn" onclick="addToCart(${idx},'${esc(item.itemId)}')">Add</button>`;
+    const badgeInfo = _badgeMap[item.highlight];
+    const badgeHtml = badgeInfo ? `<div class="m-badge ${badgeInfo.cls}">${badgeInfo.text}</div>` : '';
+    const stockBadge = getStockBadgeHtml(item);
+    const catLine = item.category ? `<div class="m-cat">${esc(item.category)}${variants.length >= 1 ? ' · '+variants.length+' option'+(variants.length>1?'s':'') : ''}</div>` : '';
+    return `<div class="m-card">
+      <div class="m-body">
+        ${badgeHtml}${stockBadge}
+        <div class="m-name">${esc(item.name)}</div>
+        ${catLine}
+        ${varHtml}
+        <div class="m-foot">
+          <div class="m-price" id="price-${idx}">₹${defPrice}</div>
+          ${ctrl}
+        </div>
+      </div>
+      <div class="m-img-wrap">
+        <img class="m-img" src="${imgSrc}" alt="${esc(item.name)}" loading="lazy"
+             onerror="this.onerror=null;this.src='https://picsum.photos/seed/${idx}/200/200'">
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+const _selVars = {};
+function selVar(idx, vi, label, price) {
+  _selVars[idx] = { label, price };
+  const priceEl = doc('price-' + idx);
+  if (priceEl) priceEl.textContent = '₹' + price;
+  const varRow = doc('var-' + idx);
+  if (varRow) varRow.querySelectorAll('.var-pill').forEach((p, i) => p.classList.toggle('sel', i === vi));
+}
+
+let _cartNotifTimer = null;
+function showCartNotif(itemName) {
+  const pill = doc('cart-notif-pill');
+  const nameEl = doc('cart-notif-name');
+  const countEl = doc('cart-notif-count');
+  if (!pill) return;
+  const total = Cart.get().reduce((s, i) => s + i.qty, 0);
+  if (nameEl) nameEl.textContent = itemName || 'Added to cart';
+  if (countEl) countEl.textContent = total;
+  pill.classList.add('show');
+  if (_cartNotifTimer) clearTimeout(_cartNotifTimer);
+  _cartNotifTimer = setTimeout(() => { pill.classList.remove('show'); }, 2000);
+}
+
+function addToCart(idx, itemId) {
+  const item = _menu.find(i => i.itemId === itemId);
+  if (!item) return;
+  if (isOutOfStock(item)) { toast('❌ Item is out of stock'); return; }
+  const sv = _selVars[idx];
+  const variants = Array.isArray(item.variants) ? item.variants : [];
+  const varLabel = sv ? sv.label : (variants.length > 0 ? variants[0].label : '');
+  const varPrice = sv ? sv.price : (variants.length > 0 ? variants[0].price : item.price);
+  Cart.add(item, varLabel, varPrice);
+  showCartNotif(item.name);
+  filterAndRenderMenu();
+}
+
+// ══════════════════════════════════════════════
+// CART PAGE
+// ══════════════════════════════════════════════
+let _coupon = null;
+let _placingOrder = false;
+let _khataEnabled = true;
+
+function renderCart() {
+  const cart = Cart.get(), isSub = getSub();
+  const list = doc('cart-list'), bill = doc('cart-bill'), dNote = doc('del-note'), btn = doc('place-btn');
+  const cpnSection = doc('cart-coupon-section');
+  if (!cart.length) {
+    list.innerHTML = `<div class="empty"><span class="em">🛒</span><h3>Cart khaali hai</h3><p>Kuch items add karein</p></div>`;
+    bill.innerHTML = ''; dNote.innerHTML = '';
+    btn.classList.add('hide');
+    if (cpnSection) cpnSection.classList.add('hide');
+    return;
+  }
+  btn.classList.remove('hide');
+  if (cpnSection) cpnSection.classList.remove('hide');
+
+  btn.innerHTML = isSub
+    ? '<i class="fa-solid fa-utensils"></i> Place Order'
+    : '<i class="fa-brands fa-whatsapp"></i> Place Order';
+  if (window._cutoffCfg && window._cutoffCfg.enabled) {
+    const st = calcOrderState(window._cutoffCfg, getISTHours());
+    btn.disabled = st.closed;
+    btn.title = st.closed ? st.reason + '. ' + st.detail : '';
+  }
+  list.innerHTML = cart.map(item => {
+    const img = resolveImg(item.imageUrl) || `https://picsum.photos/seed/${item.itemId}/56`;
+    const typeBadge = item._isThali ? `<span style="font-size:9px;background:#fdf0e0;color:#c45500;border-radius:4px;padding:1px 5px;font-weight:700;margin-left:4px">THALI</span>` : '';
+    return `<div class="c-item"><img class="c-img" src="${img}" onerror="this.src='https://picsum.photos/56'" loading="lazy"><div class="c-info"><div class="c-name">${esc(item.name)}${typeBadge}</div>${item.selectedVariant ? `<div class="c-var">${esc(item.selectedVariant)}</div>` : ''}<div class="c-price">₹${item.price} each</div></div><div class="qty-ctl"><button class="q-btn" onclick="Cart.qty('${item._key}',-1);renderCart()">−</button><span class="q-n">${item.qty}</span><button class="q-btn" onclick="Cart.qty('${item._key}',1);renderCart()">+</button></div></div>`;
+  }).join('');
+
+  const sub = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const del = isSub ? 0 : 20;
+  const disc = _coupon ? calcDisc(_coupon, sub) : 0;
+  const total = Math.max(0, sub - disc + del);
+  bill.innerHTML = `<div class="bill"><div class="br"><span class="muted">Subtotal</span><span>₹${sub}</span></div>${disc > 0 ? `<div class="br"><span class="muted green">🎟️ Discount (${_coupon.code})</span><span class="green">−₹${disc}</span></div>` : ''}<div class="br"><span class="muted">Delivery</span><span>${del === 0 ? '<span class="green">FREE ✨</span>' : '₹' + del}</span></div><div class="br tot"><span>Total</span><span>₹${total}</span></div></div>`;
+
+  const walletNote = isSub && _walletBal !== null
+    ? `<div class="del-note" style="background:#fff3e0;color:#c45500;margin-top:8px"><i class="fa-solid fa-wallet"></i> Wallet Balance: <strong>₹${_walletBal}</strong>${_walletBal < total ? ' — <span style="color:#e63946">Insufficient! Please recharge.</span>' : ' ✅'}</div>`
+    : '';
+  dNote.innerHTML = (isSub
+    ? `<div class="del-note">✨ You get <strong>Free Home Delivery</strong> as a subscriber! Amount will be auto-deducted from wallet.</div>`
+    : `<div class="del-note warn">🚚 ₹20 delivery charge. <strong><a href="#" onclick="joinTiffin();return false" style="color:inherit">Join monthly tiffin for FREE delivery</a></strong>.</div>`) + walletNote;
+}
+
+function calcDisc(coupon, sub) {
+  return coupon.discountType === 'percent' ? Math.round(sub * coupon.discountValue / 100) : Number(coupon.discountValue);
+}
+
+async function applyCoupon() {
+  const code = doc('cpn-inp').value.trim().toUpperCase(), msg = doc('cpn-msg');
+  if (!code) return;
+  msg.textContent = 'Checking...'; msg.className = 'cpn-msg'; msg.classList.remove('hide');
+  try {
+    const user = Auth.get();
+    const c = await api('applyCoupon', { code, phone: user?.phone });
+    _coupon = c;
+    const cart = Cart.get(), sub = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    const disc = calcDisc(c, sub);
+    msg.textContent = `✅ ${c.code} applied! You save ₹${disc}`; msg.className = 'cpn-msg ok';
+    msg.classList.remove('hide');
+    // 🎉 Confetti celebration!
+    launchConfetti();
+    renderCart();
+  } catch(e) { _coupon = null; msg.textContent = '❌ ' + e.message; msg.className = 'cpn-msg err'; msg.classList.remove('hide'); }
+}
+
+let _waMsg = '', _waPhone = '';
+function openWhatsApp() { openWA(_waPhone, _waMsg); }
+
+// ══════════════════════════════════════════════
+// PLACE ORDER (v14 — improved duplicate prevention)
+// ══════════════════════════════════════════════
+async function placeOrder() {
+  // ── Pause delivery guard ──
+  if (_pauseDelivery !== 'none') {
+    const nowH = getISTHours();
+    let currentSlot = 'morning';
+    if (window._cutoffCfg && window._cutoffCfg.enabled) {
+      const st = calcOrderState(window._cutoffCfg, nowH);
+      currentSlot = st.session || (nowH < 11.5 ? 'morning' : 'evening');
+    } else {
+      currentSlot = nowH < 11.5 ? 'morning' : 'evening';
+    }
+    const slotPaused =
+      _pauseDelivery === 'both' ||
+      (_pauseDelivery === 'lunch'  && currentSlot === 'morning') ||
+      (_pauseDelivery === 'dinner' && currentSlot === 'evening');
+    if (slotPaused) {
+      const slotLabel = currentSlot === 'morning' ? 'Lunch' : 'Dinner';
+      toast(`🔴 ${slotLabel} delivery paused hai. Pehle switch ON karein.`);
+      return;
+    }
+  }
+
+  // ── v14: Double-tap prevention — set processing flag IMMEDIATELY ──
+  if (_placingOrder) { toast('⏳ Order is being placed, please wait...'); return; }
+  if (Store.get('pb_order_processing') === 'true') { toast('⏳ Order already in progress...'); return; }
+
+  const user = Auth.get(), cart = Cart.get();
+  if (!user?.address?.trim()) { toast('Pehle account mein address set karein'); nav('pg-account'); return; }
+  if (!cart.length) { toast('Cart khaali hai!'); return; }
+
+  // ── Lock IMMEDIATELY before any async work ──
+  _placingOrder = true;
+  Store.set('pb_order_processing', 'true');
+  const btn = doc('place-btn');
+  btn.innerHTML = '<span class="spin"></span> Placing...';
+  btn.disabled = true;
+
+  const isBtnRestored = () => {
+    _placingOrder = false;
+    Store.remove('pb_order_processing');
+    const iSub = getSub();
+    btn.innerHTML = iSub ? '<i class="fa-solid fa-utensils"></i> Place Order' : '<i class="fa-brands fa-whatsapp"></i> Place Order';
+    const nowH2 = getISTHours();
+    const _rc = window._cutoffCfg;
+    const stillClosed = (_rc && _rc.enabled)
+      ? calcOrderState(_rc, nowH2).closed
+      : (nowH2 >= 19.5 || nowH2 < 7);
+    btn.disabled = !!stillClosed;
+  };
+
+  const nowH = getISTHours();
+  try {
+    const cfg2 = normalizeCfg(await api('getOrderCutoff'));
+    if (cfg2) {
+      const st = calcOrderState(cfg2, nowH);
+      if (st.closed) { isBtnRestored(); showClosedPopup(st.reason + '. ' + st.detail); return; }
+    } else {
+      if (nowH >= 19.5 || nowH < 7) {
+        const detail = nowH >= 19.5 ? 'Restaurant is closed. Try after 7:00 AM tomorrow.' : 'Restaurant opens at 7:00 AM.';
+        isBtnRestored(); showClosedPopup(detail); return;
+      }
+    }
+  } catch (_e2) {
+    if (nowH >= 19.5 || nowH < 7) { isBtnRestored(); showClosedPopup('Restaurant is closed. Try after 7:00 AM.'); return; }
+  }
+
+  const isSub = getSub();
+  const sub  = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const del  = isSub ? 0 : 20;
+  const disc = _coupon ? calcDisc(_coupon, sub) : 0;
+  const total = Math.max(0, sub - disc + del);
+
+  // Wallet balance check
+  if (isSub && _khataEnabled) {
+    try {
+      const fresh = await api('getSubscriberBalance', { phone: user.phone });
+      const freshBal = Number(fresh.balance) || 0;
+      updateWalletUI(freshBal);
+      if (freshBal < total) {
+        toast(`❌ Wallet balance ₹${freshBal} is insufficient for ₹${total}. Please recharge.`);
+        isBtnRestored(); return;
+      }
+    } catch (_balErr) {
+      if (_walletBal !== null && _walletBal < total) {
+        toast(`❌ Wallet balance ₹${_walletBal} is insufficient for ₹${total}. Please recharge.`);
+        isBtnRestored(); return;
+      }
+    }
+  }
+
+  try {
+    const res = await api('createOrder', {
+      userId: user.userId, name: user.name, phone: user.phone, address: user.address,
+      items: cart, totalAmount: sub, deliveryCharge: del, finalAmount: total,
+      couponCode: _coupon?.code || '', discount: disc,
+      userType: isSub ? 'subscriber' : 'daily',
+      payFromWallet: isSub && _khataEnabled
+    });
+
+    Cart.clear(); _coupon = null;
+    // Reset coupon UI
+    const cpnInp = doc('cpn-inp'); if (cpnInp) cpnInp.value = '';
+    const cpnMsg = doc('cpn-msg'); if (cpnMsg) { cpnMsg.classList.add('hide'); cpnMsg.textContent = ''; }
+
+    // Build WhatsApp message for non-subscriber
+    let waMsg = `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name} | 📞 ${user.phone}\n📍 ${user.address}\n\n*Items:*\n`;
+    cart.forEach(i => { waMsg += `• ${i.name}${i.selectedVariant ? ` (${i.selectedVariant})` : ''} ×${i.qty} — ₹${i.price * i.qty}\n`; });
+    waMsg += `\n`;
+    if (disc > 0) waMsg += `🎟️ Discount: −₹${disc}\n`;
+    waMsg += `🚴 Delivery: ₹${del}\n✅ *Total: ₹${total}*\n\n`;
+    waMsg += `💳 Please share UPI/QR for payment. I'll send screenshot. 🙏`;
+    _waMsg = waMsg; _waPhone = CFG.WA;
+
+    if (isSub && _khataEnabled) {
+      // ── Show subscriber success screen ──
+      const prevBal = _walletBal !== null ? _walletBal : null;
+      const optimisticBal = prevBal !== null ? Math.max(0, prevBal - total) : null;
+      const sucDeducted = doc('suc-deducted'); if (sucDeducted) sucDeducted.textContent = total;
+      const sucNewBal   = doc('suc-new-bal');  if (sucNewBal) sucNewBal.textContent = optimisticBal !== null ? optimisticBal : '—';
+      const sucId = doc('suc-order-id-sub'); if (sucId) sucId.textContent = '📋 ' + res.orderId;
+      updateWalletUI(optimisticBal);
+      // Fetch real balance in background
+      refreshWalletBalance(prevBal).then(() => {
+        const nb = doc('suc-new-bal'); if (nb && _walletBal !== null) nb.textContent = _walletBal;
+      }).catch(() => {});
+      nav('pg-success-sub');
+    } else {
+      // ── Show non-subscriber success screen ──
+      const sucId = doc('suc-order-id-ns'); if (sucId) sucId.textContent = '📋 ' + res.orderId;
+      const waWrap = doc('wa-btn-wrap');
+      if (waWrap) {
+        waWrap.style.opacity = '0';
+        waWrap.style.transform = 'translateY(8px)';
+        // Show WA button after 2.5 seconds
+        setTimeout(() => {
+          waWrap.style.opacity = '1';
+          waWrap.style.transform = 'translateY(0)';
+        }, 2500);
+      }
+      nav('pg-success');
+    }
+  } catch(e) {
+    toast('❌ ' + e.message);
+  } finally {
+    isBtnRestored();
+  }
+}
+
+// ══════════════════════════════════════════════
+// ORDERS
+// ══════════════════════════════════════════════
+async function loadOrders() {
+  const el = doc('orders-list'), user = Auth.get(); if (!user) return;
+  el.innerHTML = '<div class="sk sk-lg"></div><div class="sk sk-lg"></div><div class="sk sk-lg"></div>';
+  try {
+    const orders = await api('getUserOrders', { userId: user.userId });
+    renderOrders(orders);
+  } catch(e) {
+    el.innerHTML = `<div class="empty"><span class="em">😕</span><h3>Load failed</h3><p style="color:#888;font-size:13px;margin-bottom:12px">Internet check karein aur retry karein</p><button class="btn btn-p" style="width:auto;padding:10px 24px" onclick="loadOrders()"><i class="fa-solid fa-rotate-right"></i> Retry</button></div>`;
+  }
+}
+
+function renderOrders(orders) {
+  if (!orders.length) {
+    doc('orders-list').innerHTML = `<div class="empty"><span class="em">📋</span><h3>Koi orders nahi</h3><p>Pehla order daalein!</p></div>`;
+    return;
+  }
+  const sorted = [...orders].sort((a, b) => {
+    const ta = new Date((a.date || '') + 'T' + (a.time || '00:00')).getTime();
+    const tb = new Date((b.date || '') + 'T' + (b.time || '00:00')).getTime();
+    return tb - ta;
+  }).slice(0, 10);
+  // v14: Include 'verified' in status color map
+  const sc = { pending:'b-y', verified:'b-o', preparing:'b-o', 'out for delivery':'b-o', delivered:'b-g', rejected:'b-r' };
+  doc('orders-list').innerHTML = sorted.map(o => {
+    let items = []; try { items = safeP(o.items); } catch {}
+    const txt = items.map(i => `${i.name}${i.selectedVariant ? ` (${i.selectedVariant})` : ''} ×${i.qty}`).join(', ');
+    return `<div class="ord-card"><div class="ord-hd"><div><div class="ord-id">${esc(o.orderId)}</div><div class="ord-dt">${esc(fmtDate(o.date))} · ${esc(fmtTime(o.time))}</div></div><span class="bdg ${sc[o.orderStatus] || 'b-y'}">${esc(o.orderStatus)}</span></div><div class="ord-items">${esc(txt)}</div><div class="ord-ft"><span class="ord-amt">₹${Number(o.finalAmount).toFixed(0)}</span><div style="display:flex;gap:6px"><span class="bdg ${o.paymentStatus === 'paid' ? 'b-g' : 'b-y'}">${esc(o.paymentStatus)}</span><button class="btn btn-sm btn-ghost" onclick="openWA('${CFG.WA}','')">Help</button></div></div></div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// RESTAURANT / DELIVERY PAUSE TOGGLE
+// ══════════════════════════════════════════════
+function applyPauseState(mode) {
+  _pauseDelivery = mode || 'none';
+  const isSub = getSub();
+  const wrap = doc('rest-toggle-wrap');
+  const chk  = doc('rest-toggle-chk');
+  const icon = doc('rest-toggle-icon');
+  const title= doc('rest-toggle-title');
+  const sub  = doc('rest-toggle-sub');
+  const notice = doc('rest-paused-notice');
+  const mesh   = doc('rest-mesh-overlay');
+  const placeBtn = doc('place-btn');
+  if (wrap) wrap.classList.toggle('hide', !isSub);
+  if (!isSub) return;
+  const isOn = mode === 'none';
+  if (chk) chk.checked = isOn;
+  if (icon) icon.textContent = isOn ? '🟢' : '🔴';
+  if (title) title.textContent = 'Pause Your Auto Tiffin';
+  const subMap = { none:'If you turn this off, no automatic order will be generated.', lunch:'Lunch auto-tiffin paused.', dinner:'Dinner auto-tiffin paused.', both:'All auto-tiffin paused.' };
+  if (sub) sub.textContent = subMap[mode] || subMap.none;
+  if (mesh) mesh.style.display = 'none';
+  if (notice) notice.style.display = 'none';
+  // placeBtn remains enabled — user can still place manual orders normally
+}
+
+function onRestToggleChange() {
+  const chk = doc('rest-toggle-chk');
+  if (chk && chk.checked) { resumeDelivery(); }
+  else {
+    if (chk) chk.checked = true;
+    openPauseSheet();
+  }
+}
+
+function openPauseSheet() {
+  _selectedPauseOpt = null;
+  ['lunch','dinner','both'].forEach(o => {
+    const el = doc('popt-'+o); const ic = doc('popt-'+o+'-ic');
+    if (el) el.classList.remove('sel');
+    if (ic) ic.style.color = '#ede8e4';
+  });
+  const btn = doc('pause-confirm-btn'); if (btn) btn.disabled = true;
+  const sheet = doc('pause-sheet'), ov = doc('pause-overlay');
+  if (sheet) sheet.classList.add('open');
+  if (ov) ov.style.display = 'block';
+}
+
+function closePauseSheet() {
+  const sheet = doc('pause-sheet'), ov = doc('pause-overlay');
+  if (sheet) sheet.classList.remove('open');
+  if (ov) ov.style.display = 'none';
+  _selectedPauseOpt = null;
+}
+
+function selectPauseOpt(opt) {
+  _selectedPauseOpt = opt;
+  ['lunch','dinner','both'].forEach(o => {
+    const el = doc('popt-'+o); const ic = doc('popt-'+o+'-ic');
+    if (el) el.classList.toggle('sel', o === opt);
+    if (ic) ic.style.color = o === opt ? 'var(--p)' : '#ede8e4';
+  });
+  const btn = doc('pause-confirm-btn'); if (btn) btn.disabled = false;
+}
+
+async function confirmPause() {
+  if (!_selectedPauseOpt) return;
+  const user = Auth.get(); if (!user) return;
+  const btn = doc('pause-confirm-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Saving...'; }
+  try {
+    await api('pauseUserDelivery', { phone: user.phone, mode: _selectedPauseOpt });
+    _pauseDelivery = _selectedPauseOpt;
+    const cached = Store.getJSON('pb_sub') || {};
+    Store.setJSON('pb_sub', { ...cached, pauseDelivery: _selectedPauseOpt });
+    closePauseSheet();
+    applyPauseState(_selectedPauseOpt);
+    const chk = doc('rest-toggle-chk'); if (chk) chk.checked = false;
+    toast('⏸ Delivery paused: ' + _selectedPauseOpt);
+  } catch(e) {
+    toast('❌ Could not save: ' + e.message);
+    const chk = doc('rest-toggle-chk'); if (chk) chk.checked = _pauseDelivery === 'none';
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-pause"></i> Confirm Pause'; }
+  }
+}
+
+async function resumeDelivery() {
+  const user = Auth.get(); if (!user) return;
+  try {
+    await api('pauseUserDelivery', { phone: user.phone, mode: 'none' });
+    _pauseDelivery = 'none';
+    const cached = Store.getJSON('pb_sub') || {};
+    Store.setJSON('pb_sub', { ...cached, pauseDelivery: 'none' });
+    applyPauseState('none');
+    toast('✅ Delivery resumed!');
+  } catch(e) {
+    toast('❌ Could not resume: ' + e.message);
+    const chk = doc('rest-toggle-chk'); if (chk) chk.checked = false;
+    applyPauseState(_pauseDelivery);
+  }
+}
+
+function joinTiffin() {
+  const user = Auth.get();
+  let msg = 'Namaste! Monthly tiffin plan ke baare mein jaanna chahta/chahti hoon.\n\n🚚 *Free Home Delivery* + Save ₹200/month\n\n';
+  if (user) msg += `Name: ${user.name}\nPhone: ${user.phone}\nAddress: ${user.address}`;
+  openWA(CFG.TIFFIN, msg);
+}
+
+function openWhatsAppContact() { openWA(CFG.WA, 'mujhe kuch information chahiye thi'); }
+
+// ══════════════════════════════════════════════
+// USER KHATA / WALLET
+// ══════════════════════════════════════════════
+let _userKhataEntries = [], _userKhataFiltered = [];
+
+async function loadUserKhata() {
+  const user = Auth.get(); if (!user) return;
+  if (!_khataEnabled) {
+    doc('k-user-list').innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:48px;margin-bottom:12px">📵</div><div style="font-family:Sora,sans-serif;font-size:17px;font-weight:700;margin-bottom:8px">Wallet Unavailable</div><div style="font-size:13px;color:#6b7280">Wallet feature is currently disabled by admin</div></div>';
+    return;
+  }
+  if (!getSub()) {
+    doc('k-user-list').innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:48px;margin-bottom:12px">💳</div><div style="font-family:Sora,sans-serif;font-size:17px;font-weight:700;margin-bottom:8px">No Wallet Access</div><div style="font-size:13px;color:#6b7280">Join Monthly Plan to use wallet</div></div>';
+    const balEl = doc('k-user-bal'); if (balEl) balEl.textContent = '₹—';
+    return;
+  }
+  const balEl = doc('k-user-bal'), subEl = doc('k-user-bal-sub'), listEl = doc('k-user-list');
+  if (balEl) balEl.textContent = '₹—';
+  if (subEl) subEl.textContent = 'Loading your wallet...';
+  if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#999">Loading transactions...</div>';
+  const toEl = doc('ku-to'), fromEl = doc('ku-from');
+  if (toEl && !toEl.value) toEl.value = PB.todayYMD();
+  if (fromEl && !fromEl.value) { const d = new Date(); d.setDate(d.getDate() - 7); fromEl.value = d.toISOString().slice(0,10); }
+  try {
+    const data = await api('getKhata', { phone: user.phone });
+    _userKhataEntries  = data.entries || [];
+    _userKhataFiltered = [..._userKhataEntries];
+    const bal = Number(data.balance) || 0;
+    updateWalletUI(bal);
+    const subTxt = bal < 0 ? '⚠️ Balance negative — please recharge' : bal < 100 ? '⚠️ Low balance — please recharge' : '✅ Balance looks good';
+    if (subEl) subEl.textContent = subTxt;
+    const acctSub = doc('acct-wallet-sub'); if (acctSub) acctSub.textContent = subTxt;
+    renderUserKhataList(_userKhataFiltered);
+  } catch(e) {
+    if (listEl) listEl.innerHTML = `<div style="text-align:center;padding:40px;color:#e63946">Unable to load wallet: ${e.message}</div>`;
+  }
+}
+
+function resetUserKhataFilter() {
+  const d = new Date(); d.setDate(d.getDate() - 7);
+  doc('ku-from').value = d.toISOString().slice(0,10);
+  doc('ku-to').value = PB.todayYMD();
+  renderUserKhataList(_userKhataEntries);
+}
+
+function applyUserKhataFilter() {
+  const from = doc('ku-from').value, to = doc('ku-to').value;
+  _userKhataFiltered = _userKhataEntries.filter(e => {
+    const ymd = dateToYMD(e.date);
+    if (!ymd) return true;
+    if (from && ymd < from) return false;
+    if (to   && ymd > to)   return false;
+    return true;
+  });
+  renderUserKhataList(_userKhataFiltered);
+}
+
+function renderUserKhataList(entries) {
+  const listEl = doc('k-user-list'); if (!listEl) return;
+  const typeLabels = { recharge:'💰 Amount Received', tiffin_given:'🍱 Tiffin Given', tiffin_udhar:'📋 Tiffin on Udhar', adjustment:'⚙️ Adjustment' };
+  const typeColors = { recharge:'#2a9d8f', tiffin_given:'#1565c0', tiffin_udhar:'#c45500', adjustment:'#6b7280' };
+  const reversed = [...entries].reverse();
+  if (!reversed.length) { listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#999">No transactions found</div>'; return; }
+  listEl.innerHTML = reversed.map(e => {
+    const amt = Number(e.amount) || 0;
+    const bal = Number(e.runningBalance);
+    const isCredit = amt >= 0;
+    return `<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.07);display:flex;align-items:center;gap:12px;border:1px solid rgba(0,0,0,.04)"><div style="width:40px;height:40px;border-radius:50%;background:${isCredit?'#e8f5f3':'#fde8ea'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${isCredit?'💰':'🍱'}</div><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:${typeColors[e.type]||'#111'}">${typeLabels[e.type] || e.type}</div><div style="font-size:11px;color:#999;margin-top:2px">${fmtDate(e.date)} · ${fmtTime(e.time)}</div>${e.note ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.note)}</div>` : ''}</div><div style="text-align:right;flex-shrink:0"><div style="font-weight:800;font-size:15px;color:${isCredit?'#2a9d8f':'#e63946'}">${isCredit?'+':''}₹${Math.abs(amt)}</div><div style="font-size:11px;color:#999;margin-top:2px">Bal: <strong style="color:${bal<0?'#e63946':'#111'}">₹${bal}</strong></div></div></div>`;
+  }).join('');
+}
+
+function exportUserKhataPDF() {
+  const user = Auth.get(); if (!user) return;
+  const from = doc('ku-from').value, to = doc('ku-to').value;
+  const allEntries = [..._userKhataEntries];
+  let openingBal = 0, filtered = allEntries;
+  if (from || to) {
+    const before = [], inRange = [];
+    allEntries.forEach(e => {
+      const ymd = dateToYMD(e.date);
+      if (!ymd) { inRange.push(e); return; }
+      if (from && ymd < from) before.push(e);
+      else if (to && ymd > to) { /* skip */ }
+      else inRange.push(e);
+    });
+    openingBal = before.reduce((s,e) => s + (Number(e.amount)||0), 0);
+    filtered = inRange;
+  }
+  const closingBal = filtered.reduce((s,e) => s + (Number(e.amount)||0), openingBal);
+  const typeLabels = { recharge:'Amount Received', tiffin_given:'Tiffin Given', tiffin_udhar:'Tiffin Udhar', adjustment:'Adjustment' };
+  let runBal = openingBal;
+  const rows = filtered.map(e => {
+    const amt = Number(e.amount)||0;
+    runBal += amt;
+    const ORDER_ID_RE = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+    let orderedItems = '—';
+    if (e.type==='tiffin_given' || e.type==='tiffin_udhar') {
+      const note = e.note || '';
+      const newFmt = note.match(/\((.+?)\)\s*\|\s*(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i);
+      if (newFmt) {
+        orderedItems = `${newFmt[1]} <span style="color:#999;font-size:10px">| ${newFmt[2]}</span>`;
+      } else {
+        const itemMatch = note.match(/\(([^)]+)\)\s*$/);
+        const ordIdMatch = note.match(ORDER_ID_RE);
+        const itemName = itemMatch ? itemMatch[1] : (note || 'Tiffin');
+        const ordId = ordIdMatch ? ordIdMatch[1] : '';
+        orderedItems = itemName + (ordId ? ` <span style="color:#999;font-size:10px">| ${ordId}</span>` : '');
+      }
+    }
+    // Build Note column: custom note → else order source → else blank
+    let noteCell = '—';
+    const ORDER_ID_RE2 = /(ORD-\d{8}-\d{6}-[A-Z0-9]{5}|O\d{12}[A-Z0-9]{5}|PB-[\w-]+)/i;
+    const stdNoteRe = /^Tiffin Given \(.+?\)\s*\|\s*(ORD-[\w-]+|O[\w]+|PB-[\w-]+)$/i;
+    if (e.type === 'recharge') {
+      // For recharge: show note if present and non-standard
+      const customNote = (e.note || '').replace(ORDER_ID_RE2,'').replace(/^\s*[\|·\-]\s*/,'').trim();
+      noteCell = customNote ? esc(customNote) : 'Amount Added';
+    } else {
+      // For tiffin: check if note has any text beyond standard format
+      const rawNote = e.note || '';
+      const isStdNote = stdNoteRe.test(rawNote.trim());
+      // Extract any text that is not the item/orderId standard part
+      const customPart = rawNote.replace(ORDER_ID_RE2,'').replace(/^Tiffin Given\s*/i,'').replace(/^\(.*?\)\s*\|\s*/,'').trim();
+      if (!isStdNote && customPart) {
+        noteCell = `<span style="color:#1565c0">${esc(customPart)}</span>`;
+      } else if (e.orderSource) {
+        const srcLabel = e.orderSource === 'admin'
+          ? '<span style="color:#c45500;font-weight:700">Admin Order</span>'
+          : '<span style="color:#2a9d8f">User Order</span>';
+        const statusLabel = e.orderStatus
+          ? ` · <span style="color:#6b7280">${esc(e.orderStatus)}</span>`
+          : '';
+        noteCell = srcLabel + statusLabel;
+      } else {
+        noteCell = e.orderStatus
+          ? `<span style="color:#6b7280">${esc(e.orderStatus)}</span>`
+          : '—';
+      }
+    }
+    const rowBg = amt >= 0 ? '#f0fdf8' : '#fff5f5';
+    return `<tr style="background:${rowBg}">
+      <td>${fmtDate(e.date)}</td><td>${fmtTime(e.time)}</td>
+      <td><strong>${typeLabels[e.type]||e.type}</strong></td>
+      <td style="color:${amt>=0?'#2a9d8f':'#e63946'};font-weight:800">${amt>=0?'+':''}₹${Math.abs(amt)}</td>
+      <td style="font-weight:800;color:${runBal<0?'#e63946':'#111'}">₹${runBal}</td>
+      <td>${orderedItems}</td>
+      <td style="font-size:11px">${noteCell}</td>
+    </tr>`;
+  }).join('');
+  const nowIST = new Date(Date.now() + 5.5*3600*1000);
+  const genStr = `${String(nowIST.getUTCDate()).padStart(2,'0')}/${String(nowIST.getUTCMonth()+1).padStart(2,'0')}/${nowIST.getUTCFullYear()} ${fmtTime(nowIST.toISOString())}`;
+  const periodLabel = (from || to) ? `${from ? fmtDateFromYMD(from) : 'Start'} → ${to ? fmtDateFromYMD(to) : 'Today'}` : 'All Time';
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Wallet Statement — ${user.name}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#111;background:#f9fafb;padding:0}.page{max-width:720px;margin:0 auto;background:#fff;padding:32px 28px;min-height:100vh}.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:18px;border-bottom:3px solid #e63946}.brand-name{font-size:26px;font-weight:900;color:#e63946;letter-spacing:-0.5px}.brand-tagline{font-size:11px;color:#999;margin-top:2px}.brand-contact{font-size:12px;color:#555;margin-top:6px;line-height:1.6}.brand-contact strong{color:#111}.bal-row{display:flex;gap:12px;margin-bottom:20px}.bal-card{flex:1;border-radius:10px;padding:14px 16px;text-align:center}.bal-card.open{background:#f0fdf8;border:1.5px solid #2a9d8f}.bal-card.close{background:${closingBal<0?'#fff5f5':'#f0fdf8'};border:1.5px solid ${closingBal<0?'#e63946':'#2a9d8f'}}.bal-label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}.bal-amount{font-size:22px;font-weight:900;color:${closingBal<0?'#e63946':'#2a9d8f'}}.info-row{display:flex;justify-content:space-between;align-items:flex-start;background:#f3f4f6;border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px}.info-row .name{font-size:16px;font-weight:800;margin-bottom:4px}.period-badge{background:#e63946;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap;align-self:flex-start}table{width:100%;border-collapse:collapse;font-size:12px}thead tr{background:#1f2937;color:#fff}th{padding:10px 9px;text-align:left;font-weight:700;font-size:11px;letter-spacing:.3px}td{padding:9px;border-bottom:1px solid #f0f0f0}.footer{margin-top:24px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#999}.footer strong{color:#e63946}@media print{body{background:#fff}.page{padding:20px}}</style>
+</head><body><div class="page">
+<div class="hdr"><div><div class="brand-name">🍱 <span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></div><div class="brand-tagline">Ghar ka khana ♥</div><div class="brand-contact">📞 <strong>9889760350</strong><br>Wallet Statement</div></div><span class="period-badge">📅 ${periodLabel}</span></div>
+<div class="info-row"><div><div class="name">${user.name}</div><div style="color:#555">📞 ${user.phone}</div>${user.address?`<div style="color:#777;font-size:12px;margin-top:2px">📍 ${user.address}</div>`:''}</div><div style="text-align:right"><div style="font-size:11px;color:#888">Generated</div><div style="font-size:12px;font-weight:700">${genStr}</div></div></div>
+<div class="bal-row">${openingBal !== 0 ? `<div class="bal-card open"><div class="bal-label">Opening Balance</div><div class="bal-amount" style="font-size:18px;color:#555">₹${openingBal}</div></div>` : ''}<div class="bal-card close"><div class="bal-label">Closing Balance</div><div class="bal-amount">₹${closingBal}</div></div><div class="bal-card open" style="background:#fff8f0;border-color:#f4a261"><div class="bal-label">Transactions</div><div class="bal-amount" style="color:#f4a261">${filtered.length}</div></div></div>
+<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Amount</th><th>Balance</th><th>Items Ordered</th><th>Note</th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#999">No transactions</td></tr>'}</tbody></table>
+<div class="footer"><div>Powered by <strong><span style="color:#e63946">Tif</span><span style="color:#2a9d8f">fo</span></strong> · 📞 9889760350</div><div>Generated: ${genStr}</div></div>
+</div></body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Popup blocked! Allow popups and retry.'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 700);
+}
+
+function fmtDateFromYMD(ymd) {
+  if (!ymd) return '';
+  const [y,m,d] = ymd.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// ══════════════════════════════════════════════
+// KHATA VISIBILITY GATING
+// ══════════════════════════════════════════════
+function applyKhataVisibility() {
+  const isSub = getSub();
+  const show = _khataEnabled && isSub;
+  const bnWallet = doc('bn-wallet'); if (bnWallet) bnWallet.style.display = show ? '' : 'none';
+  const apWalletRow = doc('ap-wallet-row'); if (apWalletRow) apWalletRow.style.display = show ? '' : 'none';
+  const acctWalletWrap = doc('acct-wallet-wrap'); if (acctWalletWrap) acctWalletWrap.classList.toggle('hide', !show);
+  const tifBan = doc('tif-ban'); if (tifBan) tifBan.classList.toggle('hide', isSub);
+  const proBadge = doc('acct-pro-badge'); if (proBadge) proBadge.classList.toggle('hide', !isSub);
+}
+
+// ══════════════════════════════════════════════
+// POLLING (120s)
+// ══════════════════════════════════════════════
+const INDEX_POLL_MS = 120000;
+let _pollTimer = null;
+let _indexPollLock = false;
+
+function startPolling() {
+  stopPolling();
+  _pollTimer = setInterval(() => {
+    if (document.hidden || !_session || _indexPollLock) return;
+    _runPollTick();
+  }, INDEX_POLL_MS);
+}
+
+function stopPolling() {
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+}
+
+async function _runPollTick() {
+  if (_indexPollLock) return;
+  _indexPollLock = true;
+  try {
+    const cur = stack[stack.length - 1];
+    const isSub = getSub();
+    if (isSub && _khataEnabled) {
+      try {
+        const data = await api('getKhata', { phone: _session.phone });
+        _userKhataEntries  = data.entries || [];
+        _userKhataFiltered = [..._userKhataEntries];
+        updateWalletUI(Number(data.balance) || 0);
+        if (cur === 'pg-khata') renderUserKhataList(_userKhataFiltered);
+      } catch {}
+      try {
+        const r = await api('getSubscriberPauseStatus', { phone: _session.phone });
+        const newMode = r.pauseDelivery || 'none';
+        if (newMode !== _pauseDelivery) applyPauseState(newMode);
+      } catch {}
+    }
+    try {
+      const cfg = await api('getOrderCutoff');
+      if (cfg) {
+        window._cutoffCfg = normalizeCfg(cfg);
+        const h = getISTHours();
+        const _cfgP = window._cutoffCfg;
+        const _ist2 = new Date(Date.now() + 5.5 * 3600000);
+        const _pollSched = _cfgP && _cfgP.weeklySchedule ? _cfgP.weeklySchedule[_ist2.getUTCDay()] : null;
+        const _pollCutoffH = _pollSched
+          ? timeStrToH(_cfgP.cutoffDay || _pollSched.lunchEnd || '11:30')
+          : timeStrToH((_cfgP && _cfgP.cutoffDay) || '11:30');
+        const isLunch = h < _pollCutoffH;
+        updateCutoffBanner(cfg, h, isLunch ? 'morning' : 'evening');
+      }
+    } catch {}
+    if (cur === 'pg-orders') {
+      try {
+        const orders = await api('getUserOrders', { userId: _session.userId });
+        renderOrders(orders);
+      } catch {}
+    }
+  } finally {
+    _indexPollLock = false;
+  }
+}
+
+async function manualIndexRefresh() {
+  if (_indexPollLock) return;
+  await _runPollTick();
+  const cur = stack[stack.length - 1];
+  if (cur === 'pg-home')   try { await loadMenu(); } catch {}
+  if (cur === 'pg-orders') try { await loadOrders(); } catch {}
+  stopPolling(); startPolling();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!_session) return;
+  if (document.hidden) { stopPolling(); }
+  else { _runPollTick().catch(() => {}); startPolling(); }
+});
+
+// ══════════════════════════════════════════════
+// STARTUP
+// ══════════════════════════════════════════════
+function bootApp() {
+  const loader = doc('app-loader');
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', { scope: './' }).then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        if (newSW) {
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[SW] New version available');
+            }
+          });
+        }
+      });
+    }).catch(err => console.warn('[SW] Registration failed:', err));
+  }
+  history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+
+  const savedSess = SessStore.get();
+  const savedSub  = Store.getJSON('pb_sub');
+  if (savedSess && savedSess.userId) {
+    Auth.set(savedSess);
+    api('getKhataEnabled').then(ke => {
+      _khataEnabled = ke.enabled !== false;
+      applyKhataVisibility();
+    }).catch(() => {});
+    const isSub = savedSub?.isSubscriber;
+    if (isSub && _khataEnabled) {
+      api('getKhata', { phone: savedSess.phone })
+        .then(kd => updateWalletUI(Number(kd.balance) || 0))
+        .catch(() => { if (_walletBal !== null) updateWalletUI(_walletBal); });
+    }
+    const proBadge = doc('acct-pro-badge'); if (proBadge) proBadge.classList.toggle('hide', !isSub);
+    const tifBan = doc('tif-ban'); if (tifBan) tifBan.classList.toggle('hide', !!isSub);
+    applyPauseState(savedSub?.pauseDelivery || 'none');
+    updateBadge();
+    doc('pg-auth').classList.replace('here','left');
+    doc('pg-home').classList.remove('right','left');
+    doc('pg-home').classList.add('here');
+    stack = ['pg-auth','pg-home'];
+    history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+    history.pushState({ page: 'pg-home' }, '', '#pg-home');
+    updateBottomNav('pg-home');
+    showAppUI();
+    loadMenu();
+    startPolling();
+    loader.classList.add('fade-out');
+    setTimeout(() => { loader.style.display = 'none'; }, 300);
+
+    // ── v14: Background subscriber re-verification ──
+    api('checkSubscriber', { phone: savedSess.phone }).then(fresh => {
+      Store.setJSON('pb_sub', fresh);
+      const wasSubCached = !!isSub;
+      const isSubNow     = !!fresh.isSubscriber;
+      if (wasSubCached !== isSubNow) {
+        applyKhataVisibility();
+        applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
+        updateBadge();
+        if (isSubNow && _khataEnabled) {
+          api('getKhata', { phone: savedSess.phone })
+            .then(kd => updateWalletUI(Number(kd.balance) || 0))
+            .catch(() => {});
+        } else { updateWalletUI(null); }
+      } else if (isSubNow) {
+        applyPauseState(fresh.pauseDelivery || 'none');
+        if (_khataEnabled) {
+          api('getKhata', { phone: savedSess.phone })
+            .then(kd => updateWalletUI(Number(kd.balance) || 0))
+            .catch(() => {});
+        }
+      }
+    }).catch(() => {});
+    return;
+  }
+
+  autofillCreds();
+  Store.remove('pb_user');
+  loader.classList.add('fade-out');
+  setTimeout(() => { loader.style.display = 'none'; }, 300);
+}
+
+(function blankScreenGuard() {
+  setTimeout(() => {
+    const loginBusy  = doc('btn-login')  && doc('btn-login').disabled;
+    const signupBusy = doc('btn-signup') && doc('btn-signup').disabled;
+    if (loginBusy || signupBusy) return;
+    const visible = document.querySelector('.pg.here');
+    if (!visible || !visible.offsetHeight) { location.replace(location.pathname); }
+  }, 8000);
+})();
+
+window.addEventListener('pageshow', e => {
+  if (e.persisted) {
+    const saved = SessStore.get();
+    if (saved && saved.userId) {
+      if (!_session) {
+        Auth.set(saved);
+        showAppUI();
+        const cur = stack[stack.length - 1];
+        if (!cur || cur === 'pg-auth') {
+          doc('pg-auth').classList.replace('here','left');
+          doc('pg-home').classList.remove('right','left');
+          doc('pg-home').classList.add('here');
+          stack = ['pg-auth','pg-home'];
+          updateBottomNav('pg-home');
+        }
+        startPolling();
+      }
+      api('checkSubscriber', { phone: saved.phone }).then(fresh => {
+        const cached = Store.getJSON('pb_sub') || {};
+        Store.setJSON('pb_sub', fresh);
+        const wasSubCached = !!cached.isSubscriber;
+        const isSubNow     = !!fresh.isSubscriber;
+        if (wasSubCached !== isSubNow) {
+          const pb = doc('acct-pro-badge'); if (pb) pb.classList.toggle('hide', !isSubNow);
+          const tb = doc('tif-ban'); if (tb) tb.classList.toggle('hide', isSubNow);
+          applyPauseState(isSubNow ? (fresh.pauseDelivery || 'none') : 'none');
+          applyKhataVisibility();
+          if (!isSubNow) updateWalletUI(null);
+          updateBadge();
+        } else if (isSubNow) {
+          applyPauseState(fresh.pauseDelivery || 'none');
+        }
+      }).catch(() => {});
+    } else {
+      stopPolling();
+      document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+      doc('pg-auth').classList.remove('right'); doc('pg-auth').classList.add('here');
+      stack = ['pg-auth'];
+      hideAppUI(); hideFab();
+      autofillCreds();
+    }
+  }
+});
+
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', bootApp); }
+else { bootApp(); }
+</script>
+</body>
+</html>
