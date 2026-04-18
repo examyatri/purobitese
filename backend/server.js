@@ -185,7 +185,8 @@ async function createNotification(data) {
 }
 
 async function getNotifications(data) {
-  await purgeOldNotifications().catch(() => {});
+  // Purge old notifications in background — don't block the response
+  setImmediate(() => purgeOldNotifications().catch(() => {}));
   const limit = Number(data?.limit) || 200;
   const { data: rows, error } = await supabase
     .from('notifications')
@@ -466,27 +467,30 @@ async function loginUser(data) {
   const match = await bcrypt.compare(password, user.password);
   if (!match) throw new Error('Incorrect password');
 
-  // v14 FIX: Always verify subscriber status from DB at login time
-  // Check both is_subscriber flag AND active row in subscribers table
+  // Fetch subscriber status + pause state in one query (parallel with nothing, so just one round-trip)
   const { data: sub } = await supabase
     .from('subscribers')
-    .select('is_active')
+    .select('is_active, pause_delivery')
     .eq('phone', ph)
     .maybeSingle();
-  const isSubscriber = !!(sub && sub.is_active);
+  const isSubscriber  = !!(sub && sub.is_active);
+  const pauseDelivery = sub?.pause_delivery || 'none';
 
-  // Sync flag if out of date
+  // Sync is_subscriber flag in background — don't block the login response
   if (user.is_subscriber !== isSubscriber) {
-    await supabase.from('users').update({ is_subscriber: isSubscriber }).eq('phone', ph);
+    setImmediate(() =>
+      supabase.from('users').update({ is_subscriber: isSubscriber }).eq('phone', ph).catch(() => {})
+    );
   }
 
   return {
     userId:       user.user_id,
     name:         user.name,
     phone:        user.phone,
-    email:        user.email  || '',
+    email:        user.email   || '',
     address:      user.address || '',
-    isSubscriber           // always fresh from DB
+    isSubscriber,   // fresh from DB
+    pauseDelivery   // returned so client can seed localStorage immediately
   };
 }
 
@@ -1417,11 +1421,17 @@ async function deleteCoupon(data) {
 async function checkSubscriber(data) {
   if (!data.phone) return { isSubscriber: false, pauseDelivery: 'none' };
   const ph = cleanPhone(data.phone);
-  const { data: sub } = await supabase
-    .from('subscribers').select('is_active, pause_delivery').eq('phone', ph).maybeSingle();
+  const [{ data: sub }, { data: user }] = await Promise.all([
+    supabase.from('subscribers').select('is_active, pause_delivery').eq('phone', ph).maybeSingle(),
+    supabase.from('users').select('is_subscriber').eq('phone', ph).maybeSingle()
+  ]);
   const isSubscriber = !!(sub && sub.is_active);
-  // v14: sync users flag while we're here
-  await supabase.from('users').update({ is_subscriber: isSubscriber }).eq('phone', ph);
+  // v14: sync users flag ONLY when value changed — avoids unnecessary write on every app open
+  if (user && user.is_subscriber !== isSubscriber) {
+    setImmediate(() =>
+      supabase.from('users').update({ is_subscriber: isSubscriber }).eq('phone', ph).catch(() => {})
+    );
+  }
   return { isSubscriber, pauseDelivery: sub?.pause_delivery || 'none' };
 }
 
@@ -1853,10 +1863,12 @@ async function getKhata(data) {
   });
 
   const computedBal = running;
-  // Sync wallet table to match transaction sum
-  await supabase.from('wallet').upsert(
-    { user_phone: ph, balance: computedBal, last_updated: new Date().toISOString() },
-    { onConflict: 'user_phone' }
+  // Sync wallet table to match transaction sum — fire in background, don't block response
+  setImmediate(() =>
+    supabase.from('wallet').upsert(
+      { user_phone: ph, balance: computedBal, last_updated: new Date().toISOString() },
+      { onConflict: 'user_phone' }
+    ).catch(() => {})
   );
   return { entries, balance: computedBal };
 }
