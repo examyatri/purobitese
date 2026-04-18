@@ -1,177 +1,124 @@
-// Puro Bite Service Worker
-const CACHE_VERSION = 'v5';
-const STATIC_CACHE = `purobite-static-${CACHE_VERSION}`;
-const DYNAMIC_CACHE = `purobite-dynamic-${CACHE_VERSION}`;
-const API_CACHE = `purobite-api-${CACHE_VERSION}`;
+// ═══════════════════════════════════════════════════════════════
+// sw.js — Tiffo PWA Service Worker  (production-grade)
+// Strategy:
+//   • HTML / navigation  → Network-first, fallback to /index.html
+//   • API calls          → Network-only (never cache)
+//   • Assets (JS/CSS/img)→ Cache-first, with background revalidation
+// ═══════════════════════════════════════════════════════════════
 
-// Files to pre-cache on install
-const STATIC_FILES = [
-  './index.html',
-  './admin.html',
-  './rider.html',
-  './manifest.json',
-  './manifest-admin.json',
-  './manifest-rider.json',
-  './icons/icon-72.png',
-  './icons/icon-96.png',
-  './icons/icon-128.png',
-  './icons/icon-144.png',
-  './icons/icon-152.png',
-  './icons/icon-192.png',
-  './icons/icon-384.png',
-  './icons/icon-512.png',
+const CACHE_NAME = 'tiffo-v3';
+
+// Assets worth caching (adjust as your build evolves)
+const PRECACHE_URLS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  // Add versioned CSS / JS bundles here if you have them
 ];
 
-// Install: pre-cache static files
+// ── Install ─────────────────────────────────────────────────────
 self.addEventListener('install', event => {
+  // Take control immediately — don't wait for old SW to die
+  self.skipWaiting();
+
   event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => {
-      console.log('[SW] Pre-caching static files');
-      return cache.addAll(STATIC_FILES);
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(cache => cache.addAll(PRECACHE_URLS))
   );
 });
 
-// Activate: clean up old caches
+// ── Activate ────────────────────────────────────────────────────
 self.addEventListener('activate', event => {
+  // Claim all open tabs instantly
   event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
-        keys
-          .filter(k => ![STATIC_CACHE, DYNAMIC_CACHE, API_CACHE].includes(k))
-          .map(k => {
-            console.log('[SW] Deleting old cache:', k);
-            return caches.delete(k);
-          })
-      );
-    }).then(() => self.clients.claim())
+    Promise.all([
+      self.clients.claim(),
+      // Delete every cache that isn't the current version
+      caches.keys().then(keys =>
+        Promise.all(
+          keys
+            .filter(k => k !== CACHE_NAME)
+            .map(k => {
+              console.log('[SW] Deleting old cache:', k);
+              return caches.delete(k);
+            })
+        )
+      ),
+    ])
   );
 });
 
-// Fetch: smart caching strategy
+// ── Fetch ───────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+  const { request } = event;
+  const url = new URL(request.url);
 
-  // Skip non-GET and chrome-extension requests
-  if (event.request.method !== 'GET') return;
-  if (url.protocol === 'chrome-extension:') return;
-
-  // Strip hash from URL
-  url.hash = '';
-  const cleanRequest = url.href === event.request.url
-    ? event.request
-    : new Request(url.href, { headers: event.request.headers });
-
-  // API calls (Render backend) -> Network first, fallback to cache
-  if (url.hostname.includes('onrender.com') || url.hostname.includes('supabase.co')) {
-    event.respondWith(networkFirst(cleanRequest, API_CACHE));
-    return;
-  }
-
-  // Google Fonts, CDN -> Stale while revalidate
+  // 1. Never intercept API calls — always go to network
   if (
-    url.hostname.includes('fonts.googleapis.com') ||
-    url.hostname.includes('fonts.gstatic.com') ||
-    url.hostname.includes('cdnjs.cloudflare.com')
+    url.hostname === 'purobitese-api.onrender.com' ||
+    url.pathname.startsWith('/api/')
   ) {
-    event.respondWith(staleWhileRevalidate(cleanRequest, DYNAMIC_CACHE));
+    return; // let browser handle it natively
+  }
+
+  // 2. HTML navigation requests → Network-first, fallback to /index.html
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirstHtml(request));
     return;
   }
 
-  // Same-origin static files -> Cache first
-  if (url.origin === self.location.origin) {
-    event.respondWith(cacheFirst(cleanRequest, STATIC_CACHE));
-    return;
-  }
-
-  // Everything else -> Network first
-  event.respondWith(networkFirst(cleanRequest, DYNAMIC_CACHE));
+  // 3. Everything else (JS, CSS, images, fonts) → Cache-first
+  event.respondWith(cacheFirst(request));
 });
 
-// ── Strategies ──────────────────────────────────────
+// ── Strategies ──────────────────────────────────────────────────
 
-async function cacheFirst(request, cacheName) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
+async function networkFirstHtml(request) {
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
-    }
-    return response;
+    const networkRes = await fetch(request);
+    // Refresh the cache copy
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, networkRes.clone());
+    return networkRes;
   } catch {
-    // Return cached index.html as fallback for navigation requests
-    const fallback = await caches.match('./index.html');
-    if (fallback) return fallback;
-    return new Response('Offline - please check your connection.', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain' }
-    });
-  }
-}
-
-async function networkFirst(request, cacheName) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    const cached = await caches.match(request);
+    // Offline — return cached index.html for SPA routing
+    const cached = await caches.match('/index.html');
     if (cached) return cached;
-    return new Response(JSON.stringify({ error: 'Offline' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    // Last resort: bare offline page
+    return new Response(
+      '<html><body style="font-family:sans-serif;text-align:center;padding:40px">' +
+      '<h2>Tiffo is offline</h2><p>Check your internet and try again.</p>' +
+      '<button onclick="location.reload()">Retry</button></body></html>',
+      { headers: { 'Content-Type': 'text/html' } }
+    );
   }
 }
 
-async function staleWhileRevalidate(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
-  const fetchPromise = fetch(request).then(response => {
-    if (response.ok) cache.put(request, response.clone());
-    return response;
-  }).catch(() => cached);
-  return cached || fetchPromise;
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    // Revalidate in background so next load is fresh
+    revalidateInBackground(request);
+    return cached;
+  }
+  // Not in cache → fetch and store
+  try {
+    const networkRes = await fetch(request);
+    if (networkRes.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, networkRes.clone());
+    }
+    return networkRes;
+  } catch {
+    return new Response('', { status: 503, statusText: 'Offline' });
+  }
 }
 
-// ── Push Notifications ───────────────────────────────
-
-self.addEventListener('push', event => {
-  let data = { title: 'Puro Bite', body: 'You have a new update!', icon: './icons/icon-192.png' };
-  if (event.data) {
-    try { data = { ...data, ...event.data.json() }; } catch {}
-  }
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: data.icon || './icons/icon-192.png',
-      badge: './icons/icon-72.png',
-      vibrate: [200, 100, 200],
-      data: data.url || '/',
+function revalidateInBackground(request) {
+  fetch(request)
+    .then(res => {
+      if (res.ok) {
+        caches.open(CACHE_NAME).then(c => c.put(request, res));
+      }
     })
-  );
-});
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  event.waitUntil(
-    clients.openWindow(event.notification.data || '/')
-  );
-});
-
-// ── Background Sync ──────────────────────────────────
-
-self.addEventListener('sync', event => {
-  if (event.tag === 'sync-orders') {
-    event.waitUntil(syncPendingOrders());
-  }
-});
-
-async function syncPendingOrders() {
-  console.log('[SW] Background sync triggered for orders');
+    .catch(() => {}); // silently ignore
 }

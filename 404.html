@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tiffo</title>
+</head>
+<body>
+<script>
+  // GitHub Pages SPA routing fix.
+  // When GH Pages serves a 404 for a deep URL (e.g. /pg-home),
+  // redirect to index.html while preserving the intended path
+  // so the SPA router can pick it up.
+  (function () {
+    var path = location.pathname;
+    var search = location.search;
+    var hash = location.hash;
+    // Build the redirect: always land on index.html at the repo root
+    // then pass the original path as a query param so the app can
+    // redirect internally if needed.
+    var redirectUrl = '/index.html' + (search ? search + '&p=' : '?p=') +
+      encodeURIComponent(path) + hash;
+    location.replace(redirectUrl);
+  })();
+</script>
+</body>
+</html>
