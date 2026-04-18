@@ -1616,21 +1616,9 @@ async function loadMenu() {
   _menuLoading = true;
 
   try {
-    // getMenu gets up to 2 attempts (1.2s gap) — protects against Edge Function cold starts
-    // getOrderCutoff and getThalis are non-critical so they already have .catch() guards
-    async function _menuWithRetry() {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try { return await api('getMenu'); }
-        catch(e) {
-          if (attempt === 1) throw e; // last attempt — propagate
-          await new Promise(r => setTimeout(r, 1200));
-        }
-      }
-    }
-
     // Always fetch fresh from DB — all 3 in parallel
     const [menu, cfg, thalis] = await Promise.all([
-      _menuWithRetry(),
+      api('getMenu'),
       api('getOrderCutoff').catch(() => null),
       api('getThalis').catch(() => [])
     ]);
@@ -2444,92 +2432,13 @@ function bootApp() {
   }
   history.replaceState({ page: 'pg-auth' }, '', location.pathname);
 
-  const savedSess = SessStore.get();
-  const savedSub  = Store.getJSON('pb_sub');
-
-  if (savedSess && savedSess.userId) {
-    Auth.set(savedSess);
-
-    // ── STEP 1: Show home screen INSTANTLY from cached session ───
-    const isSub = savedSub?.isSubscriber || false;
-    const proBadge=doc('acct-pro-badge'); if(proBadge) proBadge.classList.toggle('hide',!isSub);
-    const tifBan=doc('tif-ban'); if(tifBan) tifBan.classList.toggle('hide',!!isSub);
-    applyPauseState(savedSub?.pauseDelivery || 'none');
-    updateBadge();
-
-    doc('pg-auth').classList.replace('here','left');
-    doc('pg-home').classList.remove('right','left');
-    doc('pg-home').classList.add('here');
-    stack = ['pg-auth','pg-home'];
-    history.replaceState({page:'pg-auth'},'',location.pathname);
-    history.pushState({page:'pg-home'},'','#pg-home');
-    updateBottomNav('pg-home');
-    showAppUI();
-
-    // Wait for pg-home CSS transition (280ms) to paint before fading loader
-    // Prevents blank screen on slow devices where loader hides before page renders
-    setTimeout(() => {
-      loader.classList.add('fade-out');
-      setTimeout(() => { loader.style.display = 'none'; }, 350);
-    }, 120);
-
-    // ── STEP 2: Fetch menu from DB right away (top priority) ─────
-    loadMenu();
-    startPolling();
-
-    // ── STEP 3: Everything else in background (non-blocking) ──────
-    // Deferred 500ms so menu fetch gets the network head-start
-    // before wallet/subscriber calls compete for bandwidth
-    setTimeout(() => _bootBackground(savedSess, savedSub, isSub), 500);
-    return;
-  }
-
-  // No session → show auth
+  // Always show login screen — user must click Login manually.
+  // If saved credentials exist, autofill them for convenience.
   autofillCreds();
-  Store.remove('pb_user');
   loader.classList.add('fade-out');
-  setTimeout(()=>{ loader.style.display='none'; }, 300);
+  setTimeout(() => { loader.style.display = 'none'; }, 300);
 }
 
-async function _bootBackground(savedSess, savedSub, cachedIsSub) {
-  // Khata flag
-  try {
-    const ke = await api('getKhataEnabled');
-    _khataEnabled = ke.enabled !== false;
-    applyKhataVisibility();
-  } catch { _khataEnabled = true; }
-
-  // Subscriber status — fresh from DB
-  try {
-    const fresh = await api('checkSubscriber', { phone: savedSess.phone });
-    Store.setJSON('pb_sub', fresh);
-    if (savedSess.isSubscriber !== fresh.isSubscriber) {
-      savedSess.isSubscriber = fresh.isSubscriber;
-      Auth.set(savedSess);
-    }
-    const isSubNow = !!fresh.isSubscriber;
-    applyKhataVisibility();
-    applyPauseState(fresh.pauseDelivery || 'none');
-
-    const proBadge=doc('acct-pro-badge'); if(proBadge) proBadge.classList.toggle('hide',!isSubNow);
-    const tifBan=doc('tif-ban'); if(tifBan) tifBan.classList.toggle('hide',isSubNow);
-    updateBadge();
-
-    // Wallet — only for subscribers
-    if (isSubNow && _khataEnabled) {
-      try {
-        const kd = await api('getKhata', { phone: savedSess.phone });
-        _userKhataEntries  = kd.entries || [];
-        _userKhataFiltered = [..._userKhataEntries];
-        updateWalletUI(Number(kd.balance) || 0);
-        // If user is already on khata page, refresh it
-        if (stack[stack.length-1] === 'pg-khata') renderUserKhataList(_userKhataFiltered);
-      } catch {}
-    } else {
-      updateWalletUI(null);
-    }
-  } catch {}
-}
 
 // Blank screen guard
 (function blankScreenGuard() {
@@ -2544,53 +2453,15 @@ async function _bootBackground(savedSess, savedSub, cachedIsSub) {
 
 window.addEventListener('pageshow', e => {
   if (e.persisted) {
-    const saved = SessStore.get();
-    if (saved && saved.userId) {
-      if (!_session) {
-        Auth.set(saved);
-        showAppUI();
-        const cur = stack[stack.length - 1];
-        if (!cur || cur === 'pg-auth') {
-          doc('pg-auth').classList.replace('here','left');
-          doc('pg-home').classList.remove('right','left');
-          doc('pg-home').classList.add('here');
-          stack = ['pg-auth','pg-home'];
-          updateBottomNav('pg-home');
-        }
-        startPolling();
-      }
-      // Always refresh menu on bfcache restore — page may be stale
-      if (stack[stack.length-1] === 'pg-home') {
-        _menuLoading = false;
-        loadMenu();
-      }
-      // Background: re-verify subscriber + wallet
-      api('checkSubscriber',{phone:saved.phone}).then(fresh => {
-        const cached=Store.getJSON('pb_sub')||{};
-        Store.setJSON('pb_sub', fresh);
-        const wasSubCached=!!cached.isSubscriber, isSubNow=!!fresh.isSubscriber;
-        if (wasSubCached!==isSubNow) {
-          const pb=doc('acct-pro-badge'); if(pb) pb.classList.toggle('hide',!isSubNow);
-          const tb=doc('tif-ban'); if(tb) tb.classList.toggle('hide',isSubNow);
-          applyPauseState(isSubNow?(fresh.pauseDelivery||'none'):'none');
-          applyKhataVisibility();
-          if (!isSubNow) updateWalletUI(null);
-          updateBadge();
-        } else if (isSubNow) {
-          applyPauseState(fresh.pauseDelivery||'none');
-          if (_khataEnabled) {
-            api('getKhata',{phone:saved.phone}).then(kd=>updateWalletUI(Number(kd.balance)||0)).catch(()=>{});
-          }
-        }
-      }).catch(()=>{});
-    } else {
-      stopPolling();
-      document.querySelectorAll('.pg').forEach(p=>{p.classList.remove('here','left');p.classList.add('right');});
-      doc('pg-auth').classList.remove('right');
-      doc('pg-auth').classList.add('here');
-      stack=['pg-auth'];
-      hideAppUI(); hideFab(); autofillCreds();
-    }
+    // Always land on login screen — clear in-memory session so user must log in again
+    stopPolling();
+    _session = null;
+    document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here','left'); p.classList.add('right'); });
+    doc('pg-auth').classList.remove('right');
+    doc('pg-auth').classList.add('here');
+    stack = ['pg-auth'];
+    history.replaceState({ page: 'pg-auth' }, '', location.pathname);
+    hideAppUI(); hideFab(); autofillCreds();
   }
 });
 
