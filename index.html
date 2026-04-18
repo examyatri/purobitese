@@ -24,8 +24,8 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;height:100dvh}
 /* Pages */
-.pg{position:fixed;inset:0;overflow:hidden;transform:translateX(100%);transition:transform 300ms ease;background:var(--lt);max-width:540px;left:50%;margin-left:max(-270px,-50vw)}
-.pg.here{transform:translateX(0)}
+.pg{position:fixed;top:0;bottom:0;overflow:hidden;transition:transform 300ms ease;background:var(--lt);width:100%;max-width:540px;left:50%;transform:translateX(calc(-50% + 100vw))}
+.pg.here{transform:translateX(-50%)!important}
 .pg-scroll{height:calc(100% - var(--bnav-h) - var(--safe-b));overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:12px}
 .pg-scroll-full{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
 /* Bottom Nav */
@@ -130,6 +130,10 @@ textarea{resize:vertical;min-height:80px}
 #cutoff-banner{border-radius:12px;padding:10px 14px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:10px;text-align:center}
 /* Sub plan banner */
 .sub-plan-banner{background:var(--grad);border-radius:14px;padding:12px 14px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+/* Monthly plan card */
+.monthly-plan-card{background:linear-gradient(135deg,#f4a261,#e76f51);border-radius:14px;padding:14px 16px;color:#fff;display:flex;align-items:center;gap:12px;margin-bottom:10px;cursor:pointer;box-shadow:var(--sh)}
+/* Cutoff card */
+#cutoff-banner{border-radius:14px;padding:14px 16px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:10px}
 /* Search bar */
 .search-wrap{background:#fff;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:8px;box-shadow:var(--sh);margin-bottom:12px}
 .search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);padding:12px 0}
@@ -221,10 +225,11 @@ textarea{resize:vertical;min-height:80px}
 .acct-section{background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:var(--sh)}
 .acct-section-title{font-family:var(--ff);font-weight:700;font-size:15px;color:var(--dk);margin-bottom:12px}
 /* Khata */
-.khata-bal-card{background:var(--grad);border-radius:16px;padding:20px;color:#fff;margin-bottom:14px;text-align:center}
-.khata-bal-label{font-family:var(--fb);font-size:13px;opacity:.8}
-.khata-bal-amt{font-family:var(--ff);font-weight:800;font-size:40px;margin:4px 0}
-.khata-entry{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--sh);display:flex;gap:12px;align-items:flex-start;border-left:4px solid transparent}
+.khata-bal-card{background:var(--grad);border-radius:16px;padding:24px 20px;color:#fff;margin-bottom:12px;text-align:center;position:relative;overflow:hidden}
+.khata-bal-card::after{content:"";position:absolute;right:-20px;top:-20px;width:100px;height:100px;background:rgba(255,255,255,.08);border-radius:50%}
+.khata-bal-label{font-family:var(--ff);font-size:11px;font-weight:600;opacity:.8;letter-spacing:1px;text-transform:uppercase}
+.khata-bal-amt{font-family:var(--ff);font-weight:800;font-size:46px;margin:6px 0}
+.khata-entry{background:#fff;border-radius:14px;padding:13px 14px;margin-bottom:8px;box-shadow:var(--sh);display:flex;gap:12px;align-items:center;border-left:4px solid transparent}
 .khata-entry.credit{border-left-color:var(--g)}
 .khata-entry.debit{border-left-color:var(--pd)}
 .ke-icon{font-size:20px;flex-shrink:0;margin-top:2px}
@@ -390,14 +395,23 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <div style="padding:0 var(--pg-pad)">
-      <!-- Pause toggle (sub-only) -->
-      <div class="pause-row sub-only" id="pause-toggle-row">
-        <input type="checkbox" class="toggle-sw" id="pause-toggle" onchange="onPauseToggle(this)">
+      <!-- Pause toggle (PRO subscribers only) -->
+      <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
         <div style="flex:1">
-          <div style="font-family:var(--ff);font-weight:600;font-size:14px">Delivery Status</div>
-          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">All deliveries active</div>
+          <div style="font-family:var(--ff);font-weight:600;font-size:14px">Pause Your Auto Tiffin</div>
+          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">If you turn this off, no automatic order will be generated.</div>
         </div>
-        <i class="fa-solid fa-truck" style="color:var(--g);font-size:18px"></i>
+        <input type="checkbox" class="toggle-sw" id="pause-toggle" onchange="onPauseToggle(this)" checked>
+      </div>
+
+      <!-- Monthly plan card (non-subscriber only) -->
+      <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
+        <span style="font-size:20px">&#x1F371;</span>
+        <div style="flex:1">
+          <div style="font-family:var(--ff);font-weight:700;font-size:14px">Monthly Tiffin Plan</div>
+          <div style="font-family:var(--fb);font-size:12px;opacity:.85;margin-top:2px">Free Home Delivery + Save &#x20B9;200/month</div>
+        </div>
+        <i class="fa-solid fa-chevron-right" style="font-size:14px;opacity:.7"></i>
       </div>
 
       <!-- Cutoff banner -->
@@ -654,24 +668,31 @@ textarea{resize:vertical;min-height:80px}
 <div id="pg-khata" class="pg khata-gated" style="display:none">
   <div class="khata-header">
     <button class="back-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
-    <div class="pg-title" style="flex:1">My Khata</div>
-    <button onclick="exportKhataPDF()" style="border:none;background:var(--pl);color:var(--p);border-radius:8px;padding:6px 12px;font-family:var(--ff);font-weight:600;font-size:12px;cursor:pointer">
-      <i class="fa-solid fa-file-pdf"></i> Export
-    </button>
+    <div class="pg-title" style="flex:1">My Wallet</div>
+    <button id="khata-refresh-btn" onclick="loadUserKhata()" style="border:none;background:#f5f5f5;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gr);font-size:15px"><i class="fa-solid fa-rotate-right"></i></button>
   </div>
   <div class="pg-scroll">
     <div style="padding:var(--pg-pad)">
+      <!-- Balance card -->
       <div class="khata-bal-card">
-        <div class="khata-bal-label">Wallet Balance</div>
-        <div class="khata-bal-amt wallet-bal">₹0</div>
-        <div style="font-family:var(--fb);font-size:12px;opacity:.7;margin-top:2px">Updated live</div>
+        <div class="khata-bal-label">WALLET BALANCE</div>
+        <div class="khata-bal-amt wallet-bal">&#x20B9;0</div>
+        <div id="wallet-bal-status" style="font-family:var(--fb);font-size:12px;opacity:.8;margin-top:4px">&#x2705; Balance looks good</div>
       </div>
-      <div class="filter-row">
-        <input type="date" id="khata-from" placeholder="From">
-        <input type="date" id="khata-to" placeholder="To">
-        <button class="filter-btn" onclick="filterKhata()">Filter</button>
-        <button class="reset-btn" onclick="resetKhataFilter()">Reset</button>
+      <!-- Date filter -->
+      <div style="background:#fff;border-radius:14px;padding:14px;box-shadow:var(--sh);margin-bottom:12px">
+        <div style="font-family:var(--ff);font-weight:600;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input type="date" id="khata-from" style="flex:1;font-size:13px;padding:10px;border-radius:10px;border:1.5px solid #e5e7eb;background:#f9f9f9;font-family:var(--fb)">
+          <input type="date" id="khata-to" style="flex:1;font-size:13px;padding:10px;border-radius:10px;border:1.5px solid #e5e7eb;background:#f9f9f9;font-family:var(--fb)">
+        </div>
+        <button onclick="filterKhata()" style="width:100%;background:var(--grad);color:#fff;border:none;border-radius:10px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+        <div style="display:flex;gap:8px">
+          <button onclick="resetKhataFilter()" style="flex:1;background:#f0f0f0;color:var(--dk);border:none;border-radius:10px;padding:10px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">&#x2715; Reset</button>
+          <button onclick="generateKhataPDF()" style="flex:1;background:var(--grad);color:#fff;border:none;border-radius:10px;padding:10px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="fa-solid fa-file-pdf"></i> Generate PDF Statement</button>
+        </div>
       </div>
+      <!-- Transaction list -->
       <div id="khata-list"></div>
     </div>
   </div>
@@ -718,22 +739,22 @@ textarea{resize:vertical;min-height:80px}
   <label class="pause-option">
     <input type="radio" name="pause-opt" value="lunch">
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">☀️ Lunch Only</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Skip today's lunch</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">☀️ Only Morning Off</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Skip morning tiffin only</div>
     </div>
   </label>
   <label class="pause-option">
     <input type="radio" name="pause-opt" value="dinner">
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">🌙 Dinner Only</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Skip tonight's dinner</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">🌙 Only Evening Off</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Skip evening tiffin only</div>
     </div>
   </label>
   <label class="pause-option">
     <input type="radio" name="pause-opt" value="both">
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">⏸ Both Meals</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Pause all deliveries</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">⏸ Both Tiffin Off</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Pause all tiffin deliveries</div>
     </div>
   </label>
   <div class="mt16">
@@ -973,16 +994,15 @@ function updateCutoffBanner(schedule, currentH) {
   const banner = document.getElementById('cutoff-banner');
   const btn    = document.getElementById('place-order-btn');
   if (!banner) return;
-  banner.style.display = 'block';
+  banner.style.display = 'flex';
   if (state.closed) {
-    banner.textContent = '🔴 ' + state.reason;
-    banner.style.background = '#fee2e2';
-    banner.style.color = 'var(--pd)';
+    banner.innerHTML = '<i class="fa-regular fa-clock" style="font-size:20px;flex-shrink:0"></i><div>' + state.reason + '</div>';
+    banner.style.background = '#fee2e2'; banner.style.color = 'var(--pd)';
     if (btn) btn.disabled = true;
   } else {
-    banner.textContent = state.session === 'lunch' ? '🟢 ☀️ Lunch orders open' : '🟢 🌙 Dinner orders open';
-    banner.style.background = 'var(--gl)';
-    banner.style.color = 'var(--g)';
+    const closeT = state.session === 'lunch' ? (_lastSchedule&&_lastSchedule.lunchEnd?_lastSchedule.lunchEnd+':00':'') : (_lastSchedule&&_lastSchedule.dinnerEnd?_lastSchedule.dinnerEnd+':30':'');
+    banner.innerHTML = '<span style="width:12px;height:12px;background:var(--g);border-radius:50%;flex-shrink:0;box-shadow:0 0 0 4px rgba(42,157,143,.2)"></span><div><div style="font-size:14px">Orders open</div><div style="font-weight:400;font-size:12px;font-family:var(--fb);margin-top:1px">'+(state.session==='lunch'?'Lunch':'Dinner')+' orders close at '+closeT+'</div></div>';
+    banner.style.background = 'var(--gl)'; banner.style.color = 'var(--g)';
     if (btn) btn.disabled = false;
   }
 }
@@ -1100,11 +1120,11 @@ function applyPauseState(mode) {
   _pauseMode = mode || 'none';
   const toggle = document.getElementById('pause-toggle');
   const sub    = document.getElementById('pause-subtitle');
-  if (toggle) toggle.checked = (_pauseMode !== 'none');
+  if (toggle) toggle.checked = (_pauseMode === 'none');
   if (sub) sub.textContent =
-    _pauseMode === 'none'   ? 'All deliveries active' :
-    _pauseMode === 'lunch'  ? '☀️ Lunch paused' :
-    _pauseMode === 'dinner' ? '🌙 Dinner paused' : '⏸ All paused';
+    _pauseMode === 'none'   ? 'If you turn this off, no automatic order will be generated.' :
+    _pauseMode === 'lunch'  ? 'Morning tiffin paused' :
+    _pauseMode === 'dinner' ? 'Evening tiffin paused' : 'Both tiffins paused';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = _pauseMode !== 'none' ? 'block' : 'none';
 }
@@ -1130,19 +1150,25 @@ function setDeliveryTime(elId) {
 }
 
 /* ═══════════════════════════════════════════
+   WHATSAPP PLAN
+═══════════════════════════════════════════ */
+function openWhatsAppPlan() {
+  var msg = encodeURIComponent("Mujhe monthly tiffin join karna hai, please information dijiye.");
+  window.open("https://wa.me/919889760350?text=" + msg, "_blank");
+}
+
+/* ═══════════════════════════════════════════
    ROUTING
 ═══════════════════════════════════════════ */
 function nav(id) {
   const cur = document.querySelector('.pg.here');
-  if (cur && cur.id !== id) {
-    cur.classList.remove('here');
-    cur.style.transform = 'translateX(-100%)';
-  }
+  if (cur && cur.id !== id) { cur.classList.remove('here'); cur.style.transform = ''; }
   const next = document.getElementById(id);
   if (!next) return;
   next.classList.add('here');
-  next.style.transform = 'translateX(0)';
+  next.style.transform = '';
   _stack.push(id);
+  history.pushState({pg:id,stackLen:_stack.length},'','');
   updateBottomNav(id);
   onEnter(id);
   document.getElementById('cart-fab').style.display =
@@ -1154,19 +1180,23 @@ function back() {
   _stack.pop();
   const prev = _stack[_stack.length - 1];
   const cur = document.querySelector('.pg.here');
-  if (cur) { cur.classList.remove('here'); cur.style.transform = 'translateX(100%)'; }
+  if (cur) { cur.classList.remove('here'); cur.style.transform = ''; }
   const target = document.getElementById(prev);
   if (!target) return;
   target.classList.add('here');
-  target.style.transform = 'translateX(0)';
+  target.style.transform = '';
   updateBottomNav(prev);
   onEnter(prev);
 }
 
+window.addEventListener('popstate', function() {
+  if (_stack.length >= 2) back();
+});
+
 function onEnter(id) {
-  if (id === 'pg-home')    { loadMenu(); loadPauseState(); refreshWalletBalance(); }
+  if (id === 'pg-home')    { loadMenu(); loadPauseState(); refreshWalletBalance(); startPolling(); }
   if (id === 'pg-orders')  loadOrders();
-  if (id === 'pg-khata')   loadUserKhata();
+  if (id === 'pg-khata')   { loadUserKhata(); startPollingKhata(); }
   if (id === 'pg-cart')    renderCart();
   if (id === 'pg-account') populateAccountPage();
 }
@@ -1903,43 +1933,55 @@ async function changePassword() {
 async function loadUserKhata() {
   const phone = Auth.get()?.phone;
   if (!phone) return;
+  // Spin refresh icon
+  const btn = document.getElementById('khata-refresh-btn');
+  if (btn) btn.querySelector('i').style.animation = 'spin .6s linear infinite';
   try {
     const res = await api('getKhata', { phone });
     updateWalletUI(res.balance);
+    // Update status text
+    const statusEl = document.getElementById('wallet-bal-status');
+    if (statusEl) statusEl.textContent = (res.balance || 0) <= 0 ? '\u26A0\uFE0F Low balance' : '\u2705 Balance looks good';
     const newStr = JSON.stringify(res.entries);
     if (newStr !== _lastKhataStr) {
       _lastKhataStr = newStr;
-      _khataAllEntries = res.entries || [];
-      Store.setJSON('_khata_cache', res.entries);
-      renderUserKhataList(res.entries);
+      _khataAllEntries = (res.entries || []).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+      Store.setJSON('_khata_cache', _khataAllEntries);
+      renderUserKhataList(_khataAllEntries);
     }
   } catch {}
+  finally { if (btn) btn.querySelector('i').style.animation = ''; }
 }
 
 function renderUserKhataList(entries) {
   const list = document.getElementById('khata-list');
   if (!entries || !entries.length) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📒</div><div class="empty-title">No entries yet</div></div>`;
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">&#x1F4D2;</div><div class="empty-title">No transactions yet</div></div>';
     return;
   }
-  const sorted = [...entries].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  const sorted = [...entries].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   list.innerHTML = sorted.map(e => {
-    const isCredit = (e.amount > 0) || e.type?.includes('recharge') || e.type?.includes('adjustment');
-    const cls = isCredit ? 'credit' : 'debit';
-    const icon = isCredit ? '💰' : '🍱';
+    const typeStr = (e.type||'entry');
+    const isCredit = e.amount > 0 || typeStr.includes('recharge') || typeStr.includes('adjustment') || typeStr.includes('received');
+    const cls  = isCredit ? 'credit' : 'debit';
+    const icon = isCredit ? '&#x1F4B0;' : '&#x1F371;';
     const sign = isCredit ? '+' : '';
-    return `<div class="khata-entry ${cls}">
-      <div class="ke-icon">${icon}</div>
-      <div class="ke-info">
-        <div class="ke-label">${(e.type || 'entry').replace(/_/g,' ')}</div>
-        <div class="ke-date">${fmtDate(e.created_at)} ${fmtTime(e.time || '')}</div>
-        ${e.note ? `<div class="ke-note">${e.note}</div>` : ''}
-      </div>
-      <div>
-        <div class="ke-amt ${cls}">${sign}₹${Math.abs(e.amount)}</div>
-        ${e.running_balance !== undefined ? `<div class="ke-bal">Bal: ₹${e.running_balance}</div>` : ''}
-      </div>
-    </div>`;
+    const label = typeStr.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+    const note  = e.note || (e.order_id ? 'ORD-' + e.order_id : '');
+    const dateStr = fmtDate(e.created_at) + (e.time ? ' \u00B7 ' + fmtTime(e.time) : '');
+    const runBal  = e.running_balance !== undefined && e.running_balance !== null ? 'Bal: \u20B9' + e.running_balance : '';
+    return '<div class="khata-entry ' + cls + '">' +
+      '<div class="ke-icon" style="font-size:22px;min-width:32px;text-align:center">' + icon + '</div>' +
+      '<div class="ke-info" style="flex:1;min-width:0">' +
+        '<div class="ke-label" style="font-family:var(--ff);font-weight:600;font-size:13px">' + label + '</div>' +
+        '<div class="ke-date" style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:2px">' + dateStr + '</div>' +
+        (note ? '<div class="ke-note" style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + note + '</div>' : '') +
+      '</div>' +
+      '<div style="text-align:right;flex-shrink:0">' +
+        '<div class="ke-amt" style="font-family:var(--ff);font-weight:700;font-size:15px;color:' + (isCredit?'var(--g)':'var(--pd)') + '">' + sign + '\u20B9' + Math.abs(e.amount) + '</div>' +
+        (runBal ? '<div class="ke-bal" style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:2px">' + runBal + '</div>' : '') +
+      '</div>' +
+    '</div>';
   }).join('');
 }
 
@@ -1948,7 +1990,7 @@ function filterKhata() {
   const to   = document.getElementById('khata-to').value;
   if (!from && !to) { renderUserKhataList(_khataAllEntries); return; }
   const filtered = _khataAllEntries.filter(e => {
-    const d = PB.toYMD(e.created_at);
+    const d = (e.created_at||'').slice(0,10);
     if (from && d < from) return false;
     if (to   && d > to)   return false;
     return true;
@@ -1962,12 +2004,57 @@ function resetKhataFilter() {
   renderUserKhataList(_khataAllEntries);
 }
 
-function exportKhataPDF() {
-  const phone = Auth.get()?.phone;
-  if (!phone) { toast('Not logged in'); return; }
-  openWA(CFG.WA, `Hi! Please send me my khata/wallet statement. Phone: ${phone}`);
-  toast('WhatsApp opened — request statement');
+function generateKhataPDF() {
+  const from = document.getElementById('khata-from').value;
+  const to   = document.getElementById('khata-to').value;
+  let entries = [..._khataAllEntries].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+  if (from || to) {
+    entries = entries.filter(e => {
+      const d = (e.created_at||'').slice(0,10);
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
+      return true;
+    });
+  }
+  if (!entries.length) { toast('No transactions in this range'); return; }
+  const user = Auth.get();
+  const bal  = _walletBal;
+  const rangeLabel = from && to ? from + ' to ' + to : from ? 'From ' + from : to ? 'Up to ' + to : 'All Transactions';
+  // Build printable HTML and open in new window
+  const rows = entries.map(e => {
+    const isC = e.amount > 0 || (e.type||'').includes('recharge') || (e.type||'').includes('received');
+    const sign = isC ? '+' : '';
+    const color = isC ? '#2a9d8f' : '#c1121f';
+    const label = (e.type||'entry').replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+    const note  = e.note || (e.order_id?'ORD-'+e.order_id:'');
+    const dateStr = fmtDate(e.created_at) + (e.time?' '+fmtTime(e.time):'');
+    const runBal  = e.running_balance!==undefined&&e.running_balance!==null?'\u20B9'+e.running_balance:'';
+    return '<tr><td>' + dateStr + '</td><td>' + label + (note?'<br><small style="color:#888">'+note+'</small>':'') + '</td>' +
+      '<td style="color:'+color+';font-weight:700;text-align:right">'+sign+'\u20B9'+Math.abs(e.amount)+'</td>' +
+      '<td style="text-align:right;color:#555">'+runBal+'</td></tr>';
+  }).join('');
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Wallet Statement</title>' +
+    '<style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h2{color:#e63946}' +
+    'table{width:100%;border-collapse:collapse;margin-top:16px}' +
+    'th{background:#e63946;color:#fff;padding:8px 10px;text-align:left;font-size:12px}' +
+    'td{padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:12px}' +
+    'tr:nth-child(even){background:#fafafa}.summary{background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px}' +
+    '@media print{button{display:none}}' +
+    '</style></head><body>' +
+    '<h2>Tiffo &#x2013; Wallet Statement</h2>' +
+    '<div class="summary"><b>Name:</b> '+(user?.name||'—')+'&nbsp;&nbsp;<b>Phone:</b> '+(user?.phone||'—')+'<br>' +
+    '<b>Period:</b> '+rangeLabel+'&nbsp;&nbsp;<b>Current Balance:</b> <span style="color:#2a9d8f;font-weight:700">&#x20B9;'+Math.round(bal)+'</span></div>' +
+    '<button onclick="window.print()" style="background:#e63946;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;margin-bottom:12px">&#x1F5A8; Print / Save PDF</button>' +
+    '<table><thead><tr><th>Date &amp; Time</th><th>Description</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th></tr></thead>' +
+    '<tbody>'+rows+'</tbody></table>' +
+    '<p style="margin-top:16px;font-size:11px;color:#888">Generated on '+new Date().toLocaleString('en-IN')+' &bull; Tiffo &ndash; Ghar ka Khana</p>' +
+    '</body></html>';
+  const w = window.open('','_blank','width=800,height=600');
+  w.document.write(html);
+  w.document.close();
 }
+
+function exportKhataPDF() { generateKhataPDF(); }
 
 /* ═══════════════════════════════════════════
    PAUSE DELIVERY
@@ -2069,11 +2156,17 @@ async function _runPollTick() {
   refreshPauseStatus().catch(() => {});
   const cur = document.querySelector('.pg.here')?.id;
   if (cur === 'pg-orders') loadOrders().catch(() => {});
-  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});
+  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});  // real-time wallet update
   if (cur === 'pg-home') {
     const cache = Store.getJSON(_MENU_CACHE_KEY);
     if (!cache || Date.now() - cache.ts > _MENU_TTL) loadMenu().catch(() => {});
   }
+}
+
+// Faster polling when wallet page is open (15s)
+function startPollingKhata() {
+  clearInterval(_pollTimer);
+  _pollTimer = setInterval(_runPollTick, 15000);
 }
 
 async function refreshWalletBalance() {
@@ -2121,6 +2214,11 @@ function _applySubscriberUI() {
   document.querySelectorAll('.sub-only').forEach(el => {
     el.style.display = u.is_subscriber ? '' : 'none';
   });
+  // Pause card vs monthly plan card
+  const _pauseRow = document.getElementById('pause-toggle-row');
+  const _planCard = document.getElementById('monthly-plan-card');
+  if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? 'flex' : 'none';
+  if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
   // Sub plan banner
   if (u.is_subscriber && u.plan_start && u.plan_end) {
     document.getElementById('sub-plan-banner').style.display = 'flex';
@@ -2177,14 +2275,12 @@ async function bootApp() {
 
 function _transitionToHome() {
   document.getElementById('app-loader').style.display = 'none';
-  document.querySelectorAll('.pg').forEach(p => {
-    p.classList.remove('here');
-    p.style.transform = 'translateX(100%)';
-  });
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
   const home = document.getElementById('pg-home');
   home.classList.add('here');
-  home.style.transform = 'translateX(0)';
+  home.style.transform = '';
   _stack = ['pg-home'];
+  history.replaceState({pg:'pg-home',stackLen:1},'','');
   updateBottomNav('pg-home');
   updateCartBadge();
   _applySubscriberUI();
@@ -2194,14 +2290,12 @@ function _transitionToHome() {
 function _transitionToLogin(showLoginTab = false) {
   document.getElementById('app-loader').style.display = 'none';
   document.getElementById('retry-screen').style.display = 'none';
-  document.querySelectorAll('.pg').forEach(p => {
-    p.classList.remove('here');
-    p.style.transform = 'translateX(100%)';
-  });
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
   const auth = document.getElementById('pg-auth');
   auth.classList.add('here');
-  auth.style.transform = 'translateX(0)';
+  auth.style.transform = '';
   _stack = ['pg-auth'];
+  history.replaceState({pg:'pg-auth',stackLen:1},'','');
   if (showLoginTab) {
     document.getElementById('tab-login').click();
     setTimeout(prefillLoginForm, 100);
