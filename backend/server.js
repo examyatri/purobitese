@@ -1204,6 +1204,131 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, message: 'Master delete completed' });
       }
 
+      // ── INDEX (CUSTOMER) ALIASES ──────────────────────────────────────────
+      case 'validateCoupon':
+        { const { data: coupon } = await supabase.from('coupons').select('*').eq('code', (data.code||'').toUpperCase()).single();
+          if (!coupon || !coupon.is_active) return res.json({ success: false, error: 'Invalid coupon' });
+          const today = istDateStr(ist);
+          if (coupon.expiry_date && coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
+          if (coupon.max_usage && (coupon.used_count||0) >= coupon.max_usage) return res.json({ success: false, error: 'Coupon fully used' });
+          const usedBy = JSON.parse(coupon.used_by || '[]');
+          if (data.phone && usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
+          if (coupon.min_order && data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
+          return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, min_order: coupon.min_order } }); }
+
+      case 'updatePauseDelivery':
+        { const allowed = ['none', 'lunch', 'dinner', 'both'];
+          const mode = data.pauseMode || data.mode;
+          if (!allowed.includes(mode)) return res.json({ success: false, error: 'Invalid mode' });
+          await supabase.from('subscribers').update({ pause_delivery: mode }).eq('phone', cleanPhone(data.phone));
+          return res.json({ success: true, pauseMode: mode }); }
+
+      case 'changePassword':
+        { const phone = cleanPhone(data.phone);
+          const { data: user } = await supabase.from('users').select('password_hash').eq('phone', phone).single();
+          if (!user) return res.json({ success: false, error: 'User not found' });
+          const valid = await bcrypt.compare(data.currentPassword, user.password_hash);
+          if (!valid) return res.json({ success: false, error: 'Current password incorrect' });
+          const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+          await supabase.from('users').update({ password_hash: hash }).eq('phone', phone);
+          return res.json({ success: true }); }
+
+      // ── ADMIN PANEL ALIASES (fixes action name mismatches) ────────────────
+      case 'adminGetUsers':
+        action = 'getUsers'; // fall through via redirect
+        { const { data: rows } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+          const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
+          return res.json({ success: true, users: safe }); }
+
+      case 'getMenuItems':
+        { const { data: items } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
+          return res.json({ success: true, items: items || [] }); }
+
+      case 'getCoupons':
+        { const { data: rows } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+          return res.json({ success: true, coupons: rows || [] }); }
+
+      case 'addCoupon':
+        { await supabase.from('coupons').insert({
+            code:              (data.code || '').toUpperCase(),
+            discount_type:     data.discount_type,
+            discount_value:    data.discount_value,
+            expiry_date:       data.expiry_date || null,
+            is_active:         true,
+            per_user_limit:    data.per_user_limit ?? null,
+            total_usage_limit: data.total_usage_limit ?? null,
+            min_order_amount:  data.min_order_amount ?? null,
+            max_cap:           data.max_cap ?? null,
+            usage_count:       0,
+            created_at:        new Date().toISOString()
+          });
+          return res.json({ success: true }); }
+
+      case 'updateCoupon':
+        { const updates = { ...data }; delete updates.id;
+          await supabase.from('coupons').update(updates).eq('id', data.id);
+          return res.json({ success: true }); }
+
+      case 'getSubscribers':
+        { const { data: subs } = await supabase.from('subscribers').select('*').order('plan_start', { ascending: false });
+          const result = [];
+          for (const s of (subs || [])) {
+            const { data: u } = await supabase.from('users').select('name, address').eq('phone', s.phone).single();
+            result.push({ ...s, name: u?.name || '', address: u?.address || '' });
+          }
+          return res.json({ success: true, subscribers: result }); }
+
+      case 'getAllKhata':
+        { const { data: rows } = await supabase.from('khata_summary').select('*');
+          return res.json({ success: true, khata: rows || [] }); }
+
+      case 'getThalis':
+        { const { data: thalis } = await supabase.from('thalis').select('*');
+          const result = [];
+          for (const t of (thalis || [])) {
+            const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', t.thali_id);
+            result.push(formatThali(t, items || []));
+          }
+          return res.json({ success: true, thalis: result }); }
+
+      case 'getThaliItems':
+        { const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', data.thaliId);
+          return res.json({ success: true, items: items || [] }); }
+
+      case 'getSettings':
+        { const { data: rows } = await supabase.from('admin_settings').select('*');
+          const map = {};
+          for (const r of (rows || [])) { try { map[r.key] = JSON.parse(r.value); } catch { map[r.key] = r.value; } }
+          return res.json({ success: true, settings: {
+            cutoff:         map['order_cutoff_config'] || {},
+            weeklySchedule: map['weekly_schedule']     || [],
+            khataEnabled:   map['khata_enabled']       !== false
+          }}); }
+
+      case 'adminResetUserPassword':
+        { const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+          await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
+          return res.json({ success: true }); }
+
+      case 'deleteNotificationRange':
+        { await supabase.from('notifications').delete()
+            .gte('created_at', data.from).lte('created_at', data.to);
+          return res.json({ success: true }); }
+
+      case 'previewCleanup':
+        { const type = (data.type || '').toLowerCase();
+          if (type === 'orders') {
+            const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', data.before);
+            return res.json({ success: true, count: count || 0 });
+          } else if (type === 'transactions') {
+            const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', data.before);
+            return res.json({ success: true, count: count || 0 });
+          } else if (type === 'notifications') {
+            const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', data.before);
+            return res.json({ success: true, count: count || 0 });
+          }
+          return res.json({ success: false, error: 'Unknown cleanup type' }); }
+
       // ─────────────────────────────────────────────────────────────────────
       default:
         return res.status(400).json({ success: false, error: 'Unknown action: ' + action });
