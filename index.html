@@ -1287,7 +1287,7 @@ function openWA(phone, msg) {
 // ══════════════════════════════════════════════
 async function api(action, data = {}, _retry = 1) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 22000);
+  const timer = setTimeout(() => controller.abort(), 65000);
   try {
     const r = await fetch(CFG.GAS, {
       method: 'POST',
@@ -1635,6 +1635,8 @@ async function doLogin() {
   if (phone.length !== 10) return toast('Valid 10-digit number');
   const btn = doc('btn-login');
   btn.innerHTML = '<span class="spin"></span> Logging in...'; btn.disabled = true;
+  // Show warm-up message after 5s if still waiting
+  const _warmTimer = setTimeout(() => { if (btn.disabled) btn.innerHTML = '<span class="spin"></span> Server warm ho raha hai... (30-60s)'; }, 5000);
   try {
     // Step 1: Authenticate — server sets HttpOnly session cookie
     const user = await api('login', { phone, password: pw });
@@ -1645,7 +1647,7 @@ async function doLogin() {
   } catch(e) {
     toast('❌ ' + e.message);
     if (e.message.includes('password') || e.message.includes('not found')) Creds.save('', '');
-  } finally { btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
+  } finally { clearTimeout(_warmTimer); btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login'; btn.disabled = false; }
 }
 
 async function doSignup() {
