@@ -1616,9 +1616,21 @@ async function loadMenu() {
   _menuLoading = true;
 
   try {
+    // getMenu gets up to 2 attempts (1.2s gap) — protects against Edge Function cold starts
+    // getOrderCutoff and getThalis are non-critical so they already have .catch() guards
+    async function _menuWithRetry() {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { return await api('getMenu'); }
+        catch(e) {
+          if (attempt === 1) throw e; // last attempt — propagate
+          await new Promise(r => setTimeout(r, 1200));
+        }
+      }
+    }
+
     // Always fetch fresh from DB — all 3 in parallel
     const [menu, cfg, thalis] = await Promise.all([
-      api('getMenu'),
+      _menuWithRetry(),
       api('getOrderCutoff').catch(() => null),
       api('getThalis').catch(() => [])
     ]);
@@ -2454,16 +2466,21 @@ function bootApp() {
     updateBottomNav('pg-home');
     showAppUI();
 
-    // Hide loader immediately — home is already visible
-    loader.classList.add('fade-out');
-    setTimeout(()=>{ loader.style.display='none'; }, 300);
+    // Wait for pg-home CSS transition (280ms) to paint before fading loader
+    // Prevents blank screen on slow devices where loader hides before page renders
+    setTimeout(() => {
+      loader.classList.add('fade-out');
+      setTimeout(() => { loader.style.display = 'none'; }, 350);
+    }, 120);
 
     // ── STEP 2: Fetch menu from DB right away (top priority) ─────
     loadMenu();
     startPolling();
 
     // ── STEP 3: Everything else in background (non-blocking) ──────
-    _bootBackground(savedSess, savedSub, isSub);
+    // Deferred 500ms so menu fetch gets the network head-start
+    // before wallet/subscriber calls compete for bandwidth
+    setTimeout(() => _bootBackground(savedSess, savedSub, isSub), 500);
     return;
   }
 
