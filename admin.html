@@ -1198,7 +1198,7 @@ async function loadCoupons() {
     _coupons = res.coupons || [];
     renderCouponsTable();
     npDone();
-  } catch(e) { npDone(); aToast('Coupons load failed'); }
+  } catch(e) { npDone(); aToast('Coupons load failed: ' + e.message); }
 }
 
 function renderCouponsTable() {
@@ -1438,7 +1438,7 @@ async function loadUsers() {
     _allUsers = res.users || [];
     renderUsersTable(_allUsers);
     npDone();
-  } catch(e) { npDone(); aToast('Users load failed'); }
+  } catch(e) { npDone(); aToast('Users load failed: ' + e.message); }
 }
 
 function filterUsers() {
