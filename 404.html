@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tiffo – Page Not Found</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;font-family:'DM Sans',sans-serif;padding:24px;text-align:center}
+    .logo{font-family:'Sora',sans-serif;font-weight:800;font-size:32px;margin-bottom:20px}
+    .logo .r{color:#e63946}
+    .logo .g{color:#2a9d8f}
+    .emoji{font-size:64px;margin-bottom:16px}
+    h1{font-family:'Sora',sans-serif;font-weight:700;font-size:22px;color:#e63946;margin-bottom:12px}
+    .countdown{font-size:16px;color:#2a9d8f;margin-bottom:28px}
+    .countdown strong{font-family:'Sora',sans-serif;font-weight:700;font-size:20px}
+    .btn{background:linear-gradient(135deg,#e63946,#f4591d);color:white;border:none;border-radius:12px;padding:13px 32px;font-family:'Sora',sans-serif;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;display:inline-block}
+  </style>
+</head>
+<body>
+  <div class="logo"><span class="r">Tif</span><span class="g">fo</span></div>
+  <div class="emoji">🍱</div>
+  <h1>404 — Page Not Found</h1>
+  <p class="countdown">Redirecting to home in <strong id="count">3</strong>s…</p>
+  <a href="./index.html" class="btn">Go Home Now</a>
+  <script>
+    let n = 3;
+    const el = document.getElementById('count');
+    const interval = setInterval(() => {
+      n--;
+      el.textContent = n;
+      if (n <= 0) { clearInterval(interval); window.location.replace('./index.html'); }
+    }, 1000);
+  </script>
+</body>
+</html>
