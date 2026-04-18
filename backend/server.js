@@ -1099,7 +1099,8 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getUsers': {
-        const { data: rows } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        const { data: rows, error: uErr2 } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        if (uErr2) throw new Error('DB error: ' + uErr2.message);
         const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
         return res.json({ success: true, users: safe });
       }
@@ -1257,8 +1258,8 @@ app.post('/api', async (req, res) => {
 
       // ── ADMIN PANEL ALIASES (fixes action name mismatches) ────────────────
       case 'adminGetUsers':
-        action = 'getUsers'; // fall through via redirect
-        { const { data: rows } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        { const { data: rows, error: uErr } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+          if (uErr) throw new Error('DB error: ' + uErr.message);
           const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
           return res.json({ success: true, users: safe }); }
 
@@ -1267,7 +1268,8 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, items: items || [] }); }
 
       case 'getCoupons':
-        { const { data: rows } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+        { const { data: rows, error: cErr } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+          if (cErr) throw new Error('DB error: ' + cErr.message);
           return res.json({ success: true, coupons: rows || [] }); }
 
       case 'addCoupon':
