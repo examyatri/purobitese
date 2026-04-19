@@ -1669,9 +1669,26 @@ app.post('/api', async (req, res) => {
           }
           return res.json({ success: true, subscribers: result }); }
 
-      case 'getAllKhata':
-        { const { data: rows } = await supabase.from('khata_summary').select('*');
-          return res.json({ success: true, khata: rows || [] }); }
+      case 'getAllKhata': {
+        const { data: rows } = await supabase.from('khata_summary').select('*');
+        const enriched = [];
+        for (const r of (rows || [])) {
+          const { data: u } = await supabase.from('users').select('name').eq('phone', r.phone).single();
+          const { data: txns } = await supabase.from('khata_entries').select('id, type, created_at')
+            .eq('phone', r.phone).order('created_at', { ascending: false });
+          const allTxns = txns || [];
+          const lastRecharge = allTxns.find(t => t.type === 'recharge');
+          enriched.push({
+            phone:            r.phone,
+            balance:          r.balance,
+            updated_at:       r.updated_at,
+            name:             u?.name || null,
+            txn_count:        allTxns.length,
+            last_recharge_at: lastRecharge?.created_at || null
+          });
+        }
+        return res.json({ success: true, khata: enriched });
+      }
 
       case 'adminGetThalisAll':
         { const { data: thalis } = await supabase.from('thalis').select('*');
