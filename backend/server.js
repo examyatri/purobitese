@@ -291,7 +291,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
       group_id: orderId,
       title:    'New Order',
       body:     user.name + ' placed order ' + orderId,
-      meta:     { orderId, phone: user.phone }
+      meta:     { orderId, phone: user.phone, is_subscriber: true }
     });
   }
 
@@ -709,7 +709,7 @@ app.post('/api', async (req, res) => {
             group_id: data.orderId,
             title:    'Order Rejected — Wallet Refunded',
             body:     'Order ' + data.orderId + ' rejected. ₹' + order.final_amount + ' refunded to your wallet.',
-            meta:     { orderId: data.orderId, phone: order.phone, refundAmount: order.final_amount }
+            meta:     { orderId: data.orderId, phone: order.phone, refundAmount: order.final_amount, is_subscriber: isSubscriber }
           });
         } else if (refundType === 'cash') {
           await _createNotification({
@@ -718,7 +718,7 @@ app.post('/api', async (req, res) => {
             group_id: data.orderId,
             title:    'Order Rejected — Cash Refund',
             body:     'Order ' + data.orderId + ' rejected. Cash refund of ₹' + order.final_amount + ' to be given.',
-            meta:     { orderId: data.orderId, phone: order.phone }
+            meta:     { orderId: data.orderId, phone: order.phone, is_subscriber: isSubscriber }
           });
         } else if (refundType === 'none') {
           await _createNotification({
@@ -727,7 +727,7 @@ app.post('/api', async (req, res) => {
             group_id: data.orderId,
             title:    'Order Rejected',
             body:     'Order ' + data.orderId + ' rejected. No refund issued.',
-            meta:     { orderId: data.orderId, phone: order.phone }
+            meta:     { orderId: data.orderId, phone: order.phone, is_subscriber: isSubscriber }
           });
         }
 
@@ -1750,9 +1750,19 @@ app.post('/api', async (req, res) => {
 
       case 'deleteNotificationRange': {
         // Respects read_only flag — only deletes read notifications, never unread
+        // ALWAYS excludes today's notifications regardless of read status
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const safeEnd = data.to + 'T23:59:59.999Z';
+        // Ensure the range end never reaches today
+        if (new Date(safeEnd) >= todayStart) {
+          const dayBefore = new Date(todayStart.getTime() - 1);
+          var rangeEnd = dayBefore.toISOString();
+        } else {
+          var rangeEnd = safeEnd;
+        }
         let query = supabase.from('notifications').delete()
           .gte('created_at', data.from)
-          .lte('created_at', data.to + 'T23:59:59.999Z');
+          .lte('created_at', rangeEnd);
         if (data.read_only !== false) query = query.eq('is_read', true);
         const { count } = await query;
         return res.json({ success: true, deleted: count || 0 });
