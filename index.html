@@ -908,6 +908,7 @@ let _authState   = 'loading';
 let _fullMenu    = [];
 let _fullThalis  = [];
 let _khataEnabled = false;
+let _variantState = {}; // itemId -> variantIdx, tracks user's selected variant
 let _pauseMode   = 'none';
 let _walletBal   = 0;
 let _activeCategory = 'All';
@@ -1658,7 +1659,9 @@ function selectVariant(itemId, variantIdx, btn) {
   const row = document.getElementById('vrow-' + itemId);
   if (!row) return;
   row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === variantIdx));
-  // Update price display
+  // Persist selection in global state map (String key so type never mismatches)
+  _variantState[String(itemId)] = variantIdx;
+  // Update price display — use String() comparison to handle string/number id mismatch
   const item = _fullMenu.find(i => String(i.item_id) === String(itemId));
   if (!item) return;
   const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
@@ -1673,8 +1676,12 @@ function addItemToCart(item, event) {
   const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   let label = '', price = item.price;
   if (variants.length) {
-    const activeBtn = document.querySelector(`#vrow-${item.item_id} .variant-pill.active`);
-    const idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : 0;
+    // Primary: use _variantState map (set by selectVariant); fallback to DOM active pill
+    let idx = _variantState[String(item.item_id)];
+    if (idx === undefined) {
+      const activeBtn = document.querySelector(`#vrow-${item.item_id} .variant-pill.active`);
+      idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : 0;
+    }
     label = variants[idx]?.label || '';
     price = variants[idx]?.price || item.price;
   }
@@ -2573,6 +2580,7 @@ function doLogout() {
   Store.remove('_khata_cache');
   _fullMenu      = [];
   _fullThalis    = [];
+  _variantState  = {};
   _walletBal     = 0;
   _pauseMode     = 'none';
   _khataEnabled  = false;
