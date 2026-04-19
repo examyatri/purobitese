@@ -99,7 +99,14 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 
 /* Payment badge */
 .pay-cash{background:#fef3c7;color:#92400e;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:600}
-.pay-wallet{background:#dcfce7;color:#166534;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:600}
+.pay-wallet{background:#dcfce7;color:#166634;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:600}
+
+/* Filter chips */
+.r-filter-chip{border:1.5px solid var(--lt);border-radius:20px;background:white;padding:5px 13px;font-family:var(--ff);font-size:12px;font-weight:600;color:var(--mu);cursor:pointer;transition:all 160ms;white-space:nowrap}
+.r-filter-chip:hover{border-color:#94a3b8;color:var(--tx)}
+.r-filter-chip.act{background:var(--p);color:white;border-color:var(--p)}
+.r-filter-chip[data-slot="morning"].act{background:var(--day);border-color:var(--day)}
+.r-filter-chip[data-slot="evening"].act{background:var(--ngt);border-color:var(--ngt)}
 
 /* Toast */
 #r-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1f2e;color:white;border-radius:24px;padding:10px 20px;font-size:14px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none}
@@ -175,23 +182,63 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   </div>
 
   <!-- Route Planner -->
-  <button class="route-btn" onclick="openRouteModal(_pending)">🗺 Plan Route for All Pending</button>
+  <button class="route-btn" onclick="openRouteModal(_pending.filter(o=>_isSlotMatch(o,_appliedSlot)))">🗺 Plan Route for All Pending</button>
 
-  <!-- Tabs -->
+  <!-- Main Tabs -->
   <div class="tabs">
     <div class="tab act" id="tab-pending" onclick="switchTab('pending')">
-      Pending <span class="badge" id="pending-count">0</span>
+      🛵 Pending <span class="badge" id="pending-count">0</span>
     </div>
     <div class="tab" id="tab-delivered" onclick="switchTab('delivered')">
-      Delivered <span class="badge" style="background:var(--g)" id="delivered-count">0</span>
+      ✅ Delivered <span class="badge" style="background:var(--g)" id="delivered-count">0</span>
     </div>
   </div>
 
-  <!-- Search -->
-  <div class="search-bar">
-    <span style="color:#94a3b8;font-size:14px">🔍</span>
-    <input id="r-search" type="text" placeholder="Search name, phone, address..." oninput="searchOrders(this.value)">
-    <button onclick="clearSearch()">✕</button>
+  <!-- Filter Panel -->
+  <div id="filter-panel" style="background:white;border-bottom:1px solid var(--lt);padding:12px 16px">
+
+    <!-- Layer 1: Date Filter -->
+    <div style="margin-bottom:10px">
+      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📅 Date</div>
+      <div style="display:flex;gap:6px">
+        <button class="r-filter-chip act" data-date="today"     onclick="setDateFilter('today',this)">Today</button>
+        <button class="r-filter-chip"     data-date="yesterday" onclick="setDateFilter('yesterday',this)">Yesterday</button>
+        <button class="r-filter-chip"     data-date="day_before" onclick="setDateFilter('day_before',this)">2 Days Ago</button>
+        <button class="r-filter-chip"     data-date="all"       onclick="setDateFilter('all',this)">All</button>
+      </div>
+    </div>
+
+    <!-- Layer 2: Session Filter -->
+    <div style="margin-bottom:12px">
+      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">🕐 Session</div>
+      <div style="display:flex;gap:6px">
+        <button class="r-filter-chip act" data-slot="all"     onclick="setSlotFilter('all',this)">All Orders</button>
+        <button class="r-filter-chip"     data-slot="morning" onclick="setSlotFilter('morning',this)">☀️ Morning</button>
+        <button class="r-filter-chip"     data-slot="evening" onclick="setSlotFilter('evening',this)">🌙 Evening</button>
+      </div>
+    </div>
+
+    <!-- Search + Buttons Row -->
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="flex:1;display:flex;align-items:center;gap:8px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
+        <span style="color:#94a3b8;font-size:13px">🔍</span>
+        <input id="r-search" type="text" placeholder="Name, phone, address, ID…"
+          style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13.5px;background:transparent;color:var(--tx)"
+          onfocus="document.getElementById('search-wrap-inner').style.borderColor='var(--p)'"
+          onblur="document.getElementById('search-wrap-inner').style.borderColor='transparent'"
+          onkeydown="if(event.key==='Enter')applyFilters()">
+        <button onclick="clearFilters()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1">✕</button>
+      </div>
+      <button onclick="applyFilters()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+        🔍 Search
+      </button>
+      <button onclick="generateRiderPDF()" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:9px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
+        📄 PDF
+      </button>
+    </div>
+
+    <!-- Active filter summary -->
+    <div id="filter-summary" style="margin-top:8px;font-family:var(--fb);font-size:12px;color:var(--mu);display:none"></div>
   </div>
 
   <!-- Orders Content -->
@@ -233,6 +280,15 @@ let _delivered      = [];
 let _activeTab      = 'pending';
 let _routeAddresses = [];
 let _pollTimer      = null;
+
+// Filter state — applied only when Search button is clicked
+let _filterDate     = 'today';   // 'today' | 'yesterday' | 'day_before' | 'all'
+let _filterSlot     = 'all';     // 'all' | 'morning' | 'evening'
+let _filterQuery    = '';        // name/phone/address/id text search
+// Applied filters (what is actually rendered — updated on Search click)
+let _appliedDate    = 'today';
+let _appliedSlot    = 'all';
+let _appliedQuery   = '';
 
 /* ─── CREDENTIAL MANAGEMENT (key: tf_rider_creds) ───── */
 function saveRiderCreds(riderId, pw) {
@@ -302,8 +358,10 @@ async function doRiderLogin() {
 function showApp() {
   document.getElementById('pg-auth').style.display = 'none';
   document.getElementById('pg-app').style.display  = 'block';
-  document.getElementById('rider-name').textContent        = _rider.name || 'Rider';
-  document.getElementById('rider-id-display').textContent  = _rider.rider_id || '';
+  document.getElementById('rider-name').textContent       = _rider.name || 'Rider';
+  document.getElementById('rider-id-display').textContent = _rider.rider_id || '';
+  // Apply default filters and show summary
+  applyFilters();
 }
 
 function doRiderLogout() {
@@ -322,10 +380,13 @@ async function loadOrders() {
   try {
     const res  = await api('getRiderOrders', { riderId: _rider.rider_id });
     _orders    = res.orders || [];
-    _pending   = _orders.filter(o => o.order_status !== 'delivered' && o.order_status !== 'rejected');
+    _pending   = _orders.filter(o => {
+      const s = (o.order_status||'').toLowerCase();
+      return s !== 'delivered' && s !== 'rejected' && s !== 'cancelled';
+    });
     _delivered = _orders.filter(o => o.order_status === 'delivered');
     updateStats();
-    renderOrders(document.getElementById('r-search').value);
+    renderOrders();
   } catch(e) { /* silent poll error */ }
 }
 
@@ -418,18 +479,37 @@ function renderOrders(searchQuery = '') {
 }
 
 function renderOrderCard(o) {
-  const isDone    = o.order_status === 'delivered';
+  const status    = (o.order_status || 'pending').toLowerCase();
+  const isDone    = status === 'delivered';
+  const isOut     = status === 'out for delivery' || status === 'out_for_delivery';
   const items     = (o.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
   const payClass  = o.user_type === 'subscriber' ? 'pay-wallet' : 'pay-cash';
   const payLabel  = o.user_type === 'subscriber' ? '💳 Wallet'  : '💵 Cash';
   const safeAddr  = (o.address || '').replace(/'/g, "\\'");
   const safeName  = (o.name    || '').replace(/'/g, "\\'");
   const safePhone = o.phone || '';
+  const slotBadge = o.slot
+    ? `<span style="background:${o.slot==='morning'?'#fffbeb':'#eef2ff'};color:${o.slot==='morning'?'#d97706':'#4f46e5'};border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">${o.slot==='morning'?'☀️ Morning':'🌙 Evening'}</span>`
+    : '';
+
+  let actionBtns = '';
+  if (isDone) {
+    actionBtns = `<span style="color:#22c55e;font-weight:600;font-size:13px;padding:7px 0">✅ Delivered</span>`;
+  } else if (isOut) {
+    actionBtns = `<button class="o-btn o-btn-done" id="del-btn-${o.order_id}" onclick="markDelivered('${o.order_id}')">✅ Mark Delivered</button>`;
+  } else {
+    actionBtns = `
+      <button class="o-btn" style="background:#e0f2fe;color:#0369a1;flex:1;justify-content:center" id="out-btn-${o.order_id}" onclick="markOutForDelivery('${o.order_id}')">🛵 Out for Delivery</button>
+      <button class="o-btn o-btn-done" id="del-btn-${o.order_id}" onclick="markDelivered('${o.order_id}')">✅ Done</button>`;
+  }
 
   return `
   <div class="o-card ${isDone ? 'done' : ''}" id="card-${o.order_id}">
     <div class="o-card-row">
-      <span class="o-id">${o.order_id}</span>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <span class="o-id">${o.order_id}</span>
+        ${slotBadge}
+      </div>
       <span class="${payClass}">${payLabel}</span>
     </div>
     <div style="margin-bottom:6px">
@@ -445,12 +525,27 @@ function renderOrderCard(o) {
       <button class="o-btn o-btn-call" onclick="window.location.href='tel:${safePhone}'">📞 Call</button>
       <button class="o-btn o-btn-map"  onclick="openMaps('${safeAddr}')">🗺 Maps</button>
       <button class="o-btn o-btn-wa"   onclick="openWA('91${safePhone}','Hi ${safeName}, your Tiffo order is on the way!')">💬 WA</button>
-      ${!isDone
-        ? `<button class="o-btn o-btn-done" id="del-btn-${o.order_id}" onclick="markDelivered('${o.order_id}')">✅ Mark Delivered</button>`
-        : `<span style="color:#22c55e;font-weight:600;font-size:13px;padding:7px 0">✅ Delivered</span>`
-      }
+      ${actionBtns}
     </div>
   </div>`;
+}
+
+/* ─── MARK OUT FOR DELIVERY ──────────────────────────── */
+async function markOutForDelivery(orderId) {
+  const btn  = document.getElementById('out-btn-' + orderId);
+  const card = document.getElementById('card-' + orderId);
+  if (!btn || btn.disabled) return;
+  btn.textContent = '…'; btn.disabled = true;
+  try {
+    await api('updateOrderStatus', { orderId, status: 'out for delivery', riderId: _rider.rider_id });
+    const o = _pending.find(o => o.order_id === orderId);
+    if (o) o.order_status = 'out for delivery';
+    renderOrders();
+    rToast('🛵 Out for delivery!');
+  } catch(e) {
+    btn.textContent = '🛵 Out for Delivery'; btn.disabled = false;
+    rToast('Failed: ' + (e.message || 'Try again'));
+  }
 }
 
 /* ─── MARK DELIVERED (optimistic UI) ─────────────────── */
@@ -458,15 +553,10 @@ async function markDelivered(orderId) {
   const btn  = document.getElementById('del-btn-' + orderId);
   const card = document.getElementById('card-' + orderId);
   if (!btn || btn.disabled) return;
-
-  // Optimistic update
   btn.textContent = '…'; btn.disabled = true;
   card.style.opacity = '0.6';
-
   try {
     await api('updateOrderStatus', { orderId, status: 'delivered', riderId: _rider.rider_id });
-
-    // Confirmed — move order from pending to delivered
     const idx = _pending.findIndex(o => o.order_id === orderId);
     if (idx !== -1) {
       const order = { ..._pending[idx], order_status: 'delivered' };
@@ -474,10 +564,9 @@ async function markDelivered(orderId) {
       _delivered.unshift(order);
     }
     updateStats();
-    renderOrders(document.getElementById('r-search').value);
+    renderOrders();
     rToast('✅ Delivered!');
   } catch(e) {
-    // Revert on error
     card.style.opacity = '1';
     btn.textContent = '✅ Mark Delivered'; btn.disabled = false;
     rToast('Failed: ' + (e.message || 'Try again'));
@@ -489,23 +578,230 @@ function switchTab(tab) {
   _activeTab = tab;
   document.getElementById('tab-pending').classList.toggle('act',   tab === 'pending');
   document.getElementById('tab-delivered').classList.toggle('act', tab === 'delivered');
-  renderOrders(document.getElementById('r-search').value);
+  applyFilters();
 }
 
-/* ─── SEARCH ─────────────────────────────────────────── */
-function searchOrders(q) { renderOrders(q); }
-function clearSearch() {
+/* ─── FILTER SETTERS (just update state + chip UI, don't render yet) ─── */
+function setDateFilter(val, btn) {
+  _filterDate = val;
+  document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === val));
+}
+function setSlotFilter(val, btn) {
+  _filterSlot = val;
+  document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === val));
+}
+
+/* ─── APPLY FILTERS (called on Search button click) ─── */
+function applyFilters() {
+  _appliedDate  = _filterDate;
+  _appliedSlot  = _filterSlot;
+  _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
+  renderOrders();
+  updateFilterSummary();
+}
+
+function clearFilters() {
   document.getElementById('r-search').value = '';
-  renderOrders('');
+  _filterDate = 'today'; _filterSlot = 'all'; _appliedDate = 'today'; _appliedSlot = 'all'; _appliedQuery = '';
+  document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === 'today'));
+  document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === 'all'));
+  renderOrders();
+  updateFilterSummary();
+}
+
+function updateFilterSummary() {
+  const el = document.getElementById('filter-summary');
+  if (!el) return;
+  const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
+  const slotLabel = { all:'All Sessions', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot];
+  const parts = [dateLabel, slotLabel];
+  if (_appliedQuery) parts.push(`"${_appliedQuery}"`);
+  el.textContent = '↳ Showing: ' + parts.join(' · ');
+  el.style.display = 'block';
+}
+
+/* ─── DATE HELPERS ───────────────────────────────────── */
+function _getDateStr(offset) {
+  return new Date(Date.now() + 5.5*3600000 - offset*86400000).toISOString().slice(0,10);
+}
+function _isSlotMatch(o, slotFilter) {
+  if (slotFilter === 'all') return true;
+  // If order has explicit slot field use it
+  if (o.slot) return o.slot === slotFilter;
+  // Otherwise infer from time
+  const raw = o.time || '00:00';
+  const isPM = raw.toUpperCase().includes('PM');
+  let h = parseInt(raw.split(':')[0]);
+  const h24 = isPM && h !== 12 ? h+12 : (!isPM && h === 12 ? 0 : h);
+  return slotFilter === 'morning' ? h24 < 15 : h24 >= 15;
+}
+
+/* ─── RENDER ─────────────────────────────────────────── */
+function renderOrders() {
+  const baseList = _activeTab === 'pending' ? _pending : _delivered;
+  const today     = _getDateStr(0);
+  const yesterday = _getDateStr(1);
+  const dayBefore = _getDateStr(2);
+
+  let list = baseList.filter(o => {
+    // Layer 1: date
+    const d = o.date || '';
+    if (_appliedDate === 'today'      && d !== today)     return false;
+    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
+    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
+    // Layer 2: slot/session
+    if (!_isSlotMatch(o, _appliedSlot)) return false;
+    // Search query
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) &&
+          !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) &&
+          !(o.order_id||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const el = document.getElementById('orders-content');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">${_activeTab==='pending'?'🎉':'📦'}</div><p>No orders match the current filter</p></div>`;
+    return;
+  }
+
+  // Group by date → session
+  const grouped = {};
+  list.forEach(o => {
+    const d = o.date || 'Unknown';
+    if (!grouped[d]) grouped[d] = { morning:[], evening:[] };
+    if (_isSlotMatch(o,'morning')) grouped[d].morning.push(o);
+    else grouped[d].evening.push(o);
+  });
+
+  const dateLabel = d => {
+    if (d === today)     return 'Today · ' + fmtDateShort(d);
+    if (d === yesterday) return 'Yesterday · ' + fmtDateShort(d);
+    if (d === dayBefore) return '2 Days Ago · ' + fmtDateShort(d);
+    const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`;
+  };
+  function fmtDateShort(d) {
+    if (!d || !/^\d{4}/.test(d)) return d;
+    const [y,m,dd] = d.split('-');
+    return `${dd}/${m}`;
+  }
+
+  const sortedDates = Object.keys(grouped).sort().reverse();
+  el.innerHTML = sortedDates.map(date => {
+    const grp = grouped[date];
+    const showMorning = (_appliedSlot === 'all' || _appliedSlot === 'morning') && grp.morning.length;
+    const showEvening = (_appliedSlot === 'all' || _appliedSlot === 'evening') && grp.evening.length;
+    const mJson = JSON.stringify(grp.morning).replace(/"/g,'&quot;');
+    const eJson = JSON.stringify(grp.evening).replace(/"/g,'&quot;');
+    return `<div class="date-section">
+      <div class="date-header" onclick="toggleDateSection('${date}')">
+        <span class="date-label">${dateLabel(date)}</span>
+        <span class="date-toggle" id="dt-toggle-${date}">▼</span>
+      </div>
+      <div id="dt-body-${date}">
+        ${showMorning ? `<div class="session-group">
+          <div class="session-header session-morning">
+            <span>☀️ Morning (${grp.morning.length})</span>
+            <button class="session-route-btn" onclick="event.stopPropagation();openRouteModal('${mJson}')">🗺 Route</button>
+          </div>
+          ${grp.morning.map(o => renderOrderCard(o)).join('')}
+        </div>` : ''}
+        ${showEvening ? `<div class="session-group">
+          <div class="session-header session-evening">
+            <span>🌙 Evening (${grp.evening.length})</span>
+            <button class="session-route-btn" onclick="event.stopPropagation();openRouteModal('${eJson}')">🗺 Route</button>
+          </div>
+          ${grp.evening.map(o => renderOrderCard(o)).join('')}
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 /* ─── DATE SECTION TOGGLE ────────────────────────────── */
 function toggleDateSection(date) {
-  const body   = document.getElementById('dt-body-' + date);
+  const body   = document.getElementById('dt-body-'   + date);
   const toggle = document.getElementById('dt-toggle-' + date);
+  if (!body) return;
   const isOpen = body.style.display !== 'none';
-  body.style.display   = isOpen ? 'none' : '';
-  toggle.textContent   = isOpen ? '▶' : '▼';
+  body.style.display = isOpen ? 'none' : '';
+  toggle.textContent = isOpen ? '▶' : '▼';
+}
+
+/* ─── PDF EXPORT (respects active filters) ───────────── */
+function generateRiderPDF() {
+  const baseList = _activeTab === 'pending' ? _pending : _delivered;
+  const today     = _getDateStr(0);
+  const yesterday = _getDateStr(1);
+  const dayBefore = _getDateStr(2);
+
+  const filtered = baseList.filter(o => {
+    const d = o.date || '';
+    if (_appliedDate === 'today'      && d !== today)     return false;
+    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
+    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
+    if (!_isSlotMatch(o, _appliedSlot)) return false;
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) && !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) { rToast('No orders to export'); return; }
+
+  const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
+  const slotLabel = { all:'All Sessions', morning:'Morning Orders', evening:'Evening Orders' }[_appliedSlot];
+  const tabLabel  = _activeTab === 'pending' ? 'Pending' : 'Delivered';
+  const totalAmt  = filtered.reduce((s,o) => s+(+o.final_amount||0), 0);
+
+  const rows = filtered.map((o,i) => {
+    const items = (o.items||[]).map(it=>`${it.name}${it.qty>1?` ×${it.qty}`:''}`).join(', ');
+    const slot  = o.slot ? (o.slot==='morning'?'☀️ Morning':'🌙 Evening') : (_isSlotMatch(o,'morning')?'☀️ Morning':'🌙 Evening');
+    const pay   = o.user_type==='subscriber' ? '💳 Wallet' : '💵 Cash';
+    const status= (o.order_status||'pending').replace(/_/g,' ');
+    return `<tr style="background:${i%2===0?'#fff':'#f9fafb'}">
+      <td>${i+1}</td>
+      <td style="font-family:monospace;font-size:11px">${o.order_id}</td>
+      <td><b>${o.name||'—'}</b><br><span style="color:#64748b">${o.phone||''}</span></td>
+      <td style="font-size:11px;color:#334155">${o.address||'—'}</td>
+      <td style="font-size:12px">${items||'—'}</td>
+      <td style="text-align:right;font-weight:700">₹${o.final_amount||0}</td>
+      <td>${pay}</td>
+      <td>${slot}</td>
+      <td style="font-size:11px">${o.date||'—'}<br>${o.time||''}</td>
+      <td style="font-size:11px;color:${o.order_status==='delivered'?'#166534':'#b45309'}">${status}</td>
+    </tr>`;
+  }).join('');
+
+  const win = window.open('','_blank','width=1100,height=750');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Tiffo Rider — ${tabLabel} Orders</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;padding:20px;color:#1e293b;background:#fff}
+    h1{font-size:18px;font-weight:800;margin-bottom:3px}
+    .meta{font-size:12px;color:#64748b;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#1e293b;color:white;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+    td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+    .total-row{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0}
+    footer{margin-top:14px;font-size:11px;color:#94a3b8;text-align:right}
+  </style></head><body>
+  <h1>🛵 Tiffo Rider — ${tabLabel} Orders</h1>
+  <div class="meta">Rider: ${_rider?.name||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_appliedQuery+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
+  <table>
+    <thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Address</th><th>Items</th><th>Amount</th><th>Payment</th><th>Session</th><th>Date/Time</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="total-row"><td colspan="5" style="text-align:right;padding:10px">Total (${filtered.length} orders):</td><td style="padding:10px;font-size:14px">₹${totalAmt}</td><td colspan="4"></td></tr></tfoot>
+  </table>
+  <footer>Tiffo Rider Panel © 2026</footer>
+  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200)}<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 /* ─── ROUTE PLANNING ─────────────────────────────────── */

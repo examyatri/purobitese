@@ -66,7 +66,7 @@ textarea{resize:vertical;min-height:80px}
 .status-pending{background:#fef3c7;color:#92400e}
 .status-verified{background:#dbeafe;color:#1e40af}
 .status-preparing{background:#ede9fe;color:#5b21b6}
-.status-out_for_delivery{background:var(--gl);color:#0f5132}
+.status-out_for_delivery,.status-out-for-delivery{background:var(--gl);color:#0f5132}
 .status-delivered{background:#dcfce7;color:#166534}
 .status-rejected{background:#fee2e2;color:#991b1b}
 /* Section headers */
@@ -2075,9 +2075,43 @@ async function loadOrders() {
 }
 
 function getStatusClass(s) {
-  const map = { pending:'status-pending', verified:'status-verified', preparing:'status-preparing',
-    out_for_delivery:'status-out_for_delivery', delivered:'status-delivered', rejected:'status-rejected' };
-  return map[s] || 'status-pending';
+  // Normalize: handle both 'out for delivery' and 'out_for_delivery'
+  const norm = (s||'').toLowerCase().replace(/\s+/g,'_');
+  const map = {
+    pending:          'status-pending',
+    verified:         'status-verified',
+    preparing:        'status-preparing',
+    out_for_delivery: 'status-out_for_delivery',
+    delivered:        'status-delivered',
+    rejected:         'status-rejected',
+    cancelled:        'status-rejected'
+  };
+  return map[norm] || 'status-pending';
+}
+
+function getStatusLabel(s) {
+  const norm = (s||'pending').toLowerCase();
+  const labels = {
+    pending:          '🕐 Pending',
+    verified:         '✅ Verified',
+    preparing:        '👨‍🍳 Preparing',
+    'out for delivery':'🛵 Out for Delivery',
+    out_for_delivery: '🛵 Out for Delivery',
+    delivered:        '✅ Delivered',
+    rejected:         '❌ Rejected',
+    cancelled:        '❌ Cancelled'
+  };
+  return labels[norm] || s;
+}
+
+function getRefundBadge(o) {
+  if ((o.order_status||'') !== 'rejected') return '';
+  const refundMap = {
+    wallet: '<span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">💰 Wallet Refunded</span>',
+    cash:   '<span style="background:#fef9c3;color:#854d0e;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">💵 Cash Refund</span>',
+    none:   '<span style="background:#fee2e2;color:#991b1b;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">🚫 No Refund</span>'
+  };
+  return refundMap[o.refund_type] || '';
 }
 
 function renderOrderList(orders) {
@@ -2090,22 +2124,59 @@ function renderOrderList(orders) {
   const sorted = [...orders].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
   list.innerHTML = sorted.map(o => {
     const items = o.items ? (typeof o.items === 'string' ? JSON.parse(o.items) : o.items) : [];
-    const itemsHtml = items.slice(0, 3).map(i => `• ${i.name} × ${i.qty}`).join('<br>');
-    const extra = items.length > 3 ? `<br><span style="color:var(--gr);font-size:12px">+${items.length-3} more</span>` : '';
-    const payBadge = (o.user_type === 'subscriber')
+    const itemsHtml = items.slice(0, 3).map(i =>
+      `<div style="display:flex;align-items:baseline;gap:5px;padding:1px 0">
+        <span style="width:5px;height:5px;border-radius:50%;background:#d1d5db;flex-shrink:0;margin-top:4px;display:inline-block"></span>
+        <span>${i.name}${i.qty > 1 ? ` × ${i.qty}` : ''}</span>
+      </div>`
+    ).join('');
+    const extra = items.length > 3
+      ? `<div style="color:var(--gr);font-size:11px;margin-top:2px;font-style:italic">+${items.length-3} more items</div>`
+      : '';
+
+    const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
+    const payBadge = isWallet
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
-      : `<span class="ord-pay-badge">💵 Cash</span>`;
-    return `<div class="order-card">
+      : `<span class="ord-pay-badge">💵 Cash / UPI</span>`;
+
+    // Slot indicator
+    const slotBadge = o.slot
+      ? `<span style="background:#f1f5f9;color:#64748b;border-radius:20px;padding:2px 7px;font-size:10px;font-weight:600;font-family:var(--ff)">${o.slot === 'morning' ? '☀️ Morning' : '🌙 Evening'}</span>`
+      : '';
+
+    // Status progress bar
+    const statuses = ['pending','preparing','out for delivery','delivered'];
+    const normStatus = (o.order_status||'').toLowerCase();
+    const curIdx = statuses.indexOf(normStatus);
+    const rejected = normStatus === 'rejected' || normStatus === 'cancelled';
+
+    const progressBar = rejected ? '' : `
+      <div style="display:flex;gap:3px;margin:10px 0 6px">
+        ${statuses.map((s,i) => `<div style="flex:1;height:3px;border-radius:3px;background:${i <= curIdx ? 'var(--g)' : '#e5e7eb'};transition:background 300ms"></div>`).join('')}
+      </div>`;
+
+    const refundBadge = getRefundBadge(o);
+
+    return `<div class="order-card" style="border-left:3px solid ${rejected?'var(--pd)':curIdx>=3?'var(--g)':'var(--p)'}">
       <div class="ord-hd">
-        <div class="ord-id">#${o.order_id || o.id}</div>
-        <span class="status-badge ${getStatusClass(o.order_status)}">${(o.order_status||'pending').replace(/_/g,' ')}</span>
+        <div>
+          <div class="ord-id" style="font-size:11px;color:var(--gr);font-family:var(--ff)">ORDER</div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:var(--dk)">#${o.order_id || o.id}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span class="status-badge ${getStatusClass(o.order_status)}">${getStatusLabel(o.order_status)}</span>
+          ${slotBadge}
+        </div>
       </div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-bottom:6px">
-        ${fmtDate(o.created_at)} ${fmtTime(o.time || '')}
+      <div style="font-family:var(--fb);font-size:11.5px;color:var(--gr);margin-bottom:8px">
+        📅 ${o.date || fmtDate(o.created_at)}${o.time ? ' · ' + o.time : ''}
       </div>
-      <div class="ord-items">${itemsHtml}${extra}</div>
+      ${progressBar}
+      <div class="ord-items" style="font-size:12.5px;margin-bottom:8px">${itemsHtml}${extra}</div>
+      ${o.coupon_code ? `<div style="font-size:11px;color:var(--g);margin-bottom:6px">🏷 Coupon: ${o.coupon_code}${o.discount?` (−₹${o.discount})`:''}  applied</div>` : ''}
+      ${refundBadge ? `<div style="margin-bottom:8px">${refundBadge}</div>` : ''}
       <div class="ord-foot">
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="ord-total">₹${o.final_amount || o.total_amount || 0}</span>
           ${payBadge}
         </div>

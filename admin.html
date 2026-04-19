@@ -337,6 +337,78 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .pg-v{display:none}
 .pg-v.act{display:block}
 
+/* ── ORDERS v2 ────────────────────────────────────────────── */
+.ord-cat-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+  border:1.5px solid #e2e8f0;border-radius:10px;background:white;
+  font-family:var(--ff);font-size:13px;font-weight:600;color:#64748b;
+  cursor:pointer;transition:all 180ms;white-space:nowrap;
+}
+.ord-cat-btn:hover{border-color:#cbd5e1;color:#334155;background:#f8fafc}
+.ord-cat-btn.act{background:var(--p);color:white;border-color:var(--p);box-shadow:0 3px 12px rgba(230,57,70,.3)}
+.ord-chip{
+  padding:5px 13px;border:1.5px solid #e2e8f0;border-radius:20px;background:white;
+  font-family:var(--ff);font-size:11.5px;font-weight:700;color:#64748b;
+  cursor:pointer;transition:all 160ms;white-space:nowrap;
+}
+.ord-chip:hover{border-color:#94a3b8;color:#334155}
+.ord-chip.act{background:#0f172a;color:white;border-color:#0f172a}
+.ord-chip[data-status="pending"].act{background:#854d0e;border-color:#854d0e}
+.ord-chip[data-status="preparing"].act{background:#6d28d9;border-color:#6d28d9}
+.ord-chip[data-status="out for delivery"].act{background:#0369a1;border-color:#0369a1}
+.ord-chip[data-status="delivered"].act{background:#15803d;border-color:#15803d}
+.ord-chip[data-status="rejected"].act{background:#be123c;border-color:#be123c}
+/* items detail cell */
+.ord-items-list{list-style:none;padding:0;margin:0}
+.ord-items-list li{font-size:12px;color:#334155;padding:1px 0;display:flex;align-items:baseline;gap:4px}
+.ord-items-list li::before{content:'•';color:#94a3b8;font-size:10px;flex-shrink:0}
+/* pricing breakdown */
+.ord-price-wrap{font-size:12px;color:#334155;line-height:1.6}
+.ord-price-wrap .price-row{display:flex;justify-content:space-between;gap:12px;white-space:nowrap}
+.ord-price-wrap .price-total{font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a;margin-top:3px;padding-top:3px;border-top:1px solid #f1f5f9}
+.ord-price-wrap .price-coupon{color:#16a34a;font-size:11px}
+/* source badge */
+.src-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-family:var(--ff);font-size:10.5px;font-weight:700}
+.src-user{background:#dbeafe;color:#1e40af}
+.src-bulk{background:#ede9fe;color:#5b21b6}
+/* rider cell */
+.rider-cell{font-size:12px;color:#334155}
+.rider-cell .rider-id{font-size:10px;color:#94a3b8;font-family:var(--ff)}
+/* action buttons */
+.act-btn{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border:none;border-radius:7px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;transition:all 150ms;white-space:nowrap}
+.act-btn-assign{background:#eff6ff;color:#1d4ed8}
+.act-btn-assign:hover{background:#dbeafe}
+.act-btn-status{background:#f0fdf4;color:#16a34a}
+.act-btn-status:hover{background:#dcfce7}
+.act-btn-reject{background:#fff1f2;color:#be123c}
+.act-btn-reject:hover{background:#ffe4e6}
+.act-btn-wa{background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;text-decoration:none}
+.act-btn-wa:hover{background:#dcfce7}
+/* status dropdown inline */
+.status-inline-select{
+  padding:5px 8px;border:1.5px solid #e5e7eb;border-radius:7px;
+  font-size:11.5px;font-family:var(--ff);font-weight:600;
+  background:white;outline:none;cursor:pointer;color:#334155;
+}
+/* reject modal options */
+.refund-opt{
+  display:flex;align-items:center;gap:12px;padding:13px 16px;
+  border:2px solid #e2e8f0;border-radius:11px;cursor:pointer;
+  transition:all 160ms;margin-bottom:8px;
+}
+.refund-opt:hover{border-color:var(--p);background:#fff8f8}
+.refund-opt-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+/* PDF print styles */
+@media print{
+  #sidebar,#topbar,#a-toast,#nprogress,#mo-bg,
+  .act-btn,.act-btn-wa,.status-inline-select,
+  #ord-cat-tabs,#ord-status-chips,#ord-count-badge,
+  #ord-pdf-btn,.filter-bar,.page-header button{display:none!important}
+  body{background:white!important}
+  #main{margin-left:0!important}
+  #p-orders .card{box-shadow:none!important;border:1px solid #e2e8f0!important}
+}
+
 /* ── RESPONSIVE ──────────────────────────────────────────── */
 @media(max-width:768px){
   #sidebar{transform:translateX(-100%)}
@@ -451,40 +523,95 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- ORDERS -->
       <div id="p-orders" class="pg-v">
-        <div class="page-header">
-          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Orders</h2>
-        </div>
-        <div class="filter-bar">
-          <div class="tabs" id="order-filter-tabs" style="margin-bottom:0;background:transparent;padding:0">
-            <button class="tab-btn act" data-filter="all" onclick="setOrderFilter('all',this)">All</button>
-            <button class="tab-btn" data-filter="pending" onclick="setOrderFilter('pending',this)">Pending</button>
-            <button class="tab-btn" data-filter="verified" onclick="setOrderFilter('verified',this)">Verified</button>
-            <button class="tab-btn" data-filter="preparing" onclick="setOrderFilter('preparing',this)">Preparing</button>
-            <button class="tab-btn" data-filter="out for delivery" onclick="setOrderFilter('out for delivery',this)">Out for Delivery</button>
-            <button class="tab-btn" data-filter="delivered" onclick="setOrderFilter('delivered',this)">Delivered</button>
-            <button class="tab-btn" data-filter="rejected" onclick="setOrderFilter('rejected',this)">Rejected</button>
+
+        <!-- Orders Top Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+          <div>
+            <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Orders</h2>
+            <p style="color:#94a3b8;font-size:13px;margin-top:2px" id="orders-subtitle">Today's orders — loading…</p>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
-            <input id="order-search" type="search" placeholder="Search ID, name, phone…" class="search-input" oninput="renderOrdersTable(_allOrders)">
-            <select id="order-sort" onchange="renderOrdersTable(_allOrders)" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;font-family:var(--fb);outline:none">
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="amount_desc">Amount ↓</option>
-              <option value="amount_asc">Amount ↑</option>
-              <option value="today">Today Only</option>
-              <option value="morning">Morning Slot</option>
-              <option value="evening">Evening Slot</option>
-            </select>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button id="ord-pdf-btn" onclick="generateOrderPDF()" style="display:flex;align-items:center;gap:7px;padding:9px 16px;background:linear-gradient(135deg,#e63946,#c1121f);color:white;border:none;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 3px 12px rgba(230,57,70,.3);transition:all 180ms" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='translateY(0)'">
+              <i class="fa fa-file-pdf"></i> Export PDF
+            </button>
+            <button onclick="loadOrders()" style="display:flex;align-items:center;gap:7px;padding:9px 14px;background:white;color:#64748b;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;transition:all 180ms" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+              <i class="fa fa-rotate-right"></i> Refresh
+            </button>
           </div>
         </div>
-        <div class="card">
+
+        <!-- Category Filter Tabs (All / Today / Morning / Evening) -->
+        <div style="background:white;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.05);border:1px solid rgba(226,232,240,.6);margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <!-- Category tabs -->
+            <div style="display:flex;gap:6px;flex-wrap:wrap" id="ord-cat-tabs">
+              <button class="ord-cat-btn act" data-cat="today" onclick="setOrdCat('today',this)">
+                <i class="fa fa-calendar-day"></i> Today
+              </button>
+              <button class="ord-cat-btn" data-cat="all" onclick="setOrdCat('all',this)">
+                <i class="fa fa-list"></i> All Orders
+              </button>
+              <button class="ord-cat-btn" data-cat="morning" onclick="setOrdCat('morning',this)">
+                ☀️ Morning
+              </button>
+              <button class="ord-cat-btn" data-cat="evening" onclick="setOrdCat('evening',this)">
+                🌙 Evening
+              </button>
+            </div>
+            <!-- Status filter chips -->
+            <div style="display:flex;gap:5px;flex-wrap:wrap" id="ord-status-chips">
+              <button class="ord-chip act" data-status="all" onclick="setOrdStatus('all',this)">All</button>
+              <button class="ord-chip" data-status="pending" onclick="setOrdStatus('pending',this)">🕐 Pending</button>
+              <button class="ord-chip" data-status="preparing" onclick="setOrdStatus('preparing',this)">👨‍🍳 Preparing</button>
+              <button class="ord-chip" data-status="out for delivery" onclick="setOrdStatus('out for delivery',this)">🛵 Out for Del.</button>
+              <button class="ord-chip" data-status="delivered" onclick="setOrdStatus('delivered',this)">✅ Delivered</button>
+              <button class="ord-chip" data-status="rejected" onclick="setOrdStatus('rejected',this)">❌ Rejected</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search + Sort row -->
+        <div style="background:white;border-radius:12px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid rgba(226,232,240,.6);margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;flex:1;min-width:220px">
+            <i class="fa fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:13px"></i>
+            <input id="order-search" type="search" placeholder="Search by name, phone or order ID…"
+              style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:13px;font-family:var(--fb);outline:none;transition:border-color 180ms"
+              onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e5e7eb'"
+              oninput="renderOrdersTable(_allOrders)">
+          </div>
+          <select id="order-sort" onchange="renderOrdersTable(_allOrders)"
+            style="padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:13px;background:white;font-family:var(--fb);outline:none;color:#334155">
+            <option value="newest">⬇ Newest First</option>
+            <option value="oldest">⬆ Oldest First</option>
+            <option value="amount_desc">₹ High → Low</option>
+            <option value="amount_asc">₹ Low → High</option>
+          </select>
+          <div id="ord-count-badge" style="padding:7px 14px;background:#f1f5f9;border-radius:9px;font-size:12px;font-weight:700;font-family:var(--ff);color:#64748b;white-space:nowrap">0 orders</div>
+        </div>
+
+        <!-- Orders Table Card -->
+        <div class="card" style="padding:0;overflow:hidden">
           <div class="tbl-wrap">
-            <table>
-              <thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date/Time</th><th>Rider</th><th>Actions</th></tr></thead>
+            <table id="orders-main-table">
+              <thead>
+                <tr>
+                  <th style="padding:13px 16px">Order ID</th>
+                  <th style="padding:13px 16px">Customer</th>
+                  <th style="padding:13px 16px">Items Detail</th>
+                  <th style="padding:13px 16px">Pricing</th>
+                  <th style="padding:13px 16px">Source</th>
+                  <th style="padding:13px 16px">Payment</th>
+                  <th style="padding:13px 16px">Status</th>
+                  <th style="padding:13px 16px">Date</th>
+                  <th style="padding:13px 16px">Rider</th>
+                  <th style="padding:13px 16px">Actions</th>
+                </tr>
+              </thead>
               <tbody id="orders-tbody"></tbody>
             </table>
           </div>
         </div>
+
       </div>
 
       <!-- BULK ORDERS -->
@@ -1181,52 +1308,61 @@ async function _loadStatDetail(type) {
   }
 }
 
-// ─── ORDERS ───────────────────────────────────────────────
+// ─── ORDERS v2 ────────────────────────────────────────────
 let _allOrders = [], _ordersStr = '', _ridersCache = [], _weeklySchedule = [];
+let _ordCat = 'today', _ordStatus = 'all'; // active category & status filters
 
-// Helper: get morning cutoff (lunchEnd) for a given date string "YYYY-MM-DD"
-// Returns "HH:MM" or null if not found
+// ── Time helpers ──
 function _getMorningCutoff(dateStr) {
   if (!dateStr) return null;
-  const dow = new Date(dateStr + 'T00:00:00').getDay(); // 0=Sun…6=Sat
-  const daySched = _weeklySchedule[dow];
-  if (!daySched) return null;
-  return daySched.lunchEnd || null; // e.g. "12:00"
+  const s = _weeklySchedule[new Date(dateStr+'T00:00:00').getDay()];
+  return s?.lunchEnd || null;
 }
-
-// Helper: get evening cutoff (dinnerEnd) for a given date string "YYYY-MM-DD"
-// Returns "HH:MM" or null if not found
 function _getEveningCutoff(dateStr) {
   if (!dateStr) return null;
-  const dow = new Date(dateStr + 'T00:00:00').getDay();
-  const daySched = _weeklySchedule[dow];
-  if (!daySched) return null;
-  return daySched.dinnerEnd || null; // e.g. "20:00"
+  const s = _weeklySchedule[new Date(dateStr+'T00:00:00').getDay()];
+  return s?.dinnerEnd || null;
+}
+function _toMins(t) {
+  if (!t) return null;
+  const s = String(t).trim();
+  const m12 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (m12) { let h=+m12[1],m=+m12[2]; if(m12[3].toUpperCase()==='AM'&&h===12)h=0; if(m12[3].toUpperCase()==='PM'&&h!==12)h+=12; return h*60+m; }
+  const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+  return m24 ? +m24[1]*60 + +m24[2] : null;
+}
+function _isMorning(o) {
+  if ((o.order_source||'') === 'admin') return (o.slot||'morning') === 'morning';
+  const cut = _toMins(_getMorningCutoff(o.date));
+  if (cut === null) return true;
+  const om = _toMins(o.time||'00:00');
+  return om === null || om <= cut;
+}
+function _isEvening(o) {
+  if ((o.order_source||'') === 'admin') return (o.slot||'morning') === 'evening';
+  const mc = _toMins(_getMorningCutoff(o.date)), ec = _toMins(_getEveningCutoff(o.date));
+  if (mc===null||ec===null) return false;
+  const om = _toMins(o.time||'00:00');
+  return om!==null && om>mc && om<=ec;
 }
 
-// Helper: convert time string to total minutes.
-// Handles both 24h "HH:MM" and 12h "HH:MM AM/PM" formats.
-function _toMins(timeStr) {
-  if (!timeStr) return null;
-  const s = String(timeStr).trim();
-  // 12-hour format: "02:30 PM" or "02:30PM"
-  const match12 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (match12) {
-    let h = parseInt(match12[1], 10);
-    const m = parseInt(match12[2], 10);
-    const ampm = match12[3].toUpperCase();
-    if (ampm === 'AM' && h === 12) h = 0;
-    if (ampm === 'PM' && h !== 12) h += 12;
-    return h * 60 + m;
-  }
-  // 24-hour format: "14:30"
-  const match24 = s.match(/^(\d{1,2}):(\d{2})$/);
-  if (match24) {
-    return parseInt(match24[1], 10) * 60 + parseInt(match24[2], 10);
-  }
-  return null;
+// ── Filter tab setters ──
+function setOrdCat(cat, btn) {
+  _ordCat = cat;
+  document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b => b.classList.remove('act'));
+  btn.classList.add('act');
+  renderOrdersTable(_allOrders);
 }
+function setOrdStatus(status, btn) {
+  _ordStatus = status;
+  document.querySelectorAll('#ord-status-chips .ord-chip').forEach(b => b.classList.remove('act'));
+  btn.classList.add('act');
+  renderOrdersTable(_allOrders);
+}
+// Legacy compat (called from setOrderFilter if needed)
+function setOrderFilter(filter, btn) { setOrdStatus(filter, btn); }
 
+// ── Load orders ──
 async function loadOrders() {
   try {
     npStart();
@@ -1246,103 +1382,274 @@ async function loadOrders() {
   } catch(e) { npDone(); aToast('Orders load failed'); }
 }
 
-function setOrderFilter(filter, btn) {
-  document.querySelectorAll('#order-filter-tabs .tab-btn').forEach(b => b.classList.remove('act'));
-  btn.classList.add('act');
-  btn.dataset.filter = filter;
-  document.getElementById('order-filter-tabs').dataset.activeFilter = filter;
-  renderOrdersTable(_allOrders);
-}
-
+// ── Main render ──
 function renderOrdersTable(orders) {
-  const filter = document.getElementById('order-filter-tabs')?.dataset.activeFilter || 'all';
-  const search = (document.getElementById('order-search')?.value || '').toLowerCase();
-  const sort   = document.getElementById('order-sort')?.value || 'newest';
+  const search = (document.getElementById('order-search')?.value||'').toLowerCase().trim();
+  const sort   = document.getElementById('order-sort')?.value||'newest';
+  const todayIST = new Date(Date.now()+5.5*3600000).toISOString().slice(0,10);
+
   let filtered = [...orders];
 
-  // Status filter
-  if (filter !== 'all') filtered = filtered.filter(o => o.order_status === filter);
+  // Category filter
+  if (_ordCat === 'today')   filtered = filtered.filter(o=>(o.date||'').startsWith(todayIST));
+  else if (_ordCat === 'morning') filtered = filtered.filter(_isMorning);
+  else if (_ordCat === 'evening') filtered = filtered.filter(_isEvening);
+  // 'all' = no category filter
 
-  // Search filter
+  // Status filter
+  if (_ordStatus !== 'all') filtered = filtered.filter(o=>o.order_status===_ordStatus);
+
+  // Search
   if (search) filtered = filtered.filter(o =>
     (o.order_id||'').toLowerCase().includes(search) ||
     (o.name||'').toLowerCase().includes(search) ||
     (o.phone||'').includes(search)
   );
 
-  // Date/time filters
-  if (sort === 'today') {
-    const todayIST = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
-    filtered = filtered.filter(o => (o.date||'').startsWith(todayIST));
-  } else if (sort === 'morning') {
-    // Morning = admin/bulk orders with slot='morning' (or slot unset, defaults morning)
-    //         + customer orders placed at/before lunchEnd cutoff for that day
-    filtered = filtered.filter(o => {
-      if ((o.order_source || '') === 'admin') return (o.slot || 'morning') === 'morning';
-      const cutoffMins = _toMins(_getMorningCutoff(o.date));
-      if (cutoffMins === null) return true; // no schedule = show all customer orders in morning
-      const orderMins = _toMins(o.time || '00:00');
-      if (orderMins === null) return true;
-      return orderMins <= cutoffMins;
-    });
-  } else if (sort === 'evening') {
-    // Evening = admin/bulk orders with slot='evening'
-    //         + customer orders placed AFTER lunchEnd and at/before dinnerEnd for that day
-    filtered = filtered.filter(o => {
-      if ((o.order_source || '') === 'admin') return (o.slot || 'morning') === 'evening';
-      const morningMins = _toMins(_getMorningCutoff(o.date));
-      const eveningMins = _toMins(_getEveningCutoff(o.date));
-      if (morningMins === null || eveningMins === null) return false;
-      const orderMins = _toMins(o.time || '00:00');
-      if (orderMins === null) return false;
-      return orderMins > morningMins && orderMins <= eveningMins;
-    });
-  } else if (sort === 'oldest') {
-    filtered.reverse();
-  } else if (sort === 'amount_desc') {
-    filtered.sort((a,b) => (b.final_amount||0) - (a.final_amount||0));
-  } else if (sort === 'amount_asc') {
-    filtered.sort((a,b) => (a.final_amount||0) - (b.final_amount||0));
-  }
+  // Sort
+  if (sort==='oldest') filtered.reverse();
+  else if (sort==='amount_desc') filtered.sort((a,b)=>(b.final_amount||0)-(a.final_amount||0));
+  else if (sort==='amount_asc')  filtered.sort((a,b)=>(a.final_amount||0)-(b.final_amount||0));
 
-  const riderOpts = _ridersCache.map(r =>
-    `<option value="${r.rider_id}">${r.name}</option>`).join('');
+  // Update subtitle
+  const sub = document.getElementById('orders-subtitle');
+  if (sub) {
+    const catLabel = {today:"Today's orders",all:"All orders",morning:"Morning orders",evening:"Evening orders"}[_ordCat]||'Orders';
+    sub.textContent = `${catLabel} • ${filtered.length} result${filtered.length!==1?'s':''}`;
+  }
+  const cntBadge = document.getElementById('ord-count-badge');
+  if (cntBadge) cntBadge.textContent = `${filtered.length} order${filtered.length!==1?'s':''}`;
+
+  const riderOpts = _ridersCache.map(r=>`<option value="${r.rider_id}">${r.name}</option>`).join('');
 
   const tbody = document.getElementById('orders-tbody');
   if (!tbody) return;
-  tbody.innerHTML = filtered.length ? filtered.map(o => `
-    <tr>
-      <td><code style="font-size:11px">${o.order_id}</code></td>
-      <td><div>${o.name||'—'}</div><small style="color:#94a3b8">${o.phone||''}</small></td>
-      <td style="max-width:180px;font-size:12px">${(o.items||[]).map(i=>`${i.name}×${i.qty}`).join(', ')||'—'}</td>
-      <td><strong>₹${o.final_amount||0}</strong></td>
-      <td>${statusBadge(o.order_status)}</td>
-      <td><span style="font-size:12px">${o.payment_status||'—'}</span></td>
-      <td style="font-size:12px">${o.date||'—'}<br>${o.time||''}</td>
-      <td style="font-size:12px">${o.rider_name||o.rider_id||'—'}</td>
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:56px 20px">
+      <div style="font-size:40px;margin-bottom:12px">📭</div>
+      <div style="font-family:var(--ff);font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px">No orders found</div>
+      <div style="font-size:13px;color:#94a3b8">Try a different filter or search term</div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(o => {
+    // ── Items detail ──
+    const items = o.items||[];
+    const itemsHtml = items.length
+      ? `<ul class="ord-items-list">${items.map(i=>`<li><span style="font-weight:600">${i.name}</span>${i.qty>1?` ×${i.qty}`:''}</li>`).join('')}</ul>`
+      : '<span style="color:#94a3b8;font-size:12px">—</span>';
+
+    // ── Pricing breakdown ──
+    const subtotal = items.reduce((s,i)=>s+((i.price||0)*(i.qty||1)),0);
+    const final    = o.final_amount||0;
+    const coupon   = o.coupon_code||'';
+    const discount = subtotal>final && subtotal>0 ? subtotal-final : (o.discount||0);
+    let priceHtml = `<div class="ord-price-wrap">`;
+    if (items.length>0) {
+      if (items.length===1) {
+        priceHtml += `<div class="price-row"><span>Item</span><span>₹${subtotal}</span></div>`;
+      } else {
+        items.forEach(i=>{
+          const lineTotal=(i.price||0)*(i.qty||1);
+          priceHtml+=`<div class="price-row"><span style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${i.name}${i.qty>1?` ×${i.qty}`:''}</span><span>₹${lineTotal}</span></div>`;
+        });
+      }
+    }
+    if (discount>0) priceHtml+=`<div class="price-row price-coupon"><span>🏷 ${coupon||'Coupon'}</span><span>−₹${discount}</span></div>`;
+    priceHtml+=`<div class="price-total">Net: ₹${final}</div></div>`;
+
+    // ── Source ──
+    const src = (o.order_source||'user').toLowerCase();
+    const srcHtml = src==='admin'
+      ? `<span class="src-badge src-bulk"><i class="fa fa-boxes-stacked"></i> Bulk</span>`
+      : `<span class="src-badge src-user"><i class="fa fa-user"></i> User</span>`;
+
+    // ── Payment ──
+    const payHtml = o.payment_status
+      ? `<span style="font-size:12px;font-weight:600;color:#334155">${o.payment_status}</span>`
+      : '<span style="color:#94a3b8;font-size:12px">—</span>';
+
+    // ── Rider ──
+    const riderHtml = o.rider_name
+      ? `<div class="rider-cell"><div style="font-weight:600">${o.rider_name}</div><div class="rider-id">${o.rider_id||''}</div></div>`
+      : `<span style="color:#94a3b8;font-size:12px">Unassigned</span>`;
+
+    // ── Date ──
+    const dt = o.date||'—';
+    const tm = o.time ? `<div style="font-size:11px;color:#94a3b8">${o.time}</div>` : '';
+
+    // ── Slot indicator ──
+    const isMorn = _isMorning(o), isEve = _isEvening(o);
+    const slotIcon = isMorn ? '☀️' : isEve ? '🌙' : '';
+
+    return `<tr>
       <td>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <select onchange="updateStatus('${o.order_id}',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid #e5e7eb">
-            ${['pending','verified','preparing','out for delivery','delivered','rejected'].map(s=>
-              `<option value="${s}" ${o.order_status===s?'selected':''}>${s}</option>`).join('')}
-          </select>
-          <select onchange="assignRider('${o.order_id}',this.value)" style="font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid #e5e7eb">
-            <option value="">Assign Rider</option>${riderOpts}
-          </select>
-          <button class="btn btn-danger" style="padding:4px 8px;font-size:11px" onclick="confirmReject('${o.order_id}')">Reject</button>
-          <a href="https://wa.me/91${o.phone}" target="_blank" class="btn btn-outline" style="padding:4px 8px;font-size:11px">💬</a>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <code style="font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:5px;font-family:monospace">${o.order_id}</code>
+          ${slotIcon?`<span style="font-size:10px">${slotIcon}</span>`:''}
         </div>
       </td>
-    </tr>`).join('') :
-    '<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8">No orders found</td></tr>';
+      <td>
+        <div style="font-weight:600;font-size:13px;color:#0f172a">${o.name||'—'}</div>
+        <div style="font-size:11.5px;color:#64748b;margin-top:2px">${o.phone||''}</div>
+      </td>
+      <td style="max-width:160px">${itemsHtml}</td>
+      <td style="min-width:140px">${priceHtml}</td>
+      <td>${srcHtml}</td>
+      <td>${payHtml}</td>
+      <td>${statusBadge(o.order_status)}</td>
+      <td>
+        <div style="font-size:12.5px;font-weight:600;color:#334155">${dt}</div>
+        ${tm}
+      </td>
+      <td>${riderHtml}</td>
+      <td>
+        <div style="display:flex;flex-direction:column;gap:5px;min-width:150px">
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button class="act-btn act-btn-assign" onclick="openAssignRiderModal('${o.order_id}','${o.rider_id||''}')"><i class="fa fa-motorcycle"></i> Rider</button>
+            <a href="https://wa.me/91${o.phone}?text=${encodeURIComponent('Hello sir, aapne items order kiye hain, mujhe iske regarding aapse kuch information chahiye thi.')}" target="_blank" class="act-btn act-btn-wa"><i class="fa-brands fa-whatsapp"></i> WA</a>
+            <button class="act-btn" style="background:#eff6ff;color:#1d4ed8" onclick="openWalletHistory('${o.phone}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-wallet"></i> Wallet</button>
+          </div>
+          <select class="status-inline-select" onchange="updateStatus('${o.order_id}',this.value)">
+            ${['pending','preparing','out for delivery','delivered'].map(s=>`<option value="${s}"${o.order_status===s?' selected':''}>${s.replace('out for delivery','Out for Del.')}</option>`).join('')}
+          </select>
+          <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-ban"></i> Reject Order</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
 }
+
+// ── Assign Rider Modal ──
+function openAssignRiderModal(orderId, currentRiderId) {
+  const opts = _ridersCache.map(r=>`<button onclick="assignRider('${orderId}','${r.rider_id}');closeMo()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border:2px solid ${r.rider_id===currentRiderId?'var(--p)':'#e2e8f0'};border-radius:10px;background:${r.rider_id===currentRiderId?'#fff8f8':'white'};cursor:pointer;font-family:var(--ff);font-size:13px;font-weight:600;color:#0f172a;transition:all 160ms;margin-bottom:7px" onmouseover="this.style.borderColor='var(--p)'" onmouseout="this.style.borderColor='${r.rider_id===currentRiderId?'var(--p)':'#e2e8f0'}'"><i class="fa fa-motorcycle" style="color:var(--p)"></i>${r.name}<span style="margin-left:auto;font-size:11px;color:#64748b">#${r.rider_id}</span></button>`).join('');
+  openMo(`<div class="mo-title"><i class="fa fa-motorcycle" style="color:var(--p)"></i> Assign Rider</div>
+    <p style="color:#64748b;font-size:13px;margin-bottom:16px">Select rider for order <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code></p>
+    ${opts||'<p style="color:#94a3b8;text-align:center;padding:20px">No riders available</p>'}
+    <button class="btn btn-outline" style="margin-top:8px;width:100%" onclick="closeMo()">Cancel</button>`);
+}
+
+// ── Reject Modal ──
+function openRejectModal(orderId, customerName) {
+  openMo(`<div class="mo-title"><i class="fa fa-ban" style="color:#be123c"></i> Reject Order</div>
+    <p style="color:#64748b;font-size:13px;margin-bottom:18px">Rejecting order for <b>${customerName||orderId}</b>. Choose refund method:</p>
+    <div class="refund-opt" onclick="doRejectOrder('${orderId}','wallet');closeMo()">
+      <div class="refund-opt-icon" style="background:#dcfce7">💰</div>
+      <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">Refund to Wallet</div><div style="font-size:12px;color:#64748b;margin-top:1px">Amount added back to customer's Tiffo wallet</div></div>
+    </div>
+    <div class="refund-opt" onclick="doRejectOrder('${orderId}','cash');closeMo()">
+      <div class="refund-opt-icon" style="background:#fef9c3">💵</div>
+      <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">Refund by Cash</div><div style="font-size:12px;color:#64748b;margin-top:1px">Manual cash refund — no wallet credit</div></div>
+    </div>
+    <div class="refund-opt" onclick="doRejectOrder('${orderId}','none');closeMo()">
+      <div class="refund-opt-icon" style="background:#fee2e2">🚫</div>
+      <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">No Refund</div><div style="font-size:12px;color:#64748b;margin-top:1px">Order rejected without any refund</div></div>
+    </div>
+    <button class="btn btn-outline" style="margin-top:10px;width:100%" onclick="closeMo()">Cancel</button>`);
+}
+
+async function doRejectOrder(orderId, refundType) {
+  try {
+    const res = await api('rejectOrder', { orderId, refundType });
+    if (!res.success) {
+      // NOT_SUBSCRIBER error → show friendly info modal
+      if (res.error === 'NOT_SUBSCRIBER') {
+        openMo(`<div class="mo-title" style="color:#b45309"><i class="fa fa-circle-exclamation"></i> Cannot Refund to Wallet</div>
+          <div style="background:#fef3c7;border:1.5px solid #fcd34d;border-radius:11px;padding:16px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start">
+            <div style="font-size:22px;flex-shrink:0">👤</div>
+            <div>
+              <div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#92400e;margin-bottom:4px">Customer is a Normal User</div>
+              <div style="font-size:13px;color:#78350f;line-height:1.5">${res.message||'This customer does not have a Tiffo wallet. Please use Cash Refund or No Refund option.'}</div>
+            </div>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:16px">Please choose a different refund method for order <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code>:</p>
+          <div class="refund-opt" onclick="doRejectOrder('${orderId}','cash');closeMo()">
+            <div class="refund-opt-icon" style="background:#fef9c3">💵</div>
+            <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">Refund by Cash</div><div style="font-size:12px;color:#64748b;margin-top:1px">Manual cash refund — no wallet credit</div></div>
+          </div>
+          <div class="refund-opt" onclick="doRejectOrder('${orderId}','none');closeMo()">
+            <div class="refund-opt-icon" style="background:#fee2e2">🚫</div>
+            <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">No Refund</div><div style="font-size:12px;color:#64748b;margin-top:1px">Order rejected without any refund</div></div>
+          </div>
+          <button class="btn btn-outline" style="margin-top:10px;width:100%" onclick="closeMo()">Cancel</button>`);
+        return;
+      }
+      aToast(res.error || res.message || 'Reject failed');
+      return;
+    }
+    const refundLabel = { wallet:'💰 Wallet refunded', cash:'💵 Cash refund issued', none:'🚫 No refund' }[refundType]||'';
+    aToast(`Order rejected ✓  ${refundLabel}`);
+    _ordersStr = '';
+    loadOrders();
+  } catch(e) { aToast(e.message); }
+}
+
+// ── Wallet Transaction History Modal ──
+async function openWalletHistory(phone, customerName) {
+  openMo(`<div class="mo-title"><i class="fa fa-wallet" style="color:#3b82f6"></i> Wallet Transactions</div>
+    <div style="font-size:13px;color:#64748b;margin-bottom:16px">Last 30 transactions for <b>${customerName||phone}</b> · <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${phone}</code></div>
+    <div id="txn-history-body" style="min-height:80px;display:flex;align-items:center;justify-content:center"><div style="color:#94a3b8;font-size:13px"><i class="fa fa-spinner fa-spin"></i> Loading…</div></div>
+    <button class="btn btn-outline" style="margin-top:16px;width:100%" onclick="closeMo()">Close</button>`);
+  try {
+    const res = await api('getOrderTransactions', { phone });
+    const el = document.getElementById('txn-history-body');
+    if (!el) return;
+    const entries = res.entries || [];
+    const bal = res.balance ?? 0;
+    const balColor = bal >= 0 ? '#16a34a' : '#dc2626';
+    if (!entries.length) {
+      el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:30px;font-size:13px">No transactions found</div>';
+      return;
+    }
+    el.style = '';
+    const typeLabel = t => ({ recharge:'Recharge', adjustment:'Adjustment', debit:'Debit', tiffin_given:'Tiffin', tiffin_udhar:'Udhar', credit:'Credit' }[t]||t||'—');
+    const typeColor = t => ({ recharge:'#16a34a', adjustment:'#3b82f6', debit:'#e63946', tiffin_given:'#f59e0b', tiffin_udhar:'#dc2626', credit:'#16a34a' }[t]||'#64748b');
+    el.innerHTML = `
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:var(--ff);font-size:13px;font-weight:600;color:#64748b">Current Balance</span>
+        <span style="font-family:var(--ff);font-size:18px;font-weight:800;color:${balColor}">₹${bal}</span>
+      </div>
+      <div style="max-height:340px;overflow-y:auto">
+        ${entries.map(e=>{
+          const amt = +e.amount;
+          const amtSign = amt>=0?'+':'';
+          const amtColor = amt>=0?'#16a34a':'#e63946';
+          return `<div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9">
+            <div style="width:34px;height:34px;border-radius:8px;background:${typeColor(e.type)}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
+              <i class="fa ${amt>=0?'fa-arrow-down':'fa-arrow-up'}" style="color:${typeColor(e.type)};font-size:13px"></i>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+                <div style="font-family:var(--ff);font-size:13px;font-weight:700;color:#0f172a">${typeLabel(e.type)}</div>
+                <div style="font-family:var(--ff);font-size:14px;font-weight:800;color:${amtColor};white-space:nowrap">${amtSign}₹${Math.abs(amt)}</div>
+              </div>
+              <div style="font-size:11.5px;color:#64748b;margin-top:2px">${e.note||'—'}</div>
+              <div style="display:flex;gap:10px;margin-top:3px;font-size:10.5px;color:#94a3b8">
+                <span>${e.date||''} ${e.time||''}</span>
+                ${e.order_id?`<span>· ${e.order_id}</span>`:''}
+                <span style="margin-left:auto">Bal: ₹${e.running_balance??'—'}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } catch(e) {
+    const el = document.getElementById('txn-history-body');
+    if (el) el.innerHTML = `<div style="color:#ef4444;text-align:center;padding:20px;font-size:13px">Failed to load: ${e.message}</div>`;
+  }
+}
+
+// Legacy compat
+function confirmReject(orderId) { openRejectModal(orderId,''); }
 
 async function updateStatus(orderId, status) {
   try {
     await api('updateOrderStatus', { orderId, status });
-    const o = _allOrders.find(x => x.order_id === orderId);
-    if (o) { o.order_status = status; _ordersStr = JSON.stringify(_allOrders); }
-    aToast('Status updated');
+    const o = _allOrders.find(x=>x.order_id===orderId);
+    if (o) { o.order_status=status; _ordersStr=JSON.stringify(_allOrders); }
+    aToast('Status updated → '+status);
     renderOrdersTable(_allOrders);
   } catch(e) { aToast(e.message); }
 }
@@ -1351,20 +1658,52 @@ async function assignRider(orderId, riderId) {
   if (!riderId) return;
   try {
     await api('assignRider', { orderId, riderId });
-    aToast('Rider assigned');
+    aToast('Rider assigned ✓');
+    _ordersStr='';
     loadOrders();
   } catch(e) { aToast(e.message); }
 }
 
-function confirmReject(orderId) {
-  confirmAction(`Reject order <b>${orderId}</b>? This cannot be undone.`, async function() {
-    try {
-      await api('rejectOrder', { orderId });
-      aToast('Order rejected');
-      _ordersStr = '';
-      loadOrders();
-    } catch(e) { aToast(e.message); }
-  });
+// ── PDF Export ──
+function generateOrderPDF() {
+  const catLabel = {today:"Today's Orders",all:"All Orders",morning:"Morning Orders",evening:"Evening Orders"}[_ordCat]||'Orders';
+  const statusLabel = _ordStatus!=='all'?' — '+_ordStatus:'';
+  // Build a print-friendly page
+  const rows = document.querySelectorAll('#orders-tbody tr');
+  if (!rows.length || rows[0].querySelector('td[colspan]')) { aToast('No orders to export'); return; }
+  const thead = document.querySelector('#orders-main-table thead').innerHTML;
+  const tbody = document.getElementById('orders-tbody').innerHTML;
+  const printWin = window.open('','_blank','width=1000,height=700');
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tiffo — ${catLabel}</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;color:#1e293b;padding:24px;background:white}
+    h1{font-size:20px;font-weight:800;margin-bottom:4px;color:#0f172a}
+    .sub{font-size:13px;color:#64748b;margin-bottom:18px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#f8fafc;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;padding:9px 12px;text-align:left;border-bottom:2px solid #e2e8f0}
+    td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+    .badge-status{border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700}
+    .s-pending{background:#fef9c3;color:#854d0e}.s-preparing{background:#ede9fe;color:#6d28d9}
+    .s-out-for-delivery,.s-out{background:#e0f2fe;color:#0369a1}.s-delivered{background:#dcfce7;color:#15803d}
+    .s-rejected{background:#ffe4e6;color:#be123c}
+    .ord-items-list{list-style:none;padding:0;margin:0}
+    .ord-items-list li{font-size:11px;color:#334155;padding:1px 0}
+    .ord-price-wrap{font-size:11px;color:#334155;line-height:1.6}
+    .price-row{display:flex;justify-content:space-between;gap:8px}
+    .price-total{font-weight:800;font-size:13px;margin-top:3px;padding-top:3px;border-top:1px solid #e2e8f0}
+    .price-coupon{color:#16a34a}
+    .src-badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700}
+    .src-bulk{background:#ede9fe;color:#5b21b6}.src-user{background:#dbeafe;color:#1e40af}
+    .act-btn,.act-btn-assign,.act-btn-reject,.act-btn-status,.act-btn-wa,.status-inline-select{display:none!important}
+    footer{margin-top:18px;font-size:11px;color:#94a3b8;text-align:right}
+  </style></head><body>
+  <h1>🍱 Tiffo Admin — ${catLabel}${statusLabel}</h1>
+  <div class="sub">Generated: ${new Date().toLocaleString('en-IN')}</div>
+  <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+  <footer>Tiffo Admin Panel © 2026</footer>
+  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200)}<\/script>
+  </body></html>`);
+  printWin.document.close();
 }
 
 // ─── BULK ORDERS ─────────────────────────────────────────
@@ -2966,6 +3305,12 @@ function showPage(id) {
   document.querySelector(`.sb-nav a[data-pg="${id}"]`)?.classList.add('act');
   const title = document.querySelector(`.sb-nav a[data-pg="${id}"]`)?.textContent.trim() || '';
   document.getElementById('page-title').textContent = title;
+  // When opening Orders page, always reset to Today filter
+  if (id === 'p-orders') {
+    _ordCat = 'today'; _ordStatus = 'all';
+    document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b=>b.classList.toggle('act',b.dataset.cat==='today'));
+    document.querySelectorAll('#ord-status-chips .ord-chip').forEach(b=>b.classList.toggle('act',b.dataset.status==='all'));
+  }
   const loaders = {
     'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
     'p-thalis': loadThalis, 'p-coupons': loadCoupons, 'p-subs': loadSubscribers,
