@@ -4219,6 +4219,8 @@ function showPage(id) {
   document.querySelector(`.sb-nav a[data-pg="${id}"]`)?.classList.add('act');
   const title = document.querySelector(`.sb-nav a[data-pg="${id}"]`)?.textContent.trim() || '';
   document.getElementById('page-title').textContent = title;
+  // Push history state so back button is interceptable
+  history.pushState({ adminPg: id }, '', location.href);
   // When opening Orders page, always reset to Today filter
   if (id === 'p-orders') {
     _ordCat = 'today'; _ordStatus = 'all';
@@ -4237,6 +4239,44 @@ function showPage(id) {
   if (loaders[id]) loaders[id]().catch?.(()=>{});
   closeSidebar();
 }
+
+// ─── ACCIDENTAL BACK PREVENTION (Admin) ──────────────────
+// Uses tf_admin_session token to detect logged-in state
+function _adminShowExitConfirm() {
+  if (document.getElementById('_admin-exit-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = '_admin-exit-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:360px;font-family:system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <p style="font-size:17px;font-weight:700;margin:0 0 8px;color:#0f172a">Leave Admin Panel?</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.5">You are still logged in. Are you sure you want to leave this page?</p>
+      <div style="display:flex;gap:10px">
+        <button id="_admin-stay-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#334155">Stay</button>
+        <button id="_admin-leave-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#ef4444;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Leave</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_admin-stay-btn').onclick = () => {
+    overlay.remove();
+    history.pushState({ adminPg: 'stay' }, '', location.href);
+  };
+  document.getElementById('_admin-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
+}
+
+window.addEventListener('popstate', () => {
+  const session = AdminAuth.get();
+  const isLoggedIn = !!session;
+  const mainVisible = document.getElementById('main-layout')?.style.display !== 'none';
+  if (isLoggedIn && mainVisible) {
+    history.pushState({ adminPg: 'guard' }, '', location.href);
+    _adminShowExitConfirm();
+  }
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  history.pushState({ adminPg: 'init' }, '', location.href);
+});
 </script>
 </body>
 </html>

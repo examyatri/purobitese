@@ -360,7 +360,8 @@ function showApp() {
   document.getElementById('pg-app').style.display  = 'block';
   document.getElementById('rider-name').textContent       = _rider.name || 'Rider';
   document.getElementById('rider-id-display').textContent = _rider.rider_id || '';
-  // Apply default filters and show summary
+  // Push history state so back button is interceptable
+  history.pushState({ riderPg: 'app' }, '', location.href);
   applyFilters();
 }
 
@@ -889,6 +890,8 @@ document.addEventListener('visibilitychange', () => {
 
 /* ─── INIT ───────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', () => {
+  // Push initial state so first back press fires popstate
+  history.pushState({ riderPg: 'init' }, '', location.href);
   autofillCreds();
   const creds = getRiderCreds();
   if (creds) {
@@ -901,6 +904,45 @@ window.addEventListener('DOMContentLoaded', () => {
         startPolling();
       })
       .catch(() => { /* stay on login screen, creds already prefilled */ });
+  }
+});
+
+// ─── ACCIDENTAL BACK PREVENTION (Rider) ──────────────────
+// Uses tf_rider_creds token to detect logged-in state
+function _riderShowExitConfirm() {
+  if (document.getElementById('_rider-exit-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = '_rider-exit-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:flex-end;justify-content:center;animation:_fadeIn .15s ease';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
+      <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Exit Rider App?</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 22px;line-height:1.5">You are still logged in. Are you sure you want to leave?</p>
+      <div style="display:flex;gap:10px">
+        <button id="_rider-stay-btn" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-weight:600;cursor:pointer;color:#334155">Stay</button>
+        <button id="_rider-leave-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:#0f172a;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Exit App</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_rider-stay-btn').onclick = () => {
+    overlay.remove();
+    history.pushState({ riderPg: 'stay' }, '', location.href);
+  };
+  document.getElementById('_rider-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
+}
+
+window.addEventListener('popstate', () => {
+  const creds = getRiderCreds();
+  const appVisible = document.getElementById('pg-app')?.style.display !== 'none';
+  const authVisible = document.getElementById('pg-auth')?.style.display !== 'none';
+  if (creds && appVisible) {
+    // Logged in and inside app — block exit and confirm
+    history.pushState({ riderPg: 'guard' }, '', location.href);
+    _riderShowExitConfirm();
+  } else if (authVisible) {
+    // On login screen — block exit and confirm (may have typed password)
+    history.pushState({ riderPg: 'auth-guard' }, '', location.href);
+    _riderShowExitConfirm();
   }
 });
 </script>

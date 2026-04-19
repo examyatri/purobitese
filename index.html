@@ -2750,8 +2750,40 @@ setTimeout(() => {
 // bfcache restore
 window.addEventListener('pageshow', e => { if (e.persisted) bootApp(); });
 
+// ─── ACCIDENTAL BACK PREVENTION (User) ───────────────────
+// Uses tf_user_token / tf_session presence to confirm exit at root
+function _showExitConfirm() {
+  if (document.getElementById('_exit-confirm-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = '_exit-confirm-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:flex-end;justify-content:center;animation:_fadeIn .15s ease';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
+      <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Exit Tiffo?</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 22px">Are you sure you want to leave the app?</p>
+      <div style="display:flex;gap:10px">
+        <button id="_exit-stay-btn" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer;color:#334155">Stay</button>
+        <button id="_exit-leave-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:var(--primary,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer">Exit App</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_exit-stay-btn').onclick = () => { overlay.remove(); };
+  document.getElementById('_exit-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
+}
+
 // Handle hardware back button (Android)
-window.addEventListener('popstate', () => { back(); });
+window.addEventListener('popstate', () => {
+  const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || (_session));
+  if (_stack.length < 2) {
+    // At root page — push dummy state back to cancel the browser exit, then confirm
+    history.pushState({ pg: _stack[0] || 'pg-auth', stackLen: 1 }, '', location.href);
+    if (isLoggedIn || _stack[0] === 'pg-auth') {
+      _showExitConfirm();
+    }
+  } else {
+    back();
+  }
+});
 
 // Init on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
