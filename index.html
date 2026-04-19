@@ -949,6 +949,7 @@ const _MENU_TTL = 10 * 60 * 1000;
 let _stack = [];
 let _lastSchedule = null;
 let _lastCutoff   = null;
+let _homeInitDone  = false;  // true after first structured post-login sequence completes
 
 /* ═══════════════════════════════════════════
    CORE MODULES
@@ -1409,7 +1410,21 @@ function back() {
 // popstate handled at bottom of script
 
 function onEnter(id) {
-  if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
+  if (id === 'pg-home') {
+    if (_homeInitDone) {
+      // Already bootstrapped — just refresh stale data, no re-init
+      loadPauseState();
+      loadAutoTiffinState();
+      refreshWalletBalance();
+      startPolling();
+      // Refresh menu only if cache is stale
+      const cache = Store.getJSON(_MENU_CACHE_KEY);
+      if (!cache || Date.now() - cache.ts > _MENU_TTL) loadMenu();
+    } else {
+      // First entry before _initHomeSequence has run (edge case) — defer to sequence
+      _initHomeSequence();
+    }
+  }
   if (id === 'pg-orders')  loadOrders();
   if (id === 'pg-khata')   { loadUserKhata(); startPollingKhata(); }
   if (id === 'pg-cart')    renderCart();
@@ -1484,10 +1499,8 @@ async function doLogin() {
       _pauseMode = res.subscriber.pause_delivery || 'none';
       applyPauseState(_pauseMode);
     }
-    api('getKhataEnabled').then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); }).catch(() => {});
     _transitionToHome();
-    loadMenu();
-    startPolling();
+    _initHomeSequence();
   } catch(e) {
     toast(e.message === 'Session invalid' ? 'Wrong phone or password' : (e.message || 'Login failed'));
   } finally {
@@ -1526,8 +1539,7 @@ async function doSignup() {
     _khataEnabled = false;
     applyKhataVisibility();
     _transitionToHome();
-    loadMenu();
-    startPolling();
+    _initHomeSequence();
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     toast(e.message || 'Signup failed. Try again.');
@@ -1548,6 +1560,52 @@ function showMenuSkeletons() {
 
 function hideMenuSkeletons() {
   // handled by render calls
+}
+
+/* ═══════════════════════════════════════════
+   STRUCTURED POST-LOGIN INIT SEQUENCE
+   Called once after every successful auth event
+   (doLogin / doSignup / bootApp auto-login).
+
+   Execution order:
+     1. getKhataEnabled  → gates khata UI visibility
+     2. loadMenu         → primary page content (blocks until ready)
+     3. loadPauseState   → subscriber delivery pause state
+     4. refreshWallet    → wallet balance (subscriber + khata only)
+     5. startPolling     → background refresh (only after data ready)
+
+   _homeInitDone flag prevents re-running on every nav back to home.
+   onEnter('pg-home') runs a lightweight refresh path instead.
+═══════════════════════════════════════════ */
+async function _initHomeSequence() {
+  if (_homeInitDone) return; // guard: never double-fire
+
+  try {
+    // Step 1: khata config — must be known before menu renders wallet UI
+    try {
+      const kr = await api('getKhataEnabled');
+      _khataEnabled = kr.enabled;
+      applyKhataVisibility();
+    } catch { /* non-critical — defaults to false, UI stays hidden */ }
+
+    // Step 2: menu (main page content — await so skeleton hides cleanly)
+    await loadMenu();
+
+    // Step 3: pause/subscription state (subscriber only)
+    if (_session?.is_subscriber) {
+      await loadPauseState().catch(() => {});
+    }
+
+    // Step 4: wallet balance (subscriber + khata enabled only)
+    if (_session?.is_subscriber && _khataEnabled) {
+      await refreshWalletBalance().catch(() => {});
+    }
+
+  } finally {
+    // Step 5: start polling only after all critical data is loaded
+    _homeInitDone = true;
+    startPolling();
+  }
 }
 
 async function loadMenu() {
@@ -2672,13 +2730,9 @@ async function bootApp() {
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
-    api('getKhataEnabled')
-      .then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); })
-      .catch(() => {});
     // Credentials valid -> always open home page
     _transitionToHome();
-    loadMenu();
-    startPolling();
+    _initHomeSequence();
   } catch(e) {
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
@@ -2762,6 +2816,7 @@ function doLogout() {
   _lastSchedule  = null;
   _lastCutoff    = null;
   _khataAllEntries = [];
+  _homeInitDone  = false;  // reset so next login reruns the full init sequence
   document.getElementById('cart-pill').style.display = 'none';
   updateCartBadge();
   closeAllSheets();
