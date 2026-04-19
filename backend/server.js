@@ -658,46 +658,147 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
-      case 'bulkOrdersWithBalance': {
+      // ── BULK ORDERS v2 ───────────────────────────────────────────────────
+
+      // Get subscribers list with eligibility info for bulk order preview
+      case 'getSubscribersForBulk': {
         const today = istDateStr(ist);
-        const { data: subs } = await supabase.from('subscribers').select('*').gte('plan_end', today);
-        const success = [], skipped = [];
+        const slot  = data.slot || 'morning';
+        const planFilter = data.planFilter || 'all'; // 'all' | 'active' | 'expiring'
+        const orderFor   = data.orderFor || 'subscribers'; // 'subscribers' | 'all'
+
+        // Fetch active subscribers
+        let subsQuery = supabase.from('subscribers').select('*').gte('plan_end', today);
+        const { data: subs } = await subsQuery;
+
+        // Fetch today's orders for this slot to detect duplicates
+        const { data: todayOrders } = await supabase.from('orders')
+          .select('phone, order_id')
+          .eq('date', today)
+          .eq('slot', slot)
+          .not('order_status', 'eq', 'cancelled');
+
+        const orderedPhones = new Set((todayOrders || []).map(o => o.phone));
+
+        const result = [];
         for (const sub of (subs || [])) {
-          const { data: user } = await supabase.from('users').select('*').eq('phone', sub.phone).single();
-          if (!user) continue;
+          const { data: user }   = await supabase.from('users').select('name, address').eq('phone', sub.phone).single();
           const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', sub.phone).single();
-          const balance = balRow?.balance || 0;
-          if (balance >= (data.orderAmount || 0)) {
-            const result = await _createSingleOrder({
-              user: { ...user, is_subscriber: true },
-              items: data.items, deliveryCharge: data.deliveryCharge || 0,
-              khataEnabled: true, ist, coupon: null, source: 'admin', slot: data.slot || 'morning'
+          const balance   = balRow?.balance || 0;
+          const pause     = sub.pause_delivery || 'none';
+          const ordered   = orderedPhones.has(sub.phone);
+
+          // Eligibility: check if this slot is paused
+          // pause='lunch'  → morning OFF, evening OK
+          // pause='dinner' → morning OK, evening OFF
+          // pause='both'   → all OFF
+          // pause='none'   → all ON
+          const slotPaused = pause === 'both'
+            || (pause === 'lunch'  && slot === 'morning')
+            || (pause === 'dinner' && slot === 'evening');
+          const eligible = !slotPaused && !ordered;
+
+          result.push({
+            phone:       sub.phone,
+            name:        user?.name || sub.phone,
+            address:     user?.address || '',
+            balance,
+            plan_end:    sub.plan_end,
+            pause,
+            already_ordered: ordered,
+            eligible
+          });
+        }
+
+        // If orderFor === 'all', also include non-subscriber users
+        if (orderFor === 'all') {
+          const { data: allUsers } = await supabase.from('users').select('phone, name, address');
+          const subPhones = new Set((subs || []).map(s => s.phone));
+          for (const u of (allUsers || [])) {
+            if (subPhones.has(u.phone)) continue;
+            const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', u.phone).single();
+            const ordered = orderedPhones.has(u.phone);
+            result.push({
+              phone: u.phone, name: u.name || u.phone, address: u.address || '',
+              balance: balRow?.balance || 0, plan_end: null,
+              pause: 'none', already_ordered: ordered, eligible: !ordered
             });
           }
         }
-        return res.json({ success: true, created: success.length, skipped: skipped.length, details: { success, skipped } });
+
+        return res.json({ success: true, subscribers: result });
       }
 
-      case 'adminBulkCreate': {
-        if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-          return res.json({ success: false, error: 'Order items required' });
+      // Generate bulk orders as PENDING for selected phones
+      case 'bulkGenerateOrders': {
+        const { itemName, description: itemDesc, price, reason, slot, phones, orderFor } = data;
+        if (!itemName || !price || !phones || !phones.length) {
+          return res.json({ success: false, error: 'Item name, price and recipients required' });
         }
-        const today = istDateStr(ist);
-        const { data: subs } = await supabase.from('subscribers').select('*').gte('plan_end', today);
-        const success = [], skipped = [];
-        for (const sub of (subs || [])) {
-          const { data: user } = await supabase.from('users').select('*').eq('phone', sub.phone).single();
-          if (!user) { skipped.push({ phone: sub.phone, reason: 'user not found' }); continue; }
-          try {
-            const result = await _createSingleOrder({
-              user: { ...user, is_subscriber: true },
-              items: data.items, deliveryCharge: data.deliveryCharge || 0,
-              khataEnabled: true, ist, coupon: null, source: 'admin', slot: data.slot || 'morning'
+        const today    = istDateStr(ist);
+        const created  = [], skipped = [], udhar = [];
+        const priceNum = parseFloat(price) || 0;
+
+        for (const phone of phones) {
+          const cleanPh = cleanPhone(phone);
+          const { data: user } = await supabase.from('users').select('*').eq('phone', cleanPh).single();
+          if (!user) { skipped.push({ phone: cleanPh, reason: 'user not found' }); continue; }
+
+          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', cleanPh).single();
+          const balance   = balRow?.balance || 0;
+          const isUdhar   = balance < priceNum;
+          const orderId   = generateOrderId(ist);
+          const items     = [{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }];
+          const timeStr   = `${String(ist.getUTCHours()).padStart(2,'0')}:${String(ist.getUTCMinutes()).padStart(2,'0')}`;
+
+          const orderRow = {
+            order_id:       orderId,
+            user_id:        user.user_id || cleanPh,
+            name:           user.name,
+            phone:          cleanPh,
+            address:        user.address || '',
+            items:          JSON.stringify(items),
+            total_amount:   priceNum,
+            delivery_charge: 0,
+            final_amount:   priceNum,
+            order_status:   'pending',
+            payment_status: isUdhar ? 'unpaid' : 'wallet',
+            user_type:      'subscriber',
+            slot:           slot || 'morning',
+            date:           today,
+            time:           timeStr,
+            created_at:     new Date().toISOString()
+          };
+
+          const { error: insErr } = await supabase.from('orders').insert(orderRow);
+          if (insErr) { skipped.push({ phone: cleanPh, reason: insErr.message }); continue; }
+
+          // Deduct wallet only if sufficient balance
+          if (!isUdhar) {
+            const newBal = balance - priceNum;
+            await supabase.from('khata_summary').upsert({ phone: cleanPh, balance: newBal, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+            await supabase.from('khata_entries').insert({
+              id: generateTxnId(ist), phone: cleanPh, type: 'debit',
+              amount: priceNum, running_balance: newBal,
+              note: reason || `Bulk order: ${itemName}`,
+              date: today, time: timeStr, order_id: orderId, order_status: 'pending',
+              order_source: 'admin_bulk', created_at: new Date().toISOString()
             });
+            created.push({ phone: cleanPh, orderId });
+          } else {
+            udhar.push({ phone: cleanPh, orderId, balance });
           }
         }
-        return res.json({ success: true, created: success.length, skipped: skipped.length, details: { success, skipped } });
+
+        return res.json({
+          success: true,
+          created: created.length + udhar.length,
+          skipped: skipped.length,
+          udhar:   udhar.length,
+          details: { created, udhar, skipped }
+        });
       }
+
 
       case 'forceUdharOrder': {
         const phone = cleanPhone(data.phone);
