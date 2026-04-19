@@ -333,7 +333,7 @@ textarea{resize:vertical;min-height:80px}
 <!-- App Loader -->
 <div id="app-loader">
   <div class="loader-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-  <div class="loader-tag">Ghar ka Tiffin ♥️</div>
+  <div class="loader-tag">Ghar ka khana ♥</div>
   <div class="loader-spinner"></div>
   <div id="loader-status">Loading...</div>
 </div>
@@ -356,7 +356,7 @@ textarea{resize:vertical;min-height:80px}
 <div id="pg-auth" class="pg pg-scroll-full">
   <div class="auth-top">
     <div class="auth-logo">🍱 Tiffo</div>
-    <div class="auth-sub">Ghar ka Tiffin ♥️</div>
+    <div class="auth-sub">Ghar ka khana ♥</div>
   </div>
   <div class="auth-card">
     <div class="tab-bar">
@@ -428,7 +428,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="home-header flex-sb">
     <div>
       <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-      <div class="home-logo-sub">Ghar ka Tiffin ♥️</div>
+      <div class="home-logo-sub">Ghar ka khana ♥</div>
     </div>
     <div class="flex gap8">
       <button style="border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
@@ -466,7 +466,7 @@ textarea{resize:vertical;min-height:80px}
         <div style="width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#x1F371;</div>
         <div style="flex:1;position:relative;z-index:1">
           <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
-          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;600</span> Free Home Delivery</div>
+          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;200</span> Free Home Delivery</div>
         </div>
         <div style="background:rgba(255,255,255,.25);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px"></i></div>
       </div>
@@ -912,7 +912,6 @@ let _pauseMode   = 'none';
 let _walletBal   = 0;
 let _activeCategory = 'All';
 let _menuSearch  = '';
-const _selectedVariant = {}; // itemId -> variantIdx
 let _appliedCoupon = null;
 let _menuLoading  = false;
 let _placingOrder = false;
@@ -1481,109 +1480,66 @@ async function doSignup() {
 /* ═══════════════════════════════════════════
    MENU
 ═══════════════════════════════════════════ */
-function showMenuSkeletons(msg) {
+function showMenuSkeletons() {
   const list = document.getElementById('menu-list');
-  const hd   = document.getElementById('menu-section-hd');
-  if (hd) hd.textContent = msg || 'Loading today's menu…';
   list.innerHTML = Array(4).fill('').map(() =>
     `<div class="sk" style="height:110px;margin-bottom:10px;border-radius:16px"></div>`
   ).join('');
 }
 
-function _setMenuHeading(txt) {
-  const hd = document.getElementById('menu-section-hd');
-  if (hd) hd.textContent = txt;
+function hideMenuSkeletons() {
+  // handled by render calls
 }
 
-/* loadMenu — safe, non-blocking, progressive
-   - If cache exists and fresh: render instantly from cache, then silently refresh in bg
-   - If cache stale/missing: show skeletons + status messages, fetch step by step
-   - _menuLoading flag is always released in finally so it can never get stuck */
 async function loadMenu() {
   if (_menuLoading) return;
   _menuLoading = true;
-  const _safeRelease = setTimeout(() => { _menuLoading = false; }, 15000);
   try {
     const cache = Store.getJSON(_MENU_CACHE_KEY);
     const age   = cache ? Date.now() - cache.ts : Infinity;
-    if (cache && age < _MENU_TTL && (cache.data || []).length > 0) {
-      // Cache is fresh — render immediately so user sees food right away
+    if (cache && age < _MENU_TTL) {
       if (JSON.stringify(cache.data) !== JSON.stringify(_fullMenu)) {
         _fullMenu = cache.data || [];
         filterAndRenderMenu();
         buildCategoryChips();
-        _setMenuHeading('Menu');
       }
       if (JSON.stringify(cache.thalis) !== JSON.stringify(_fullThalis)) {
         _fullThalis = cache.thalis || [];
         renderThalis();
       }
-      // Silently refresh in background — no skeleton, no status change
-      _fetchFreshMenu(false).catch(() => {});
+      _fetchFreshMenu().catch(() => {});
     } else {
-      // No cache or stale — show skeletons with clear message, fetch step by step
-      showMenuSkeletons('Loading today's menu…');
-      await _fetchFreshMenu(true);
+      showMenuSkeletons();
+      await _fetchFreshMenu();
     }
   } finally {
-    clearTimeout(_safeRelease);
     _menuLoading = false;
   }
 }
 
-/* _fetchFreshMenu(showStatus)
-   Fetches in two steps so menu appears as fast as possible:
-   Step 1: getMenu + getThalis (most important — show food)
-   Step 2: schedule + cutoff + khata (secondary info, never blocks menu) */
-async function _fetchFreshMenu(showStatus = false) {
-  try {
-    // ── Step 1: Menu items (primary — user needs to see this first) ──────────
-    if (showStatus) _setMenuHeading('Fetching today's menu…');
-    const [menuRes, thaliRes] = await Promise.all([
-      api('getMenu'),
-      api('getThalis').catch(() => ({ thalis: [] }))
-    ]);
-    const newMenu   = menuRes.items   || [];
-    const newThalis = thaliRes.thalis || [];
-    if (JSON.stringify(newMenu) !== JSON.stringify(_fullMenu)) {
-      _fullMenu = newMenu;
-      filterAndRenderMenu();
-      buildCategoryChips();
-    }
-    if (JSON.stringify(newThalis) !== JSON.stringify(_fullThalis)) {
-      _fullThalis = newThalis;
-      renderThalis();
-    }
-    _setMenuHeading('Menu');
+async function _fetchFreshMenu() {
+  const [menuRes, thaliRes, schedRes, cutoffRes, khataRes] = await Promise.all([
+    api('getMenu'),
+    api('getThalis'),
+    api('getWeeklySchedule').catch(() => ({ schedule: null })),
+    api('getOrderCutoff').catch(() => ({ config: null })),
+    api('getKhataEnabled').catch(() => ({ enabled: false }))
+  ]);
+  _khataEnabled = khataRes.enabled;
+  applyKhataVisibility();
+  updateCutoffBanner(schedRes.schedule, currentISTHour(), cutoffRes.config);
+  const newMenu   = menuRes.items   || [];
+  const newThalis = thaliRes.thalis || [];
+  if (JSON.stringify(newMenu) !== JSON.stringify(_fullMenu)) {
+    _fullMenu = newMenu;
+    filterAndRenderMenu();
+    buildCategoryChips();
     Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
-
-    // ── Step 2: Secondary info (schedule, cutoff, khata) — never blocks menu ─
-    Promise.all([
-      api('getWeeklySchedule').catch(() => ({ schedule: null })),
-      api('getOrderCutoff').catch(() => ({ config: null })),
-      api('getKhataEnabled').catch(() => ({ enabled: false }))
-    ]).then(([schedRes, cutoffRes, khataRes]) => {
-      _khataEnabled = khataRes.enabled;
-      applyKhataVisibility();
-      updateCutoffBanner(schedRes.schedule, currentISTHour(), cutoffRes.config);
-    }).catch(() => {});
-
-  } catch(e) {
-    // Menu fetch failed — show cached data if available, else show error state
-    if (_fullMenu.length > 0) {
-      filterAndRenderMenu();
-      buildCategoryChips();
-      _setMenuHeading('Menu (cached)');
-    } else {
-      const list = document.getElementById('menu-list');
-      if (list) list.innerHTML = `<div class="empty-state">
-        <div class="empty-icon"><i class="fa-solid fa-wifi-slash"></i></div>
-        <div class="empty-title">Could not load menu</div>
-        <div style="color:var(--gr);font-size:13px;margin-top:4px">Pull down to refresh</div>
-      </div>`;
-      _setMenuHeading('Menu');
-    }
-    throw e;
+  }
+  if (JSON.stringify(newThalis) !== JSON.stringify(_fullThalis)) {
+    _fullThalis = newThalis;
+    renderThalis();
+    Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
   }
 }
 
@@ -1702,14 +1658,13 @@ function selectVariant(itemId, variantIdx, btn) {
   const row = document.getElementById('vrow-' + itemId);
   if (!row) return;
   row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === variantIdx));
-  _selectedVariant[itemId] = variantIdx;
-  const item = _fullMenu.find(i => String(i.item_id) === String(itemId));
+  // Update price display
+  const item = _fullMenu.find(i => i.item_id === itemId);
   if (!item) return;
   const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
   if (variants && variants[variantIdx]) {
     const pd = document.getElementById('price-' + itemId);
     if (pd) pd.textContent = '₹' + variants[variantIdx].price;
-    refreshMenuItemControl(item);
   }
 }
 
@@ -1718,7 +1673,8 @@ function addItemToCart(item, event) {
   const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   let label = '', price = item.price;
   if (variants.length) {
-    const idx = _selectedVariant[item.item_id] ?? 0;
+    const activeBtn = document.querySelector(`#vrow-${item.item_id} .variant-pill.active`);
+    const idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : 0;
     label = variants[idx]?.label || '';
     price = variants[idx]?.price || item.price;
   }
@@ -1739,20 +1695,15 @@ function refreshMenuItemControl(item) {
   if (!ctrl) return;
   const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   const hasVariants = variants.length > 0;
-  const selIdx = hasVariants ? (_selectedVariant[item.item_id] ?? 0) : 0;
-  const selVariant = hasVariants ? variants[selIdx] : null;
-  const activeKey = `${item.item_id}::${hasVariants ? (selVariant?.label||'') : ''}`;
   const keys = Cart.get().filter(c => c.item_id === item.item_id);
   const totalQty = keys.reduce((s, c) => s + c.qty, 0);
   const safeItem = JSON.stringify(item).replace(/"/g,'&quot;');
+  const firstKey = `${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}`;
   if (totalQty > 0) {
-    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${activeKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
+    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${firstKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
   } else {
     ctrl.innerHTML = `<button class="img-add-btn" onclick="addItemToCart(${safeItem},event)">ADD</button>`;
   }
-  // Restore active variant pill visual after re-render if row exists
-  const row = document.getElementById('vrow-' + item.item_id);
-  if (row) row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === selIdx));
 }
 
 function renderThalis() {
@@ -2485,17 +2436,8 @@ async function refreshPauseStatus() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopPolling(); return; }
-  _runPollTick(); startPolling();
-  // When user returns to app tab: always reset stuck lock, then refresh
-  if (document.querySelector('#pg-home.here') && _session) {
-    _menuLoading = false; // always release — prevents permanent stuck skeleton
-    if (!_fullMenu.length) {
-      loadMenu().catch(() => {}); // full load if menu is empty
-    } else {
-      _fetchFreshMenu(false).catch(() => {}); // silent background refresh
-    }
-  }
+  if (document.hidden) { stopPolling(); }
+  else { _runPollTick(); startPolling(); }
 });
 
 /* ═══════════════════════════════════════════
@@ -2530,9 +2472,6 @@ function _applySubscriberUI() {
 /* ═══════════════════════════════════════════
    BOOT SEQUENCE
 ═══════════════════════════════════════════ */
-/* bootApp — Phase 1: Login only (fast, 1 API call, with retry)
-   Phase 2: Menu loads progressively AFTER home screen is shown
-   This ensures login never fails due to slow menu API calls */
 async function bootApp() {
   document.getElementById('app-loader').style.display = 'flex';
   document.getElementById('loader-status').textContent = 'Loading...';
@@ -2541,48 +2480,42 @@ async function bootApp() {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  const creds = Creds.get();
+  const creds = Creds.get(); // key: tf_creds
+
   if (!creds) {
+    // No saved credentials -> show signup so user can register
     _transitionToLogin(false);
     return;
   }
 
-  // ── Phase 1: Authenticate only ───────────────────────────────────────────
-  // retry=2 means up to 3 total attempts — handles brief network glitches
   document.getElementById('loader-status').textContent = 'Signing you in…';
-  let res;
   try {
-    res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 2);
+    const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
+    Auth.set(res.user);
+    _session.is_subscriber = !!res.subscriber;
+    _walletBal = res.walletBalance || 0;
+    _pauseMode = res.subscriber?.pause_delivery || 'none';
+    updateWalletUI(_walletBal);
+    applyPauseState(_pauseMode);
+    api('getKhataEnabled')
+      .then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); })
+      .catch(() => {});
+    // Credentials valid -> always open home page
+    _transitionToHome();
+    loadMenu();
+    startPolling();
   } catch(e) {
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found');
     if (isAuthError) {
-      _transitionToLogin(true, true);
+      // Creds exist but don't match DB -> show login tab prefilled so user can fix manually
+      // Do NOT Creds.clear() - keep phone prefilled so user sees what failed
+      _transitionToLogin(true, true); // true=login tab, true=wrongCreds warning
     } else {
-      _showRetryUI('Connection problem. Please check your internet and try again.');
+      _showRetryUI('No internet connection. Check and try again.');
     }
-    return;
   }
-
-  // ── Phase 2: Auth success — go home immediately, load menu in background ─
-  Auth.set(res.user);
-  _session.is_subscriber = !!res.subscriber;
-  _walletBal = res.walletBalance || 0;
-  _pauseMode = res.subscriber?.pause_delivery || 'none';
-  updateWalletUI(_walletBal);
-  applyPauseState(_pauseMode);
-
-  _transitionToHome();   // User sees home screen NOW — no waiting for menu
-  startPolling();
-
-  // Load menu + secondary data progressively (non-blocking)
-  loadMenu().catch(() => {});
-
-  // Khata enabled check — fire and forget
-  api('getKhataEnabled')
-    .then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); })
-    .catch(() => {});
 }
 
 function _transitionToHome() {

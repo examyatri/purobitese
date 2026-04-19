@@ -808,33 +808,7 @@ function stopPolling() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopPolling();
-  else if (AdminAuth.get()) {
-    startPolling();
-    // Reload current page data when tab becomes visible again
-    const cur = document.querySelector('.pg-v.act')?.id;
-    if (cur) {
-      const loaders = {
-        'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
-        'p-thalis': loadThalis, 'p-coupons': loadCoupons, 'p-subs': loadSubscribers,
-        'p-users': loadUsers, 'p-riders': loadRiders, 'p-khata': loadAllKhata,
-        'p-staff': loadStaff, 'p-notifs': loadNotifications
-      };
-      if (loaders[cur]) loaders[cur]().catch(() => {});
-    }
-  }
-});
-
-// Handle bfcache restore (browser back/forward navigation)
-window.addEventListener('pageshow', e => {
-  if (e.persisted && AdminAuth.get()) {
-    const cur = document.querySelector('.pg-v.act')?.id;
-    const loaders = {
-      'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
-      'p-thalis': loadThalis, 'p-coupons': loadCoupons
-    };
-    if (cur && loaders[cur]) loaders[cur]().catch(() => {});
-  }
+  if (document.hidden) stopPolling(); else if (AdminAuth.get()) startPolling();
 });
 
 async function fetchNotifCount() {
@@ -1191,7 +1165,7 @@ async function forceBulkAll() {
   const items = collectBulkItems();
   const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
   if (!items.length) { aToast('Select at least one item'); return; }
-  confirmAction(`⚠️ Force-create bulk orders for ALL active subscribers regardless of wallet balance? This will create udhar (negative balance) for subscribers with insufficient funds.`, async function() {
+  confirmAction(`Force create bulk orders for ALL subscribers (ignore balance)?`, async function() {
     try {
       npStart();
       const res = await api('adminBulkCreate', { items, deliveryCharge });
@@ -1240,21 +1214,6 @@ async function forceUdharOrder() {
 let _menuItems = [];
 
 async function loadMenu() {
-  const tbody = document.getElementById('menu-tbody');
-  // Show skeleton rows while fetching
-  if (tbody && !_menuItems.length) {
-    tbody.innerHTML = Array(4).fill(0).map(() => `
-      <tr style="opacity:.5;pointer-events:none">
-        <td><div style="width:40px;height:40px;background:#f1f5f9;border-radius:8px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:14px;width:120px;background:#f1f5f9;border-radius:4px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:14px;width:70px;background:#f1f5f9;border-radius:4px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:14px;width:40px;background:#f1f5f9;border-radius:4px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:14px;width:60px;background:#f1f5f9;border-radius:4px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:14px;width:60px;background:#f1f5f9;border-radius:4px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:20px;width:36px;background:#f1f5f9;border-radius:20px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-        <td><div style="height:28px;width:70px;background:#f1f5f9;border-radius:6px;animation:pulse 1.2s ease-in-out infinite"></div></td>
-      </tr>`).join('');
-  }
   try {
     npStart();
     const res = await api('getMenuItems');
@@ -1262,15 +1221,7 @@ async function loadMenu() {
     _menuCache = _menuItems.filter(i=>i.is_active);
     renderMenuTable();
     npDone();
-  } catch(e) {
-    npDone();
-    // Show retry state instead of silent failure
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px">
-      <div style="color:#ef4444;font-size:14px;margin-bottom:12px"><i class="fa fa-circle-exclamation"></i> Failed to load menu</div>
-      <button class="btn btn-outline" onclick="loadMenu()" style="font-size:13px"><i class="fa fa-rotate-right"></i> Retry</button>
-    </td></tr>`;
-    aToast('Menu load failed — tap Retry');
-  }
+  } catch(e) { npDone(); aToast('Menu load failed'); }
 }
 
 function renderMenuTable() {
@@ -1969,7 +1920,7 @@ let _khataList = [];
 async function loadAllKhata() {
   try {
     npStart();
-    const res = await api('adminGetAllKhata');
+    const res = await api('getAllKhata');
     _khataList = (res.khata || []).sort((a,b) => (b.balance||0) - (a.balance||0));
     renderKhataTable();
     npDone();
@@ -2330,7 +2281,7 @@ function checkMasterDelInput() {
 async function doMasterDelete() {
   confirmAction('⚠️ This will permanently delete ALL orders, transactions and notifications. Are you absolutely sure?', async function() {
     try {
-      await api('masterDelete', { confirm: 'DELETE_ALL_TIFFO_DATA' });
+      await api('masterDelete');
       aToast('All data deleted');
       document.getElementById('master-del-input').value = '';
       checkMasterDelInput();
