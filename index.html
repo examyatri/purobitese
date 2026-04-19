@@ -1659,7 +1659,7 @@ function selectVariant(itemId, variantIdx, btn) {
   if (!row) return;
   row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === variantIdx));
   // Update price display
-  const item = _fullMenu.find(i => i.item_id === itemId);
+  const item = _fullMenu.find(i => String(i.item_id) === String(itemId));
   if (!item) return;
   const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
   if (variants && variants[variantIdx]) {
