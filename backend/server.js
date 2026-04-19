@@ -235,7 +235,7 @@ async function _deductMenuStock(items) {
   }
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer' }) {
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer', slot = 'morning' }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -299,6 +299,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     payment_status:  'pending',
     user_type:       user.is_subscriber ? 'subscriber' : 'daily',
     rider_id:        null,
+    slot:            source === 'admin' ? (slot || 'morning') : null,
     date:            dateStr,
     time:            timeStr,
     created_at:      new Date().toISOString()
@@ -670,11 +671,8 @@ app.post('/api', async (req, res) => {
             const result = await _createSingleOrder({
               user: { ...user, is_subscriber: true },
               items: data.items, deliveryCharge: data.deliveryCharge || 0,
-              khataEnabled: true, ist, coupon: null, source: 'admin'
+              khataEnabled: true, ist, coupon: null, source: 'admin', slot: data.slot || 'morning'
             });
-            success.push({ phone: sub.phone, orderId: result.orderId });
-          } else {
-            skipped.push({ phone: sub.phone, reason: 'low balance', balance });
           }
         }
         return res.json({ success: true, created: success.length, skipped: skipped.length, details: { success, skipped } });
@@ -694,11 +692,8 @@ app.post('/api', async (req, res) => {
             const result = await _createSingleOrder({
               user: { ...user, is_subscriber: true },
               items: data.items, deliveryCharge: data.deliveryCharge || 0,
-              khataEnabled: true, ist, coupon: null, source: 'admin'
+              khataEnabled: true, ist, coupon: null, source: 'admin', slot: data.slot || 'morning'
             });
-            success.push({ phone: sub.phone, orderId: result.orderId });
-          } catch(err) {
-            skipped.push({ phone: sub.phone, reason: err.message });
           }
         }
         return res.json({ success: true, created: success.length, skipped: skipped.length, details: { success, skipped } });
@@ -711,7 +706,7 @@ app.post('/api', async (req, res) => {
         user.is_subscriber = true;
         const result = await _createSingleOrder({
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
-          khataEnabled: true, ist, source: 'admin'
+          khataEnabled: true, ist, source: 'admin', slot: data.slot || 'morning'
         });
         return res.json({ success: true, orderId: result.orderId, walletBalance: result.walletBalance });
       }
