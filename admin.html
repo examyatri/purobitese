@@ -382,6 +382,11 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .act-btn-status:hover{background:#dcfce7}
 .act-btn-reject{background:#fff1f2;color:#be123c}
 .act-btn-reject:hover{background:#ffe4e6}
+.act-btn-update{background:#faf5ff;color:#7c3aed;border:1.5px solid #ddd6fe}
+.act-btn-update:hover{background:#ede9fe}
+.bulk-mo-label{font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.bulk-mo-select{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:var(--ff);font-size:13px;font-weight:600;color:#0f172a;background:white;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color 150ms}
+.bulk-mo-select:focus{outline:none;border-color:var(--p)}
 .act-btn-wa{background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;text-decoration:none}
 .act-btn-wa:hover{background:#dcfce7}
 /* status dropdown inline */
@@ -1506,16 +1511,15 @@ function renderOrdersTable(orders) {
       </td>
       <td>${riderHtml}</td>
       <td>
-        <div style="display:flex;flex-direction:column;gap:5px;min-width:150px">
+        <div style="display:flex;flex-direction:column;gap:5px;min-width:160px">
           <div style="display:flex;gap:5px;flex-wrap:wrap">
-            <button class="act-btn act-btn-assign" onclick="openAssignRiderModal('${o.order_id}','${o.rider_id||''}')"><i class="fa fa-motorcycle"></i> Rider</button>
             <a href="https://wa.me/91${o.phone}?text=${encodeURIComponent('Hello sir, aapne items order kiye hain, mujhe iske regarding aapse kuch information chahiye thi.')}" target="_blank" class="act-btn act-btn-wa"><i class="fa-brands fa-whatsapp"></i> WA</a>
             <button class="act-btn" style="background:#eff6ff;color:#1d4ed8" onclick="openWalletHistory('${o.phone}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-wallet"></i> Wallet</button>
           </div>
-          <select class="status-inline-select" onchange="updateStatus('${o.order_id}',this.value)">
-            ${['pending','preparing','out for delivery','delivered'].map(s=>`<option value="${s}"${o.order_status===s?' selected':''}>${s.replace('out for delivery','Out for Del.')}</option>`).join('')}
-          </select>
-          <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-ban"></i> Reject Order</button>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button class="act-btn act-btn-update" onclick="openUpdateModal('${o.order_id}','${o.rider_id||''}','${o.order_status||'pending'}','${o.payment_status||'pending'}')"><i class="fa fa-pen-to-square"></i> Update</button>
+            <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-ban"></i> Reject</button>
+          </div>
         </div>
       </td>
     </tr>`;
@@ -1664,6 +1668,90 @@ async function assignRider(orderId, riderId) {
   } catch(e) { aToast(e.message); }
 }
 
+// ── Update Modal (Bulk: Rider + Status + Payment) ──
+function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment) {
+  const riderOpts = _ridersCache.map(r =>
+    `<option value="${r.rider_id}" ${r.rider_id === currentRiderId ? 'selected' : ''}>${r.name} (#${r.rider_id})</option>`
+  ).join('');
+
+  const statusOpts = ['pending','preparing','out for delivery','delivered'].map(s =>
+    `<option value="${s}" ${currentStatus === s ? 'selected' : ''}>${s === 'out for delivery' ? 'Out for Delivery' : s.charAt(0).toUpperCase()+s.slice(1)}</option>`
+  ).join('');
+
+  const payOpts = ['pending','paid','unpaid','wallet'].map(p =>
+    `<option value="${p}" ${currentPayment === p ? 'selected' : ''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
+  ).join('');
+
+  openMo(`
+    <div class="mo-title"><i class="fa fa-pen-to-square" style="color:#7c3aed"></i> Update Order</div>
+    <p style="color:#64748b;font-size:12.5px;margin-bottom:18px">Order: <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code></p>
+
+    <div style="margin-bottom:14px">
+      <div class="bulk-mo-label"><i class="fa fa-motorcycle" style="color:#7c3aed"></i> Assign Rider</div>
+      <select id="bmo-rider" class="bulk-mo-select">
+        <option value="">— No change / Unassigned —</option>
+        ${riderOpts}
+      </select>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <div class="bulk-mo-label"><i class="fa fa-circle-check" style="color:#16a34a"></i> Order Status</div>
+      <select id="bmo-status" class="bulk-mo-select">
+        ${statusOpts}
+      </select>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div class="bulk-mo-label"><i class="fa fa-indian-rupee-sign" style="color:#b45309"></i> Payment Status</div>
+      <select id="bmo-payment" class="bulk-mo-select">
+        ${payOpts}
+      </select>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;padding:11px;font-size:14px;font-weight:700" onclick="doBulkUpdate('${orderId}')">
+      <i class="fa fa-floppy-disk"></i> Save Changes
+    </button>
+    <button class="btn btn-outline" style="margin-top:8px;width:100%" onclick="closeMo()">Cancel</button>
+  `);
+}
+
+async function doBulkUpdate(orderId) {
+  const riderId    = document.getElementById('bmo-rider')?.value   || '';
+  const orderStatus  = document.getElementById('bmo-status')?.value  || '';
+  const paymentStatus = document.getElementById('bmo-payment')?.value || '';
+
+  if (!riderId && !orderStatus && !paymentStatus) {
+    aToast('Nothing selected to update'); return;
+  }
+
+  try {
+    const payload = { orderId };
+    if (riderId)      payload.riderId      = riderId;
+    if (orderStatus)  payload.orderStatus  = orderStatus;
+    if (paymentStatus) payload.paymentStatus = paymentStatus;
+
+    const res = await api('bulkUpdateOrder', payload);
+    if (!res.success) { aToast(res.error || 'Update failed'); return; }
+
+    // Update local cache so table re-renders immediately without a full reload
+    const o = _allOrders.find(x => x.order_id === orderId);
+    if (o) {
+      if (riderId) {
+        o.rider_id = riderId;
+        const riderObj = _ridersCache.find(r => r.rider_id === riderId);
+        if (riderObj) o.rider_name = riderObj.name;
+      }
+      if (orderStatus)   o.order_status   = orderStatus;
+      if (paymentStatus) o.payment_status = paymentStatus;
+      _ordersStr = JSON.stringify(_allOrders);
+    }
+
+    closeMo();
+    aToast('Order updated ✓');
+    renderOrdersTable(_allOrders);
+  } catch(e) { aToast(e.message); }
+}
+
 // ── PDF Export ──
 function generateOrderPDF() {
   const catLabel = {today:"Today's Orders",all:"All Orders",morning:"Morning Orders",evening:"Evening Orders"}[_ordCat]||'Orders';
@@ -1694,7 +1782,7 @@ function generateOrderPDF() {
     .price-coupon{color:#16a34a}
     .src-badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700}
     .src-bulk{background:#ede9fe;color:#5b21b6}.src-user{background:#dbeafe;color:#1e40af}
-    .act-btn,.act-btn-assign,.act-btn-reject,.act-btn-status,.act-btn-wa,.status-inline-select{display:none!important}
+    .act-btn,.act-btn-assign,.act-btn-reject,.act-btn-status,.act-btn-wa,.act-btn-update,.status-inline-select{display:none!important}
     footer{margin-top:18px;font-size:11px;color:#94a3b8;text-align:right}
   </style></head><body>
   <h1>🍱 Tiffo Admin — ${catLabel}${statusLabel}</h1>
