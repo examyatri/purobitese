@@ -750,9 +750,8 @@ app.post('/api', async (req, res) => {
         const planFilter = data.planFilter || 'all'; // 'all' | 'active' | 'expiring'
         const orderFor   = data.orderFor || 'subscribers'; // 'subscribers' | 'all'
 
-        // Fetch active subscribers
-        let subsQuery = supabase.from('subscribers').select('*').gte('plan_end', today);
-        const { data: subs } = await subsQuery;
+        // Fetch all subscribers (no expiry — subscriptions are now infinite)
+        const { data: subs } = await supabase.from('subscribers').select('*');
 
         // Fetch today's orders for this slot to detect duplicates
         const { data: todayOrders } = await supabase.from('orders')
@@ -771,14 +770,14 @@ app.post('/api', async (req, res) => {
           const pause     = sub.pause_delivery || 'none';
           const ordered   = orderedPhones.has(sub.phone);
 
-          // Eligibility: check if this slot is paused
-          // pause='lunch'  → morning OFF, evening OK
-          // pause='dinner' → morning OK, evening OFF
-          // pause='both'   → all OFF
-          // pause='none'   → all ON
-          const slotPaused = pause === 'both'
-            || (pause === 'lunch'  && slot === 'morning')
-            || (pause === 'dinner' && slot === 'evening');
+          // Support both granular fields (pause_morning/pause_evening) and legacy pause_delivery
+          const pm = sub.pause_morning || (pause === 'lunch' || pause === 'both');
+          const pe = sub.pause_evening || (pause === 'dinner' || pause === 'both');
+          const deliveryOff = sub.is_delivery_off || false;
+
+          const slotPaused = deliveryOff
+            || (slot === 'morning' && pm)
+            || (slot === 'evening' && pe);
           const eligible = !slotPaused && !ordered;
 
           result.push({
@@ -1053,7 +1052,18 @@ app.post('/api', async (req, res) => {
         for (const s of (subs || [])) {
           const { data: u }   = await supabase.from('users').select('name, address').eq('phone', s.phone).single();
           const { data: bal } = await supabase.from('khata_summary').select('balance').eq('phone', s.phone).single();
-          enriched.push({ ...s, name: u?.name || null, address: u?.address || null, balance: bal?.balance || 0 });
+          enriched.push({
+            ...s,
+            name:           u?.name    || null,
+            address:        u?.address || null,
+            balance:        bal?.balance || 0,
+            plan:           s.plan || null,
+            pause_morning:  s.pause_morning  || false,
+            pause_evening:  s.pause_evening  || false,
+            is_delivery_off: s.is_delivery_off || false,
+            // legacy field for index.html compatibility
+            is_paused:      s.pause_morning || s.pause_evening || (s.pause_delivery && s.pause_delivery !== 'none') || false
+          });
         }
         return res.json({ success: true, subscribers: enriched });
       }
@@ -1061,21 +1071,23 @@ app.post('/api', async (req, res) => {
       case 'addSubscriber': {
         await supabase.from('subscribers').insert({
           phone:          cleanPhone(data.phone),
+          plan:           data.plan || 'morning',
           plan_start:     data.plan_start,
-          plan_end:       data.plan_end,
           notes:          data.notes || '',
           pause_delivery: 'none',
+          pause_morning:  false,
+          pause_evening:  false,
+          is_delivery_off: false,
           created_at:     new Date().toISOString()
         });
         return res.json({ success: true });
       }
 
       case 'updateSubscriber': {
-        await supabase.from('subscribers').update({
-          plan_start: data.plan_start,
-          plan_end:   data.plan_end,
-          notes:      data.notes
-        }).eq('phone', cleanPhone(data.phone));
+        const updates = { plan_start: data.plan_start, notes: data.notes };
+        if (data.plan)           updates.plan           = data.plan;
+        if (data.is_delivery_off !== undefined) updates.is_delivery_off = data.is_delivery_off;
+        await supabase.from('subscribers').update(updates).eq('phone', cleanPhone(data.phone));
         return res.json({ success: true });
       }
 
@@ -1085,7 +1097,16 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getUserByPhone': {
-        const { data: user } = await supabase.from('users').select('*').eq('phone', cleanPhone(data.phone)).single();
+        const q = (data.phone || data.query || '').trim();
+        let user = null;
+        // Try exact phone match first
+        { const { data: u } = await supabase.from('users').select('*').eq('phone', cleanPhone(q)).single();
+          if (u) user = u; }
+        // Fallback: search by name (partial, case-insensitive)
+        if (!user) {
+          const { data: rows } = await supabase.from('users').select('*').ilike('name', `%${q}%`).limit(1);
+          if (rows && rows.length) user = rows[0];
+        }
         if (!user) return res.json({ success: false, error: 'User not found' });
         const { password_hash, ...safe } = user;
         return res.json({ success: true, user: safe });
@@ -1106,10 +1127,13 @@ app.post('/api', async (req, res) => {
         if (data.addAsSubscriber) {
           await supabase.from('subscribers').insert({
             phone,
+            plan:           data.plan || 'morning',
             plan_start:     data.plan_start || istDateStr(ist),
-            plan_end:       data.plan_end   || istDateStr(ist),
             notes:          data.notes      || '',
             pause_delivery: 'none',
+            pause_morning:  false,
+            pause_evening:  false,
+            is_delivery_off: false,
             created_at:     new Date().toISOString()
           });
         }
@@ -1124,10 +1148,13 @@ app.post('/api', async (req, res) => {
         if (existing) return res.json({ success: false, error: 'Already a subscriber' });
         await supabase.from('subscribers').insert({
           phone,
-          plan_start:     data.plan_start,
-          plan_end:       data.plan_end,
-          notes:          '',
+          plan:           data.plan || 'morning',
+          plan_start:     data.plan_start || istDateStr(getIST()),
+          notes:          data.notes || '',
           pause_delivery: 'none',
+          pause_morning:  false,
+          pause_evening:  false,
+          is_delivery_off: false,
           created_at:     new Date().toISOString()
         });
         return res.json({ success: true });
@@ -1602,7 +1629,7 @@ app.post('/api', async (req, res) => {
           const result = [];
           for (const s of (subs || [])) {
             const { data: u } = await supabase.from('users').select('name, address').eq('phone', s.phone).single();
-            result.push({ ...s, name: u?.name || '', address: u?.address || '' });
+            result.push({ ...s, name: u?.name || '', address: u?.address || '', plan: s.plan || null });
           }
           return res.json({ success: true, subscribers: result }); }
 
@@ -1654,6 +1681,39 @@ app.post('/api', async (req, res) => {
             return res.json({ success: true, count: count || 0 });
           }
           return res.json({ success: false, error: 'Unknown cleanup type' }); }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Toggle granular pause for a subscriber session (admin action)
+      case 'toggleSubPause': {
+        const phone   = cleanPhone(data.phone);
+        const session = data.session; // 'morning' | 'evening'
+        const action  = data.action;  // 'pause' | 'resume'
+        if (!['morning','evening'].includes(session)) return res.json({ success: false, error: 'Invalid session' });
+        if (!['pause','resume'].includes(action))     return res.json({ success: false, error: 'Invalid action' });
+        const field   = session === 'morning' ? 'pause_morning' : 'pause_evening';
+        const val     = action === 'pause';
+        const { data: sub } = await supabase.from('subscribers').select('pause_morning, pause_evening').eq('phone', phone).single();
+        if (!sub) return res.json({ success: false, error: 'Subscriber not found' });
+        const updates = { [field]: val };
+        // Keep legacy pause_delivery in sync for index.html compatibility
+        const pm = field === 'pause_morning' ? val : (sub.pause_morning || false);
+        const pe = field === 'pause_evening' ? val : (sub.pause_evening || false);
+        updates.pause_delivery = pm && pe ? 'both' : pm ? 'lunch' : pe ? 'dinner' : 'none';
+        await supabase.from('subscribers').update(updates).eq('phone', phone);
+        return res.json({ success: true, pause_morning: pm, pause_evening: pe });
+      }
+
+      // Delete user account completely (admin action)
+      case 'adminDeleteUser': {
+        const phone = cleanPhone(data.phone);
+        // Remove subscriber record, wallet, ledger entries, then user
+        await supabase.from('subscribers').delete().eq('phone', phone);
+        await supabase.from('khata_summary').delete().eq('phone', phone);
+        await supabase.from('khata_entries').delete().eq('phone', phone);
+        await supabase.from('nu_coupon_sent').delete().eq('phone', phone);
+        await supabase.from('users').delete().eq('phone', phone);
+        return res.json({ success: true });
+      }
 
       // ─────────────────────────────────────────────────────────────────────
       default:
