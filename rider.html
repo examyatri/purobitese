@@ -380,7 +380,7 @@ function renderOrders(searchQuery = '') {
   const today     = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().slice(0, 10);
 
-  const fmtDate  = d => { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+  const fmtDate  = d => { if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return d || '—'; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
   const dateLabel= d => d === today ? 'Today' : d === yesterday ? 'Yesterday' : fmtDate(d);
 
   const sortedDates = Object.keys(grouped).sort().reverse();

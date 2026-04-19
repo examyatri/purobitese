@@ -1165,7 +1165,7 @@ async function forceBulkAll() {
   const items = collectBulkItems();
   const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
   if (!items.length) { aToast('Select at least one item'); return; }
-  confirmAction(`Force create bulk orders for ALL subscribers (ignore balance)?`, async function() {
+  confirmAction(`⚠️ Force-create bulk orders for ALL active subscribers regardless of wallet balance? This will create udhar (negative balance) for subscribers with insufficient funds.`, async function() {
     try {
       npStart();
       const res = await api('adminBulkCreate', { items, deliveryCharge });
@@ -1275,6 +1275,13 @@ function openMenuModal(editId = null) {
         ${['none','bestseller','chef','recommended','new'].map(h=>`<option value="${h}" ${(m?.highlight||'none')===h?'selected':''}>${h}</option>`).join('')}
       </select>
     </div>
+    <div class="field"><label>Veg / Non-Veg</label>
+      <select id="mf-veg-type">
+        <option value="veg" ${(m?.veg_type||'veg')==='veg'?'selected':''}>🟢 Veg</option>
+        <option value="nonveg" ${m?.veg_type==='nonveg'?'selected':''}>🔴 Non-Veg</option>
+      </select>
+    </div>
+    <div class="field"><label>Sub-Items (e.g. Shahi Paneer, Palak Paneer)</label><input id="mf-sub-items" type="text" placeholder="Comma separated dish names" value="${m?.sub_items||''}"></div>
     <div class="field"><label>Sort Order</label><input id="mf-sort" type="number" value="${m?.sort_order||0}"></div>
     <div class="field"><label>Stock Grams (blank = unlimited)</label><input id="mf-stock" type="number" value="${m?.stock_grams??''}"></div>
     <div class="field" style="display:flex;align-items:center;gap:12px">
@@ -1312,6 +1319,8 @@ function collectMenuForm(id=null) {
     image_url:   document.getElementById('mf-img')?.value.trim(),
     price:       parseFloat(document.getElementById('mf-price')?.value)||0,
     highlight:   document.getElementById('mf-highlight')?.value,
+    veg_type:    document.getElementById('mf-veg-type')?.value || 'veg',
+    sub_items:   document.getElementById('mf-sub-items')?.value.trim() || null,
     sort_order:  parseInt(document.getElementById('mf-sort')?.value)||0,
     stock_grams: document.getElementById('mf-stock')?.value ? parseFloat(document.getElementById('mf-stock').value) : null,
     is_active:   document.getElementById('mf-active')?.checked,
@@ -1558,7 +1567,7 @@ let _subs = [];
 async function loadSubscribers() {
   try {
     npStart();
-    const res = await api('getSubscribers');
+    const res = await api('adminGetSubscribers');
     _subs = res.subscribers || [];
     renderSubsTable();
     npDone();
@@ -1685,7 +1694,7 @@ async function loadNuCoupons(type, btn) {
   el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">Loading…</div>';
   try {
     const res = await api(type === 'pending' ? 'getNuCouponPending' : 'getNuCouponSent');
-    const users = res.users || [];
+    const users = res.records || [];
     if (!users.length) { el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">None</div>'; return; }
     el.innerHTML = users.map(u => `
       <div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid #f1f5f9">
@@ -1911,7 +1920,7 @@ let _khataList = [];
 async function loadAllKhata() {
   try {
     npStart();
-    const res = await api('getAllKhata');
+    const res = await api('adminGetAllKhata');
     _khataList = (res.khata || []).sort((a,b) => (b.balance||0) - (a.balance||0));
     renderKhataTable();
     npDone();
@@ -2272,7 +2281,7 @@ function checkMasterDelInput() {
 async function doMasterDelete() {
   confirmAction('⚠️ This will permanently delete ALL orders, transactions and notifications. Are you absolutely sure?', async function() {
     try {
-      await api('masterDelete');
+      await api('masterDelete', { confirm: 'DELETE_ALL_TIFFO_DATA' });
       aToast('All data deleted');
       document.getElementById('master-del-input').value = '';
       checkMasterDelInput();

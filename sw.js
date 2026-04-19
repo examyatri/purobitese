@@ -73,7 +73,7 @@ self.addEventListener('fetch', e => {
 
       const fetchPromise = fetch(request)
         .then(res => {
-          if (res && res.status === 200 && res.type !== 'opaque-redirect') {
+          if (res && res.status === 200 && res.type !== 'opaque') {
             cache.put(request, res.clone());
           }
           return res;

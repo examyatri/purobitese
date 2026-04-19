@@ -97,7 +97,7 @@ textarea{resize:vertical;min-height:80px}
 .auth-top{background:var(--grad);width:100%;padding:48px 24px 32px;text-align:center}
 .auth-logo{font-family:var(--ff);font-weight:800;font-size:32px;color:#fff}
 .auth-sub{font-family:var(--fb);color:rgba(255,255,255,.8);font-size:14px;margin-top:4px}
-.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;flex:1;padding:24px var(--pg-pad) 40px;margin-top:-16px}
+.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:24px var(--pg-pad) calc(60px + env(safe-area-inset-bottom,0px));margin-top:-16px}
 .tab-bar{display:flex;background:#f5f5f5;border-radius:12px;padding:4px;margin-bottom:20px}
 .tab-btn{flex:1;border:none;background:none;padding:10px;font-family:var(--ff);font-weight:600;font-size:14px;border-radius:9px;cursor:pointer;color:var(--gr);transition:all 200ms}
 .tab-btn.active{background:#fff;color:var(--p);box-shadow:var(--sh)}
@@ -164,20 +164,38 @@ textarea{resize:vertical;min-height:80px}
 .m-item-name{font-family:var(--ff);font-weight:600;font-size:16px;color:var(--dk);line-height:1.3}
 .m-item-cat{font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px}
 .highlight-badge{display:inline-block;font-family:var(--ff);font-size:11px;font-weight:600;background:var(--pl);color:var(--pd);border-radius:6px;padding:2px 7px;margin-top:4px}
-.m-item-img-wrap{position:relative;flex-shrink:0}
-.m-item-img{width:80px;height:80px;border-radius:12px;object-fit:cover}
-.m-item-img-ph{width:80px;height:80px;border-radius:12px;background:linear-gradient(135deg,#f5f5f5,#e5e5e5);display:flex;align-items:center;justify-content:center;font-size:28px}
-.stock-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35);border-radius:12px;display:flex;align-items:center;justify-content:center}
+.m-item-img-wrap{position:relative;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.m-item-img{width:96px;height:96px;border-radius:12px;object-fit:cover}
+.m-item-img-ph{width:96px;height:96px;border-radius:12px;background:linear-gradient(135deg,#f5f5f5,#e5e5e5);display:flex;align-items:center;justify-content:center;font-size:28px}
+.stock-overlay{position:absolute;top:0;left:0;right:0;width:96px;height:96px;background:rgba(0,0,0,.35);border-radius:12px;display:flex;align-items:center;justify-content:center}
 .oos-pill{background:rgba(0,0,0,.7);color:#fff;font-family:var(--ff);font-size:10px;font-weight:600;border-radius:8px;padding:3px 7px}
+/* Veg/NonVeg dot */
+.veg-dot{width:16px;height:16px;border:1.5px solid #2a9d8f;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.veg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#2a9d8f;display:block}
+.nonveg-dot{width:16px;height:16px;border:1.5px solid #c1121f;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.nonveg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#c1121f;display:block}
+/* Highlight badge – Zomato style top-left */
+.highlight-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--ff);font-size:10px;font-weight:700;color:#f4591d;letter-spacing:.3px;margin-bottom:2px}
+.highlight-badge i{font-size:9px}
+/* Add-btn below image */
+.img-add-btn{border:none;background:#fff;color:var(--g);border-radius:8px;padding:5px 14px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;border:2px solid var(--g);width:96px;white-space:nowrap}
+.img-add-btn:hover{background:var(--g);color:#fff}
+.img-qty-row{display:flex;align-items:center;justify-content:space-between;background:#fff;border:2px solid var(--g);border-radius:8px;overflow:hidden;width:96px}
+.img-qty-btn{border:none;background:none;color:var(--g);width:28px;height:28px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--ff)}
+.img-qty-val{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--g);min-width:22px;text-align:center}
 .variants-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .variant-pill{border:2px solid #e5e7eb;border-radius:20px;padding:4px 10px;font-family:var(--ff);font-size:12px;font-weight:600;background:#fff;cursor:pointer;transition:all 150ms;color:var(--gr)}
-.variant-pill.active{border-color:var(--p);background:var(--pl);color:var(--p)}
+.variant-pill.active{border-color:var(--g);background:var(--gl);color:var(--g)}
 .m-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
 .m-item-price{font-family:var(--ff);font-weight:700;font-size:16px;color:var(--dk)}
 .qty-row{display:flex;align-items:center;gap:0;background:var(--pl);border-radius:20px;overflow:hidden}
 .qty-btn{border:none;background:none;color:var(--p);width:30px;height:30px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--ff)}
 .qty-val{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--p);min-width:22px;text-align:center}
 .add-btn{border:none;background:var(--grad);color:#fff;border-radius:20px;padding:6px 16px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer}
+/* Celebration overlay for coupon */
+#coupon-celebrate{position:fixed;inset:0;pointer-events:none;z-index:9990;display:none}
+.confetti-piece{position:absolute;width:8px;height:8px;border-radius:2px;animation:confettiFall 1.8s ease-in forwards}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
 /* Cart page */
 .cart-header,.orders-header,.khata-header,.account-header{background:#fff;padding:14px var(--pg-pad);position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;box-shadow:0 1px 0 #f0f0f0}
 .back-btn{border:none;background:none;width:36px;height:36px;border-radius:10px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dk);font-size:16px}
@@ -328,6 +346,7 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <div id="toast"></div>
+<div id="coupon-celebrate"></div>
 <div id="cart-pill"></div>
 <div id="sheet-backdrop" class="backdrop" onclick="closeAllSheets()"></div>
 
@@ -524,9 +543,9 @@ textarea{resize:vertical;min-height:80px}
             <span class="bill-label">Discount</span>
             <span class="bill-val text-g" id="bill-discount">−₹0</span>
           </div>
-          <div class="bill-row">
+          <div class="bill-row" id="bill-delivery-row">
             <span class="bill-label">Delivery</span>
-            <span class="bill-val text-g">₹0</span>
+            <span class="bill-val" id="bill-delivery">₹20</span>
           </div>
           <hr class="bill-divider">
           <div class="bill-row">
@@ -603,7 +622,12 @@ textarea{resize:vertical;min-height:80px}
     <button class="back-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
     <div class="pg-title">My Orders</div>
   </div>
-  <div class="pg-scroll">
+  <div class="pg-scroll" id="orders-scroll">
+    <div id="ptr-zone-orders" style="height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:height 200ms;color:var(--gr);font-size:13px;font-family:var(--fb)">
+      <span id="ptr-arrow-orders" style="display:inline-block;transition:transform 200ms">↓</span>
+      <span id="ptr-spinner-orders" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i></span>
+      <span style="margin-left:6px">Pull to refresh</span>
+    </div>
     <div style="padding:0 var(--pg-pad)">
       <div id="orders-loading" class="mt16" style="display:none">
         <div class="sk" style="height:90px;margin-bottom:10px;border-radius:16px"></div>
@@ -709,7 +733,12 @@ textarea{resize:vertical;min-height:80px}
     <div class="pg-title" style="flex:1">My Wallet</div>
     <button id="khata-refresh-btn" onclick="loadUserKhata()" style="border:none;background:#f5f5f5;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gr);font-size:15px"><i class="fa-solid fa-rotate-right"></i></button>
   </div>
-  <div class="pg-scroll">
+  <div class="pg-scroll" id="khata-scroll">
+    <div id="ptr-zone-khata" style="height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:height 200ms;color:var(--gr);font-size:13px;font-family:var(--fb)">
+      <span id="ptr-arrow-khata" style="display:inline-block;transition:transform 200ms">↓</span>
+      <span id="ptr-spinner-khata" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i></span>
+      <span style="margin-left:6px">Pull to refresh</span>
+    </div>
     <div style="padding:var(--pg-pad)">
       <!-- Balance card -->
       <div class="khata-bal-card">
@@ -1112,9 +1141,9 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
     banner.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'
       + '<span class=\'dot-pulse\' style="background:#fff;flex-shrink:0"></span>'
       + '<div style="min-width:0">'
-      + '<div style="font-size:15px;font-weight:800;color:#fff">' + emoji + ' Orders open &nbsp;&middot;&nbsp; ' + label + '</div>'
-      + '<div style="font-size:11px;font-weight:500;opacity:.85;margin-top:2px;color:#fff">' + label + ' orders close at <b>' + closeT + '</b></div>'
-      + (d ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">' + lunchPill + dinnerPill + '</div>' : '')
+      + '<div style="font-size:14px;font-weight:800;color:#fff">' + emoji + ' Orders open for ' + label + '</div>'
+      + (d ? '<div style="font-size:11px;font-weight:500;color:#fff;opacity:.9;margin-top:3px">☀️ Lunch Time ' + _fmtH(d.ls,d.lsm) + '–' + _fmtH(d.le,d.lem) + '</div>' : '')
+      + (d ? '<div style="font-size:11px;font-weight:500;color:#fff;opacity:.9;margin-top:1px">🌙 Dinner Time ' + _fmtH(d.ds,d.dsm) + '–' + _fmtH(d.de,d.dem) + '</div>' : '')
       + '</div></div>';
     banner.style.background = 'linear-gradient(135deg,#1a7a6e,#2a9d8f)';
     banner.style.color = '#fff';
@@ -1560,11 +1589,16 @@ function filterAndRenderMenu() {
 function getHighlightBadge(item) {
   const h = item.highlight;
   if (!h || h === 'none') return '';
-  if (h === 'bestseller')  return '<span class="highlight-badge">⭐ Bestseller</span>';
-  if (h === 'chef')        return '<span class="highlight-badge">👨‍🍳 Chef\'s Special</span>';
-  if (h === 'recommended') return '<span class="highlight-badge">🔥 Recommended</span>';
-  if (h === 'new')         return '<span class="highlight-badge">🆕 New</span>';
+  if (h === 'bestseller')  return '<div class="highlight-badge"><i class="fa-solid fa-award"></i> Bestseller</div>';
+  if (h === 'chef')        return '<div class="highlight-badge"><i class="fa-solid fa-hat-chef"></i> Chef\'s Special</div>';
+  if (h === 'recommended') return '<div class="highlight-badge"><i class="fa-solid fa-fire"></i> Recommended</div>';
+  if (h === 'new')         return '<div class="highlight-badge"><i class="fa-solid fa-sparkles"></i> New</div>';
   return '';
+}
+
+function getVegDot(item) {
+  if (!item.veg_type || item.veg_type === 'veg') return '<div class="veg-dot"></div>';
+  return '<div class="nonveg-dot"></div>';
 }
 
 function renderMenuItems(items) {
@@ -1573,48 +1607,47 @@ function renderMenuItems(items) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-utensils"></i></div><div class="empty-title">No items found</div></div>`;
     return;
   }
-
   list.innerHTML = items.map(item => {
     const oos = isOutOfStock(item);
     const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
     const hasVariants = Array.isArray(variants) && variants.length > 0;
     const imgHtml = item.image_url
-      ? `<img class="m-item-img${oos ? '' : ''}" src="${item.image_url}" alt="${item.name}" onerror="this.outerHTML='<div class=m-item-img-ph>🍽️</div>'">`
+      ? `<img class="m-item-img" src="${item.image_url}" alt="${item.name}" onerror="this.outerHTML='<div class=m-item-img-ph>🍽️</div>'">`
       : `<div class="m-item-img-ph">🍽️</div>`;
-
     const varRow = hasVariants
       ? `<div class="variants-row" id="vrow-${item.item_id}">` +
         variants.map((v, vi) =>
           `<button class="variant-pill${vi===0?' active':''}" onclick="selectVariant(${item.item_id},${vi},this)">${v.label} ₹${v.price}</button>`
-        ).join('') + `</div>` : '';
-
+        ).join('') + '</div>' : '';
     const cartItem = Cart.get().find(c => c.item_id === item.item_id);
     const cartQty = cartItem ? cartItem.qty : 0;
-
-    const addCtrl = oos ? '' :
+    const safeItem = JSON.stringify(item).replace(/"/g,'&quot;');
+    const firstKey = `${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}`;
+    const imgCtrl = oos ? '' :
       cartQty > 0
-        ? `<div class="qty-row" id="qty-${item.item_id}">
-            <button class="qty-btn" onclick="adjustQty('${item.item_id}','${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}',−1,event)">−</button>
-            <span class="qty-val">${cartQty}</span>
-            <button class="qty-btn" onclick="addItemToCart(${JSON.stringify(item).replace(/"/g,'&quot;')}, event)">+</button>
-           </div>`
-        : `<button class="add-btn" onclick="addItemToCart(${JSON.stringify(item).replace(/"/g,'&quot;')}, event)">+ Add</button>`;
-
+        ? `<div class="img-qty-row" id="qty-${item.item_id}"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${firstKey}',-1,event)">−</button><span class="img-qty-val">${cartQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`
+        : `<button class="img-add-btn" id="qty-${item.item_id}" onclick="addItemToCart(${safeItem},event)">ADD</button>`;
+    const subItems = item.sub_items ? `<div style="font-family:var(--fb);font-size:11.5px;color:var(--gr);margin-top:3px;line-height:1.5">${item.sub_items}</div>` : '';
     return `<div class="m-item" data-id="${item.item_id}">
       <div class="m-item-inner">
         <div class="m-item-info">
-          <div class="m-item-name">${item.name}</div>
-          <div class="m-item-cat">${item.category || ''}</div>
           ${getHighlightBadge(item)}
+          <div style="display:flex;align-items:flex-start;gap:6px;margin-top:2px">
+            ${getVegDot(item)}
+            <div style="flex:1;min-width:0">
+              <div class="m-item-name">${item.name}</div>
+              ${subItems}
+            </div>
+          </div>
           ${item.description ? `<div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:4px;line-height:1.4">${item.description}</div>` : ''}
           ${varRow}
           <div class="m-item-foot">
             <span class="m-item-price" id="price-${item.item_id}">₹${hasVariants ? variants[0]?.price : item.price}</span>
-            <div id="ctrl-${item.item_id}">${addCtrl}</div>
           </div>
         </div>
         <div class="m-item-img-wrap">
-          ${oos ? `<div style="opacity:.5">${imgHtml}</div><div class="stock-overlay"><div class="oos-pill">Out of Stock</div></div>` : imgHtml}
+          ${oos ? `<div style="position:relative">${imgHtml}<div class="stock-overlay"><div class="oos-pill">Out of Stock</div></div></div>` : imgHtml}
+          <div id="ctrl-${item.item_id}">${imgCtrl}</div>
         </div>
       </div>
     </div>`;
@@ -1664,14 +1697,12 @@ function refreshMenuItemControl(item) {
   const hasVariants = variants.length > 0;
   const keys = Cart.get().filter(c => c.item_id === item.item_id);
   const totalQty = keys.reduce((s, c) => s + c.qty, 0);
+  const safeItem = JSON.stringify(item).replace(/"/g,'&quot;');
+  const firstKey = `${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}`;
   if (totalQty > 0) {
-    ctrl.innerHTML = `<div class="qty-row">
-      <button class="qty-btn" onclick="adjustQty('${item.item_id}','${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}',-1,event)">−</button>
-      <span class="qty-val">${totalQty}</span>
-      <button class="qty-btn" onclick="addItemToCart(${JSON.stringify(item).replace(/"/g,'&quot;')}, event)">+</button>
-    </div>`;
+    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${firstKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
   } else {
-    ctrl.innerHTML = `<button class="add-btn" onclick="addItemToCart(${JSON.stringify(item).replace(/"/g,'&quot;')}, event)">+ Add</button>`;
+    ctrl.innerHTML = `<button class="img-add-btn" onclick="addItemToCart(${safeItem},event)">ADD</button>`;
   }
 }
 
@@ -1709,52 +1740,46 @@ function addThaliToCart(thali) {
 let _ptrStartY = 0, _ptrPulling = false, _ptrTriggered = false;
 const PTR_THRESHOLD = 60;
 
-function initPullToRefresh() {
-  const scroll = document.getElementById('home-scroll');
+function _makePTR(scrollId, zoneId, arrowId, spinnerId, refreshFn) {
+  const scroll = document.getElementById(scrollId);
+  if (!scroll) return;
+  let startY = 0, pulling = false;
   scroll.addEventListener('touchstart', e => {
-    if (scroll.scrollTop === 0) {
-      _ptrStartY = e.touches[0].clientY;
-      _ptrPulling = true;
-      _ptrTriggered = false;
-    }
+    if (scroll.scrollTop === 0) { startY = e.touches[0].clientY; pulling = true; }
   }, { passive: true });
-
   scroll.addEventListener('touchmove', e => {
-    if (!_ptrPulling) return;
-    const dy = e.touches[0].clientY - _ptrStartY;
-    if (dy < 0) { _ptrPulling = false; return; }
-    const zone = document.getElementById('ptr-zone');
-    const arrow = document.getElementById('ptr-arrow');
-    if (dy > 10) {
-      zone.style.height = Math.min(dy * 0.5, 50) + 'px';
-      zone.style.padding = '8px 0';
-    }
-    if (dy > PTR_THRESHOLD && !_ptrTriggered) {
-      arrow.style.transform = 'rotate(180deg)';
-    } else if (dy <= PTR_THRESHOLD) {
-      arrow.style.transform = 'rotate(0deg)';
-    }
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy < 0) { pulling = false; return; }
+    const zone = document.getElementById(zoneId);
+    const arrow = document.getElementById(arrowId);
+    if (dy > 10) zone.style.height = Math.min(dy * 0.5, 50) + 'px';
+    if (arrow) arrow.style.transform = dy > PTR_THRESHOLD ? 'rotate(180deg)' : 'rotate(0deg)';
   }, { passive: true });
-
   scroll.addEventListener('touchend', async e => {
-    if (!_ptrPulling) return;
-    _ptrPulling = false;
-    const dy = e.changedTouches[0].clientY - _ptrStartY;
-    const zone = document.getElementById('ptr-zone');
-    const arrow = document.getElementById('ptr-arrow');
-    const spinner = document.getElementById('ptr-spinner');
+    if (!pulling) return;
+    pulling = false;
+    const dy = e.changedTouches[0].clientY - startY;
+    const zone = document.getElementById(zoneId);
+    const arrow = document.getElementById(arrowId);
+    const spinner = document.getElementById(spinnerId);
     if (dy > PTR_THRESHOLD) {
-      arrow.style.display = 'none';
-      spinner.style.display = 'block';
+      if (arrow) arrow.style.display = 'none';
+      if (spinner) spinner.style.display = 'inline-block';
       zone.style.height = '50px';
-      await manualIndexRefresh();
-      spinner.style.display = 'none';
-      arrow.style.display = 'block';
+      try { await refreshFn(); } catch(e) {}
+      if (spinner) spinner.style.display = 'none';
+      if (arrow) arrow.style.display = 'inline-block';
     }
     zone.style.height = '0';
-    zone.style.padding = '0';
-    arrow.style.transform = 'rotate(0deg)';
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
   }, { passive: true });
+}
+
+function initPullToRefresh() {
+  _makePTR('home-scroll', 'ptr-zone', 'ptr-arrow', 'ptr-spinner', manualIndexRefresh);
+  _makePTR('orders-scroll', 'ptr-zone-orders', 'ptr-arrow-orders', 'ptr-spinner-orders', async () => { await loadOrders(); });
+  _makePTR('khata-scroll', 'ptr-zone-khata', 'ptr-arrow-khata', 'ptr-spinner-khata', async () => { await loadUserKhata(); });
 }
 
 function showRefreshIndicator() {}
@@ -1831,12 +1856,15 @@ function cartRemove(key) {
 
 function updateBillSummary() {
   const cart = Cart.get();
+  const user = Auth.get();
+  const isPro = !!(user?.is_subscriber && _khataEnabled);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = _appliedCoupon
     ? (_appliedCoupon.discount_type === 'percent'
         ? Math.round(subtotal * _appliedCoupon.discount_value / 100)
         : _appliedCoupon.discount_value) : 0;
-  const total = subtotal - discount;
+  const deliveryCharge = isPro ? 0 : 20;
+  const total = subtotal + deliveryCharge - discount;
   document.getElementById('bill-subtotal').textContent = '₹' + subtotal;
   document.getElementById('bill-total').textContent    = '₹' + total;
   const discRow = document.getElementById('bill-discount-row');
@@ -1845,6 +1873,12 @@ function updateBillSummary() {
     document.getElementById('bill-discount').textContent = '−₹' + discount;
   } else {
     discRow.style.display = 'none';
+  }
+  const delEl = document.getElementById('bill-delivery');
+  if (delEl) {
+    delEl.textContent = isPro ? '₹0' : '₹20';
+    delEl.style.color = isPro ? 'var(--g)' : 'var(--dk)';
+    delEl.innerHTML = isPro ? '<span style="color:var(--g)">FREE 🎉 PRO</span>' : '₹20';
   }
 }
 
@@ -1864,12 +1898,34 @@ async function applyCoupon() {
     msg.textContent = `🎉 ₹${disc} off applied!`;
     msg.style.color = 'var(--g)';
     updateBillSummary();
+    launchCouponCelebration();
   } catch(e) {
     _appliedCoupon = null;
     msg.textContent = e.message || 'Invalid coupon';
     msg.style.color = 'var(--pd)';
     updateBillSummary();
   }
+}
+
+function launchCouponCelebration() {
+  const el = document.getElementById('coupon-celebrate');
+  if (!el) return;
+  const colors = ['#e63946','#2a9d8f','#f4a261','#ffd166','#06d6a0','#118ab2'];
+  el.innerHTML = '';
+  el.style.display = 'block';
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.top = '-10px';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDelay = Math.random() * 0.8 + 's';
+    p.style.animationDuration = (1.2 + Math.random() * 0.8) + 's';
+    p.style.width = p.style.height = (6 + Math.random() * 6) + 'px';
+    p.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    el.appendChild(p);
+  }
+  setTimeout(() => { el.style.display = 'none'; el.innerHTML = ''; }, 2500);
 }
 
 async function placeOrder() {
@@ -1896,7 +1952,8 @@ async function placeOrder() {
     ? (_appliedCoupon.discount_type === 'percent'
         ? Math.round(subtotal * _appliedCoupon.discount_value / 100)
         : _appliedCoupon.discount_value) : 0;
-  const deliveryCharge = 0;
+  const isPro = !!(user.is_subscriber && _khataEnabled);
+  const deliveryCharge = isPro ? 0 : 20;
   const total = subtotal + deliveryCharge - discount;
 
   if (user.is_subscriber && _khataEnabled) {
@@ -2075,13 +2132,22 @@ async function changePassword() {
 async function loadUserKhata() {
   const phone = Auth.get()?.phone;
   if (!phone) return;
+  // Prefill date range if empty: today and 7 days ago
+  const fromEl = document.getElementById('khata-from');
+  const toEl   = document.getElementById('khata-to');
+  if (fromEl && toEl && !fromEl.value && !toEl.value) {
+    const today   = new Date(Date.now() + 5.5 * 3600000);
+    const sevenAgo = new Date(Date.now() + 5.5 * 3600000 - 7 * 86400000);
+    const fmt = d => d.toISOString().slice(0,10);
+    fromEl.value = fmt(sevenAgo);
+    toEl.value   = fmt(today);
+  }
   // Spin refresh icon
   const btn = document.getElementById('khata-refresh-btn');
   if (btn) btn.querySelector('i').style.animation = 'spin .6s linear infinite';
   try {
     const res = await api('getKhata', { phone });
     updateWalletUI(res.balance);
-    // Update status text
     const statusEl = document.getElementById('wallet-bal-status');
     if (statusEl) statusEl.textContent = (res.balance || 0) < 200 ? '\u26A0\uFE0F Balance low' : '\u2705 Balance looks good';
     const newStr = JSON.stringify(res.entries);
@@ -2089,7 +2155,7 @@ async function loadUserKhata() {
       _lastKhataStr = newStr;
       _khataAllEntries = (res.entries || []).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
       Store.setJSON('_khata_cache', _khataAllEntries);
-      renderUserKhataList(_khataAllEntries);
+      filterKhata(); // apply date filter immediately
     }
   } catch {}
   finally { if (btn) btn.querySelector('i').style.animation = ''; }
@@ -2179,7 +2245,14 @@ function generateKhataPDF() {
     const dateStr = fmtD(e.created_at);
     const timeStr = e.time ? e.time : fmtT(e.created_at);
     const runBal  = e.running_balance!==undefined&&e.running_balance!==null?'\u20B9'+e.running_balance:'—';
+    // Item name + real price (without coupon)
+    const itemStr = e.items && Array.isArray(e.items) && e.items.length
+      ? e.items.map(i => (i.name||'') + (i.variantLabel ? ' ('+i.variantLabel+')' : '') + ' \u00d7' + (i.qty||1) + ' = \u20B9' + ((i.price||0)*(i.qty||1))).join('<br>')
+      : (e.item_name ? e.item_name + (e.item_price ? ' \u20B9'+e.item_price : '') : '—');
+    const realPrice = e.items && Array.isArray(e.items) ? '\u20B9'+e.items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0) : (e.item_price ? '\u20B9'+e.item_price : '—');
     return '<tr style="background:'+rowBg+'"><td>'+dateStr+'</td><td>'+timeStr+'</td><td>'+label+'</td>' +
+      '<td style="font-size:10px;color:#333">'+itemStr+'</td>' +
+      '<td style="color:#555;font-weight:600;text-align:right">'+realPrice+'</td>' +
       '<td style="color:'+color+';font-weight:700;text-align:right">'+sign+'\u20B9'+Math.abs(e.amount)+'</td>' +
       '<td style="text-align:right;color:#333">'+runBal+'</td>' +
       '<td style="font-size:10px;color:#666">'+srcNote+'<br><span style="color:#aaa;font-size:9px">'+note+'</span></td></tr>';
@@ -2197,8 +2270,8 @@ function generateKhataPDF() {
     '.sumcard .lbl{font-size:10px;letter-spacing:1px;font-weight:600;opacity:.8;text-transform:uppercase}' +
     '.sumcard .val{font-size:22px;font-weight:800}' +
     'table{width:100%;border-collapse:collapse;font-size:11px}' +
-    'th{background:#1a1a2e;color:#fff;padding:8px 8px;text-align:left;font-size:10px;letter-spacing:.5px}' +
-    'td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}' +
+    'th{background:#1a1a2e;color:#fff;padding:8px 6px;text-align:left;font-size:10px;letter-spacing:.5px}' +
+    'td{padding:6px 6px;border-bottom:1px solid #f0f0f0;vertical-align:top}' +
     '.footer{margin-top:18px;font-size:10px;color:#aaa;display:flex;justify-content:space-between}' +
     '@media print{button{display:none!important}}' +
     '</style></head><body>' +
@@ -2214,11 +2287,11 @@ function generateKhataPDF() {
       '<div class="sumcard orange"><div class="lbl">Transactions</div><div class="val">'+entries.length+'</div></div>' +
     '</div>' +
     '<button onclick="window.print()" style="background:#e63946;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin-bottom:14px;font-size:13px">&#x1F5A8; Print / Save PDF</button>' +
-    '<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th><th>Note</th></tr></thead>' +
+    '<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Items</th><th style="text-align:right">Real Price</th><th style="text-align:right">Charged</th><th style="text-align:right">Balance</th><th>Note</th></tr></thead>' +
     '<tbody>'+rows+'</tbody></table>' +
     '<div class="footer"><span>Powered by <b>Tiffo</b> &#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'</span><span>Generated: '+now+'</span></div>' +
     '</body></html>';
-  const w = window.open('','_blank','width=900,height=650');
+  const w = window.open('','_blank','width=1000,height=700');
   if (w) { w.document.write(html); w.document.close(); }
   else toast('Allow popups to generate PDF');
 }
