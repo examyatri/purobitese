@@ -1077,10 +1077,13 @@ function _parseHM(val) {
 /* Normalise schedule: prefers weekly-schedule array; falls back to flat cutoff config.
    Always returns an object with lunchStart/lunchEnd/dinnerStart/dinnerEnd (24h ints) or null. */
 function _getDaySchedule(rawSchedule, rawCutoff) {
-  if (rawSchedule && Array.isArray(rawSchedule) && rawSchedule.length === 7) {
+  if (rawSchedule && Array.isArray(rawSchedule) && rawSchedule.length > 0) {
     const ist    = new Date(Date.now() + 5.5 * 3600000);
-    const dayIdx = ist.getUTCDay();
-    const day    = rawSchedule[dayIdx];
+    const dayIdx = ist.getUTCDay(); // 0=Sun … 6=Sat
+    /* Support both index-based arrays (length 7) and named-day arrays */
+    const day = rawSchedule.length === 7
+      ? rawSchedule[dayIdx]
+      : rawSchedule.find(d => d.day && d.day.toLowerCase() === ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][dayIdx]);
     if (day && day.open) {
       const ls = _parseHM(day.lunchStart),  le = _parseHM(day.lunchEnd);
       const ds = _parseHM(day.dinnerStart), de = _parseHM(day.dinnerEnd);
@@ -1088,6 +1091,7 @@ function _getDaySchedule(rawSchedule, rawCutoff) {
                dinnerStart:ds.h, dinnerStartMin:ds.m, dinnerEnd:de.h, dinnerEndMin:de.m };
     }
     if (day && !day.open) return { closed: true };
+    /* day not found in partial array → fall through to cutoff */
   }
   /* fallback: flat cutoff config has just one cutoffHour for evening */
   if (rawCutoff && rawCutoff.cutoffHour != null) {
@@ -1101,13 +1105,14 @@ function _getDaySchedule(rawSchedule, rawCutoff) {
   return null;
 }
 
-function calcOrderState(schedule, currentH, rawCutoff) {
+function calcOrderState(schedule, _unusedH, rawCutoff) {
   const day = _getDaySchedule(schedule, rawCutoff || null);
   if (!day) return { closed: true, reason: 'Schedule not available', session: null, day: null };
   if (day.closed) return { closed: true, reason: 'Closed today', session: null, day: null };
-  const ist = new Date(Date.now() + 5.5 * 3600000);
-  const m   = ist.getUTCMinutes();
-  const h   = currentH;
+  /* Use a single IST snapshot for both hour and minute — avoids hour/minute from different moments */
+  const ist    = new Date(Date.now() + 5.5 * 3600000);
+  const h      = ist.getUTCHours();
+  const m      = ist.getUTCMinutes();
   const ls = day.lunchStart,  lsm = day.lunchStartMin  || 0;
   const le = day.lunchEnd,    lem = day.lunchEndMin     || 0;
   const ds = day.dinnerStart, dsm = day.dinnerStartMin  || 0;
@@ -1116,17 +1121,18 @@ function calcOrderState(schedule, currentH, rawCutoff) {
   const lsTotal  = ls * 60 + lsm, leTotal = le * 60 + lem;
   const dsTotal  = ds * 60 + dsm, deTotal = de * 60 + dem;
   let session = null, closed = true, reason = '';
-  if (nowMins < lsTotal)      { reason = 'Opens for lunch at ' + _fmtH(ls, lsm); }
-  else if (nowMins < leTotal) { closed = false; session = 'lunch'; }
-  else if (nowMins < dsTotal) { reason = 'Lunch orders closed · Dinner opens at ' + _fmtH(ds, dsm); }
-  else if (nowMins < deTotal) { closed = false; session = 'dinner'; }
-  else                        { reason = 'Closed for today'; }
+  /* Use <= for end times so the final minute is included as open */
+  if (nowMins < lsTotal)       { reason = 'Opens for lunch at ' + _fmtH(ls, lsm); }
+  else if (nowMins <= leTotal) { closed = false; session = 'lunch'; }
+  else if (nowMins < dsTotal)  { reason = 'Lunch orders closed · Dinner opens at ' + _fmtH(ds, dsm); }
+  else if (nowMins <= deTotal) { closed = false; session = 'dinner'; }
+  else                         { reason = 'Closed for today'; }
   return { closed, reason, session, day: { ls, lsm, le, lem, ds, dsm, de, dem } };
 }
 
 function updateCutoffBanner(schedule, currentH, rawCutoff) {
   /* Always prefer weekly schedule array; only fall back to cutoff if schedule is empty/null */
-  const useSchedule = (schedule && Array.isArray(schedule) && schedule.length === 7) ? schedule : null;
+  const useSchedule = (schedule && Array.isArray(schedule) && schedule.length > 0) ? schedule : null;
   const useCutoff   = useSchedule ? null : (rawCutoff || null);
   if (!useSchedule && !useCutoff) return;
   _lastSchedule = useSchedule;
@@ -1333,10 +1339,21 @@ function getInitials(name) {
 }
 
 function setDeliveryTime(elId) {
-  const h = currentISTHour();
   const el = document.getElementById(elId);
   if (!el) return;
-  el.textContent = h < 15 ? '☀️ Lunch: 12–1 PM (today)' : '🌙 Dinner: 8–9 PM (today)';
+  const h = currentISTHour();
+  const state = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, h, _lastCutoff) : null;
+  if (state && !state.closed && state.session && state.day) {
+    const d = state.day;
+    if (state.session === 'lunch') {
+      el.textContent = '☀️ Lunch: ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem) + ' (today)';
+    } else {
+      el.textContent = '🌙 Dinner: ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem) + ' (today)';
+    }
+  } else {
+    /* fallback: use schedule to show next open session */
+    el.textContent = h < 15 ? '☀️ Lunch delivery (today)' : '🌙 Dinner delivery (today)';
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -1872,10 +1889,22 @@ function renderCart() {
 
   updateBillSummary();
 
-  // Delivery note
+  // Delivery note — use live schedule if available
   const h = currentISTHour();
-  document.getElementById('delivery-note').textContent =
-    h < 15 ? '☀️ Estimated delivery: Lunch 12–1 PM' : '🌙 Estimated delivery: Dinner 8–9 PM';
+  const _state = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, h, _lastCutoff) : null;
+  const _dn = document.getElementById('delivery-note');
+  if (_dn) {
+    if (_state && !_state.closed && _state.session && _state.day) {
+      const _d = _state.day;
+      if (_state.session === 'lunch') {
+        _dn.textContent = '☀️ Estimated delivery: Lunch ' + _fmtH(_d.ls, _d.lsm) + '–' + _fmtH(_d.le, _d.lem);
+      } else {
+        _dn.textContent = '🌙 Estimated delivery: Dinner ' + _fmtH(_d.ds, _d.dsm) + '–' + _fmtH(_d.de, _d.dem);
+      }
+    } else {
+      _dn.textContent = h < 15 ? '☀️ Estimated delivery: Lunch session' : '🌙 Estimated delivery: Dinner session';
+    }
+  }
 }
 
 function cartAdjust(key, delta) {
