@@ -1576,7 +1576,21 @@ app.post('/api', async (req, res) => {
       case 'adminGetUsers':
         { const { data: rows, error: uErr } = await supabase.from('users').select('*').order('created_at', { ascending: false });
           if (uErr) throw new Error('DB error: ' + uErr.message);
-          const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
+          const { data: subs } = await supabase.from('subscribers').select('phone, plan, plan_end');
+          const subMap = {};
+          for (const s of (subs || [])) subMap[s.phone] = s;
+          const { data: orderAgg } = await supabase.from('orders').select('user_phone, date').order('date', { ascending: false });
+          const orderMap = {};
+          for (const o of (orderAgg || [])) {
+            if (!orderMap[o.user_phone]) orderMap[o.user_phone] = { count: 0, last: o.date };
+            orderMap[o.user_phone].count++;
+          }
+          const safe = (rows || []).map(u => {
+            const { password_hash, ...s } = u;
+            const sub = subMap[u.phone];
+            const ord = orderMap[u.phone] || { count: 0, last: null };
+            return { ...s, is_subscriber: !!sub, subscriber_plan: sub?.plan || null, subscriber_plan_end: sub?.plan_end || null, total_orders: ord.count, last_order_date: ord.last };
+          });
           return res.json({ success: true, users: safe }); }
 
       case 'getMenuItems':
