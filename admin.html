@@ -225,6 +225,12 @@ tbody tr:hover td{background:#fafbff}
 .btn-danger{background:#fff1f2;color:#be123c;border:1.5px solid #fecdd3}
 .btn-danger:hover{background:#fee2e2}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.bulk-tab-btn{padding:8px 18px;border-radius:20px;border:1.5px solid #e2e8f0;background:white;font-size:13px;font-weight:600;color:#374151;cursor:pointer;transition:all .15s}
+.bulk-tab-btn.active{background:#0f172a;color:white;border-color:#0f172a}
+.bulk-sub-row{display:grid;grid-template-columns:32px 1fr 80px 80px 70px 1fr;gap:6px;padding:8px;border-radius:8px;border:1.5px solid #e5e7eb;font-size:12px;align-items:center;cursor:pointer;transition:background .1s}
+.bulk-sub-row:hover{background:#f8fafc}
+.bulk-sub-row.selected{background:#eff6ff;border-color:#bfdbfe}
+.bulk-sub-row.ineligible{opacity:.55}
 
 /* ── STATUS BADGES ───────────────────────────────────────── */
 .badge-status{
@@ -483,37 +489,109 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- BULK ORDERS -->
       <div id="p-bulk" class="pg-v">
-        <div class="page-header"><h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Bulk Orders</h2></div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title"><i class="fa fa-boxes-stacked"></i> Bulk Order Creator</div></div>
-          <div id="bulk-item-selector"></div>
-          <div class="field" style="margin-top:12px"><label>Delivery Charge (₹)</label><input id="bulk-delivery" type="number" value="0" min="0"></div>
-          <div class="field" style="margin-top:12px">
-            <label>Slot</label>
-            <div style="display:flex;gap:16px;margin-top:6px">
-              <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer">
-                <input type="radio" name="bulk-slot" id="bulk-slot-morning" value="morning" checked> 🌅 Morning
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer">
-                <input type="radio" name="bulk-slot" id="bulk-slot-evening" value="evening"> 🌆 Evening
-              </label>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Bulk Orders</h2>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#16a34a"><span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span>Live</span>
+            <button class="btn btn-outline" onclick="loadBulkPage()"><i class="fa fa-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-header">
+            <div class="card-title"><i class="fa fa-boxes-stacked"></i> Bulk Order Generation</div>
+            <div style="font-size:12px;color:#64748b">Auto-select eligible subscribers: balance check, today&#39;s orders, pause status &amp; more</div>
+          </div>
+          <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1e40af;display:flex;gap:8px;align-items:flex-start">
+            <i class="fa fa-circle-info" style="margin-top:1px;flex-shrink:0"></i>
+            <span>Orders marked <b>PENDING</b> for verification. Auto-select checks: wallet balance &ge; price, not ordered today, subscription active, delivery not paused.</span>
+          </div>
+          <div class="field">
+            <label>ITEM NAME * <span style="font-weight:400;color:#9ca3af;font-size:11px">(TYPE CUSTOM NAME DIRECTLY)</span></label>
+            <input id="bulk-item-name" type="text" placeholder="e.g. Special Thali, Dal Rice, Roti Sabji...">
+          </div>
+          <div class="field">
+            <label>DESCRIPTION <span style="font-weight:400;color:#9ca3af;font-size:11px">(WHAT&#39;S INSIDE THIS ITEM)</span></label>
+            <textarea id="bulk-item-desc" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:inherit;resize:none;box-sizing:border-box" placeholder="e.g. Thali contains: Dal 100g, Chawal 50g, Roti x4, Sabji 100g, Salad"></textarea>
+          </div>
+          <div class="field">
+            <label>PRICE (&#8377;) *</label>
+            <input id="bulk-price" type="number" min="0" placeholder="e.g. 80">
+          </div>
+          <div class="field">
+            <label>REASON / NOTE</label>
+            <input id="bulk-reason" type="text" placeholder="e.g. Auto-generated for Day subscribers">
+          </div>
+          <div class="field">
+            <label>ORDER FOR</label>
+            <div style="display:flex;gap:8px;margin-top:6px">
+              <button class="bulk-tab-btn active" id="bulk-for-subs" onclick="setBulkFor('subscribers')">Subscribers Only</button>
+              <button class="bulk-tab-btn" id="bulk-for-all" onclick="setBulkFor('all')">All Users</button>
             </div>
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <button class="btn btn-g" onclick="bulkOrderBalance()">📦 Bulk Create (Balance Check)</button>
-            <button class="btn btn-p" onclick="forceBulkAll()">⚡ Force Bulk (All Subscribers)</button>
+          <div class="field">
+            <label>SESSION <span style="font-weight:400;color:#9ca3af;font-size:11px">(PAUSED USERS AUTO-EXCLUDED)</span></label>
+            <select id="bulk-slot-select">
+              <option value="morning">&#127749; Morning Only</option>
+              <option value="evening">&#127750; Evening Only</option>
+              <option value="both">&#9728;&#65039; Both Sessions</option>
+            </select>
           </div>
-          <div id="bulk-result" style="margin-top:16px"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title"><i class="fa fa-fire" style="color:#f59e0b"></i> Force Single Udhar</div></div>
-          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-            <div class="field" style="flex:1;min-width:200px;margin-bottom:0"><label>Customer Phone</label><input id="udhar-phone" type="tel" placeholder="10-digit number"></div>
-            <button class="btn btn-outline" onclick="lookupUdharUser()">Find User</button>
+          <div class="field">
+            <label>FILTER SUBSCRIBERS BY PLAN</label>
+            <select id="bulk-plan-filter">
+              <option value="all">All Active</option>
+              <option value="expiring_soon">Expiring This Week</option>
+            </select>
           </div>
-          <div id="udhar-user-info" style="margin-top:12px"></div>
-          <button class="btn btn-danger" style="margin-top:12px" onclick="forceUdharOrder()" id="udhar-order-btn" disabled>Force Order (Ignore Balance)</button>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+            <button class="btn btn-g" onclick="bulkAutoSelect()"><i class="fa fa-wand-magic-sparkles"></i> Auto-Select Eligible</button>
+            <button class="btn btn-outline" onclick="bulkSelectAll()"><i class="fa fa-check-double"></i> Select All</button>
+            <button class="btn btn-outline" onclick="bulkDeselectAll()"><i class="fa fa-xmark"></i> Deselect All</button>
+          </div>
         </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div style="font-family:var(--ff);font-weight:700;font-size:15px">Subscribers to Order For</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="bulk-sort" onchange="renderBulkSubsList()" style="padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;font-weight:600">
+                <option value="name">Name A&#8594;Z</option>
+                <option value="balance_desc">Balance &#8595;</option>
+                <option value="balance_asc">Balance &#8593;</option>
+                <option value="joined">Joining Date</option>
+              </select>
+              <button class="btn btn-outline" style="padding:6px 12px;font-size:12px" onclick="loadBulkSubscribers()"><i class="fa fa-refresh"></i> Refresh</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:32px 1fr 80px 80px 70px 1fr;gap:6px;padding:6px 8px;background:#f8fafc;border-radius:8px;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px">
+            <div><input type="checkbox" id="bulk-check-all" onchange="bulkToggleAll(this)"></div>
+            <div>NAME</div><div>PLAN</div><div>BALANCE</div><div>STATUS</div><div>ADDRESS</div>
+          </div>
+          <div id="bulk-subs-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+            <div style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">Loading...</div>
+          </div>
+          <div id="bulk-selected-count" style="margin-top:10px;font-size:12px;font-weight:700;color:#374151;padding:8px 10px;background:#f1f5f9;border-radius:8px;display:none">0 subscribers selected</div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;border:1.5px dashed #cbd5e1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <i class="fa fa-user-plus" style="color:#2563eb"></i>
+            <span style="font-family:var(--ff);font-weight:700;font-size:14px;color:#1e40af">Order for Any Specific Subscriber</span>
+          </div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:10px">Creates order regardless of pause/balance status. Low balance = Udhar tiffin.</div>
+          <div style="display:flex;gap:8px">
+            <input id="bulk-manual-phone" type="tel" placeholder="Subscriber mobile number" style="flex:1;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px">
+            <button class="btn btn-p" onclick="bulkAddManual()"><i class="fa fa-plus"></i> Add to Order List</button>
+          </div>
+          <div id="bulk-manual-info" style="margin-top:8px;font-size:12px"></div>
+        </div>
+
+        <button class="btn btn-danger" style="width:100%;padding:16px;font-size:15px;font-weight:700;border-radius:12px;margin-bottom:14px" onclick="bulkGenerateOrders()">
+          <i class="fa fa-bolt"></i> Generate Orders
+        </button>
+
+        <div id="bulk-result" style="margin-bottom:20px"></div>
       </div>
 
       <!-- MENU -->
@@ -1290,118 +1368,216 @@ function confirmReject(orderId) {
 }
 
 // ─── BULK ORDERS ─────────────────────────────────────────
-let _menuCache = [], _bulkItems = [];
+// ─── BULK ORDERS v2 ─────────────────────────────────────────────────────────
+let _menuCache = [];
+let _bulkSubsCache = [];
+let _bulkSelected = new Set();
+let _bulkOrderFor = 'subscribers';
+let _bulkManualPhones = []; // extra manually-added phones
 
 async function loadBulkPage() {
-  if (!_menuCache.length) {
-    const res = await api('getMenuItems').catch(()=>({items:[]}));
-    _menuCache = (res.items||[]).filter(i=>i.is_active);
-  }
-  renderBulkItemSelector();
+  await loadBulkSubscribers();
 }
 
-function renderBulkItemSelector() {
-  const el = document.getElementById('bulk-item-selector');
-  if (!el) return;
-  el.innerHTML = `
-    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px">Select Items</div>
-    <div id="bulk-selected-items" style="display:flex;flex-direction:column;gap:8px"></div>
-    <button class="btn btn-outline" style="margin-top:10px" onclick="addBulkItemRow()"><i class="fa fa-plus"></i> Add Item</button>`;
-  addBulkItemRow();
-}
-
-function addBulkItemRow() {
-  const container = document.getElementById('bulk-selected-items');
-  if (!container) return;
-  const rowId = Date.now();
-  const opts = _menuCache.map(m=>`<option value="${m.item_id}" data-price="${m.price||0}">${m.name} (₹${m.price||0})</option>`).join('');
-  const div = document.createElement('div');
-  div.style.cssText = 'display:flex;gap:8px;align-items:center';
-  div.id = `bulk-row-${rowId}`;
-  div.innerHTML = `
-    <select style="flex:1;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px">${opts}</select>
-    <input type="number" value="1" min="1" style="width:70px;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px" placeholder="Qty">
-    <button class="btn btn-danger" style="padding:6px 10px" onclick="this.parentElement.remove()"><i class="fa fa-times"></i></button>`;
-  container.appendChild(div);
-}
-
-function collectBulkItems() {
-  const rows = document.querySelectorAll('#bulk-selected-items > div');
-  return Array.from(rows).map(row => {
-    const sel = row.querySelector('select');
-    const qty = parseInt(row.querySelector('input')?.value) || 1;
-    const item = _menuCache.find(m => m.item_id == sel?.value);
-    return item ? { item_id: item.item_id, name: item.name, qty, price: item.price||0 } : null;
-  }).filter(Boolean);
-}
-
-async function bulkOrderBalance() {
-  const items = collectBulkItems();
-  const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
-  const slot = document.querySelector('input[name="bulk-slot"]:checked')?.value || 'morning';
-  if (!items.length) { aToast('Select at least one item'); return; }
-  confirmAction(`Create bulk orders for all eligible subscribers (balance check)?`, async function() {
-    try {
-      npStart();
-      const res = await api('bulkOrdersWithBalance', { items, deliveryCharge, slot });
-      npDone();
-      document.getElementById('bulk-result').innerHTML = `
-        <div class="card" style="background:#f0fdf4;border:1.5px solid #86efac;margin-top:8px">
-          <div style="font-weight:700;color:#166534">✅ Bulk Orders Created</div>
-          <div>Created: ${res.created||0} | Skipped: ${res.skipped||0}</div>
-        </div>`;
-    } catch(e) { npDone(); aToast(e.message); }
-  });
-}
-
-async function forceBulkAll() {
-  const items = collectBulkItems();
-  const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
-  const slot = document.querySelector('input[name="bulk-slot"]:checked')?.value || 'morning';
-  if (!items.length) { aToast('Select at least one item'); return; }
-  confirmAction(`Force create bulk orders for ALL subscribers (ignore balance)?`, async function() {
-    try {
-      npStart();
-      const res = await api('adminBulkCreate', { items, deliveryCharge, slot });
-      npDone();
-      document.getElementById('bulk-result').innerHTML = `
-        <div class="card" style="background:#f0fdf4;border:1.5px solid #86efac;margin-top:8px">
-          <div style="font-weight:700;color:#166534">⚡ Force Bulk Done</div>
-          <div>Created: ${res.created||0} | Skipped: ${res.skipped||0}</div>
-        </div>`;
-    } catch(e) { npDone(); aToast(e.message); }
-  });
-}
-
-let _udharUser = null;
-async function lookupUdharUser() {
-  const phone = document.getElementById('udhar-phone')?.value.trim();
-  if (!phone || phone.length < 10) { aToast('Enter valid phone'); return; }
+async function loadBulkSubscribers() {
+  const slot      = document.getElementById('bulk-slot-select')?.value || 'morning';
+  const orderFor  = _bulkOrderFor;
+  const planFilter = document.getElementById('bulk-plan-filter')?.value || 'all';
+  const listEl    = document.getElementById('bulk-subs-list');
+  if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:24px;color:#9ca3af;font-size:13px"><i class="fa fa-spinner fa-spin" style="margin-right:6px"></i>Loading...</div>';
   try {
-    const res = await api('getUserByPhone', { phone });
-    _udharUser = res.user;
-    document.getElementById('udhar-user-info').innerHTML = `
-      <div class="card" style="background:#f8fafc;padding:14px">
-        <div><b>${_udharUser.name}</b> — ${_udharUser.phone}</div>
-        <div style="font-size:12px;color:#64748b">${_udharUser.email||''} | ${_udharUser.address||''}</div>
-      </div>`;
-    document.getElementById('udhar-order-btn').disabled = false;
-  } catch(e) { aToast(e.message||'User not found'); _udharUser = null; document.getElementById('udhar-order-btn').disabled = true; }
+    npStart();
+    const res = await api('getSubscribersForBulk', { slot, orderFor, planFilter });
+    npDone();
+    _bulkSubsCache = res.subscribers || [];
+    _bulkSelected.clear();
+    renderBulkSubsList();
+  } catch(e) { npDone(); if (listEl) listEl.innerHTML = '<div style="color:#ef4444;padding:16px;text-align:center">Load failed</div>'; }
 }
 
-async function forceUdharOrder() {
-  if (!_udharUser) { aToast('Find user first'); return; }
-  const items = collectBulkItems();
-  const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
-  const slot = document.querySelector('input[name="bulk-slot"]:checked')?.value || 'morning';
-  if (!items.length) { aToast('Select items above'); return; }
-  confirmAction(`Force udhar order for <b>${_udharUser.name}</b> (ignore balance)?`, async function() {
+function setBulkFor(mode) {
+  _bulkOrderFor = mode;
+  document.getElementById('bulk-for-subs')?.classList.toggle('active', mode === 'subscribers');
+  document.getElementById('bulk-for-all')?.classList.toggle('active', mode === 'all');
+  loadBulkSubscribers();
+}
+
+function renderBulkSubsList() {
+  const el = document.getElementById('bulk-subs-list');
+  if (!el) return;
+  const sort = document.getElementById('bulk-sort')?.value || 'name';
+  let list = [..._bulkSubsCache];
+  // apply plan filter
+  const planFilter = document.getElementById('bulk-plan-filter')?.value || 'all';
+  if (planFilter === 'expiring_soon') {
+    const week = new Date(); week.setDate(week.getDate() + 7);
+    const weekStr = week.toISOString().slice(0,10);
+    list = list.filter(s => s.plan_end && s.plan_end <= weekStr);
+  }
+  // add manual phones not already in list
+  for (const ph of _bulkManualPhones) {
+    if (!list.find(s => s.phone === ph)) list.push({ phone: ph, name: ph, balance: 0, address: '', plan_end: null, pause: 'none', auto_tiffin: true, already_ordered: false, eligible: true, _manual: true });
+  }
+  // sort
+  list.sort((a,b) => {
+    if (sort === 'name') return (a.name||'').localeCompare(b.name||'');
+    if (sort === 'balance_desc') return b.balance - a.balance;
+    if (sort === 'balance_asc') return a.balance - b.balance;
+    if (sort === 'joined') return (a.plan_end||'').localeCompare(b.plan_end||'');
+    return 0;
+  });
+  if (!list.length) { el.innerHTML = '<div style="text-align:center;padding:24px;color:#9ca3af;font-size:13px">No subscribers found</div>'; return; }
+
+  el.innerHTML = list.map(s => {
+    const checked = _bulkSelected.has(s.phone);
+    const statusTag = s._manual
+      ? '<span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">MANUAL</span>'
+      : s.eligible
+        ? '<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">✓ ELIGIBLE</span>'
+        : s.already_ordered
+          ? '<span style="background:#e0f2fe;color:#075985;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">ORDERED</span>'
+          : s.pause !== 'none'
+            ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">PAUSED</span>'
+            : '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">SKIP</span>';
+    const bal = parseFloat(s.balance||0);
+    const balColor = bal >= 0 ? '#166534' : '#dc2626';
+    const planLabel = s.plan_end ? s.plan_end.slice(5).replace('-','/') : '—';
+    return `<div class="bulk-sub-row${checked?' selected':''}${!s.eligible&&!s._manual?' ineligible':''}" onclick="bulkToggleRow('${s.phone}',this)">
+      <div><input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();bulkToggleRow('${s.phone}',this.closest('.bulk-sub-row'))"></div>
+      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
+      <div style="color:#64748b">${planLabel}</div>
+      <div style="font-weight:700;color:${balColor}">₹${bal.toFixed(0)}</div>
+      <div>${statusTag}</div>
+      <div style="color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${s.address||'—'}</div>
+    </div>`;
+  }).join('');
+  updateBulkSelectedCount();
+}
+
+function bulkToggleRow(phone, rowEl) {
+  if (_bulkSelected.has(phone)) { _bulkSelected.delete(phone); rowEl.classList.remove('selected'); }
+  else { _bulkSelected.add(phone); rowEl.classList.add('selected'); }
+  const cb = rowEl.querySelector('input[type=checkbox]');
+  if (cb) cb.checked = _bulkSelected.has(phone);
+  updateBulkSelectedCount();
+}
+
+function bulkToggleAll(masterCb) {
+  const rows = document.querySelectorAll('.bulk-sub-row');
+  rows.forEach(row => {
+    const phone = row.querySelector('input[type=checkbox]');
+    if (!phone) return;
+    const rowData = _bulkSubsCache.find(s => row.innerHTML.includes(s.phone));
+    // use onclick handler logic instead - just toggle all checkboxes
+  });
+  // simpler: toggle via selected set
+  const allPhones = [..._bulkSubsCache.map(s=>s.phone), ..._bulkManualPhones];
+  if (masterCb.checked) { allPhones.forEach(p => _bulkSelected.add(p)); }
+  else { _bulkSelected.clear(); }
+  renderBulkSubsList();
+  document.getElementById('bulk-check-all').checked = masterCb.checked;
+}
+
+function bulkAutoSelect() {
+  _bulkSelected.clear();
+  const price = parseFloat(document.getElementById('bulk-price')?.value) || 0;
+  const planFilter = document.getElementById('bulk-plan-filter')?.value || 'all';
+  let list = [..._bulkSubsCache];
+  if (planFilter === 'expiring_soon') {
+    const week = new Date(); week.setDate(week.getDate() + 7);
+    const weekStr = week.toISOString().slice(0,10);
+    list = list.filter(s => s.plan_end && s.plan_end <= weekStr);
+  }
+  list.forEach(s => {
+    const balOk  = price <= 0 || s.balance >= price;
+    const eligible = s.auto_tiffin && !s.already_ordered && s.pause === 'none' && balOk;
+    if (eligible) _bulkSelected.add(s.phone);
+  });
+  // always add manual phones
+  _bulkManualPhones.forEach(p => _bulkSelected.add(p));
+  renderBulkSubsList();
+  aToast(`${_bulkSelected.size} eligible subscribers selected`);
+}
+
+function bulkSelectAll() {
+  _bulkSubsCache.forEach(s => _bulkSelected.add(s.phone));
+  _bulkManualPhones.forEach(p => _bulkSelected.add(p));
+  renderBulkSubsList();
+}
+
+function bulkDeselectAll() {
+  _bulkSelected.clear();
+  renderBulkSubsList();
+}
+
+function updateBulkSelectedCount() {
+  const el = document.getElementById('bulk-selected-count');
+  if (!el) return;
+  const n = _bulkSelected.size;
+  el.style.display = n > 0 ? 'block' : 'none';
+  el.textContent = `${n} subscriber${n!==1?'s':''} selected`;
+}
+
+async function bulkAddManual() {
+  const ph = (document.getElementById('bulk-manual-phone')?.value || '').trim().replace(/\D/g,'');
+  if (ph.length < 10) { aToast('Enter valid 10-digit phone'); return; }
+  const infoEl = document.getElementById('bulk-manual-info');
+  try {
+    npStart();
+    const res = await api('getUserByPhone', { phone: ph });
+    npDone();
+    const u = res.user;
+    if (!_bulkManualPhones.includes(ph)) _bulkManualPhones.push(ph);
+    _bulkSelected.add(ph);
+    // Add/update in cache
+    const idx = _bulkSubsCache.findIndex(s => s.phone === ph);
+    const entry = { phone: ph, name: u.name||ph, address: u.address||'', balance: u.balance||0, plan_end: null, pause: 'none', auto_tiffin: true, already_ordered: false, eligible: true, _manual: true };
+    if (idx >= 0) _bulkSubsCache[idx] = entry; else _bulkSubsCache.unshift(entry);
+    renderBulkSubsList();
+    if (infoEl) infoEl.innerHTML = `<span style="color:#166534;font-weight:600">✓ Added: ${u.name||ph}</span>`;
+    document.getElementById('bulk-manual-phone').value = '';
+  } catch(e) { npDone(); if (infoEl) infoEl.innerHTML = `<span style="color:#ef4444">${e.message||'User not found'}</span>`; }
+}
+
+async function bulkGenerateOrders() {
+  const itemName = (document.getElementById('bulk-item-name')?.value||'').trim();
+  const itemDesc = (document.getElementById('bulk-item-desc')?.value||'').trim();
+  const price    = parseFloat(document.getElementById('bulk-price')?.value||'0');
+  const reason   = (document.getElementById('bulk-reason')?.value||'').trim();
+  const slotVal  = document.getElementById('bulk-slot-select')?.value || 'morning';
+  if (!itemName) { aToast('Enter item name'); return; }
+  if (!price || price <= 0) { aToast('Enter valid price'); return; }
+  if (!_bulkSelected.size) { aToast('Select at least one subscriber'); return; }
+
+  const slots = slotVal === 'both' ? ['morning','evening'] : [slotVal];
+  const phones = [..._bulkSelected];
+
+  confirmAction(`Generate <b>${phones.length}</b> order(s) for <b>"${itemName}"</b> @ ₹${price}?<br><small style="color:#64748b">Status: PENDING | Session: ${slotVal}</small>`, async function() {
     try {
       npStart();
-      await api('forceUdharOrder', { phone: _udharUser.phone, items, deliveryCharge, slot });
+      let totalCreated = 0, totalSkipped = 0, totalUdhar = 0;
+      for (const slot of slots) {
+        const res = await api('bulkGenerateOrders', { itemName, description: itemDesc, price, reason, slot, phones, orderFor: _bulkOrderFor });
+        totalCreated += res.created || 0;
+        totalSkipped += res.skipped || 0;
+        totalUdhar   += res.udhar   || 0;
+      }
       npDone();
-      aToast('Udhar order created');
-    } catch(e) { npDone(); aToast(e.message); }
+      const resultEl = document.getElementById('bulk-result');
+      if (resultEl) resultEl.innerHTML = `
+        <div class="card" style="background:#f0fdf4;border:1.5px solid #86efac">
+          <div style="font-weight:700;color:#166534;font-size:15px;margin-bottom:8px">&#9989; Orders Generated</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div><span style="font-size:22px;font-weight:800;color:#166534">${totalCreated}</span><div style="font-size:11px;color:#166534">Created</div></div>
+            ${totalUdhar>0?`<div><span style="font-size:22px;font-weight:800;color:#b45309">${totalUdhar}</span><div style="font-size:11px;color:#b45309">Udhar</div></div>`:''}
+            ${totalSkipped>0?`<div><span style="font-size:22px;font-weight:800;color:#64748b">${totalSkipped}</span><div style="font-size:11px;color:#64748b">Skipped</div></div>`:''}
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:#374151">All orders marked <b>PENDING</b> — verify in Orders section.</div>
+        </div>`;
+      _bulkSelected.clear();
+      _bulkManualPhones = [];
+      await loadBulkSubscribers();
+    } catch(e) { npDone(); aToast(e.message||'Failed'); }
   });
 }
 

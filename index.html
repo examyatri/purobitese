@@ -468,11 +468,12 @@ textarea{resize:vertical;min-height:80px}
       <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
         <div style="flex:1">
           <div style="font-family:var(--ff);font-weight:600;font-size:14px">Auto Tiffin</div>
-          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Tap to pause automatic orders</div>
-          <span class="pause-status-badge active" id="pause-status-badge">● Active</span>
+          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Tap to manage tiffin sessions</div>
+          <span class="pause-status-badge active" id="pause-status-badge">● All Active</span>
         </div>
         <input type="checkbox" class="toggle-sw active" id="pause-toggle" onchange="onPauseToggle(this)" checked>
       </div>
+
 
       <!-- Monthly plan card (non-subscriber only) -->
       <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
@@ -811,38 +812,38 @@ textarea{resize:vertical;min-height:80px}
 ══════════════════════════════════════════════ -->
 <div id="pause-sheet" class="sheet" style="display:none">
   <div class="flex-sb" style="margin-bottom:4px">
-    <div class="sheet-title">Pause Deliveries</div>
+    <div class="sheet-title">Auto Tiffin Settings</div>
     <button class="sheet-close" onclick="closePauseSheet()"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px">Select which tiffin to skip today</div>
+  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px">Choose which session to exclude from bulk orders</div>
   <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="lunch">
     <div class="pause-option-icon picon-morning">☀️</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Morning Only</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip today's morning tiffin</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Morning Off</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Exclude me from morning bulk orders</div>
     </div>
   </label>
   <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="dinner">
     <div class="pause-option-icon picon-evening">🌙</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Evening Only</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip today's evening tiffin</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Evening Off</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Exclude me from evening bulk orders</div>
     </div>
   </label>
   <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="both">
     <div class="pause-option-icon picon-both">⏸</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Both Tiffins</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Pause all deliveries</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Both Off</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Exclude from all bulk orders</div>
     </div>
   </label>
   <div class="mt16">
-    <button class="btn-primary" style="background:var(--pd)" onclick="confirmPause()">Confirm Pause</button>
+    <button class="btn-primary" style="background:var(--pd)" onclick="confirmPause()">Confirm</button>
   </div>
-  <button class="resume-link" id="resume-all-link" style="display:none" onclick="resumeDelivery()">↺ Resume All Deliveries</button>
+  <button class="resume-link" id="resume-all-link" style="display:none" onclick="resumeDelivery()">↺ Resume All Sessions</button>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -1294,25 +1295,34 @@ function applyKhataVisibility() {
 }
 
 function applyPauseState(mode) {
+  // pause_delivery drives bulk order slot eligibility:
+  // 'none'   → both sessions active (included in morning + evening bulk)
+  // 'lunch'  → morning OFF, evening still active
+  // 'dinner' → evening OFF, morning still active
+  // 'both'   → all sessions OFF (excluded from all bulk orders)
   _pauseMode = mode || 'none';
-  const toggle = document.getElementById('pause-toggle');
-  const sub    = document.getElementById('pause-subtitle');
-  const row    = document.getElementById('pause-toggle-row');
-  const badge  = document.getElementById('pause-status-badge');
+  const toggle   = document.getElementById('pause-toggle');
+  const sub      = document.getElementById('pause-subtitle');
+  const row      = document.getElementById('pause-toggle-row');
+  const badge    = document.getElementById('pause-status-badge');
   const isPaused = _pauseMode !== 'none';
   if (toggle) {
-    toggle.checked = true; // always visually "on" (right side)
+    toggle.checked = true; // always visually on (right side); color indicates state
     toggle.className = 'toggle-sw ' + (isPaused ? 'paused' : 'active');
   }
-  if (row) { row.classList.toggle('paused', isPaused); }
+  if (row)   row.classList.toggle('paused', isPaused);
   if (badge) {
     badge.className = 'pause-status-badge ' + (isPaused ? 'paused' : 'active');
-    badge.textContent = isPaused ? '● Paused' : '● Active';
+    badge.textContent =
+      _pauseMode === 'none'   ? '● All Active' :
+      _pauseMode === 'lunch'  ? '● Morning Off' :
+      _pauseMode === 'dinner' ? '● Evening Off' : '● Both Off';
   }
   if (sub) sub.textContent =
-    _pauseMode === 'none'   ? 'Tap to pause automatic orders' :
-    _pauseMode === 'lunch'  ? 'Morning tiffin paused — tap to resume' :
-    _pauseMode === 'dinner' ? 'Evening tiffin paused — tap to resume' : 'All tiffins paused — tap to resume';
+    _pauseMode === 'none'   ? 'Tap to turn off a session' :
+    _pauseMode === 'lunch'  ? 'Morning excluded from bulk orders — tap to resume' :
+    _pauseMode === 'dinner' ? 'Evening excluded from bulk orders — tap to resume' :
+                              'All bulk orders off — tap to resume';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
 }
@@ -1390,7 +1400,7 @@ function back() {
 // popstate handled at bottom of script
 
 function onEnter(id) {
-  if (id === 'pg-home')    { loadMenu(); loadPauseState(); refreshWalletBalance(); startPolling(); }
+  if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
   if (id === 'pg-orders')  loadOrders();
   if (id === 'pg-khata')   { loadUserKhata(); startPollingKhata(); }
   if (id === 'pg-cart')    renderCart();
@@ -2354,24 +2364,28 @@ function onPauseToggle(chk) {
   // Always keep toggle visually checked (right side); color indicates state
   chk.checked = true;
   if (_pauseMode === 'none') {
-    // Currently active → user wants to pause → show options
+    // All sessions active → user wants to turn off one or both → show options
     openPauseSheet();
   } else {
-    // Currently paused → user wants to resume
+    // Currently paused → user wants to resume all
     resumeDelivery();
   }
 }
 
 async function confirmPause() {
   const opt = document.querySelector('input[name="pause-opt"]:checked');
-  if (!opt) { toast('Select a pause option'); return; }
+  if (!opt) { toast('Select an option'); return; }
   const mode = opt.value;
   try {
     await api('updatePauseDelivery', { phone: Auth.get()?.phone, pauseMode: mode });
     applyPauseState(mode);
     _lastPauseMode = mode;
     closePauseSheet();
-    toast('Delivery paused ✓');
+    toast(
+      mode === 'lunch'  ? 'Morning tiffin paused ✓' :
+      mode === 'dinner' ? 'Evening tiffin paused ✓' :
+                          'All tiffins paused ✓'
+    );
   } catch(e) { toast(e.message || 'Failed'); }
 }
 
@@ -2381,7 +2395,7 @@ async function resumeDelivery() {
     applyPauseState('none');
     _lastPauseMode = 'none';
     closePauseSheet();
-    toast('Deliveries resumed ✓');
+    toast('All tiffins resumed ✓');
   } catch(e) { toast(e.message || 'Failed'); }
 }
 
@@ -2391,6 +2405,11 @@ async function loadPauseState() {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
     applyPauseState(res.pauseMode);
   } catch {}
+}
+
+// loadAutoTiffinState is an alias — state is driven by pause_delivery
+async function loadAutoTiffinState() {
+  await loadPauseState();
 }
 
 /* ═══════════════════════════════════════════
