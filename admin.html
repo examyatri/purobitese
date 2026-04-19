@@ -349,6 +349,9 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .notif-txn{border-left-color:var(--blue)}
 .notif-recharge{border-left-color:#8b5cf6}
 .notif-pause{border-left-color:var(--o)}
+#nu-coupon-toggle-card:hover{box-shadow:0 4px 16px rgba(16,185,129,.15)!important;border-color:#6ee7b7!important}
+#nu-coupon-toggle-card:hover .fa-ticket{transform:rotate(-8deg) scale(1.1);}
+#nu-coupon-toggle-card .fa-ticket{transition:transform 200ms cubic-bezier(.34,1.56,.64,1)}
 
 /* ── PAGE VISIBILITY ─────────────────────────────────────── */
 .pg-v{display:none}
@@ -867,16 +870,6 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <button class="subs-chip" data-filter="delivery_off" onclick="setSubsChip(this,'delivery_off')"><i class="fa fa-ban"></i> Delivery Off</button>
         </div>
 
-        <!-- Nu Coupon Panel -->
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title"><i class="fa fa-ticket"></i> Nu Coupon Panel</div></div>
-          <div class="tabs">
-            <button class="tab-btn act" onclick="loadNuCoupons('pending',this)">Pending</button>
-            <button class="tab-btn" onclick="loadNuCoupons('sent',this)">Sent</button>
-          </div>
-          <div id="nu-coupon-list"><div style="color:#94a3b8;text-align:center;padding:20px">Click tab to load</div></div>
-        </div>
-
         <!-- Subscriber List Card -->
         <div class="card">
           <div class="card-header" style="margin-bottom:14px">
@@ -1077,19 +1070,90 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <div class="page-header">
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Notifications</h2>
         </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title"><i class="fa fa-calendar-xmark" style="color:#be123c"></i> Delete by Date Range</div></div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-            <div class="field" style="margin-bottom:0"><label>From</label><input id="notif-del-from" type="date"></div>
-            <div class="field" style="margin-bottom:0"><label>To</label><input id="notif-del-to" type="date"></div>
-            <button class="btn btn-danger" onclick="deleteNotifRange()"><i class="fa fa-trash"></i> Delete Range</button>
+
+        <!-- ── TOP CONTROLS ROW ── -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:18px">
+
+          <!-- Delete by Date Range control -->
+          <div class="card" style="flex:1;min-width:260px;padding:16px 18px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+              <div style="width:30px;height:30px;background:#fff1f2;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i class="fa fa-calendar-xmark" style="color:#be123c;font-size:13px"></i>
+              </div>
+              <div>
+                <div style="font-family:var(--ff);font-weight:700;font-size:13.5px;color:#0f172a">Delete by Date Range</div>
+                <div style="font-size:11px;color:#94a3b8">Only read notifications will be deleted. New notifications will not be affected.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+              <div class="field" style="margin-bottom:0;flex:1;min-width:110px">
+                <label style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">From</label>
+                <input id="notif-del-from" type="date" style="width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);outline:none">
+              </div>
+              <div class="field" style="margin-bottom:0;flex:1;min-width:110px">
+                <label style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">To</label>
+                <input id="notif-del-to" type="date" style="width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);outline:none">
+              </div>
+              <button class="btn btn-danger" onclick="deleteNotifRange()" style="white-space:nowrap;align-self:flex-end">
+                <i class="fa fa-trash"></i> Delete Range
+              </button>
+            </div>
+          </div>
+
+          <!-- New Coupon Panel button -->
+          <div class="card" style="min-width:180px;padding:16px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:box-shadow 180ms,border-color 180ms;border:1.5px solid #e2e8f0" onclick="toggleNuCouponPanel()" id="nu-coupon-toggle-card">
+            <div style="width:42px;height:42px;background:linear-gradient(135deg,#10b981,#059669);border-radius:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(16,185,129,.3)">
+              <i class="fa fa-ticket" style="color:white;font-size:18px"></i>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">New Coupon Panel</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px">Send welcome coupons</div>
+            </div>
+            <div id="nu-pending-badge-wrap" style="display:none">
+              <span id="nu-pending-count-badge" style="background:#e63946;color:white;border-radius:20px;padding:2px 8px;font-size:10px;font-family:var(--ff);font-weight:700">0 Pending</span>
+            </div>
           </div>
         </div>
-        <div class="tabs">
-          <button class="tab-btn act" onclick="showNotifTab('orders',this)">Orders</button>
-          <button class="tab-btn" onclick="showNotifTab('system',this)">System</button>
+
+        <!-- ── NU COUPON PANEL (inline, collapsible) ── -->
+        <div id="nu-coupon-panel" style="display:none;margin-bottom:18px">
+          <div class="card" style="border:1.5px solid #d1fae5;background:linear-gradient(135deg,#f0fdf4 0%,#ffffff 100%)">
+            <div class="card-header">
+              <div class="card-title"><i class="fa fa-ticket" style="color:#10b981"></i> New User Coupon Panel</div>
+              <button onclick="toggleNuCouponPanel()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;padding:4px"><i class="fa fa-xmark"></i></button>
+            </div>
+            <p style="font-size:12px;color:#64748b;margin-bottom:14px">New users are automatically fetched from join notifications. Click 💬 to send them a welcome coupon via WhatsApp — their entry moves to Sent automatically.</p>
+            <div class="tabs" style="margin-bottom:14px">
+              <button class="tab-btn act" id="nu-tab-pending" onclick="loadNuCoupons('pending',this)"><i class="fa fa-clock" style="margin-right:4px"></i>Pending</button>
+              <button class="tab-btn" id="nu-tab-sent" onclick="loadNuCoupons('sent',this)"><i class="fa fa-check-circle" style="margin-right:4px;color:#10b981"></i>Sent</button>
+            </div>
+            <div id="nu-coupon-list"><div style="color:#94a3b8;text-align:center;padding:24px">Loading…</div></div>
+          </div>
         </div>
-        <div id="notif-list"></div>
+
+        <!-- ── NOTIFICATION SECTIONS ── -->
+        <!-- New (Unread) -->
+        <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px">
+          <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a;display:flex;align-items:center;gap:7px">
+            <span style="width:8px;height:8px;background:#e63946;border-radius:50%;display:inline-block;animation:badgePulse 2s infinite"></span>
+            New
+            <span id="notif-unread-count" style="background:#e63946;color:white;border-radius:20px;padding:1px 8px;font-size:10px;font-family:var(--ff);font-weight:700"></span>
+          </div>
+          <div style="flex:1;height:1px;background:#f1f5f9"></div>
+        </div>
+        <div id="notif-list-unread" style="margin-bottom:22px"></div>
+
+        <!-- Read -->
+        <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px">
+          <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#94a3b8;display:flex;align-items:center;gap:7px">
+            <i class="fa fa-check-double" style="font-size:12px"></i>
+            Read
+            <span id="notif-read-count" style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:1px 8px;font-size:10px;font-family:var(--ff);font-weight:700"></span>
+          </div>
+          <div style="flex:1;height:1px;background:#f1f5f9"></div>
+        </div>
+        <div id="notif-list-read"></div>
+
       </div>
     </div>
   </div>
@@ -2862,31 +2926,7 @@ async function deleteSubUserCompletely(phone, name) {
   });
 }
 
-async function loadNuCoupons(type, btn) {
-  document.querySelectorAll('#p-subs .tab-btn').forEach(b => b.classList.remove('act'));
-  btn.classList.add('act');
-  const el = document.getElementById('nu-coupon-list');
-  el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">Loading…</div>';
-  try {
-    const res = await api(type === 'pending' ? 'getNuCouponPending' : 'getNuCouponSent');
-    const users = res.records || [];
-    if (!users.length) { el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">None</div>'; return; }
-    el.innerHTML = users.map(u => `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid #f1f5f9">
-        <div style="flex:1"><b>${u.name}</b> — ${u.phone}</div>
-        <a href="https://wa.me/91${u.phone}?text=${encodeURIComponent(`Hi ${u.name}, here's your welcome coupon from Tiffo! 🎉`)}" target="_blank" class="btn btn-g" style="padding:5px 12px;font-size:12px">💬 WA</a>
-        ${type==='pending'?`<button class="btn btn-outline" style="padding:5px 12px;font-size:12px" onclick="markNuCouponSent('${u.phone}','${type}',this)">Mark Sent</button>`:''}
-      </div>`).join('');
-  } catch(e) { el.innerHTML = '<div style="color:var(--p);padding:12px">'+e.message+'</div>'; }
-}
-
-async function markNuCouponSent(phone, type, btn) {
-  try {
-    await api('markNuCouponSent', { phone });
-    btn.closest('div[style]').remove();
-    aToast('Marked sent');
-  } catch(e) { aToast(e.message); }
-}
+// Nu Coupon functions moved to Notifications section below
 
 async function viewSubKhata(phone, name) {
   openKhataDetail(phone, name);
@@ -3608,7 +3648,27 @@ async function doMasterDelete() {
 
 // ─── NOTIFICATIONS ────────────────────────────────────────
 let _lastNotifsStr = '', _allNotifs = [], _notifTab = 'orders';
+let _nuPanelOpen = false;
+let _nuCurrentTab = 'pending';
 
+// ─── NOTIFICATION PANEL TOGGLE ────────────────────────────
+function toggleNuCouponPanel() {
+  _nuPanelOpen = !_nuPanelOpen;
+  const panel = document.getElementById('nu-coupon-panel');
+  const card = document.getElementById('nu-coupon-toggle-card');
+  if (_nuPanelOpen) {
+    panel.style.display = 'block';
+    card.style.borderColor = '#10b981';
+    card.style.boxShadow = '0 0 0 3px rgba(16,185,129,.15)';
+    loadNuCoupons(_nuCurrentTab, document.getElementById('nu-tab-' + _nuCurrentTab));
+  } else {
+    panel.style.display = 'none';
+    card.style.borderColor = '#e2e8f0';
+    card.style.boxShadow = '';
+  }
+}
+
+// ─── LOAD NOTIFICATIONS ───────────────────────────────────
 async function loadNotifications() {
   try {
     npStart();
@@ -3618,48 +3678,204 @@ async function loadNotifications() {
     _lastNotifsStr = newStr;
     _allNotifs = res.notifications || [];
     const badge = document.getElementById('notif-badge');
-    if (badge) { badge.textContent = res.unreadCount; badge.style.display = res.unreadCount > 0 ? 'inline' : 'none'; }
+    const unreadCount = _allNotifs.filter(n => !n.is_read).length;
+    if (badge) { badge.textContent = unreadCount; badge.style.display = unreadCount > 0 ? 'inline' : 'none'; }
     renderNotifs(_allNotifs);
+    updateNuPendingBadge(_allNotifs);
     npDone();
   } catch(e) { npDone(); }
 }
 
-function showNotifTab(tab, btn) {
-  _notifTab = tab;
-  document.querySelectorAll('#p-notifs .tab-btn').forEach(b => b.classList.remove('act'));
-  btn.classList.add('act');
-  renderNotifs(_allNotifs);
+function updateNuPendingBadge(notifs) {
+  const pendingCount = notifs.filter(n => !n.is_read && (n.type === 'user' || n.category === 'user' || (n.title||'').toLowerCase().includes('join') || (n.title||'').toLowerCase().includes('new user'))).length;
+  const wrap = document.getElementById('nu-pending-badge-wrap');
+  const badge = document.getElementById('nu-pending-count-badge');
+  if (wrap && badge) {
+    if (pendingCount > 0) {
+      wrap.style.display = 'block';
+      badge.textContent = pendingCount + ' Pending';
+    } else {
+      wrap.style.display = 'none';
+    }
+  }
 }
 
+// ─── RENDER NOTIFICATIONS ─────────────────────────────────
 function renderNotifs(notifs) {
-  const el = document.getElementById('notif-list');
-  if (!el) return;
-  const filtered = notifs.filter(n => _notifTab === 'orders'
-    ? (n.type === 'order' || n.category === 'order')
-    : (n.type !== 'order' && n.category !== 'order'));
+  const unreadEl = document.getElementById('notif-list-unread');
+  const readEl = document.getElementById('notif-list-read');
+  const unreadCountEl = document.getElementById('notif-unread-count');
+  const readCountEl = document.getElementById('notif-read-count');
+  if (!unreadEl || !readEl) return;
 
-  if (!filtered.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">No notifications</div>'; return; }
+  const unread = notifs.filter(n => !n.is_read);
+  const read = notifs.filter(n => n.is_read);
 
-  el.innerHTML = filtered.map(n => {
-    const colorMap = { order:'notif-order', user:'notif-user', transaction:'notif-txn', recharge:'notif-recharge', pause:'notif-pause' };
-    const cls = colorMap[n.type||n.category] || '';
-    const ts = n.created_at ? relTime(n.created_at) : '';
-    return `
-      <div class="notif-card ${cls} ${n.is_read?'':'unread'}" id="notif-${n.id}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:14px">${n.title||'Notification'}</div>
-            <div style="font-size:13px;color:#374151;margin-top:3px">${n.body||n.message||''}</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:6px">${ts}</div>
+  if (unreadCountEl) unreadCountEl.textContent = unread.length || '';
+  if (readCountEl) readCountEl.textContent = read.length || '';
+
+  unreadEl.innerHTML = unread.length
+    ? unread.map(n => renderNotifCard(n)).join('')
+    : '<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px;background:#fafbfc;border-radius:10px;border:1.5px dashed #e2e8f0"><i class="fa fa-inbox" style="font-size:20px;display:block;margin-bottom:6px;opacity:.4"></i>No new notifications</div>';
+
+  readEl.innerHTML = read.length
+    ? read.map(n => renderNotifCard(n)).join('')
+    : '<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:12px">No read notifications</div>';
+}
+
+function renderNotifCard(n) {
+  const colorMap = { order:'notif-order', user:'notif-user', transaction:'notif-txn', recharge:'notif-recharge', pause:'notif-pause' };
+  const iconMap  = { order:'fa-receipt', user:'fa-user-plus', transaction:'fa-coins', recharge:'fa-wallet', pause:'fa-pause-circle' };
+  const labelMap = { order:'Order', user:'New User', transaction:'Transaction', recharge:'Recharge', pause:'Pause' };
+  const typeKey  = n.type || n.category || '';
+  const cls      = colorMap[typeKey] || '';
+  const icon     = iconMap[typeKey] || 'fa-bell';
+  const label    = labelMap[typeKey] || 'System';
+  const ts       = n.created_at ? relTime(n.created_at) : '';
+  const isUser   = (typeKey === 'user') || (n.title||'').toLowerCase().includes('join') || (n.title||'').toLowerCase().includes('new user');
+  const isOrder  = typeKey === 'order';
+  const isTxn    = typeKey === 'transaction';
+  const phone    = n.meta?.phone || n.phone || '';
+
+  // Action buttons
+  let actionBtns = '';
+  if (isUser && !n.is_read) {
+    // New user joining — trigger coupon workflow
+    actionBtns = `<button class="btn btn-g" style="padding:5px 12px;font-size:11px;white-space:nowrap" onclick="openCouponWorkflow(${n.id},'${phone}','${(n.meta?.name||n.title||'').replace(/'/g,"\\'")}','${(n.meta?.address||'').replace(/'/g,"\\'")}')"><i class="fa fa-ticket"></i> Create Coupon</button>`;
+  } else if (isOrder && phone) {
+    actionBtns = `<button class="btn btn-outline" style="padding:5px 12px;font-size:11px;white-space:nowrap" onclick="gotoOrdersForPhone('${phone}')"><i class="fa fa-eye"></i> View Orders</button>`;
+  } else if (isTxn && phone) {
+    actionBtns = `<button class="btn btn-outline" style="padding:5px 12px;font-size:11px;white-space:nowrap" onclick="gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Khata</button>`;
+  } else if (!n.is_read) {
+    actionBtns = `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead(${n.id})">Mark Read</button>`;
+  }
+
+  return `
+    <div class="notif-card ${cls} ${n.is_read ? '' : 'unread'}" id="notif-${n.id}" style="${n.is_read ? 'opacity:.75' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex:1">
+          <div style="width:36px;height:36px;border-radius:10px;background:${n.is_read ? '#f1f5f9' : 'var(--card-bg)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${n.is_read ? '#e2e8f0' : '#f1f5f9'}">
+            <i class="fa ${icon}" style="font-size:14px;color:${n.is_read ? '#94a3b8' : 'inherit'}"></i>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0">
-            ${!n.is_read?`<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead(${n.id})">Mark Read</button>`:''}
-            <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deleteNotif(${n.id})">Delete</button>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'}">${n.title||'Notification'}</div>
+              <span style="background:${n.is_read ? '#f1f5f9' : '#f8fafc'};color:#94a3b8;padding:1px 7px;border-radius:10px;font-size:10px;font-family:var(--ff);font-weight:600;border:1px solid #e8ecf0">${label}</span>
+              ${!n.is_read ? '<span style="width:6px;height:6px;background:#e63946;border-radius:50%;display:inline-block"></span>' : ''}
+            </div>
+            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'};margin-top:3px">${n.body||n.message||''}</div>
+            ${phone ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px"><i class="fa fa-phone" style="font-size:10px"></i> ${phone}</div>` : ''}
+            <div style="font-size:11px;color:#cbd5e1;margin-top:5px">${ts}</div>
           </div>
         </div>
-        ${n.meta?`<details style="margin-top:10px"><summary style="font-size:11px;cursor:pointer;color:#94a3b8">View details</summary><pre style="font-size:11px;background:#f8fafc;padding:10px;border-radius:6px;overflow:auto;margin-top:6px">${JSON.stringify(n.meta,null,2)}</pre></details>`:''}
-      </div>`;
-  }).join('');
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
+          ${actionBtns}
+          <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deleteNotif(${n.id})"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>
+      ${n.meta ? `<details style="margin-top:10px"><summary style="font-size:11px;cursor:pointer;color:#94a3b8">View details</summary><pre style="font-size:11px;background:#f8fafc;padding:10px;border-radius:6px;overflow:auto;margin-top:6px">${JSON.stringify(n.meta,null,2)}</pre></details>` : ''}
+    </div>`;
+}
+
+// ─── NOTIFICATION → ORDERS / KHATA AUTO-SEARCH ───────────
+function gotoOrdersForPhone(phone) {
+  showPage('p-orders');
+  setTimeout(() => {
+    const inp = document.getElementById('ord-search') || document.querySelector('#p-orders input[type="search"], #p-orders input[type="text"]');
+    if (inp) { inp.value = phone; inp.dispatchEvent(new Event('input')); }
+  }, 400);
+}
+
+function gotoKhataForPhone(phone) {
+  showPage('p-khata');
+  setTimeout(() => {
+    const inp = document.querySelector('#p-khata input[type="search"], #p-khata input[type="text"]');
+    if (inp) { inp.value = phone; inp.dispatchEvent(new Event('input')); }
+  }, 400);
+}
+
+// ─── COUPON WORKFLOW: New User → Pending → WhatsApp → Sent ─
+// Opens coupon creation modal tied to a specific new-user notification
+async function openCouponWorkflow(notifId, phone, name, address) {
+  // Build WhatsApp message preview
+  const defaultMsg = `Hi ${name}! 🎉 Welcome to Tiffo – your Ghar ka Khana delivery service!\n\nAs a special welcome gift, here's your first-order coupon:\n\n🏷️ Code: WELCOME10\n💰 10% OFF your first order\n\nPlace your order today and taste the difference! 🍱`;
+
+  const mo = document.getElementById('mo-box');
+  document.getElementById('mo-bg').style.display = 'flex';
+  mo.innerHTML = `
+    <div class="mo-title"><span style="font-size:22px">🎟️</span> Welcome Coupon for ${name||'User'}</div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:#166534">
+      <i class="fa fa-circle-info" style="margin-right:5px"></i>
+      Creating coupon for <b>${name||phone}</b> (${phone}). After sending via WhatsApp, they'll be auto-moved to <b>Sent</b>.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field" style="grid-column:1/-1"><label>Coupon Code</label><input id="cf-code" placeholder="e.g. WELCOME10" oninput="this.value=this.value.toUpperCase()" value="WELCOME10" style="font-family:monospace;letter-spacing:2px;font-weight:700;font-size:15px"></div>
+      <div class="field">
+        <label>Discount Type</label>
+        <select id="cf-type" onchange="couponTypeToggle()">
+          <option value="percent">Percent (%)</option>
+          <option value="percent_cap">Percent + Cap (₹)</option>
+          <option value="flat">Flat (₹)</option>
+        </select>
+      </div>
+      <div class="field"><label>Value</label><input id="cf-value" type="number" placeholder="10" value="10" min="0"></div>
+      <div class="field" id="cf-cap-wrap"><label>Max Discount (₹)</label><input id="cf-cap" type="number" placeholder="e.g. 50" min="0"></div>
+      <div class="field"><label>Min Order (₹)</label><input id="cf-minorder" type="number" placeholder="0" value="0" min="0"></div>
+      <div class="field"><label>Expiry Date</label><input id="cf-expiry" type="date"></div>
+    </div>
+    <div class="field">
+      <label>WhatsApp Message <span style="font-size:10px;color:#94a3b8">(editable)</span></label>
+      <textarea id="cf-wa-msg" rows="5" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);resize:vertical;outline:none">${defaultMsg}</textarea>
+    </div>
+    <div id="cf-preview" style="background:#f8fafc;border:1px dashed #e2e8f0;border-radius:8px;padding:10px;font-size:12px;color:#64748b;margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-g" style="flex:1" onclick="saveAndSendCoupon(${notifId},'${phone}','${(name||'').replace(/'/g,"\\'")}')">
+        <i class="fa fa-whatsapp" style="font-family:'Font Awesome 6 Brands'"></i> <i class="fab fa-whatsapp"></i> Save & Open WhatsApp
+      </button>
+      <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
+    </div>`;
+  couponTypeToggle();
+  updateCouponPreview();
+}
+
+async function saveAndSendCoupon(notifId, phone, name) {
+  const code = document.getElementById('cf-code')?.value?.trim();
+  if (!code) { aToast('Coupon code required'); return; }
+  const data = {
+    code,
+    discount_type: document.getElementById('cf-type')?.value || 'percent',
+    discount_value: parseFloat(document.getElementById('cf-value')?.value || 0),
+    max_discount: parseFloat(document.getElementById('cf-cap')?.value || 0) || null,
+    min_order: parseFloat(document.getElementById('cf-minorder')?.value || 0),
+    expiry_date: document.getElementById('cf-expiry')?.value || null,
+    restriction_type: 'specific_phone',
+    allowed_phones: phone,
+    is_active: true
+  };
+  const msg = document.getElementById('cf-wa-msg')?.value || '';
+  const finalMsg = msg.replace('WELCOME10', code).replace('10%', `${data.discount_value}%`);
+
+  try {
+    await api('addCoupon', data);
+    // Auto-add to pending if not already there
+    try { await api('addNuCouponPending', { phone, name, notif_id: notifId }); } catch(_) {}
+    closeMo();
+    // Open WhatsApp
+    window.location.href = `https://wa.me/91${phone}?text=${encodeURIComponent(finalMsg)}`;
+    // After a short delay, mark sent + mark notif read
+    setTimeout(() => markCouponSentAndNotifRead(phone, notifId), 1800);
+  } catch(e) { aToast('Error: ' + e.message); }
+}
+
+async function markCouponSentAndNotifRead(phone, notifId) {
+  try { await api('markNuCouponSent', { phone }); } catch(_) {}
+  try {
+    await api('markNotificationRead', { id: notifId });
+    _lastNotifsStr = '';
+    await loadNotifications();
+    if (_nuPanelOpen) loadNuCoupons('sent', document.getElementById('nu-tab-sent'));
+    aToast('✅ Coupon sent! User moved to Sent.');
+  } catch(_) {}
 }
 
 function relTime(ts) {
@@ -3692,14 +3908,84 @@ async function deleteNotifRange() {
   const from = document.getElementById('notif-del-from')?.value;
   const to   = document.getElementById('notif-del-to')?.value;
   if (!from || !to) { aToast('Select both dates'); return; }
-  confirmAction(`Delete notifications from <b>${from}</b> to <b>${to}</b>?`, async function() {
+  confirmAction(`Delete <b>read</b> notifications from <b>${from}</b> to <b>${to}</b>?<br><span style="font-size:12px;color:#94a3b8">Unread (new) notifications will not be affected.</span>`, async function() {
     try {
-      await api('deleteNotificationRange', { from, to });
+      await api('deleteNotificationRange', { from, to, read_only: true });
       _lastNotifsStr = '';
       loadNotifications();
-      aToast('Deleted');
+      aToast('Read notifications deleted');
     } catch(e) { aToast(e.message); }
   });
+}
+
+// ─── NU COUPON PANEL ──────────────────────────────────────
+async function loadNuCoupons(type, btn) {
+  _nuCurrentTab = type;
+  document.querySelectorAll('#nu-coupon-panel .tab-btn').forEach(b => b.classList.remove('act'));
+  if (btn) btn.classList.add('act');
+  const el = document.getElementById('nu-coupon-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:24px">Loading…</div>';
+  try {
+    const res = await api(type === 'pending' ? 'getNuCouponPending' : 'getNuCouponSent');
+    const users = res.records || [];
+    if (!users.length) {
+      el.innerHTML = `<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px"><i class="fa ${type==='pending'?'fa-hourglass':'fa-check-circle'}" style="font-size:20px;display:block;margin-bottom:8px;opacity:.4"></i>${type==='pending'?'No pending users — all coupons sent!':'No sent records yet.'}</div>`;
+      return;
+    }
+    el.innerHTML = users.map(u => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 4px;border-bottom:1px solid #f1f5f9" id="nu-row-${u.phone}">
+        <div style="width:38px;height:38px;background:${type==='pending'?'#fff7ed':'#f0fdf4'};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${type==='pending'?'#fed7aa':'#bbf7d0'}">
+          <i class="fa fa-user" style="color:${type==='pending'?'#f59e0b':'#10b981'};font-size:14px"></i>
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${u.name||'—'}</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px"><i class="fa fa-phone" style="font-size:10px"></i> ${u.phone}</div>
+          ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${u.address}</div>`:''}
+          ${u.created_at?`<div style="font-size:10px;color:#cbd5e1;margin-top:3px">${relTime(u.created_at)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+          ${type==='pending'
+            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openWaPopup('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}',${u.notif_id||'null'})"><i class="fab fa-whatsapp"></i> WhatsApp</button>`
+            : `<span style="background:#f0fdf4;color:#16a34a;padding:4px 10px;border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700"><i class="fa fa-check"></i> Sent</span>`
+          }
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = `<div style="color:var(--p);padding:12px;font-size:13px">${e.message}</div>`; }
+}
+
+// ─── WHATSAPP POPUP ───────────────────────────────────────
+function openWaPopup(phone, name, notifId) {
+  const defaultMsg = `Hi ${name}! 🎉 Welcome to Tiffo – Ghar ka Khana delivered fresh!\n\nAs a thank-you for joining, here's your welcome coupon:\n\n🏷️ Code: WELCOME10\n💰 10% OFF your first order\n\nOrder now and enjoy your first meal! 🍱\n— Tiffo Team`;
+  const mo = document.getElementById('mo-box');
+  document.getElementById('mo-bg').style.display = 'flex';
+  mo.innerHTML = `
+    <div class="mo-title"><i class="fab fa-whatsapp" style="color:#25D366"></i> Send WhatsApp to ${name||phone}</div>
+    <div class="field">
+      <label>Message <span style="font-size:10px;color:#94a3b8">(editable before sending)</span></label>
+      <textarea id="wa-popup-msg" rows="7" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);resize:vertical;outline:none">${defaultMsg}</textarea>
+    </div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px"><i class="fa fa-circle-info"></i> After clicking Send, this user will automatically move to <b>Sent</b> and the notification will be marked as Read.</div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-g" style="flex:1" onclick="sendWaAndMarkSent('${phone}',${notifId||'null'})"><i class="fab fa-whatsapp"></i> Send via WhatsApp</button>
+      <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
+    </div>`;
+}
+
+async function sendWaAndMarkSent(phone, notifId) {
+  const msg = document.getElementById('wa-popup-msg')?.value || '';
+  closeMo();
+  window.location.href = `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`;
+  setTimeout(async () => {
+    try { await api('markNuCouponSent', { phone }); } catch(_) {}
+    if (notifId && notifId !== 'null') {
+      try { await api('markNotificationRead', { id: notifId }); } catch(_) {}
+    }
+    _lastNotifsStr = '';
+    await loadNotifications();
+    if (_nuPanelOpen) loadNuCoupons('sent', document.getElementById('nu-tab-sent'));
+    aToast('✅ Moved to Sent & notification marked Read');
+  }, 1800);
 }
 
 // ─── INIT SETTINGS PANEL ────────────────────────────────
