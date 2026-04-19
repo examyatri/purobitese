@@ -1594,24 +1594,70 @@ app.post('/api', async (req, res) => {
       }
 
       case 'deleteOldData': {
-        const [r1, r2] = await Promise.all([
-          supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before_date),
-          supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before_date)
-        ]);
-        return res.json({ success: true, ordersDeleted: r1.count || 0, txnsDeleted: r2.count || 0 });
+        const type       = (data.type || '').toLowerCase();
+        const reqDate    = data.before;   // YYYY-MM-DD from client
+        if (!reqDate) return res.json({ success: false, error: 'Missing date' });
+
+        // Minimum retention rules (days): data newer than this is never deleted
+        const MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+        const minDays  = MIN_DAYS[type];
+        if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
+
+        // Compute the safest allowed cutoff date (today − minDays)
+        const safeCutoff = new Date();
+        safeCutoff.setDate(safeCutoff.getDate() - minDays);
+        const safeCutoffStr = safeCutoff.toISOString().slice(0, 10);
+
+        // Honour whichever is earlier: what admin requested vs. the safety cutoff
+        const cutoffDate = reqDate < safeCutoffStr ? reqDate : safeCutoffStr;
+
+        if (type === 'orders') {
+          const { count, error } = await supabase.from('orders').delete({ count: 'exact' }).lte('date', cutoffDate);
+          if (error) throw new Error(error.message);
+          return res.json({ success: true, deleted: count || 0, cutoffUsed: cutoffDate });
+        } else if (type === 'transactions') {
+          const { count, error } = await supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', cutoffDate);
+          if (error) throw new Error(error.message);
+          return res.json({ success: true, deleted: count || 0, cutoffUsed: cutoffDate });
+        } else if (type === 'notifications') {
+          const { count, error } = await supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', cutoffDate + 'T23:59:59Z');
+          if (error) throw new Error(error.message);
+          return res.json({ success: true, deleted: count || 0, cutoffUsed: cutoffDate });
+        }
+        return res.json({ success: false, error: 'Unhandled type' });
       }
 
       case 'masterDelete': {
         if (data.confirm !== 'DELETE_ALL_TIFFO_DATA') {
           return res.json({ success: false, error: 'Confirmation string mismatch' });
         }
-        await Promise.all([
-          supabase.from('orders').delete().neq('order_id', ''),
-          supabase.from('khata_entries').delete().neq('id', ''),
-          supabase.from('notifications').delete().neq('id', ''),
-          supabase.from('nu_coupon_sent').delete().neq('phone', '')
+
+        // Minimum retention: delete only data OLDER than these cutoffs
+        const now = new Date();
+        const dateCutoff = (daysAgo) => {
+          const d = new Date(now);
+          d.setDate(d.getDate() - daysAgo);
+          return d.toISOString().slice(0, 10);
+        };
+
+        const ordersCutoff  = dateCutoff(5);   // orders  older than 5 days
+        const txnsCutoff    = dateCutoff(35);  // transactions older than 35 days
+        const notifsCutoff  = dateCutoff(1);   // notifications older than 1 day
+
+        const [r1, r2, r3] = await Promise.all([
+          supabase.from('orders').delete({ count: 'exact' }).lte('date', ordersCutoff),
+          supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', txnsCutoff),
+          supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', notifsCutoff + 'T23:59:59Z')
         ]);
-        return res.json({ success: true, message: 'Master delete completed' });
+
+        return res.json({
+          success: true,
+          message: 'Master delete completed (retention rules applied)',
+          ordersDeleted:  r1.count || 0,
+          txnsDeleted:    r2.count || 0,
+          notifsDeleted:  r3.count || 0,
+          cutoffs: { orders: ordersCutoff, transactions: txnsCutoff, notifications: notifsCutoff }
+        });
       }
 
       // ── INDEX (CUSTOMER) ALIASES ──────────────────────────────────────────
@@ -1768,19 +1814,32 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, deleted: count || 0 });
       }
 
-      case 'previewCleanup':
-        { const type = (data.type || '').toLowerCase();
-          if (type === 'orders') {
-            const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', data.before);
-            return res.json({ success: true, count: count || 0 });
-          } else if (type === 'transactions') {
-            const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', data.before);
-            return res.json({ success: true, count: count || 0 });
-          } else if (type === 'notifications') {
-            const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', data.before);
-            return res.json({ success: true, count: count || 0 });
-          }
-          return res.json({ success: false, error: 'Unknown cleanup type' }); }
+      case 'previewCleanup': {
+        const type     = (data.type || '').toLowerCase();
+        const reqDate  = data.before;
+        if (!reqDate) return res.json({ success: false, error: 'Missing date' });
+
+        const MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+        const minDays  = MIN_DAYS[type];
+        if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
+
+        const safeCutoff    = new Date();
+        safeCutoff.setDate(safeCutoff.getDate() - minDays);
+        const safeCutoffStr = safeCutoff.toISOString().slice(0, 10);
+        const cutoffDate    = reqDate < safeCutoffStr ? reqDate : safeCutoffStr;
+
+        if (type === 'orders') {
+          const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', cutoffDate);
+          return res.json({ success: true, count: count || 0, cutoffUsed: cutoffDate });
+        } else if (type === 'transactions') {
+          const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', cutoffDate);
+          return res.json({ success: true, count: count || 0, cutoffUsed: cutoffDate });
+        } else if (type === 'notifications') {
+          const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', cutoffDate + 'T23:59:59Z');
+          return res.json({ success: true, count: count || 0, cutoffUsed: cutoffDate });
+        }
+        return res.json({ success: false, error: 'Unhandled type' });
+      }
 
       // ─────────────────────────────────────────────────────────────────────
       // Toggle granular pause for a subscriber session (admin action)
