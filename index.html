@@ -2354,14 +2354,44 @@ function generateKhataPDF() {
     const dateStr = fmtD(e.created_at);
     const timeStr = e.time ? e.time : fmtT(e.created_at);
     const runBal  = e.running_balance!==undefined&&e.running_balance!==null?'\u20B9'+e.running_balance:'—';
-    // Item name + real price (without coupon)
-    const itemStr = e.items && Array.isArray(e.items) && e.items.length
-      ? e.items.map(i => (i.name||'') + (i.variantLabel ? ' ('+i.variantLabel+')' : '') + ' \u00d7' + (i.qty||1) + ' = \u20B9' + ((i.price||0)*(i.qty||1))).join('<br>')
-      : (e.item_name ? e.item_name + (e.item_price ? ' \u20B9'+e.item_price : '') : '—');
-    const realPrice = e.items && Array.isArray(e.items) ? '\u20B9'+e.items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0) : (e.item_price ? '\u20B9'+e.item_price : '—');
+    // ── Item details + Real Price breakdown (enriched from orders table) ──
+    let itemStr = '—';
+    let realPriceStr = '—';
+    if (e.items && Array.isArray(e.items) && e.items.length) {
+      const itemLines = e.items.map(i => {
+        const nm  = i.name || i.item_name || 'Item';
+        const vl  = i.variantLabel || i.variant_label || '';
+        const wt  = i.weight || i.variant_weight || '';
+        const qty = i.qty || 1;
+        const up  = i.price || 0;
+        const lineTot = up * qty;
+        let lbl = nm;
+        if (wt)  lbl += ' ' + wt;
+        if (vl && vl !== wt) lbl += ' (' + vl + ')';
+        if (qty > 1) lbl += ' \u00d7' + qty;
+        lbl += ' = \u20B9' + lineTot;
+        return lbl;
+      });
+      const subtotal = e.items.reduce((s,i)=>s+(i.price||0)*(i.qty||1),0);
+      const delivery = e.delivery_charge || 0;
+      const discount = e.discount || 0;
+      const coupon   = e.coupon_code || null;
+      itemStr = itemLines.join('<br>');
+      let bp = '<span style="font-weight:600">\u20B9'+subtotal+'</span>';
+      if (delivery) bp += '<br><span style="color:#888;font-size:9px">+\u20B9'+delivery+' delivery</span>';
+      if (discount) {
+        const pct = subtotal ? Math.round(discount/subtotal*100) : 0;
+        bp += '<br><span style="color:#2a9d8f;font-size:9px">\u2212\u20B9'+discount+' discount'+(coupon?' ('+coupon+')':'')+(pct?' \u2248'+pct+'%':'')+'</span>';
+        bp += '<br><b style="color:#c1121f">=\u20B9'+(subtotal+delivery-discount)+'</b>';
+      }
+      realPriceStr = bp;
+    } else if (e.item_name) {
+      itemStr = e.item_name + (e.item_price ? ' \u20B9'+e.item_price : '');
+      realPriceStr = e.item_price ? '\u20B9'+e.item_price : '—';
+    }
     return '<tr style="background:'+rowBg+'"><td>'+dateStr+'</td><td>'+timeStr+'</td><td>'+label+'</td>' +
-      '<td style="font-size:10px;color:#333">'+itemStr+'</td>' +
-      '<td style="color:#555;font-weight:600;text-align:right">'+realPrice+'</td>' +
+      '<td style="font-size:10px;color:#333;line-height:1.5">'+itemStr+'</td>' +
+      '<td style="font-size:10px;color:#555;text-align:right;line-height:1.6">'+realPriceStr+'</td>' +
       '<td style="color:'+color+';font-weight:700;text-align:right">'+sign+'\u20B9'+Math.abs(e.amount)+'</td>' +
       '<td style="text-align:right;color:#333">'+runBal+'</td>' +
       '<td style="font-size:10px;color:#666">'+srcNote+'<br><span style="color:#aaa;font-size:9px">'+note+'</span></td></tr>';
