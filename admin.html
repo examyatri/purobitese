@@ -1200,28 +1200,31 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           </div>
         </div>
 
-        <!-- ── NOTIFICATION SECTIONS ── -->
-        <!-- New (Unread) -->
-        <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px">
-          <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a;display:flex;align-items:center;gap:7px">
-            <span style="width:8px;height:8px;background:#e63946;border-radius:50%;display:inline-block;animation:badgePulse 2s infinite"></span>
+        <!-- ── NOTIFICATION TAB SWITCHER ── -->
+        <div style="display:flex;gap:10px;margin-bottom:18px">
+          <button id="notif-tab-new-btn" onclick="switchNotifTab('new')"
+            style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;border:2px solid #e63946;background:#e63946;color:white;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;transition:all 200ms;box-shadow:0 4px 14px rgba(230,57,70,.25)">
+            <span style="width:8px;height:8px;background:rgba(255,255,255,.8);border-radius:50%;display:inline-block;animation:badgePulse 2s infinite"></span>
             New
-            <span id="notif-unread-count" style="background:#e63946;color:white;border-radius:20px;padding:1px 8px;font-size:10px;font-family:var(--ff);font-weight:700"></span>
-          </div>
-          <div style="flex:1;height:1px;background:#f1f5f9"></div>
-        </div>
-        <div id="notif-list-unread" style="margin-bottom:22px"></div>
-
-        <!-- Read -->
-        <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px">
-          <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#94a3b8;display:flex;align-items:center;gap:7px">
-            <i class="fa fa-check-double" style="font-size:12px"></i>
+            <span id="notif-unread-count" style="background:rgba(255,255,255,.25);color:white;border-radius:20px;padding:1px 8px;font-size:11px;font-family:var(--ff);font-weight:700;min-width:18px;text-align:center"></span>
+          </button>
+          <button id="notif-tab-read-btn" onclick="switchNotifTab('read')"
+            style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;border:2px solid #e2e8f0;background:white;color:#64748b;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;transition:all 200ms">
+            <i class="fa fa-check-double" style="font-size:13px"></i>
             Read
-            <span id="notif-read-count" style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:1px 8px;font-size:10px;font-family:var(--ff);font-weight:700"></span>
-          </div>
-          <div style="flex:1;height:1px;background:#f1f5f9"></div>
+            <span id="notif-read-count" style="background:#e2e8f0;color:#64748b;border-radius:20px;padding:1px 8px;font-size:11px;font-family:var(--ff);font-weight:700;min-width:18px;text-align:center"></span>
+          </button>
         </div>
-        <div id="notif-list-read"></div>
+
+        <!-- New (Unread) Panel -->
+        <div id="notif-panel-new">
+          <div id="notif-list-unread"></div>
+        </div>
+
+        <!-- Read Panel (hidden by default) -->
+        <div id="notif-panel-read" style="display:none">
+          <div id="notif-list-read"></div>
+        </div>
 
       </div>
     </div>
@@ -3739,37 +3742,97 @@ async function doResetUserPwFromSettings(phone, name) {
   } catch(e) { aToast(e.message); }
 }
 
+// ── Minimum retention days per data type ─────────────────
+const CLEANUP_MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+
+// Returns ISO date string (YYYY-MM-DD) that is `days` days ago from today
+function _minRetentionDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 function renderCleanupPanel(area) {
+  const cfg = [
+    { key: 'orders',        label: 'Orders',              icon: '🛒', min: CLEANUP_MIN_DAYS.orders,        hint: 'Min 5 days old'  },
+    { key: 'transactions',  label: 'Transaction Details',  icon: '💳', min: CLEANUP_MIN_DAYS.transactions,  hint: 'Min 35 days old' },
+    { key: 'notifications', label: 'Notifications',        icon: '🔔', min: CLEANUP_MIN_DAYS.notifications, hint: 'Min 1 day old'   }
+  ];
+
   area.innerHTML = `
     <div class="settings-panel">
-      <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">Data Cleanup</div>
-      <div class="field"><label>Delete data before:</label><input id="cleanup-date" type="date"></div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
-        ${['Orders','Transactions','Notifications'].map(t=>`
-          <div style="display:flex;align-items:center;gap:10px;padding:12px;background:#f8fafc;border-radius:8px">
-            <span style="flex:1;font-weight:600;font-size:14px">${t}</span>
-            <button class="btn btn-outline" style="font-size:12px" onclick="previewCleanup('${t.toLowerCase()}',this)">Preview</button>
-            <button class="btn btn-danger" style="font-size:12px" onclick="deleteCleanup('${t.toLowerCase()}')">Delete</button>
-          </div>`).join('')}
+      <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:4px">Data Cleanup</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:16px">
+        Each type has its own date range. Data within the minimum retention period is always protected.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${cfg.map(c => {
+          const maxDate = _minRetentionDate(c.min);
+          return `
+          <div style="padding:14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span style="font-size:18px">${c.icon}</span>
+              <span style="font-weight:700;font-size:14px;flex:1">${c.label}</span>
+              <span style="font-size:11px;color:#64748b;background:#e0f2fe;padding:2px 8px;border-radius:20px">${c.hint}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="flex:1;min-width:160px">
+                <label style="font-size:11px;color:#64748b;display:block;margin-bottom:4px">Delete data older than:</label>
+                <input id="cleanup-date-${c.key}" type="date" max="${maxDate}"
+                  style="width:100%;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px"
+                  onchange="validateCleanupDate('${c.key}', ${c.min})">
+              </div>
+              <div style="display:flex;gap:6px;align-self:flex-end">
+                <button class="btn btn-outline" style="font-size:12px;white-space:nowrap"
+                  onclick="previewCleanup('${c.key}',this)">Preview</button>
+                <button class="btn btn-danger" style="font-size:12px;white-space:nowrap"
+                  onclick="deleteCleanup('${c.key}')">Delete</button>
+              </div>
+            </div>
+            <div id="cleanup-warn-${c.key}" style="font-size:11px;color:#dc2626;margin-top:6px;display:none">
+              ⚠️ Cannot delete data newer than ${c.min} day(s). Date adjusted.
+            </div>
+          </div>`;
+        }).join('')}
       </div>
     </div>`;
 }
 
+function validateCleanupDate(type, minDays) {
+  const input = document.getElementById(`cleanup-date-${type}`);
+  const warn  = document.getElementById(`cleanup-warn-${type}`);
+  if (!input || !input.value) return true;
+  const maxAllowed = _minRetentionDate(minDays);
+  if (input.value > maxAllowed) {
+    input.value = maxAllowed;
+    warn.style.display = 'block';
+    setTimeout(() => { warn.style.display = 'none'; }, 3000);
+    return false;
+  }
+  warn.style.display = 'none';
+  return true;
+}
+
 async function previewCleanup(type, btn) {
-  const date = document.getElementById('cleanup-date')?.value;
-  if (!date) { aToast('Select a date'); return; }
+  if (!validateCleanupDate(type, CLEANUP_MIN_DAYS[type])) return;
+  const date = document.getElementById(`cleanup-date-${type}`)?.value;
+  if (!date) { aToast('Select a date for ' + type); return; }
   try {
     const res = await api('previewCleanup', { type, before: date });
-    btn.textContent = `Preview (${res.count||0})`;
+    btn.textContent = `Preview (${res.count || 0})`;
   } catch(e) { aToast(e.message); }
 }
 
 async function deleteCleanup(type) {
-  const date = document.getElementById('cleanup-date')?.value;
-  if (!date) { aToast('Select a date'); return; }
-  confirmAction(`Delete all ${type} before <b>${date}</b>? Cannot be undone.`, async function() {
-    try { await api('deleteOldData', { type, before: date }); aToast('Deleted'); }
-    catch(e) { aToast(e.message); }
+  if (!validateCleanupDate(type, CLEANUP_MIN_DAYS[type])) return;
+  const date = document.getElementById(`cleanup-date-${type}`)?.value;
+  if (!date) { aToast('Select a date for ' + type); return; }
+  const labels = { orders: 'Orders', transactions: 'Transaction Details', notifications: 'Notifications' };
+  confirmAction(`Delete all <b>${labels[type]||type}</b> before <b>${date}</b>?<br><small style="color:#64748b">This cannot be undone.</small>`, async function() {
+    try {
+      await api('deleteOldData', { type, before: date });
+      aToast(`${labels[type]||type} deleted ✅`);
+    } catch(e) { aToast(e.message); }
   });
 }
 
@@ -3780,7 +3843,15 @@ function renderMasterDelPanel(area) {
         <span style="font-size:28px">⚠️</span>
         <div>
           <div style="font-family:var(--ff);font-weight:700;font-size:15px;color:var(--pd)">Master Delete</div>
-          <div style="font-size:12px;color:#64748b">Deletes ALL orders, transactions, notifications. Users, menu, settings are preserved.</div>
+          <div style="font-size:12px;color:#64748b">Bulk-clears old data respecting minimum retention rules. Users, menu, settings are preserved.</div>
+        </div>
+      </div>
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#92400e">
+        <div style="font-weight:700;margin-bottom:6px">🔒 Minimum Retention Policy (enforced)</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div>🛒 <b>Orders</b> — data newer than <b>5 days</b> is preserved</div>
+          <div>💳 <b>Transaction Details</b> — data newer than <b>35 days</b> is preserved</div>
+          <div>🔔 <b>Notifications</b> — data newer than <b>1 day</b> is preserved</div>
         </div>
       </div>
       <div class="field">
@@ -3801,14 +3872,24 @@ function checkMasterDelInput() {
 }
 
 async function doMasterDelete() {
-  confirmAction('⚠️ This will permanently delete ALL orders, transactions and notifications. Are you absolutely sure?', async function() {
-    try {
-      await api('masterDelete');
-      aToast('All data deleted');
-      document.getElementById('master-del-input').value = '';
-      checkMasterDelInput();
-    } catch(e) { aToast(e.message); }
-  });
+  const today = new Date().toISOString().slice(0,10);
+  confirmAction(
+    `⚠️ <b>Master Delete</b> will permanently remove:<br>
+    <ul style="margin:8px 0 0 16px;font-size:13px;color:#374151">
+      <li>🛒 Orders older than <b>5 days</b></li>
+      <li>💳 Transactions older than <b>35 days</b></li>
+      <li>🔔 Notifications older than <b>1 day</b></li>
+    </ul>
+    <div style="margin-top:8px;font-size:12px;color:#dc2626">Data within retention periods is NOT deleted. This cannot be undone.</div>`,
+    async function() {
+      try {
+        const res = await api('masterDelete', { confirm: 'DELETE_ALL_TIFFO_DATA' });
+        aToast(`Master delete done ✅ — Orders: ${res.ordersDeleted||0}, Transactions: ${res.txnsDeleted||0}, Notifications: ${res.notifsDeleted||0}`);
+        document.getElementById('master-del-input').value = '';
+        checkMasterDelInput();
+      } catch(e) { aToast(e.message); }
+    }
+  );
 }
 
 // ─── NOTIFICATIONS ────────────────────────────────────────
@@ -3866,6 +3947,37 @@ function updateNuPendingBadge(notifs) {
 }
 
 // ─── RENDER NOTIFICATIONS ─────────────────────────────────
+// ── Notification tab switcher ─────────────────────────────────────────────
+let _activeNotifTab = 'new';
+function switchNotifTab(tab) {
+  _activeNotifTab = tab;
+  const newPanel  = document.getElementById('notif-panel-new');
+  const readPanel = document.getElementById('notif-panel-read');
+  const newBtn    = document.getElementById('notif-tab-new-btn');
+  const readBtn   = document.getElementById('notif-tab-read-btn');
+  if (!newPanel || !readPanel) return;
+
+  const BASE = 'flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:12px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;transition:all 200ms;border-width:2px;border-style:solid';
+  const uc = document.getElementById('notif-unread-count');
+  const rc = document.getElementById('notif-read-count');
+
+  if (tab === 'new') {
+    newPanel.style.display  = '';
+    readPanel.style.display = 'none';
+    if (newBtn)  newBtn.style.cssText  = BASE + ';background:#e63946;color:white;border-color:#e63946;box-shadow:0 4px 14px rgba(230,57,70,.25)';
+    if (readBtn) readBtn.style.cssText = BASE + ';background:white;color:#64748b;border-color:#e2e8f0;box-shadow:none';
+    if (uc) { uc.style.background='rgba(255,255,255,.25)'; uc.style.color='white'; }
+    if (rc) { rc.style.background='#e2e8f0'; rc.style.color='#64748b'; }
+  } else {
+    newPanel.style.display  = 'none';
+    readPanel.style.display = '';
+    if (readBtn) readBtn.style.cssText = BASE + ';background:#64748b;color:white;border-color:#64748b;box-shadow:0 4px 14px rgba(100,116,139,.2)';
+    if (newBtn)  newBtn.style.cssText  = BASE + ';background:white;color:#64748b;border-color:#e2e8f0;box-shadow:none';
+    if (uc) { uc.style.background='#e2e8f0'; uc.style.color='#64748b'; }
+    if (rc) { rc.style.background='rgba(255,255,255,.25)'; rc.style.color='white'; }
+  }
+}
+
 function renderNotifs(notifs) {
   const unreadEl = document.getElementById('notif-list-unread');
   const readEl = document.getElementById('notif-list-read');
@@ -3876,8 +3988,8 @@ function renderNotifs(notifs) {
   const unread = notifs.filter(n => !n.is_read);
   const read = notifs.filter(n => n.is_read);
 
-  if (unreadCountEl) unreadCountEl.textContent = unread.length || '';
-  if (readCountEl) readCountEl.textContent = read.length || '';
+  if (unreadCountEl) unreadCountEl.textContent = unread.length || '0';
+  if (readCountEl) readCountEl.textContent = read.length || '0';
 
   unreadEl.innerHTML = unread.length
     ? unread.map(n => renderNotifCard(n)).join('')
@@ -3886,6 +3998,9 @@ function renderNotifs(notifs) {
   readEl.innerHTML = read.length
     ? read.map(n => renderNotifCard(n)).join('')
     : '<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:12px">No read notifications</div>';
+
+  // Re-apply active tab styles after re-render
+  switchNotifTab(_activeNotifTab);
 }
 
 function renderNotifCard(n) {
@@ -3944,17 +4059,19 @@ function renderNotifCard(n) {
 
   } else if (isOrder) {
     // Card Type 1 — Order / Transaction
+    const markReadOnView = !n.is_read ? `markNotifRead(${n.id});` : '';
     const khataBtn = isSub
-      ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
+      ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="${markReadOnView}gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
       : `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap;opacity:.5;cursor:not-allowed" disabled title="Normal user — no khata access"><i class="fa fa-wallet"></i> View Transaction <span style="background:#fef2f2;color:#be123c;border-radius:10px;padding:1px 6px;font-size:9px;font-family:var(--ff);font-weight:700;margin-left:3px">Non-sub</span></button>`;
     actionBtns = `
-      <button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoOrdersForPhone('${phone}')"><i class="fa fa-eye"></i> View Order</button>
+      <button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="${markReadOnView}gotoOrdersForPhone('${phone}')"><i class="fa fa-eye"></i> View Order</button>
       ${phone ? khataBtn : ''}`;
 
   } else if (isTxn) {
     // Card Type 1 — Transaction
+    const markReadOnView = !n.is_read ? `markNotifRead(${n.id});` : '';
     actionBtns = phone
-      ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
+      ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="${markReadOnView}gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
       : '';
 
   } else {
