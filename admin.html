@@ -463,7 +463,11 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <select id="order-sort" onchange="renderOrdersTable(_allOrders)" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;font-family:var(--fb);outline:none">
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
-              <option value="amount">Amount ↓</option>
+              <option value="amount_desc">Amount ↓</option>
+              <option value="amount_asc">Amount ↑</option>
+              <option value="today">Today Only</option>
+              <option value="morning">Morning (before 3PM)</option>
+              <option value="evening">Evening (3PM+)</option>
             </select>
           </div>
         </div>
@@ -507,6 +511,27 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Menu Items</h2>
           <button class="btn btn-p" onclick="openMenuModal()"><i class="fa fa-plus"></i> Add Item</button>
         </div>
+        <div class="filter-bar">
+          <input id="menu-search" type="search" placeholder="Search by name or category…" class="search-input" oninput="renderMenuTable()">
+          <select id="menu-cat-filter" onchange="renderMenuTable()">
+            <option value="">All Categories</option>
+            <option value="morning">Morning</option>
+            <option value="evening">Evening</option>
+          </select>
+          <select id="menu-status-filter" onchange="renderMenuTable()">
+            <option value="">All Status</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+          <select id="menu-sort" onchange="renderMenuTable()">
+            <option value="default">Default Order</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+            <option value="name_az">Name A–Z</option>
+            <option value="name_za">Name Z–A</option>
+            <option value="highlight">Highlighted First</option>
+          </select>
+        </div>
         <div class="card">
           <div class="tbl-wrap">
             <table>
@@ -538,6 +563,25 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <div class="page-header">
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Coupons</h2>
           <button class="btn btn-p" onclick="openCouponModal()"><i class="fa fa-plus"></i> Add Coupon</button>
+        </div>
+        <div class="filter-bar">
+          <select id="coupon-type-filter" onchange="renderCouponsTable()">
+            <option value="">All Types</option>
+            <option value="percent">Percent (%)</option>
+            <option value="flat">Flat (₹)</option>
+          </select>
+          <select id="coupon-status-filter" onchange="renderCouponsTable()">
+            <option value="">All Status</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+          <select id="coupon-sort" onchange="renderCouponsTable()">
+            <option value="default">Default</option>
+            <option value="most_used">Most Used</option>
+            <option value="least_used">Least Used</option>
+            <option value="expiry">Expiry Soonest</option>
+            <option value="az">A–Z</option>
+          </select>
         </div>
         <div class="card">
           <div class="tbl-wrap">
@@ -572,6 +616,23 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         </div>
         <div class="card">
           <div class="card-header"><div class="card-title"><i class="fa fa-crown"></i> Subscriber List</div></div>
+          <div class="filter-bar" style="margin-bottom:12px">
+            <input id="subs-search" type="search" placeholder="Search name or phone…" class="search-input" oninput="renderSubsTable()">
+            <select id="subs-status-filter" onchange="renderSubsTable()">
+              <option value="">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="paused">Paused Only</option>
+            </select>
+            <select id="subs-sort" onchange="renderSubsTable()">
+              <option value="default">Default</option>
+              <option value="az">A–Z</option>
+              <option value="za">Z–A</option>
+              <option value="newest">Newest Plan</option>
+              <option value="expiring">Expiring Soon</option>
+              <option value="low_balance">Low Balance</option>
+              <option value="paused_first">Paused First</option>
+            </select>
+          </div>
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Plan Start</th><th>Plan End</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
@@ -589,6 +650,13 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         </div>
         <div class="filter-bar" style="margin-bottom:16px">
           <input id="users-search" type="search" placeholder="Search by name or phone…" class="search-input" oninput="filterUsers()">
+          <select id="users-sort" onchange="filterUsers()">
+            <option value="default">Default</option>
+            <option value="az">A–Z</option>
+            <option value="za">Z–A</option>
+            <option value="newest">Newest Joined</option>
+            <option value="oldest">Oldest Joined</option>
+          </select>
         </div>
         <div class="card">
           <div class="tbl-wrap">
@@ -623,6 +691,21 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         </div>
         <div class="card">
           <div class="card-header"><div class="card-title"><i class="fa fa-wallet"></i> All Subscriber Balances</div></div>
+          <div class="filter-bar" style="margin-bottom:12px">
+            <input id="khata-search" type="search" placeholder="Search name or phone…" class="search-input" oninput="renderKhataTable()">
+            <select id="khata-balance-filter" onchange="renderKhataTable()">
+              <option value="">All Balances</option>
+              <option value="low">Low Balance (&lt;₹200)</option>
+              <option value="udhar">Udhar (Negative)</option>
+              <option value="healthy">Healthy (&gt;₹500)</option>
+            </select>
+            <select id="khata-sort" onchange="renderKhataTable()">
+              <option value="balance_desc">Highest Balance</option>
+              <option value="balance_asc">Lowest Balance</option>
+              <option value="az">A–Z</option>
+              <option value="za">Z–A</option>
+            </select>
+          </div>
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Balance</th><th>Actions</th></tr></thead>
@@ -865,11 +948,13 @@ function closeMo() {
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
 function closeSidebar()   { document.getElementById('sidebar').classList.remove('open'); }
 
+let _confirmCb = null;
 function confirmAction(msg, onConfirm) {
+  _confirmCb = onConfirm;
   openMo(`<div class="mo-title">⚠️ Confirm</div><p style="margin-bottom:20px">${msg}</p>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-danger" onclick="closeMo();(${onConfirm.toString()})()">Confirm</button>
+      <button class="btn btn-danger" onclick="closeMo();if(_confirmCb){var cb=_confirmCb;_confirmCb=null;cb();}">Confirm</button>
     </div>`);
 }
 
@@ -1026,14 +1111,40 @@ function renderOrdersTable(orders) {
   const search = (document.getElementById('order-search')?.value || '').toLowerCase();
   const sort   = document.getElementById('order-sort')?.value || 'newest';
   let filtered = [...orders];
+
+  // Status filter
   if (filter !== 'all') filtered = filtered.filter(o => o.order_status === filter);
+
+  // Search filter
   if (search) filtered = filtered.filter(o =>
     (o.order_id||'').toLowerCase().includes(search) ||
     (o.name||'').toLowerCase().includes(search) ||
     (o.phone||'').includes(search)
   );
-  if (sort === 'oldest') filtered.reverse();
-  if (sort === 'amount') filtered.sort((a,b) => (b.final_amount||0) - (a.final_amount||0));
+
+  // Date/time filters
+  if (sort === 'today') {
+    const todayIST = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+    filtered = filtered.filter(o => (o.date||'').startsWith(todayIST));
+  } else if (sort === 'morning') {
+    filtered = filtered.filter(o => {
+      const t = o.time || '';
+      const h = parseInt(t.split(':')[0]);
+      return !isNaN(h) && h < 15;
+    });
+  } else if (sort === 'evening') {
+    filtered = filtered.filter(o => {
+      const t = o.time || '';
+      const h = parseInt(t.split(':')[0]);
+      return !isNaN(h) && h >= 15;
+    });
+  } else if (sort === 'oldest') {
+    filtered.reverse();
+  } else if (sort === 'amount_desc') {
+    filtered.sort((a,b) => (b.final_amount||0) - (a.final_amount||0));
+  } else if (sort === 'amount_asc') {
+    filtered.sort((a,b) => (a.final_amount||0) - (b.final_amount||0));
+  }
 
   const riderOpts = _ridersCache.map(r =>
     `<option value="${r.rider_id}">${r.name}</option>`).join('');
@@ -1227,7 +1338,33 @@ async function loadMenu() {
 function renderMenuTable() {
   const tbody = document.getElementById('menu-tbody');
   if (!tbody) return;
-  tbody.innerHTML = _menuItems.length ? _menuItems.map(m => `
+
+  const search    = (document.getElementById('menu-search')?.value || '').toLowerCase();
+  const catFilter = (document.getElementById('menu-cat-filter')?.value || '').toLowerCase();
+  const status    = document.getElementById('menu-status-filter')?.value || '';
+  const sort      = document.getElementById('menu-sort')?.value || 'default';
+
+  let items = [..._menuItems];
+
+  if (search) items = items.filter(m =>
+    (m.name||'').toLowerCase().includes(search) ||
+    (m.category||'').toLowerCase().includes(search)
+  );
+  if (catFilter) items = items.filter(m => (m.category||'').toLowerCase().includes(catFilter));
+  if (status === 'active')   items = items.filter(m => m.is_active);
+  if (status === 'inactive') items = items.filter(m => !m.is_active);
+
+  if (sort === 'price_asc')  items.sort((a,b) => (a.price||0) - (b.price||0));
+  if (sort === 'price_desc') items.sort((a,b) => (b.price||0) - (a.price||0));
+  if (sort === 'name_az')    items.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'name_za')    items.sort((a,b) => (b.name||'').localeCompare(a.name||''));
+  if (sort === 'highlight')  items.sort((a,b) => {
+    const ha = a.highlight && a.highlight !== 'none' ? 0 : 1;
+    const hb = b.highlight && b.highlight !== 'none' ? 0 : 1;
+    return ha - hb;
+  });
+
+  tbody.innerHTML = items.length ? items.map(m => `
     <tr>
       <td>${m.image_url ? `<img src="${m.image_url}" style="width:40px;height:40px;border-radius:8px;object-fit:cover">` : '<div style="width:40px;height:40px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8"><i class="fa fa-image"></i></div>'}</td>
       <td><b>${m.name}</b>${m.variants?.length?`<br><small style="color:#94a3b8">${m.variants.length} variant(s)</small>`:''}</td>
@@ -1243,7 +1380,7 @@ function renderMenuTable() {
         </div>
       </td>
     </tr>`).join('') :
-    '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8">No menu items</td></tr>';
+    '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8">No menu items found</td></tr>';
 }
 
 async function updateStock(id, val) {
@@ -1493,7 +1630,27 @@ async function loadCoupons() {
 function renderCouponsTable() {
   const tbody = document.getElementById('coupons-tbody');
   if (!tbody) return;
-  tbody.innerHTML = _coupons.length ? _coupons.map(c => `
+
+  const typeFilter   = document.getElementById('coupon-type-filter')?.value || '';
+  const statusFilter = document.getElementById('coupon-status-filter')?.value || '';
+  const sort         = document.getElementById('coupon-sort')?.value || 'default';
+
+  let coupons = [..._coupons];
+
+  if (typeFilter)              coupons = coupons.filter(c => c.discount_type === typeFilter);
+  if (statusFilter === 'active')   coupons = coupons.filter(c => c.is_active);
+  if (statusFilter === 'inactive') coupons = coupons.filter(c => !c.is_active);
+
+  if (sort === 'most_used')  coupons.sort((a,b) => (b.used_count||0) - (a.used_count||0));
+  if (sort === 'least_used') coupons.sort((a,b) => (a.used_count||0) - (b.used_count||0));
+  if (sort === 'az')         coupons.sort((a,b) => (a.code||'').localeCompare(b.code||''));
+  if (sort === 'expiry')     coupons.sort((a,b) => {
+    if (!a.expiry_date) return 1;
+    if (!b.expiry_date) return -1;
+    return new Date(a.expiry_date) - new Date(b.expiry_date);
+  });
+
+  tbody.innerHTML = coupons.length ? coupons.map(c => `
     <tr>
       <td><code style="font-size:13px;background:#f1f5f9;padding:3px 8px;border-radius:6px">${c.code}</code></td>
       <td><span style="font-size:12px">${c.discount_type}</span></td>
@@ -1509,7 +1666,7 @@ function renderCouponsTable() {
         </div>
       </td>
     </tr>`).join('') :
-    '<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8">No coupons</td></tr>';
+    '<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8">No coupons found</td></tr>';
 }
 
 function openCouponModal() {
@@ -1577,7 +1734,32 @@ async function loadSubscribers() {
 function renderSubsTable() {
   const tbody = document.getElementById('subs-tbody');
   if (!tbody) return;
-  tbody.innerHTML = _subs.length ? _subs.map(s => `
+
+  const search       = (document.getElementById('subs-search')?.value || '').toLowerCase();
+  const statusFilter = document.getElementById('subs-status-filter')?.value || '';
+  const sort         = document.getElementById('subs-sort')?.value || 'default';
+
+  let subs = [..._subs];
+
+  if (search) subs = subs.filter(s =>
+    (s.name||'').toLowerCase().includes(search) ||
+    (s.phone||'').includes(search)
+  );
+  if (statusFilter === 'active') subs = subs.filter(s => !s.is_paused);
+  if (statusFilter === 'paused') subs = subs.filter(s => s.is_paused);
+
+  if (sort === 'az')          subs.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'za')          subs.sort((a,b) => (b.name||'').localeCompare(a.name||''));
+  if (sort === 'newest')      subs.sort((a,b) => new Date(b.plan_start||0) - new Date(a.plan_start||0));
+  if (sort === 'expiring')    subs.sort((a,b) => {
+    if (!a.plan_end) return 1;
+    if (!b.plan_end) return -1;
+    return new Date(a.plan_end) - new Date(b.plan_end);
+  });
+  if (sort === 'low_balance') subs.sort((a,b) => (a.balance||0) - (b.balance||0));
+  if (sort === 'paused_first') subs.sort((a,b) => (b.is_paused ? 1 : 0) - (a.is_paused ? 1 : 0));
+
+  tbody.innerHTML = subs.length ? subs.map(s => `
     <tr>
       <td><b>${s.name||'—'}</b></td>
       <td>${s.phone||'—'}</td>
@@ -1595,7 +1777,7 @@ function renderSubsTable() {
         </div>
       </td>
     </tr>`).join('') :
-    '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8">No subscribers</td></tr>';
+    '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8">No subscribers found</td></tr>';
 }
 
 async function findUserForPromote() {
@@ -1731,10 +1913,18 @@ async function loadUsers() {
 }
 
 function filterUsers() {
-  const q = (document.getElementById('users-search')?.value || '').toLowerCase();
-  const filtered = q ? _allUsers.filter(u =>
+  const q    = (document.getElementById('users-search')?.value || '').toLowerCase();
+  const sort = document.getElementById('users-sort')?.value || 'default';
+
+  let filtered = q ? _allUsers.filter(u =>
     (u.name||'').toLowerCase().includes(q) || (u.phone||'').includes(q)
-  ) : _allUsers;
+  ) : [..._allUsers];
+
+  if (sort === 'az')     filtered.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'za')     filtered.sort((a,b) => (b.name||'').localeCompare(a.name||''));
+  if (sort === 'newest') filtered.sort((a,b) => new Date(b.created_at||0) - new Date(a.created_at||0));
+  if (sort === 'oldest') filtered.sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+
   renderUsersTable(filtered);
 }
 
@@ -1930,7 +2120,27 @@ async function loadAllKhata() {
 function renderKhataTable() {
   const tbody = document.getElementById('khata-tbody');
   if (!tbody) return;
-  tbody.innerHTML = _khataList.length ? _khataList.map(k => `
+
+  const search        = (document.getElementById('khata-search')?.value || '').toLowerCase();
+  const balanceFilter = document.getElementById('khata-balance-filter')?.value || '';
+  const sort          = document.getElementById('khata-sort')?.value || 'balance_desc';
+
+  let list = [..._khataList];
+
+  if (search) list = list.filter(k =>
+    (k.name||'').toLowerCase().includes(search) ||
+    (k.phone||'').includes(search)
+  );
+  if (balanceFilter === 'low')     list = list.filter(k => (k.balance||0) >= 0 && (k.balance||0) < 200);
+  if (balanceFilter === 'udhar')   list = list.filter(k => (k.balance||0) < 0);
+  if (balanceFilter === 'healthy') list = list.filter(k => (k.balance||0) > 500);
+
+  if (sort === 'balance_desc') list.sort((a,b) => (b.balance||0) - (a.balance||0));
+  if (sort === 'balance_asc')  list.sort((a,b) => (a.balance||0) - (b.balance||0));
+  if (sort === 'az')           list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'za')           list.sort((a,b) => (b.name||'').localeCompare(a.name||''));
+
+  tbody.innerHTML = list.length ? list.map(k => `
     <tr style="cursor:pointer" onclick="openKhataDetail('${k.phone}','${k.name}')">
       <td><b>${k.name||'—'}</b></td>
       <td>${k.phone}</td>
@@ -1942,7 +2152,7 @@ function renderKhataTable() {
         </div>
       </td>
     </tr>`).join('') :
-    '<tr><td colspan="4" style="text-align:center;padding:40px;color:#94a3b8">No khata records</td></tr>';
+    '<tr><td colspan="4" style="text-align:center;padding:40px;color:#94a3b8">No khata records found</td></tr>';
 }
 
 async function openKhataDetail(phone, name) {
