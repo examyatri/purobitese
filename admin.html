@@ -2641,9 +2641,6 @@ function renderSubsTable() {
     const bal    = s.balance||0;
     const balColor = bal < 0 ? 'var(--p)' : (lowBal ? '#b45309' : 'var(--g)');
     const lowWarn = lowBal ? ' <i class="fa fa-triangle-exclamation" style="color:#f59e0b;font-size:10px" title="Low balance"></i>' : '';
-    const pauseToggleLabel = isSubPaused(s) ? 'Resume' : 'Pause';
-    const pauseToggleIcon  = isSubPaused(s) ? 'fa-play' : 'fa-pause';
-    const pauseToggleStyle = isSubPaused(s) ? 'background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0' : 'background:#fffbeb;color:#92400e;border:1.5px solid #fde68a';
     const addr = (s.address||'—').length > 28 ? (s.address||'').substring(0,28)+'…' : (s.address||'—');
     return `
     <tr class="${rowCls}">
@@ -2658,7 +2655,6 @@ function renderSubsTable() {
         <div style="display:flex;gap:5px;flex-wrap:wrap;min-width:200px">
           <button class="btn btn-outline" style="padding:5px 9px;font-size:11px" title="Edit" onclick="openSubEditModal('${s.phone}')"><i class="fa fa-edit"></i></button>
           <button class="btn btn-g" style="padding:5px 9px;font-size:11px" title="Recharge Wallet" onclick="openRechargeModal('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-wallet"></i> ₹+</button>
-          <button style="padding:5px 9px;font-size:11px;border-radius:9px;cursor:pointer;font-family:var(--ff);font-weight:600;${pauseToggleStyle}" title="${pauseToggleLabel}" onclick="openPauseModal('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa ${pauseToggleIcon}"></i> ${pauseToggleLabel}</button>
           <button class="btn btn-danger" style="padding:5px 9px;font-size:11px" title="Remove Subscription" onclick="removeSub('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-user-minus"></i></button>
           <button class="btn btn-danger" style="padding:5px 9px;font-size:11px;background:#3b0a0a;color:white;border-color:#3b0a0a" title="Delete User Completely" onclick="deleteSubUserCompletely('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-trash"></i></button>
         </div>
@@ -2668,49 +2664,6 @@ function renderSubsTable() {
   `<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8"><i class="fa fa-crown" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>No subscribers found</td></tr>`;
 }
 
-// ── Pause / Resume Modal ──────────────────────────────────
-function openPauseModal(phone, name) {
-  const s = _subs.find(x => x.phone === phone);
-  if (!s) return;
-  const pm = s.pause_morning || s.is_paused_morning;
-  const pe = s.pause_evening || s.is_paused_evening;
-  const both = s.is_paused && !pm && !pe;
-  openMo(`
-    <div class="mo-title"><i class="fa fa-pause-circle" style="color:var(--o)"></i> Pause / Resume — ${name}</div>
-    <p style="font-size:13px;color:#64748b;margin-bottom:20px">Choose which sessions to pause or resume for this subscriber.</p>
-    <div style="display:grid;gap:10px">
-      <div class="refund-opt" onclick="doTogglePause('${phone}','morning')" style="cursor:pointer;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;display:flex;align-items:center;gap:10px;transition:all .15s">
-        <i class="fa fa-sun" style="color:#f59e0b;font-size:18px;width:24px"></i>
-        <div><div style="font-weight:700;font-size:13.5px">Morning Tiffin</div><div style="font-size:12px;color:#94a3b8">${pm?'Currently Paused — click to resume':'Currently Active — click to pause'}</div></div>
-        <span style="margin-left:auto;font-size:11px;font-weight:700;background:${pm?'#fef9c3':'#dcfce7'};color:${pm?'#854d0e':'#166534'};padding:3px 10px;border-radius:20px">${pm?'Paused':'Active'}</span>
-      </div>
-      <div class="refund-opt" onclick="doTogglePause('${phone}','evening')" style="cursor:pointer;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;display:flex;align-items:center;gap:10px;transition:all .15s">
-        <i class="fa fa-moon" style="color:#6366f1;font-size:18px;width:24px"></i>
-        <div><div style="font-weight:700;font-size:13.5px">Evening Tiffin</div><div style="font-size:12px;color:#94a3b8">${pe?'Currently Paused — click to resume':'Currently Active — click to pause'}</div></div>
-        <span style="margin-left:auto;font-size:11px;font-weight:700;background:${pe?'#fef9c3':'#dcfce7'};color:${pe?'#854d0e':'#166534'};padding:3px 10px;border-radius:20px">${pe?'Paused':'Active'}</span>
-      </div>
-    </div>
-    <button class="btn btn-outline" style="margin-top:16px;width:100%" onclick="closeMo()">Close</button>`);
-}
-
-async function doTogglePause(phone, session) {
-  const s = _subs.find(x => x.phone === phone);
-  if (!s) return;
-  const isPaused = session === 'morning'
-    ? (s.pause_morning || s.is_paused_morning)
-    : (s.pause_evening || s.is_paused_evening);
-  const action = isPaused ? 'resume' : 'pause';
-  try {
-    await api('toggleSubPause', { phone, session, action });
-    closeMo(); loadSubscribers(); aToast(`${action === 'pause' ? 'Paused' : 'Resumed'} ${session} ✅`);
-  } catch(e) {
-    // Fallback: try legacy single pause toggle
-    try {
-      await api('updateSubscriber', { phone, is_paused: !s.is_paused });
-      closeMo(); loadSubscribers(); aToast(`Subscription ${!s.is_paused ? 'paused' : 'resumed'} ✅`);
-    } catch(e2) { aToast(e2.message); }
-  }
-}
 
 // ── Promote User Modal ────────────────────────────────────
 function openPromoteUserModal() {

@@ -144,7 +144,6 @@ textarea{resize:vertical;min-height:80px}
 /* Cutoff banner */
 /* cutoff-banner defined below */
 /* Sub plan banner */
-.sub-plan-banner{background:var(--grad);border-radius:14px;padding:12px 14px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 /* Monthly plan card */
 .monthly-plan-card{background:linear-gradient(135deg,#ff8c42 0%,#e76f51 50%,#c1440e 100%);border-radius:18px;padding:16px 18px;color:#fff;display:flex;align-items:center;gap:14px;margin-bottom:12px;cursor:pointer;box-shadow:0 8px 24px rgba(231,111,81,.45);position:relative;overflow:hidden;transition:transform 150ms,box-shadow 150ms}
 .monthly-plan-card:active{transform:scale(.98)}
@@ -488,14 +487,6 @@ textarea{resize:vertical;min-height:80px}
       <!-- Cutoff banner -->
       <div id="cutoff-banner" style="display:none"></div>
 
-      <!-- Sub plan banner -->
-      <div class="sub-plan-banner sub-only" id="sub-plan-banner" style="display:none">
-        <div>
-          <div style="font-family:var(--ff);font-weight:700;font-size:14px">Your Tiffin Plan</div>
-          <div id="sub-plan-dates" style="font-family:var(--fb);font-size:12px;opacity:.85;margin-top:2px"></div>
-        </div>
-        <div id="sub-plan-status-chip" style="background:rgba(255,255,255,.2);border-radius:8px;padding:4px 10px;font-family:var(--ff);font-size:12px;font-weight:700">Active ✓</div>
-      </div>
 
       <!-- Search -->
       <div class="search-wrap">
@@ -1325,15 +1316,7 @@ function applyPauseState(mode) {
                               'All bulk orders off — tap to resume';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
-  // Update home banner status chip
-  const bannerChip = document.getElementById('sub-plan-status-chip');
-  if (bannerChip) {
-    bannerChip.textContent =
-      _pauseMode === 'none'   ? 'Active ✓' :
-      _pauseMode === 'lunch'  ? '⏸ Morning Off' :
-      _pauseMode === 'dinner' ? '⏸ Evening Off' : '⏸ Paused';
-    bannerChip.style.background = isPaused ? 'rgba(0,0,0,.25)' : 'rgba(255,255,255,.2)';
-  }
+  // sub-plan-banner removed — status driven by Auto Tiffin card only
 }
 
 function togglePw(inputId, btn) {
@@ -2603,15 +2586,7 @@ function _applySubscriberUI() {
   const _planCard = document.getElementById('monthly-plan-card');
   if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? 'flex' : 'none';
   if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
-  // Sub plan banner
-  // Sub plan banner — show plan type, start date, and live pause status
-  if (u.is_subscriber) {
-    document.getElementById('sub-plan-banner').style.display = 'flex';
-    const planMap = { morning:'☀️ Morning Tiffin', evening:'🌙 Evening Tiffin', both:'☀️🌙 Both Tiffins' };
-    const planLabel = planMap[u.plan] || (u.plan ? u.plan : 'Tiffin Plan');
-    const sinceLabel = u.plan_start ? 'Since ' + fmtDate(u.plan_start) : 'Active';
-    document.getElementById('sub-plan-dates').textContent = planLabel + ' · ' + sinceLabel;
-  }
+  // Sub plan banner removed — Auto Tiffin card is single source of truth
 }
 async function bootApp() {
   document.getElementById('app-loader').style.display = 'flex';
