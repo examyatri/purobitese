@@ -1618,7 +1618,7 @@ function renderMenuItems(items) {
     const varRow = hasVariants
       ? `<div class="variants-row" id="vrow-${item.item_id}">` +
         variants.map((v, vi) =>
-          `<button class="variant-pill${vi===(_variantState[String(item.item_id)]??0)?' active':''}" onclick="selectVariant(${item.item_id},${vi},this)">${v.label} ₹${v.price}</button>`
+          `<button class="variant-pill${vi===(_variantState[String(item.item_id)]??0)?' active':''}" onclick="selectVariant('${item.item_id}',${vi},this)">${v.label} ₹${v.price}</button>`
         ).join('') + '</div>' : '';
     const cartItem = Cart.get().find(c => c.item_id === item.item_id);
     const cartQty = cartItem ? cartItem.qty : 0;
@@ -1661,7 +1661,7 @@ function selectVariant(itemId, variantIdx, btn) {
   row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === variantIdx));
   _variantState[String(itemId)] = variantIdx; // persist selection
   // Update price display
-  const item = _fullMenu.find(i => i.item_id === itemId);
+  const item = _fullMenu.find(i => String(i.item_id) === String(itemId));
   if (!item) return;
   const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
   if (variants && variants[variantIdx]) {
