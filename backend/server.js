@@ -878,7 +878,57 @@ app.post('/api', async (req, res) => {
       }
 
       case 'assignRider': {
-        await supabase.from('orders').update({ rider_id: data.riderId }).eq('order_id', data.orderId);
+        const updates = { rider_id: data.riderId };
+        // Also update rider_name so it shows correctly in rider panel and admin table
+        if (data.riderId) {
+          const { data: riderRow } = await supabase.from('riders').select('name').eq('rider_id', data.riderId).single();
+          if (riderRow?.name) updates.rider_name = riderRow.name;
+        }
+        await supabase.from('orders').update(updates).eq('order_id', data.orderId);
+        return res.json({ success: true });
+      }
+
+      case 'bulkUpdateOrder': {
+        // Combined update: rider, order_status, payment_status — all optional
+        const bulkUpdates = {};
+
+        if (data.riderId) {
+          bulkUpdates.rider_id = data.riderId;
+          const { data: riderRow } = await supabase.from('riders').select('name').eq('rider_id', data.riderId).single();
+          if (riderRow?.name) bulkUpdates.rider_name = riderRow.name;
+        }
+
+        if (data.orderStatus) {
+          const rawStatus = (data.orderStatus || '').toLowerCase().trim();
+          const statusMap = {
+            'out for delivery': 'out for delivery',
+            'out_for_delivery': 'out for delivery',
+            'pending':   'pending',
+            'confirmed': 'confirmed',
+            'preparing': 'preparing',
+            'delivered': 'delivered',
+            'rejected':  'rejected',
+            'cancelled': 'cancelled'
+          };
+          const normalizedStatus = statusMap[rawStatus];
+          if (normalizedStatus) {
+            bulkUpdates.order_status = normalizedStatus;
+            // Sync khata entry if delivered
+            if (normalizedStatus === 'delivered') {
+              await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
+            }
+          }
+        }
+
+        if (data.paymentStatus) {
+          bulkUpdates.payment_status = data.paymentStatus;
+        }
+
+        if (Object.keys(bulkUpdates).length === 0) {
+          return res.json({ success: false, error: 'Nothing to update' });
+        }
+
+        await supabase.from('orders').update(bulkUpdates).eq('order_id', data.orderId);
         return res.json({ success: true });
       }
 
