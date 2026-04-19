@@ -143,6 +143,20 @@ function formatOrder(o) {
   };
 }
 
+// Fetch all active riders once and inject rider_name into orders by matching rider_id.
+// This is the correct approach since orders table has no rider_name column.
+async function resolveRiderNames(orders) {
+  if (!orders || orders.length === 0) return orders;
+  const { data: riders } = await supabase.from('riders').select('rider_id, name');
+  if (!riders || riders.length === 0) return orders;
+  const riderMap = {};
+  riders.forEach(r => { riderMap[r.rider_id] = r.name; });
+  return orders.map(o => ({
+    ...o,
+    rider_name: o.rider_id ? (riderMap[o.rider_id] || o.rider_name || null) : null
+  }));
+}
+
 function formatMenuItem(i) {
   return {
     ...i,
@@ -602,7 +616,9 @@ app.post('/api', async (req, res) => {
         if (data.date) query = query.eq('date', data.date);
         query = query.order('created_at', { ascending: false });
         const { data: rows } = await query;
-        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+        const formatted = (rows || []).map(formatOrder);
+        const resolved = await resolveRiderNames(formatted);
+        return res.json({ success: true, orders: resolved });
       }
 
       case 'getOrdersByDate': {
@@ -610,7 +626,9 @@ app.post('/api', async (req, res) => {
           .from('orders').select('*')
           .eq('date', data.date)
           .order('created_at', { ascending: false });
-        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+        const formatted = (rows || []).map(formatOrder);
+        const resolved = await resolveRiderNames(formatted);
+        return res.json({ success: true, orders: resolved });
       }
 
       case 'updateOrderStatus': {
@@ -879,11 +897,6 @@ app.post('/api', async (req, res) => {
 
       case 'assignRider': {
         const updates = { rider_id: data.riderId };
-        // Also update rider_name so it shows correctly in rider panel and admin table
-        if (data.riderId) {
-          const { data: riderRow } = await supabase.from('riders').select('name').eq('rider_id', data.riderId).single();
-          if (riderRow?.name) updates.rider_name = riderRow.name;
-        }
         await supabase.from('orders').update(updates).eq('order_id', data.orderId);
         return res.json({ success: true });
       }
@@ -894,8 +907,8 @@ app.post('/api', async (req, res) => {
 
         if (data.riderId) {
           bulkUpdates.rider_id = data.riderId;
-          const { data: riderRow } = await supabase.from('riders').select('name').eq('rider_id', data.riderId).single();
-          if (riderRow?.name) bulkUpdates.rider_name = riderRow.name;
+          // Note: rider_name column does not exist in orders table.
+          // rider_name is resolved at read time via resolveRiderNames().
         }
 
         if (data.orderStatus) {
@@ -913,7 +926,6 @@ app.post('/api', async (req, res) => {
           const normalizedStatus = statusMap[rawStatus];
           if (normalizedStatus) {
             bulkUpdates.order_status = normalizedStatus;
-            // Sync khata entry if delivered
             if (normalizedStatus === 'delivered') {
               await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
             }
@@ -928,7 +940,8 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Nothing to update' });
         }
 
-        await supabase.from('orders').update(bulkUpdates).eq('order_id', data.orderId);
+        const { error: updateErr } = await supabase.from('orders').update(bulkUpdates).eq('order_id', data.orderId);
+        if (updateErr) return res.json({ success: false, error: updateErr.message });
         return res.json({ success: true });
       }
 
@@ -1174,7 +1187,9 @@ app.post('/api', async (req, res) => {
           .eq('rider_id', data.riderId)
           .gte('date', twoDaysAgo)
           .order('created_at', { ascending: false });
-        return res.json({ success: true, orders: (rows || []).map(formatOrder) });
+        const formatted = (rows || []).map(formatOrder);
+        const resolved = await resolveRiderNames(formatted);
+        return res.json({ success: true, orders: resolved });
       }
 
       case 'getRiders': {
