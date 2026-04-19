@@ -1558,10 +1558,12 @@ function filterAndRenderMenu() {
 }
 
 function getHighlightBadge(item) {
-  if (item.is_bestseller) return '<span class="highlight-badge">⭐ Bestseller</span>';
-  if (item.is_chefs_special) return '<span class="highlight-badge">👨‍🍳 Chef\'s Special</span>';
-  if (item.is_recommended) return '<span class="highlight-badge">🔥 Recommended</span>';
-  if (item.is_new) return '<span class="highlight-badge">🆕 New</span>';
+  const h = item.highlight;
+  if (!h || h === 'none') return '';
+  if (h === 'bestseller')  return '<span class="highlight-badge">⭐ Bestseller</span>';
+  if (h === 'chef')        return '<span class="highlight-badge">👨‍🍳 Chef\'s Special</span>';
+  if (h === 'recommended') return '<span class="highlight-badge">🔥 Recommended</span>';
+  if (h === 'new')         return '<span class="highlight-badge">🆕 New</span>';
   return '';
 }
 

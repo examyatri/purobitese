@@ -1575,7 +1575,7 @@ function renderSubsTable() {
       <td style="font-size:12px;max-width:140px">${s.address||'—'}</td>
       <td style="font-size:12px">${fmtDate(s.plan_start)}</td>
       <td style="font-size:12px">${fmtDate(s.plan_end)}</td>
-      <td><b style="color:${(s.wallet_balance||0)>=0?'var(--g)':'var(--p)'}">₹${s.wallet_balance||0}</b></td>
+      <td><b style="color:${(s.balance||0)>=0?'var(--g)':'var(--p)'}">₹${s.balance||0}</b></td>
       <td>${s.is_paused?'<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:20px">Paused</span>':'<span style="font-size:11px;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:20px">Active</span>'}</td>
       <td>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1912,7 +1912,7 @@ async function loadAllKhata() {
   try {
     npStart();
     const res = await api('getAllKhata');
-    _khataList = (res.khata || []).sort((a,b) => (b.wallet_balance||0) - (a.wallet_balance||0));
+    _khataList = (res.khata || []).sort((a,b) => (b.balance||0) - (a.balance||0));
     renderKhataTable();
     npDone();
   } catch(e) { npDone(); aToast('Khata load failed'); }
@@ -1925,7 +1925,7 @@ function renderKhataTable() {
     <tr style="cursor:pointer" onclick="openKhataDetail('${k.phone}','${k.name}')">
       <td><b>${k.name||'—'}</b></td>
       <td>${k.phone}</td>
-      <td><b style="color:${(k.wallet_balance||0)>=0?'var(--g)':'var(--p)'}">₹${k.wallet_balance||0}</b></td>
+      <td><b style="color:${(k.balance||0)>=0?'var(--g)':'var(--p)'}">₹${k.balance||0}</b></td>
       <td>
         <div style="display:flex;gap:6px">
           <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="event.stopPropagation();openKhataDetail('${k.phone}','${k.name}')"><i class="fa fa-eye"></i></button>
