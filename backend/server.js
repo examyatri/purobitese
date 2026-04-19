@@ -380,6 +380,17 @@ app.post('/api', async (req, res) => {
           password_hash: hash,
           created_at:    createdAt
         });
+        // ── Fire new-user notification so admin can send welcome coupon ──
+        try {
+          await _createNotification({
+            type:     'user',
+            priority: 'normal',
+            group_id: phone,
+            title:    `New user joined: ${data.name}`,
+            body:     `${data.name} (${phone}) just registered${data.address ? ' — ' + data.address : ''}`,
+            meta:     { phone, name: data.name, address: data.address || '', email: data.email || '' }
+          });
+        } catch(_) {}
         return res.json({
           success: true,
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
@@ -1477,12 +1488,21 @@ app.post('/api', async (req, res) => {
       // ── NEW USER COUPON ───────────────────────────────────────────────────
 
       case 'getNuCouponPending': {
-        // Users registered in last 7 days who haven't been sent a coupon yet
-        const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-        const { data: newUsers } = await supabase.from('users').select('phone, name, created_at').gte('created_at', sevenDaysAgo);
+        // Fetch unread new-user notifications, cross-reference with nu_coupon_sent
+        const { data: notifRows } = await supabase
+          .from('notifications')
+          .select('id, meta, created_at')
+          .eq('type', 'user')
+          .eq('is_read', false)
+          .order('created_at', { ascending: false });
         const { data: sentRows } = await supabase.from('nu_coupon_sent').select('phone');
         const sentPhones = new Set((sentRows || []).map(r => r.phone));
-        const pending = (newUsers || []).filter(u => !sentPhones.has(u.phone));
+        const pending = (notifRows || [])
+          .map(n => {
+            let meta = {}; try { meta = typeof n.meta === 'string' ? JSON.parse(n.meta) : (n.meta || {}); } catch(_) {}
+            return { phone: meta.phone, name: meta.name, address: meta.address, notif_id: n.id, created_at: n.created_at };
+          })
+          .filter(u => u.phone && !sentPhones.has(u.phone));
         return res.json({ success: true, records: pending });
       }
 
@@ -1491,11 +1511,19 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, records: rows || [] });
       }
 
+      case 'addNuCouponPending': {
+        // No-op stored handler — pending list is derived from unread notifications.
+        // This is a safe stub so admin.html's saveAndSendCoupon() doesn't error.
+        return res.json({ success: true });
+      }
+
       case 'markNuCouponSent': {
         await supabase.from('nu_coupon_sent').upsert({
           phone:       cleanPhone(data.phone),
+          name:        data.name || null,
           sent_at:     new Date().toISOString(),
-          coupon_code: data.coupon_code
+          coupon_code: data.coupon_code || null,
+          notif_id:    data.notif_id || null
         }, { onConflict: 'phone' });
         return res.json({ success: true });
       }
@@ -1671,10 +1699,15 @@ app.post('/api', async (req, res) => {
           await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
           return res.json({ success: true }); }
 
-      case 'deleteNotificationRange':
-        { await supabase.from('notifications').delete()
-            .gte('created_at', data.from).lte('created_at', data.to);
-          return res.json({ success: true }); }
+      case 'deleteNotificationRange': {
+        // Respects read_only flag — only deletes read notifications, never unread
+        let query = supabase.from('notifications').delete()
+          .gte('created_at', data.from)
+          .lte('created_at', data.to + 'T23:59:59.999Z');
+        if (data.read_only !== false) query = query.eq('is_read', true);
+        const { count } = await query;
+        return res.json({ success: true, deleted: count || 0 });
+      }
 
       case 'previewCleanup':
         { const type = (data.type || '').toLowerCase();
