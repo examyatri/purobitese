@@ -414,7 +414,7 @@ app.post('/api', async (req, res) => {
       }
 
       case 'addMenuItem': {
-        await supabase.from('menu_items').insert({
+        const { error: miErr } = await supabase.from('menu_items').insert({
           item_id:     data.item_id || generateId('ITEM', ist),
           name:        data.name,
           category:    data.category,
@@ -423,10 +423,11 @@ app.post('/api', async (req, res) => {
           price:       data.price,
           highlight:   data.highlight || null,
           sort_order:  data.sort_order || 99,
-          is_active:   true,
+          is_active:   data.is_active !== undefined ? data.is_active : true,
           stock_grams: data.stock_grams ?? null,
           created_at:  new Date().toISOString()
         });
+        if (miErr) throw new Error(miErr.message || 'Failed to add menu item');
         return res.json({ success: true });
       }
 
@@ -1279,11 +1280,15 @@ app.post('/api', async (req, res) => {
             discount_value:    data.discount_value,
             expiry_date:       data.expiry_date || null,
             is_active:         true,
+            min_order:         data.min_order ?? null,
+            min_order_amount:  data.min_order ?? null,
+            max_usage:         data.max_usage ?? null,
+            total_usage_limit: data.max_usage ?? null,
             per_user_limit:    data.per_user_limit ?? null,
-            total_usage_limit: data.total_usage_limit ?? null,
-            min_order_amount:  data.min_order_amount ?? null,
             max_cap:           data.max_cap ?? null,
+            used_count:        0,
             usage_count:       0,
+            used_by:           '[]',
             created_at:        new Date().toISOString()
           });
           return res.json({ success: true }); }
