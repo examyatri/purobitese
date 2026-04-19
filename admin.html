@@ -466,8 +466,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <option value="amount_desc">Amount ↓</option>
               <option value="amount_asc">Amount ↑</option>
               <option value="today">Today Only</option>
-              <option value="morning">Morning (before 3PM)</option>
-              <option value="evening">Evening (3PM+)</option>
+              <option value="morning">Morning Slot</option>
+              <option value="evening">Evening Slot</option>
             </select>
           </div>
         </div>
@@ -1126,11 +1126,27 @@ function _getEveningCutoff(dateStr) {
   return daySched.dinnerEnd || null; // e.g. "20:00"
 }
 
-// Helper: convert "HH:MM" to total minutes
-function _toMins(hhmm) {
-  if (!hhmm) return null;
-  const [h, m] = hhmm.split(':').map(Number);
-  return h * 60 + m;
+// Helper: convert time string to total minutes.
+// Handles both 24h "HH:MM" and 12h "HH:MM AM/PM" formats.
+function _toMins(timeStr) {
+  if (!timeStr) return null;
+  const s = String(timeStr).trim();
+  // 12-hour format: "02:30 PM" or "02:30PM"
+  const match12 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (match12) {
+    let h = parseInt(match12[1], 10);
+    const m = parseInt(match12[2], 10);
+    const ampm = match12[3].toUpperCase();
+    if (ampm === 'AM' && h === 12) h = 0;
+    if (ampm === 'PM' && h !== 12) h += 12;
+    return h * 60 + m;
+  }
+  // 24-hour format: "14:30"
+  const match24 = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    return parseInt(match24[1], 10) * 60 + parseInt(match24[2], 10);
+  }
+  return null;
 }
 
 async function loadOrders() {
@@ -1186,8 +1202,9 @@ function renderOrdersTable(orders) {
     filtered = filtered.filter(o => {
       if ((o.order_source || '') === 'admin') return (o.slot || 'morning') === 'morning';
       const cutoffMins = _toMins(_getMorningCutoff(o.date));
-      if (cutoffMins === null) return false;
+      if (cutoffMins === null) return true; // no schedule = show all customer orders in morning
       const orderMins = _toMins(o.time || '00:00');
+      if (orderMins === null) return true;
       return orderMins <= cutoffMins;
     });
   } else if (sort === 'evening') {
@@ -1199,6 +1216,7 @@ function renderOrdersTable(orders) {
       const eveningMins = _toMins(_getEveningCutoff(o.date));
       if (morningMins === null || eveningMins === null) return false;
       const orderMins = _toMins(o.time || '00:00');
+      if (orderMins === null) return false;
       return orderMins > morningMins && orderMins <= eveningMins;
     });
   } else if (sort === 'oldest') {
