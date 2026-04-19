@@ -566,9 +566,20 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         </div>
         <div class="filter-bar">
           <select id="coupon-type-filter" onchange="renderCouponsTable()">
-            <option value="">All Types</option>
+            <option value="">All Discount Types</option>
             <option value="percent">Percent (%)</option>
+            <option value="percent_cap">Percent + Cap</option>
             <option value="flat">Flat (₹)</option>
+          </select>
+          <select id="coupon-restriction-filter" onchange="renderCouponsTable()">
+            <option value="">All Restrictions</option>
+            <option value="unlimited">Unlimited</option>
+            <option value="one_time_per_user">1x Per User</option>
+            <option value="one_time_total">1x Total</option>
+            <option value="limited_total">Limited Total</option>
+            <option value="per_user_limit">Per User Limit</option>
+            <option value="specific_phone">Specific Phone</option>
+            <option value="new_users_only">New Users Only</option>
           </select>
           <select id="coupon-status-filter" onchange="renderCouponsTable()">
             <option value="">All Status</option>
@@ -576,7 +587,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <option value="inactive">Inactive Only</option>
           </select>
           <select id="coupon-sort" onchange="renderCouponsTable()">
-            <option value="default">Default</option>
+            <option value="default">Newest First</option>
             <option value="most_used">Most Used</option>
             <option value="least_used">Least Used</option>
             <option value="expiry">Expiry Soonest</option>
@@ -586,7 +597,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <div class="card">
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Min Order</th><th>Max Usage</th><th>Used</th><th>Expiry</th><th>Active</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Code</th><th>Discount</th><th>Value</th><th>Restriction</th><th>Min Order</th><th>Limit</th><th>Used</th><th>Expiry</th><th>Active</th><th>Actions</th></tr></thead>
               <tbody id="coupons-tbody"></tbody>
             </table>
           </div>
@@ -1082,17 +1093,32 @@ async function _loadStatDetail(type) {
 }
 
 // ─── ORDERS ───────────────────────────────────────────────
-let _allOrders = [], _ordersStr = '', _ridersCache = [];
+let _allOrders = [], _ordersStr = '', _ridersCache = [], _weeklySchedule = [];
+
+// Helper: get morning cutoff (lunchEnd) for a given date string "YYYY-MM-DD"
+// Returns "HH:MM" or null if not found
+function _getMorningCutoff(dateStr) {
+  if (!dateStr) return null;
+  const dow = new Date(dateStr + 'T00:00:00').getDay(); // 0=Sun…6=Sat
+  const daySched = _weeklySchedule[dow];
+  if (!daySched) return null;
+  return daySched.lunchEnd || null; // e.g. "12:00"
+}
 
 async function loadOrders() {
   try {
     npStart();
-    const [oRes, rRes] = await Promise.all([api('adminGetOrders'), api('getRiders').catch(()=>({riders:[]}))]);
+    const [oRes, rRes, sRes] = await Promise.all([
+      api('adminGetOrders'),
+      api('getRiders').catch(()=>({riders:[]})),
+      api('getSettings').catch(()=>({}))
+    ]);
     const newStr = JSON.stringify(oRes.orders);
     if (newStr === _ordersStr) { npDone(); return; }
     _ordersStr = newStr;
     _allOrders = oRes.orders || [];
     _ridersCache = rRes.riders || [];
+    _weeklySchedule = sRes.settings?.weeklySchedule || [];
     renderOrdersTable(_allOrders);
     npDone();
   } catch(e) { npDone(); aToast('Orders load failed'); }
@@ -1127,16 +1153,28 @@ function renderOrdersTable(orders) {
     const todayIST = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
     filtered = filtered.filter(o => (o.date||'').startsWith(todayIST));
   } else if (sort === 'morning') {
+    // Morning = admin/bulk-created orders OR customer orders placed at/before lunchEnd cutoff for that day
     filtered = filtered.filter(o => {
-      const t = o.time || '';
-      const h = parseInt(t.split(':')[0]);
-      return !isNaN(h) && h < 15;
+      if ((o.order_source || '') === 'admin') return true; // bulk/admin orders are always morning
+      const cutoff = _getMorningCutoff(o.date);
+      if (!cutoff) return false; // no schedule for this day → exclude
+      const [ch, cm] = cutoff.split(':').map(Number);
+      const [oh, om] = (o.time || '00:00').split(':').map(Number);
+      const cutoffMins = ch * 60 + cm;
+      const orderMins  = oh * 60 + om;
+      return orderMins <= cutoffMins;
     });
   } else if (sort === 'evening') {
+    // Evening = customer orders placed AFTER lunchEnd cutoff for that day
     filtered = filtered.filter(o => {
-      const t = o.time || '';
-      const h = parseInt(t.split(':')[0]);
-      return !isNaN(h) && h >= 15;
+      if ((o.order_source || '') === 'admin') return false; // admin/bulk orders are morning
+      const cutoff = _getMorningCutoff(o.date);
+      if (!cutoff) return false; // no schedule → exclude
+      const [ch, cm] = cutoff.split(':').map(Number);
+      const [oh, om] = (o.time || '00:00').split(':').map(Number);
+      const cutoffMins = ch * 60 + cm;
+      const orderMins  = oh * 60 + om;
+      return orderMins > cutoffMins;
     });
   } else if (sort === 'oldest') {
     filtered.reverse();
@@ -1637,9 +1675,11 @@ function renderCouponsTable() {
 
   let coupons = [..._coupons];
 
-  if (typeFilter)              coupons = coupons.filter(c => c.discount_type === typeFilter);
-  if (statusFilter === 'active')   coupons = coupons.filter(c => c.is_active);
-  if (statusFilter === 'inactive') coupons = coupons.filter(c => !c.is_active);
+  const restrictionFilter = document.getElementById('coupon-restriction-filter')?.value || '';
+  if (typeFilter)                    coupons = coupons.filter(c => c.discount_type === typeFilter);
+  if (restrictionFilter)             coupons = coupons.filter(c => (c.restriction_type||'unlimited') === restrictionFilter);
+  if (statusFilter === 'active')     coupons = coupons.filter(c => c.is_active);
+  if (statusFilter === 'inactive')   coupons = coupons.filter(c => !c.is_active);
 
   if (sort === 'most_used')  coupons.sort((a,b) => (b.used_count||0) - (a.used_count||0));
   if (sort === 'least_used') coupons.sort((a,b) => (a.used_count||0) - (b.used_count||0));
@@ -1650,59 +1690,150 @@ function renderCouponsTable() {
     return new Date(a.expiry_date) - new Date(b.expiry_date);
   });
 
-  tbody.innerHTML = coupons.length ? coupons.map(c => `
-    <tr>
-      <td><code style="font-size:13px;background:#f1f5f9;padding:3px 8px;border-radius:6px">${c.code}</code></td>
-      <td><span style="font-size:12px">${c.discount_type}</span></td>
-      <td>${c.discount_type==='percent'?c.discount_value+'%':'₹'+c.discount_value}</td>
-      <td>₹${c.min_order||0}</td>
-      <td>${c.max_usage||'∞'}</td>
-      <td>${c.used_count||0}</td>
-      <td style="font-size:12px">${fmtDate(c.expiry_date)}</td>
-      <td><label class="toggle-sw"><input type="checkbox" ${c.is_active?'checked':''} onchange="toggleCoupon(${c.id},this.checked)"><span class="toggle-sl"></span></label></td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteCoupon(${c.id})"><i class="fa fa-trash"></i></button>
-        </div>
-      </td>
-    </tr>`).join('') :
-    '<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8">No coupons found</td></tr>';
+  const rtypeLabel = { unlimited:'Unlimited', one_time_per_user:'1x/User', one_time_total:'1x Total', limited_total:'Limited', per_user_limit:'Per User', specific_phone:'Specific #', new_users_only:'New Users' };
+  const rtypeBadge = { unlimited:'#64748b', one_time_per_user:'#7c3aed', one_time_total:'#dc2626', limited_total:'#d97706', per_user_limit:'#0891b2', specific_phone:'#059669', new_users_only:'#db2777' };
+  tbody.innerHTML = coupons.length ? coupons.map(c => {
+    const isPercCap = c.discount_type === 'percent_cap';
+    const isPercent = c.discount_type === 'percent' || isPercCap;
+    let valueStr = isPercent ? c.discount_value + '%' : '₹' + c.discount_value;
+    if (isPercCap && c.cap_amount) valueStr += ' <span style="font-size:11px;color:#64748b">upto ₹' + c.cap_amount + '</span>';
+    const rtype = c.restriction_type || 'unlimited';
+    const limitStr = (c.max_usage || c.total_usage_limit) ? (c.max_usage || c.total_usage_limit) : (rtype === 'unlimited' ? '∞' : '—');
+    return '<tr>' +
+      '<td><code style="font-size:13px;background:#f1f5f9;padding:3px 8px;border-radius:6px">' + c.code + '</code></td>' +
+      '<td><span style="font-size:11px;background:' + (isPercent ? '#fef3c7' : '#dbeafe') + ';color:' + (isPercent ? '#92400e' : '#1e40af') + ';padding:2px 7px;border-radius:10px">' + c.discount_type + '</span></td>' +
+      '<td>' + valueStr + '</td>' +
+      '<td><span style="font-size:11px;background:' + (rtypeBadge[rtype] || '#64748b') + '22;color:' + (rtypeBadge[rtype] || '#64748b') + ';padding:2px 7px;border-radius:10px">' + (rtypeLabel[rtype] || rtype) + '</span></td>' +
+      '<td>₹' + (c.min_order || 0) + '</td>' +
+      '<td>' + limitStr + '</td>' +
+      '<td>' + (c.used_count || 0) + '</td>' +
+      '<td style="font-size:12px">' + fmtDate(c.expiry_date) + '</td>' +
+      '<td><label class="toggle-sw"><input type="checkbox" ' + (c.is_active ? 'checked' : '') + ' onchange="toggleCoupon(' + c.id + ',this.checked)"><span class="toggle-sl"></span></label></td>' +
+      '<td><div style="display:flex;gap:6px"><button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteCoupon(' + c.id + ')"><i class="fa fa-trash"></i></button></div></td>' +
+      '</tr>';
+  }).join('') :
+    '<tr><td colspan="10" style="text-align:center;padding:40px;color:#94a3b8">No coupons found</td></tr>';
 }
 
 function openCouponModal() {
   openMo(`
-    <div class="mo-title">Add Coupon</div>
-    <div class="field"><label>Code</label><input id="cf-code" placeholder="SAVE20" oninput="this.value=this.value.toUpperCase()"></div>
-    <div class="field"><label>Discount Type</label>
-      <select id="cf-type">
-        <option value="percent">Percent (%)</option>
-        <option value="flat">Flat (₹)</option>
-      </select>
+    <div class="mo-title" style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">🎟️</span> Add Coupon</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field" style="grid-column:1/-1"><label>Coupon Code</label><input id="cf-code" placeholder="e.g. SAVE20" oninput="this.value=this.value.toUpperCase()" style="font-family:monospace;letter-spacing:2px;font-weight:700;font-size:15px"></div>
+
+      <div class="field"><label>Discount Type</label>
+        <select id="cf-type" onchange="couponTypeToggle()">
+          <option value="percent">Percent (e.g. 20%)</option>
+          <option value="percent_cap">Percent + Cap (e.g. 20% upto ₹70)</option>
+          <option value="flat">Flat Amount (e.g. ₹50 off)</option>
+        </select>
+      </div>
+      <div class="field"><label id="cf-val-label">Discount Value (%)</label><input id="cf-val" type="number" min="0" placeholder="20"></div>
+      <div class="field" id="cf-cap-wrap" style="display:none"><label>Cap Amount (₹)</label><input id="cf-cap" type="number" min="0" placeholder="70"></div>
+
+      <div class="field" style="grid-column:1/-1"><label>Restriction Type</label>
+        <select id="cf-rtype" onchange="couponRtypeToggle()">
+          <option value="unlimited">♾️ Unlimited — anyone, any number of times</option>
+          <option value="one_time_per_user">👤 One time per user</option>
+          <option value="one_time_total">1️⃣ One time total (first come first serve)</option>
+          <option value="limited_total">🔢 Limited total uses</option>
+          <option value="per_user_limit">🔁 Custom per-user limit</option>
+          <option value="specific_phone">📱 Specific phone number(s) only</option>
+          <option value="new_users_only">🆕 New users only (registered ≤30 days)</option>
+        </select>
+      </div>
+      <div class="field" id="cf-maxuse-wrap"><label id="cf-maxuse-label">Total Usage Limit</label><input id="cf-maxuse" type="number" min="1" placeholder="e.g. 100"></div>
+      <div class="field" id="cf-peruser-wrap" style="display:none"><label>Uses Per User</label><input id="cf-peruser" type="number" min="1" placeholder="e.g. 3"></div>
+      <div class="field" id="cf-phones-wrap" style="grid-column:1/-1;display:none"><label>Allowed Phone Numbers (one per line or comma-separated)</label><textarea id="cf-phones" rows="3" placeholder="9876543210&#10;9123456789" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;font-family:monospace;resize:vertical"></textarea></div>
+
+      <div class="field"><label>Min Order Amount (₹)</label><input id="cf-min" type="number" value="0" min="0"></div>
+      <div class="field"><label>Expiry Date</label><input id="cf-expiry" type="date"></div>
     </div>
-    <div class="field"><label>Discount Value</label><input id="cf-val" type="number" min="0"></div>
-    <div class="field"><label>Min Order (₹)</label><input id="cf-min" type="number" value="0" min="0"></div>
-    <div class="field"><label>Max Usage</label><input id="cf-maxuse" type="number" placeholder="Leave blank for unlimited"></div>
-    <div class="field"><label>Expiry Date</label><input id="cf-expiry" type="date"></div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-top:4px;font-size:12px;color:#64748b" id="cf-preview">
+      Preview will show here after filling fields…
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveCoupon()">Save</button>
+      <button class="btn btn-p" onclick="saveCoupon()"><i class="fa fa-check"></i> Create Coupon</button>
     </div>`);
+  couponTypeToggle(); couponRtypeToggle(); updateCouponPreview();
+}
+
+function couponTypeToggle() {
+  const t = document.getElementById('cf-type')?.value;
+  const capWrap = document.getElementById('cf-cap-wrap');
+  const valLabel = document.getElementById('cf-val-label');
+  if (!capWrap) return;
+  if (t === 'percent_cap') { capWrap.style.display=''; valLabel.textContent='Discount (%)'; }
+  else if (t === 'percent') { capWrap.style.display='none'; valLabel.textContent='Discount (%)'; }
+  else { capWrap.style.display='none'; valLabel.textContent='Discount Amount (₹)'; }
+  updateCouponPreview();
+}
+
+function couponRtypeToggle() {
+  const r = document.getElementById('cf-rtype')?.value;
+  const maxuseWrap  = document.getElementById('cf-maxuse-wrap');
+  const peruserWrap = document.getElementById('cf-peruser-wrap');
+  const phonesWrap  = document.getElementById('cf-phones-wrap');
+  const maxuseLabel = document.getElementById('cf-maxuse-label');
+  if (!maxuseWrap) return;
+  // defaults
+  maxuseWrap.style.display = ''; peruserWrap.style.display = 'none'; phonesWrap.style.display = 'none';
+  if (r === 'unlimited')         { maxuseWrap.style.display='none'; }
+  if (r === 'one_time_total')    { maxuseWrap.style.display='none'; }
+  if (r === 'one_time_per_user') { maxuseWrap.style.display='none'; }
+  if (r === 'limited_total')     { maxuseLabel.textContent='Total Usage Limit'; }
+  if (r === 'per_user_limit')    { peruserWrap.style.display=''; maxuseWrap.style.display=''; maxuseLabel.textContent='Total Usage Limit (optional)'; }
+  if (r === 'specific_phone')    { phonesWrap.style.display=''; maxuseWrap.style.display='none'; }
+  if (r === 'new_users_only')    { maxuseWrap.style.display='none'; }
+  updateCouponPreview();
+}
+
+function updateCouponPreview() {
+  const el = document.getElementById('cf-preview');
+  if (!el) return;
+  const code  = document.getElementById('cf-code')?.value || 'CODE';
+  const type  = document.getElementById('cf-type')?.value || 'percent';
+  const val   = document.getElementById('cf-val')?.value || '0';
+  const cap   = document.getElementById('cf-cap')?.value;
+  const rtype = document.getElementById('cf-rtype')?.value || 'unlimited';
+  const min   = document.getElementById('cf-min')?.value || '0';
+  let discStr = type==='flat' ? `₹${val} off` : type==='percent_cap' ? `${val}% off upto ₹${cap||'?'}` : `${val}% off`;
+  const rtypeMap = { unlimited:'anyone, unlimited uses', one_time_per_user:'once per user', one_time_total:'once total', limited_total:'limited total uses', per_user_limit:'custom uses per user', specific_phone:'specific phone(s) only', new_users_only:'new users only' };
+  el.innerHTML = `<b>${code}</b>: ${discStr} · Min order ₹${min} · ${rtypeMap[rtype]||rtype}`;
 }
 
 async function saveCoupon() {
+  const rtype = document.getElementById('cf-rtype')?.value || 'unlimited';
+  let allowed_phones = [];
+  if (rtype === 'specific_phone') {
+    const raw = document.getElementById('cf-phones')?.value || '';
+    allowed_phones = raw.split(/[\n,]+/).map(p=>p.trim()).filter(Boolean);
+    if (!allowed_phones.length) { aToast('Enter at least one phone number'); return; }
+  }
+  let max_usage = null;
+  if (['limited_total','per_user_limit'].includes(rtype)) {
+    max_usage = parseInt(document.getElementById('cf-maxuse')?.value)||null;
+  }
+  if (rtype === 'one_time_total') max_usage = 1;
+  const dtype = document.getElementById('cf-type')?.value;
   const data = {
-    code:          document.getElementById('cf-code')?.value.trim().toUpperCase(),
-    discount_type: document.getElementById('cf-type')?.value,
-    discount_value: parseFloat(document.getElementById('cf-val')?.value)||0,
-    min_order:     parseFloat(document.getElementById('cf-min')?.value)||0,
-    max_usage:     document.getElementById('cf-maxuse')?.value ? parseInt(document.getElementById('cf-maxuse').value) : null,
-    expiry_date:   document.getElementById('cf-expiry')?.value || null,
-    is_active:     true
+    code:             document.getElementById('cf-code')?.value.trim().toUpperCase(),
+    discount_type:    dtype,
+    discount_value:   parseFloat(document.getElementById('cf-val')?.value)||0,
+    cap_amount:       dtype==='percent_cap' ? (parseFloat(document.getElementById('cf-cap')?.value)||null) : null,
+    min_order:        parseFloat(document.getElementById('cf-min')?.value)||0,
+    max_usage,
+    per_user_limit:   rtype==='per_user_limit' ? (parseInt(document.getElementById('cf-peruser')?.value)||1) : null,
+    expiry_date:      document.getElementById('cf-expiry')?.value || null,
+    restriction_type: rtype,
+    allowed_phones,
+    is_active:        true
   };
-  if (!data.code) { aToast('Code required'); return; }
+  if (!data.code) { aToast('Coupon code required'); return; }
   try {
     await api('addCoupon', data);
-    closeMo(); loadCoupons(); aToast('Coupon added');
+    closeMo(); loadCoupons(); aToast('✅ Coupon created');
   } catch(e) { aToast(e.message); }
 }
 

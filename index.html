@@ -914,6 +914,17 @@ let _activeCategory = 'All';
 let _variantState = {}; // itemId -> variantIdx, persists user selection across re-renders
 let _menuSearch  = '';
 let _appliedCoupon = null;
+// Coupon discount calculator (supports percent, percent_cap, flat)
+function calcCouponDiscount(coupon, subtotal) {
+  if (!coupon) return 0;
+  if (coupon.discount_type === 'percent' || coupon.discount_type === 'percent_cap') {
+    let d = Math.round(subtotal * coupon.discount_value / 100);
+    if (coupon.cap_amount != null && d > coupon.cap_amount) d = coupon.cap_amount;
+    return d;
+  }
+  return coupon.discount_value || 0;
+}
+
 let _menuLoading  = false;
 let _placingOrder = false;
 let _lastOrders   = null;
@@ -1862,10 +1873,7 @@ function updateBillSummary() {
   const user = Auth.get();
   const isPro = !!(user?.is_subscriber && _khataEnabled);
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const discount = _appliedCoupon
-    ? (_appliedCoupon.discount_type === 'percent'
-        ? Math.round(subtotal * _appliedCoupon.discount_value / 100)
-        : _appliedCoupon.discount_value) : 0;
+  const discount = calcCouponDiscount(_appliedCoupon, subtotal);
   const deliveryCharge = isPro ? 0 : 20;
   const total = subtotal + deliveryCharge - discount;
   document.getElementById('bill-subtotal').textContent = '₹' + subtotal;
@@ -1895,10 +1903,9 @@ async function applyCoupon() {
     const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
     const res = await api('validateCoupon', { code, phone: Auth.get()?.phone, orderAmount: subtotal });
     _appliedCoupon = res.coupon;
-    const disc = _appliedCoupon.discount_type === 'percent'
-      ? Math.round(subtotal * _appliedCoupon.discount_value / 100)
-      : _appliedCoupon.discount_value;
-    msg.textContent = `🎉 ₹${disc} off applied!`;
+    const disc = calcCouponDiscount(_appliedCoupon, subtotal);
+    const capNote = (_appliedCoupon.discount_type === 'percent_cap' && _appliedCoupon.cap_amount) ? ` (${_appliedCoupon.discount_value}% upto ₹${_appliedCoupon.cap_amount})` : '';
+    msg.textContent = `🎉 ₹${disc} off applied!${capNote}`;
     msg.style.color = 'var(--g)';
     updateBillSummary();
     launchCouponCelebration();
@@ -1951,10 +1958,7 @@ async function placeOrder() {
   }
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const discount = _appliedCoupon
-    ? (_appliedCoupon.discount_type === 'percent'
-        ? Math.round(subtotal * _appliedCoupon.discount_value / 100)
-        : _appliedCoupon.discount_value) : 0;
+  const discount = calcCouponDiscount(_appliedCoupon, subtotal);
   const isPro = !!(user.is_subscriber && _khataEnabled);
   const deliveryCharge = isPro ? 0 : 20;
   const total = subtotal + deliveryCharge - discount;
