@@ -358,6 +358,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 #nu-coupon-toggle-card:hover{box-shadow:0 4px 16px rgba(16,185,129,.15)!important;border-color:#6ee7b7!important}
 #nu-coupon-toggle-card:hover .fa-ticket{transform:rotate(-8deg) scale(1.1);}
 #nu-coupon-toggle-card .fa-ticket{transition:transform 200ms cubic-bezier(.34,1.56,.64,1)}
+.notif-system-clickable:hover{background:#fafbff;}
 
 /* ── PAGE VISIBILITY ─────────────────────────────────────── */
 .pg-v{display:none}
@@ -1109,7 +1110,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               </div>
               <div>
                 <div style="font-family:var(--ff);font-weight:700;font-size:13.5px;color:#0f172a">Delete by Date Range</div>
-                <div style="font-size:11px;color:#94a3b8">Only read notifications will be deleted. New notifications will not be affected.</div>
+                <div style="font-size:11px;color:#94a3b8">Only read notifications will be deleted. Today's notifications are always safe.</div>
               </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -1119,7 +1120,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               </div>
               <div class="field" style="margin-bottom:0;flex:1;min-width:110px">
                 <label style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">To</label>
-                <input id="notif-del-to" type="date" style="width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);outline:none">
+                <input id="notif-del-to" type="date" style="width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);outline:none" onchange="(function(el){const today=new Date().toISOString().slice(0,10);if(el.value>=today){el.value='';aToast('Select a date before today');};})(this)">
               </div>
               <button class="btn btn-danger" onclick="deleteNotifRange()" style="white-space:nowrap;align-self:flex-end">
                 <i class="fa fa-trash"></i> Delete Range
@@ -3843,48 +3844,103 @@ function renderNotifs(notifs) {
 }
 
 function renderNotifCard(n) {
-  const colorMap = { order:'notif-order', user:'notif-user', transaction:'notif-txn', recharge:'notif-recharge', pause:'notif-pause' };
-  const iconMap  = { order:'fa-receipt', user:'fa-user-plus', transaction:'fa-coins', recharge:'fa-wallet', pause:'fa-pause-circle' };
-  const labelMap = { order:'Order', user:'New User', transaction:'Transaction', recharge:'Recharge', pause:'Pause' };
+  // ── Type resolution ───────────────────────────────────────────────────────
   const typeKey  = n.type || n.category || '';
-  const cls      = colorMap[typeKey] || '';
-  const icon     = iconMap[typeKey] || 'fa-bell';
-  const label    = labelMap[typeKey] || 'System';
-  const ts       = n.created_at ? relTime(n.created_at) : '';
-  const isUser   = (typeKey === 'user') || (n.title||'').toLowerCase().includes('join') || (n.title||'').toLowerCase().includes('new user');
-  const isOrder  = typeKey === 'order';
-  const isTxn    = typeKey === 'transaction';
-  const phone    = n.meta?.phone || n.phone || '';
+  const titleLow = (n.title || '').toLowerCase();
+  const bodyLow  = (n.body  || n.message || '').toLowerCase();
 
-  // Action buttons
-  let actionBtns = '';
-  if (isUser && !n.is_read) {
-    // New user joining — trigger coupon workflow
-    actionBtns = `<button class="btn btn-g" style="padding:5px 12px;font-size:11px;white-space:nowrap" onclick="openCouponWorkflow(${n.id},'${phone}','${(n.meta?.name||n.title||'').replace(/'/g,"\\'")}','${(n.meta?.address||'').replace(/'/g,"\\'")}')"><i class="fa fa-ticket"></i> Create Coupon</button>`;
-  } else if (isOrder && phone) {
-    actionBtns = `<button class="btn btn-outline" style="padding:5px 12px;font-size:11px;white-space:nowrap" onclick="gotoOrdersForPhone('${phone}')"><i class="fa fa-eye"></i> View Orders</button>`;
-  } else if (isTxn && phone) {
-    actionBtns = `<button class="btn btn-outline" style="padding:5px 12px;font-size:11px;white-space:nowrap" onclick="gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Khata</button>`;
-  } else if (!n.is_read) {
-    actionBtns = `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead(${n.id})">Mark Read</button>`;
+  const isUser   = typeKey === 'user'  || titleLow.includes('join') || titleLow.includes('new user') || titleLow.includes('registered');
+  const isOrder  = typeKey === 'order' || titleLow.includes('order');
+  const isTxn    = typeKey === 'transaction' || typeKey === 'recharge' || titleLow.includes('transaction') || titleLow.includes('wallet') || titleLow.includes('recharge');
+  // Everything else is System/Info
+  const isSystem = !isUser && !isOrder && !isTxn;
+
+  // ── Card type config ──────────────────────────────────────────────────────
+  let borderColor, iconBg, iconColor, iconClass, labelText, labelBg, labelColor;
+  if (isUser) {
+    borderColor = 'var(--g)';        iconBg = '#f0fdf4'; iconColor = '#16a34a';
+    iconClass   = 'fa-user-plus';    labelText = 'New User';
+    labelBg     = '#dcfce7';         labelColor = '#15803d';
+  } else if (isOrder) {
+    borderColor = 'var(--p)';        iconBg = '#fff1f2'; iconColor = '#be123c';
+    iconClass   = 'fa-receipt';      labelText = 'Order';
+    labelBg     = '#ffe4e6';         labelColor = '#be123c';
+  } else if (isTxn) {
+    borderColor = 'var(--blue)';     iconBg = '#eff6ff'; iconColor = '#1d4ed8';
+    iconClass   = 'fa-coins';        labelText = typeKey === 'recharge' ? 'Recharge' : 'Transaction';
+    labelBg     = '#dbeafe';         labelColor = '#1d4ed8';
+  } else {
+    borderColor = '#94a3b8';         iconBg = '#f8fafc'; iconColor = '#64748b';
+    iconClass   = 'fa-circle-info';  labelText = 'System';
+    labelBg     = '#f1f5f9';         labelColor = '#64748b';
   }
 
+  const ts    = n.created_at ? relTime(n.created_at) : '';
+  const phone = n.meta?.phone || n.phone || '';
+  const isSub = n.meta?.is_subscriber === true || n.meta?.user_type === 'subscriber';
+
+  // ── Action buttons per card type ──────────────────────────────────────────
+  let actionBtns = '';
+
+  if (isUser) {
+    // Card Type 2 — New User
+    const safeName    = (n.meta?.name || n.title || '').replace(/'/g, "\\'");
+    const safeAddress = (n.meta?.address || '').replace(/'/g, "\\'");
+    actionBtns = `
+      <button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="copyPhoneToClipboard('${phone}')">
+        <i class="fa fa-copy"></i> Copy Phone
+      </button>
+      <button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoCouponTab('${phone}')">
+        <i class="fa fa-tags"></i> Open Coupon Tab
+      </button>
+      ${!n.is_read ? `<button class="btn btn-g" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="openCouponWorkflow(${n.id},'${phone}','${safeName}','${safeAddress}')">
+        <i class="fa fa-ticket"></i> Create Coupon
+      </button>` : ''}`;
+
+  } else if (isOrder) {
+    // Card Type 1 — Order / Transaction
+    const khataBtn = isSub
+      ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
+      : `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap;opacity:.5;cursor:not-allowed" disabled title="Normal user — no khata access"><i class="fa fa-wallet"></i> View Transaction <span style="background:#fef2f2;color:#be123c;border-radius:10px;padding:1px 6px;font-size:9px;font-family:var(--ff);font-weight:700;margin-left:3px">Non-sub</span></button>`;
+    actionBtns = `
+      <button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoOrdersForPhone('${phone}')"><i class="fa fa-eye"></i> View Order</button>
+      ${phone ? khataBtn : ''}`;
+
+  } else if (isTxn) {
+    // Card Type 1 — Transaction
+    actionBtns = phone
+      ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
+      : '';
+
+  } else {
+    // Card Type 3 — System/Info — mark read on card click, no action buttons shown
+    if (!n.is_read) {
+      actionBtns = `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead(${n.id})"><i class="fa fa-check"></i> Mark Read</button>`;
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const cardOpacity = n.is_read ? 'opacity:.72' : '';
+  const dotHtml     = !n.is_read ? '<span style="width:7px;height:7px;background:#e63946;border-radius:50%;display:inline-block;flex-shrink:0"></span>' : '';
+
   return `
-    <div class="notif-card ${cls} ${n.is_read ? '' : 'unread'}" id="notif-${n.id}" style="${n.is_read ? 'opacity:.75' : ''}">
+    <div class="notif-card ${n.is_read ? '' : 'unread'}" id="notif-${n.id}"
+         style="border-left-color:${borderColor};${cardOpacity}"
+         ${isSystem && !n.is_read ? `onclick="markNotifRead(${n.id})" style="border-left-color:${borderColor};${cardOpacity};cursor:pointer"` : ''}>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="display:flex;gap:12px;align-items:flex-start;flex:1">
-          <div style="width:36px;height:36px;border-radius:10px;background:${n.is_read ? '#f1f5f9' : 'var(--card-bg)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${n.is_read ? '#e2e8f0' : '#f1f5f9'}">
-            <i class="fa ${icon}" style="font-size:14px;color:${n.is_read ? '#94a3b8' : 'inherit'}"></i>
+          <div style="width:38px;height:38px;border-radius:11px;background:${iconBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${iconBg}">
+            <i class="fa ${iconClass}" style="font-size:15px;color:${iconColor}"></i>
           </div>
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-              <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'}">${n.title||'Notification'}</div>
-              <span style="background:${n.is_read ? '#f1f5f9' : '#f8fafc'};color:#94a3b8;padding:1px 7px;border-radius:10px;font-size:10px;font-family:var(--ff);font-weight:600;border:1px solid #e8ecf0">${label}</span>
-              ${!n.is_read ? '<span style="width:6px;height:6px;background:#e63946;border-radius:50%;display:inline-block"></span>' : ''}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
+              <span style="background:${labelBg};color:${labelColor};padding:2px 8px;border-radius:10px;font-size:10px;font-family:var(--ff);font-weight:700">${labelText}</span>
+              ${dotHtml}
             </div>
-            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'};margin-top:3px">${n.body||n.message||''}</div>
+            <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'};margin-bottom:2px">${n.title || 'Notification'}</div>
+            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'}">${n.body || n.message || ''}</div>
             ${phone ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px"><i class="fa fa-phone" style="font-size:10px"></i> ${phone}</div>` : ''}
-            <div style="font-size:11px;color:#cbd5e1;margin-top:5px">${ts}</div>
+            <div style="font-size:11px;color:#cbd5e1;margin-top:4px">${ts}</div>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
@@ -3892,8 +3948,36 @@ function renderNotifCard(n) {
           <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deleteNotif(${n.id})"><i class="fa fa-trash"></i></button>
         </div>
       </div>
-      ${n.meta ? `<details style="margin-top:10px"><summary style="font-size:11px;cursor:pointer;color:#94a3b8">View details</summary><pre style="font-size:11px;background:#f8fafc;padding:10px;border-radius:6px;overflow:auto;margin-top:6px">${JSON.stringify(n.meta,null,2)}</pre></details>` : ''}
     </div>`;
+}
+
+// ─── CLIPBOARD COPY ───────────────────────────────────────
+function copyPhoneToClipboard(phone) {
+  navigator.clipboard.writeText(phone).then(() => aToast('📋 Copied: ' + phone)).catch(() => {
+    // Fallback for older browsers
+    const el = document.createElement('textarea');
+    el.value = phone; el.style.position = 'fixed'; el.style.opacity = '0';
+    document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    aToast('📋 Copied: ' + phone);
+  });
+}
+
+// ─── GO TO COUPON TAB (pre-fill phone) ───────────────────
+function gotoCouponTab(phone) {
+  showPage('p-coupons');
+  setTimeout(() => {
+    // Try to pre-fill the phone in coupon modal if open, else open modal
+    openCouponModal();
+    // After modal opens, try pre-filling phone if restriction field supports it
+    setTimeout(() => {
+      const phoneEl = document.getElementById('cf-allowed-phones') || document.getElementById('cf-phone');
+      if (phoneEl) { phoneEl.value = phone; }
+      // Also set restriction type to specific_phone if possible
+      const rtypeEl = document.getElementById('cf-rtype');
+      if (rtypeEl) { rtypeEl.value = 'specific_phone'; if (typeof couponRtypeToggle === 'function') couponRtypeToggle(); }
+    }, 120);
+  }, 350);
 }
 
 // ─── NOTIFICATION → ORDERS / KHATA AUTO-SEARCH ───────────
@@ -4027,7 +4111,14 @@ async function deleteNotifRange() {
   const from = document.getElementById('notif-del-from')?.value;
   const to   = document.getElementById('notif-del-to')?.value;
   if (!from || !to) { aToast('Select both dates'); return; }
-  confirmAction(`Delete <b>read</b> notifications from <b>${from}</b> to <b>${to}</b>?<br><span style="font-size:12px;color:#94a3b8">Unread (new) notifications will not be affected.</span>`, async function() {
+  // Guard: never allow selecting today or future as end date
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (to >= todayStr) {
+    aToast("⚠️ 'To' date must be before today. Today's notifications are always protected.");
+    return;
+  }
+  if (from > to) { aToast('From date must be before To date'); return; }
+  confirmAction(`Delete <b>read</b> notifications from <b>${from}</b> to <b>${to}</b>?<br><span style="font-size:12px;color:#94a3b8">Only read notifications in this range will be removed. Today's notifications are always safe.</span>`, async function() {
     try {
       await api('deleteNotificationRange', { from, to, read_only: true });
       _lastNotifsStr = '';
@@ -4061,11 +4152,14 @@ async function loadNuCoupons(type, btn) {
           <div style="font-weight:700;font-size:13.5px;color:#0f172a">${u.name||'—'}</div>
           <div style="font-size:12px;color:#64748b;margin-top:2px"><i class="fa fa-phone" style="font-size:10px"></i> ${u.phone}</div>
           ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${u.address}</div>`:''}
-          ${u.created_at?`<div style="font-size:10px;color:#cbd5e1;margin-top:3px">${relTime(u.created_at)}</div>`:''}
+          ${type==='sent' && u.sent_at
+            ? `<div style="font-size:10px;color:#10b981;margin-top:3px;font-weight:600"><i class="fa fa-check-circle" style="font-size:9px"></i> Sent ${relTime(u.sent_at)}</div>`
+            : (u.created_at ? `<div style="font-size:10px;color:#cbd5e1;margin-top:3px">Joined ${relTime(u.created_at)}</div>` : '')
+          }
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           ${type==='pending'
-            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openWaPopup('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}',${u.notif_id||'null'})"><i class="fab fa-whatsapp"></i> WhatsApp</button>`
+            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openWaPopup('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}',${u.notif_id||'null'})"><i class="fa fa-comment-dots"></i> WhatsApp</button>`
             : `<span style="background:#f0fdf4;color:#16a34a;padding:4px 10px;border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700"><i class="fa fa-check"></i> Sent</span>`
           }
         </div>
