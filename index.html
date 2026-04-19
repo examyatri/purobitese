@@ -333,7 +333,7 @@ textarea{resize:vertical;min-height:80px}
 <!-- App Loader -->
 <div id="app-loader">
   <div class="loader-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-  <div class="loader-tag">Ghar ka khana ♥</div>
+  <div class="loader-tag">Ghar ka Tiffin ♥️</div>
   <div class="loader-spinner"></div>
   <div id="loader-status">Loading...</div>
 </div>
@@ -356,7 +356,7 @@ textarea{resize:vertical;min-height:80px}
 <div id="pg-auth" class="pg pg-scroll-full">
   <div class="auth-top">
     <div class="auth-logo">🍱 Tiffo</div>
-    <div class="auth-sub">Ghar ka khana ♥</div>
+    <div class="auth-sub">Ghar ka Tiffin ♥️</div>
   </div>
   <div class="auth-card">
     <div class="tab-bar">
@@ -428,7 +428,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="home-header flex-sb">
     <div>
       <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-      <div class="home-logo-sub">Ghar ka khana ♥</div>
+      <div class="home-logo-sub">Ghar ka Tiffin ♥️</div>
     </div>
     <div class="flex gap8">
       <button style="border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
@@ -912,6 +912,7 @@ let _pauseMode   = 'none';
 let _walletBal   = 0;
 let _activeCategory = 'All';
 let _menuSearch  = '';
+const _selectedVariant = {}; // itemId -> variantIdx
 let _appliedCoupon = null;
 let _menuLoading  = false;
 let _placingOrder = false;
@@ -1494,6 +1495,8 @@ function hideMenuSkeletons() {
 async function loadMenu() {
   if (_menuLoading) return;
   _menuLoading = true;
+  // Safety: auto-release lock after 12s so a network timeout never blocks future loads
+  const _menuLoadTimer = setTimeout(() => { _menuLoading = false; }, 12000);
   try {
     const cache = Store.getJSON(_MENU_CACHE_KEY);
     const age   = cache ? Date.now() - cache.ts : Infinity;
@@ -1513,6 +1516,7 @@ async function loadMenu() {
       await _fetchFreshMenu();
     }
   } finally {
+    clearTimeout(_menuLoadTimer);
     _menuLoading = false;
   }
 }
@@ -1658,13 +1662,15 @@ function selectVariant(itemId, variantIdx, btn) {
   const row = document.getElementById('vrow-' + itemId);
   if (!row) return;
   row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === variantIdx));
-  // Update price display
+  _selectedVariant[itemId] = variantIdx;
   const item = _fullMenu.find(i => i.item_id === itemId);
   if (!item) return;
   const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
   if (variants && variants[variantIdx]) {
     const pd = document.getElementById('price-' + itemId);
     if (pd) pd.textContent = '₹' + variants[variantIdx].price;
+    // Update control buttons to reflect newly selected variant
+    refreshMenuItemControl(item);
   }
 }
 
@@ -1673,8 +1679,7 @@ function addItemToCart(item, event) {
   const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   let label = '', price = item.price;
   if (variants.length) {
-    const activeBtn = document.querySelector(`#vrow-${item.item_id} .variant-pill.active`);
-    const idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : 0;
+    const idx = _selectedVariant[item.item_id] ?? 0;
     label = variants[idx]?.label || '';
     price = variants[idx]?.price || item.price;
   }
@@ -1695,15 +1700,20 @@ function refreshMenuItemControl(item) {
   if (!ctrl) return;
   const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   const hasVariants = variants.length > 0;
+  const selIdx = hasVariants ? (_selectedVariant[item.item_id] ?? 0) : 0;
+  const selVariant = hasVariants ? variants[selIdx] : null;
+  const activeKey = `${item.item_id}::${hasVariants ? (selVariant?.label||'') : ''}`;
   const keys = Cart.get().filter(c => c.item_id === item.item_id);
   const totalQty = keys.reduce((s, c) => s + c.qty, 0);
   const safeItem = JSON.stringify(item).replace(/"/g,'&quot;');
-  const firstKey = `${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}`;
   if (totalQty > 0) {
-    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${firstKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
+    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${activeKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
   } else {
     ctrl.innerHTML = `<button class="img-add-btn" onclick="addItemToCart(${safeItem},event)">ADD</button>`;
   }
+  // Restore active variant pill visual after re-render if row exists
+  const row = document.getElementById('vrow-' + item.item_id);
+  if (row) row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === selIdx));
 }
 
 function renderThalis() {
@@ -2436,8 +2446,14 @@ async function refreshPauseStatus() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopPolling(); }
-  else { _runPollTick(); startPolling(); }
+  if (document.hidden) { stopPolling(); return; }
+  _runPollTick(); startPolling();
+  // If user returns to home and menu is empty or load lock is stuck, force reload
+  if (document.querySelector('#pg-home.here') && _session) {
+    _menuLoading = false;
+    if (!_fullMenu.length) loadMenu().catch(() => {});
+    else _fetchFreshMenu().catch(() => {});
+  }
 });
 
 /* ═══════════════════════════════════════════
