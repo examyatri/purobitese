@@ -614,14 +614,26 @@ app.post('/api', async (req, res) => {
       }
 
       case 'updateOrderStatus': {
-        const VALID_ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'rejected', 'cancelled'];
-        if (!data.status || !VALID_ORDER_STATUSES.includes(data.status)) {
-          return res.json({ success: false, error: 'Invalid order status' });
+        // Normalize: accept both 'out for delivery' (frontend) and 'out_for_delivery' (db)
+        const rawStatus = (data.status || '').toLowerCase().trim();
+        const statusMap = {
+          'out for delivery': 'out for delivery',
+          'out_for_delivery': 'out for delivery',
+          'pending':   'pending',
+          'confirmed': 'confirmed',
+          'preparing': 'preparing',
+          'delivered': 'delivered',
+          'rejected':  'rejected',
+          'cancelled': 'cancelled'
+        };
+        const normalizedStatus = statusMap[rawStatus];
+        if (!normalizedStatus) {
+          return res.json({ success: false, error: 'Invalid order status: ' + rawStatus });
         }
-        const updates = { order_status: data.status };
+        const updates = { order_status: normalizedStatus };
         if (data.riderId) updates.rider_id = data.riderId;
         await supabase.from('orders').update(updates).eq('order_id', data.orderId);
-        if (data.status === 'delivered') {
+        if (normalizedStatus === 'delivered') {
           await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
         }
         return res.json({ success: true });
@@ -629,8 +641,24 @@ app.post('/api', async (req, res) => {
 
       case 'rejectOrder': {
         const { data: order } = await supabase.from('orders').select('*').eq('order_id', data.orderId).single();
-        await supabase.from('orders').update({ order_status: 'rejected' }).eq('order_id', data.orderId);
-        if (order && order.user_type === 'subscriber') {
+        if (!order) return res.json({ success: false, error: 'Order not found' });
+
+        // Check if customer is a subscriber (wallet user)
+        const { data: subRow } = await supabase.from('subscribers').select('phone').eq('phone', order.phone).single();
+        const isSubscriber = !!subRow;
+
+        const refundType = data.refundType || 'wallet'; // 'wallet' | 'cash' | 'none'
+
+        // If refundType=wallet but not a subscriber → return error so frontend can inform admin
+        if (refundType === 'wallet' && !isSubscriber) {
+          return res.json({ success: false, error: 'NOT_SUBSCRIBER', message: 'This customer is a normal user and does not have a wallet. Please try a different refund method.' });
+        }
+
+        // Mark order rejected
+        await supabase.from('orders').update({ order_status: 'rejected', refund_type: refundType }).eq('order_id', data.orderId);
+
+        // Wallet refund — only for subscribers
+        if (refundType === 'wallet' && isSubscriber) {
           const newBal = await _atomicWalletUpdate(order.phone, +order.final_amount);
           await supabase.from('khata_entries').insert({
             id:              generateTxnId(ist),
@@ -638,7 +666,7 @@ app.post('/api', async (req, res) => {
             type:            'adjustment',
             amount:          +order.final_amount,
             running_balance: newBal,
-            note:            'Refund: Order rejected',
+            note:            'Refund: Order ' + data.orderId + ' rejected',
             date:            istDateStr(ist),
             time:            istTimeStr(ist),
             order_id:        data.orderId,
@@ -650,12 +678,49 @@ app.post('/api', async (req, res) => {
             type:     'order',
             priority: 'high',
             group_id: data.orderId,
+            title:    'Order Rejected — Wallet Refunded',
+            body:     'Order ' + data.orderId + ' rejected. ₹' + order.final_amount + ' refunded to your wallet.',
+            meta:     { orderId: data.orderId, phone: order.phone, refundAmount: order.final_amount }
+          });
+        } else if (refundType === 'cash') {
+          await _createNotification({
+            type:     'order',
+            priority: 'high',
+            group_id: data.orderId,
+            title:    'Order Rejected — Cash Refund',
+            body:     'Order ' + data.orderId + ' rejected. Cash refund of ₹' + order.final_amount + ' to be given.',
+            meta:     { orderId: data.orderId, phone: order.phone }
+          });
+        } else if (refundType === 'none') {
+          await _createNotification({
+            type:     'order',
+            priority: 'normal',
+            group_id: data.orderId,
             title:    'Order Rejected',
-            body:     'Order ' + data.orderId + ' rejected. ₹' + order.final_amount + ' refunded.',
+            body:     'Order ' + data.orderId + ' rejected. No refund issued.',
             meta:     { orderId: data.orderId, phone: order.phone }
           });
         }
-        return res.json({ success: true });
+
+        return res.json({ success: true, refundType, isSubscriber, newBalance: null });
+      }
+
+      case 'getOrderTransactions': {
+        // Returns last 30 khata_entries for a given phone
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('name').eq('phone', phone).single();
+        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        const { data: entries } = await supabase
+          .from('khata_entries').select('*')
+          .eq('phone', phone)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        return res.json({
+          success: true,
+          name: user?.name || phone,
+          balance: balRow?.balance || 0,
+          entries: entries || []
+        });
       }
 
       // ── BULK ORDERS v2 ───────────────────────────────────────────────────
