@@ -911,8 +911,7 @@ let _khataEnabled = false;
 let _pauseMode   = 'none';
 let _walletBal   = 0;
 let _activeCategory = 'All';
-let _variantState = {}; // itemId(string) -> selected variantIdx
-let _variantState  = {}; // itemId(string) -> selected variantIdx
+let _variantState = {}; // itemId -> variantIdx, persists user selection across re-renders
 let _menuSearch  = '';
 let _appliedCoupon = null;
 let _menuLoading  = false;
@@ -1616,13 +1615,10 @@ function renderMenuItems(items) {
     const imgHtml = item.image_url
       ? `<img class="m-item-img" src="${item.image_url}" alt="${item.name}" onerror="this.outerHTML='<div class=m-item-img-ph>🍽️</div>'">`
       : `<div class="m-item-img-ph">🍽️</div>`;
-    // Use _variantState to restore selected variant across re-renders
-    const _selIdx = (_variantState[item.item_id] !== undefined) ? _variantState[item.item_id] : 0;
-    const _selIdx = (_variantState[String(item.item_id)] !== undefined) ? _variantState[String(item.item_id)] : 0;
     const varRow = hasVariants
       ? `<div class="variants-row" id="vrow-${item.item_id}">` +
         variants.map((v, vi) =>
-          `<button class="variant-pill${vi===_selIdx?' active':''}" onclick="selectVariant('${item.item_id}',${vi},this)">${v.label} ₹${v.price}</button>`
+          `<button class="variant-pill${vi===(_variantState[String(item.item_id)]??0)?' active':''}" onclick="selectVariant('${item.item_id}',${vi},this)">${v.label} ₹${v.price}</button>`
         ).join('') + '</div>' : '';
     const cartItem = Cart.get().find(c => c.item_id === item.item_id);
     const cartQty = cartItem ? cartItem.qty : 0;
@@ -1647,7 +1643,7 @@ function renderMenuItems(items) {
           ${item.description ? `<div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:4px;line-height:1.4">${item.description}</div>` : ''}
           ${varRow}
           <div class="m-item-foot">
-            <span class="m-item-price" id="price-${item.item_id}">₹${hasVariants ? variants[_selIdx]?.price : item.price}</span>
+            <span class="m-item-price" id="price-${item.item_id}">₹${hasVariants ? variants[(_variantState[String(item.item_id)]??0)]?.price : item.price}</span>
           </div>
         </div>
         <div class="m-item-img-wrap">
@@ -1660,49 +1656,29 @@ function renderMenuItems(items) {
 }
 
 function selectVariant(itemId, variantIdx, btn) {
-  // 1. Persist selection — always use string key
-  _variantState[String(itemId)] = variantIdx;
-
-  // 2. Update pill highlight in DOM
   const row = document.getElementById('vrow-' + itemId);
-  if (row) {
-    row.querySelectorAll('.variant-pill').forEach(function(p, i) {
-      p.classList.toggle('active', i === variantIdx);
-    });
-  }
-
-  // 3. Update price label
-  const item = _fullMenu.find(function(i) { return String(i.item_id) === String(itemId); });
-  if (!item) return;
-  const variants = Array.isArray(item.variants) ? item.variants
-    : (typeof item.variants === 'string' ? JSON.parse(item.variants) : []);
-  const pd = document.getElementById('price-' + itemId);
-  if (pd && variants[variantIdx]) pd.textContent = '₹' + variants[variantIdx].price;
-}
-  // 3. Update displayed price
+  if (!row) return;
+  row.querySelectorAll('.variant-pill').forEach((p, i) => p.classList.toggle('active', i === variantIdx));
+  _variantState[String(itemId)] = variantIdx; // persist selection
+  // Update price display
   const item = _fullMenu.find(i => String(i.item_id) === String(itemId));
   if (!item) return;
-  const variants = Array.isArray(item.variants) ? item.variants
-    : (typeof item.variants === 'string' ? JSON.parse(item.variants) : []);
-  const chosen = variants[variantIdx];
-  if (chosen) {
+  const variants = typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants;
+  if (variants && variants[variantIdx]) {
     const pd = document.getElementById('price-' + itemId);
-    if (pd) pd.textContent = '₹' + chosen.price;
+    if (pd) pd.textContent = '₹' + variants[variantIdx].price;
   }
 }
 
 function addItemToCart(item, event) {
   event && event.stopPropagation();
-  const variants = item.variants
-    ? (Array.isArray(item.variants) ? item.variants : JSON.parse(item.variants))
-    : [];
+  const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   let label = '', price = item.price;
   if (variants.length) {
-    // Read from _variantState — reliable even after re-renders
-    const idx = (_variantState[String(item.item_id)] !== undefined)
-      ? _variantState[String(item.item_id)] : 0;
+    const activeBtn = document.querySelector(`#vrow-${item.item_id} .variant-pill.active`);
+    const idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : 0;
     label = variants[idx]?.label || '';
-    price = variants[idx]?.price ?? item.price;
+    price = variants[idx]?.price || item.price;
   }
   Cart.add(item, label, price, false);
   refreshMenuItemControl(item);
@@ -1725,8 +1701,9 @@ function refreshMenuItemControl(item) {
   const totalQty = keys.reduce((s, c) => s + c.qty, 0);
   const safeItem = JSON.stringify(item).replace(/"/g,'&quot;');
   const firstKey = `${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}`;
+  const activeCartKey = keys.length > 0 ? keys[0].key : firstKey;
   if (totalQty > 0) {
-    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${firstKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
+    ctrl.innerHTML = `<div class="img-qty-row"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${activeCartKey}',-1,event)">−</button><span class="img-qty-val">${totalQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`;
   } else {
     ctrl.innerHTML = `<button class="img-add-btn" onclick="addItemToCart(${safeItem},event)">ADD</button>`;
   }
