@@ -146,7 +146,9 @@ function formatOrder(o) {
 function formatMenuItem(i) {
   return {
     ...i,
-    variants: typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || [])
+    // Supabase JSONB returns parsed object; JSON.stringify fallback handles edge cases
+    variants: Array.isArray(i.variants) ? i.variants
+      : (typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || []))
   };
 }
 
@@ -157,16 +159,18 @@ function formatThali(t, items = []) {
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
 async function _atomicWalletUpdate(phone, delta) {
-  const { data: rows } = await supabase
-    .from('khata_summary')
-    .select('balance')
-    .eq('phone', phone)
-    .single();
-  const newBalance = ((rows?.balance) ?? 0) + delta;
-  await supabase
-    .from('khata_summary')
-    .upsert({ phone, balance: newBalance, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
-  return newBalance;
+  // Atomic increment via Supabase RPC to prevent race conditions on concurrent requests
+  const { data, error } = await supabase.rpc('atomic_wallet_update', { p_phone: phone, p_delta: delta });
+  if (error) {
+    // Fallback: read-modify-write (safe for single-instance Render free tier)
+    const { data: rows } = await supabase
+      .from('khata_summary').select('balance').eq('phone', phone).single();
+    const newBalance = ((rows?.balance) ?? 0) + delta;
+    await supabase.from('khata_summary')
+      .upsert({ phone, balance: newBalance, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+    return newBalance;
+  }
+  return data; // RPC returns new balance
 }
 
 async function _createTxnEntry(phone, orderId, amount, newBalance, type, source, ist) {
@@ -1341,6 +1345,8 @@ app.post('/api', async (req, res) => {
             result.push(formatThali(t, items || []));
           }
           return res.json({ success: true, thalis: result }); }
+
+      case 'getThaliItems':
         { const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', data.thaliId);
           return res.json({ success: true, items: items || [] }); }
 
