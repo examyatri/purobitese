@@ -255,17 +255,15 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
     const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
     await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
+    await _createNotification({
+      type:     'order',
+      priority: 'high',
+      group_id: orderId,
+      title:    'New Order',
+      body:     user.name + ' placed order ' + orderId,
+      meta:     { orderId, phone: user.phone }
+    });
   }
-
-  // Notify admin for ALL orders (subscriber and daily)
-  await _createNotification({
-    type:     'order',
-    priority: 'high',
-    group_id: orderId,
-    title:    'New Order',
-    body:     user.name + ' placed order ' + orderId,
-    meta:     { orderId, phone: user.phone }
-  });
 
   await _deductMenuStock(items);
 
@@ -312,7 +310,18 @@ app.post('/api', async (req, res) => {
 
       // ── AUTH ──────────────────────────────────────────────────────────────
 
-      case 'checkSession':
+      case 'checkSession': {
+        const phone = cleanPhone(data.phone);
+        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+        if (!user) return res.json({ success: false, error: 'Session invalid' });
+        const valid = await bcrypt.compare(data.password, user.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Session invalid' });
+        const { data: sub }     = await supabase.from('subscribers').select('*').eq('phone', phone).single();
+        const { data: balRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        const { password_hash, ...safeUser } = user;
+        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
+      }
+
       case 'login': {
         const phone = cleanPhone(data.phone);
         const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
@@ -348,7 +357,15 @@ app.post('/api', async (req, res) => {
         });
       }
 
-      case 'adminLogin':
+      case 'adminLogin': {
+        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
+        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
+        const valid = await bcrypt.compare(data.password, staff.password_hash);
+        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
+        const { password_hash, ...safeStaff } = staff;
+        return res.json({ success: true, staff: safeStaff });
+      }
+
       case 'staffLogin': {
         const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
         if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
@@ -387,14 +404,12 @@ app.post('/api', async (req, res) => {
       // ── MENU ──────────────────────────────────────────────────────────────
 
       case 'getMenu': {
-        const { data: rows, error: gmErr } = await supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true });
-        if (gmErr) throw new Error('DB error: ' + gmErr.message);
+        const { data: rows } = await supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true });
         return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
       }
 
       case 'adminGetMenu': {
-        const { data: rows, error: agmErr } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
-        if (agmErr) throw new Error('DB error: ' + agmErr.message);
+        const { data: rows } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
         return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
       }
 
@@ -435,11 +450,9 @@ app.post('/api', async (req, res) => {
       }
 
       case 'updateMenuOrder': {
-        await Promise.all(
-          (data.order || []).map(entry =>
-            supabase.from('menu_items').update({ sort_order: entry.sort_order }).eq('item_id', entry.item_id)
-          )
-        );
+        for (const entry of (data.order || [])) {
+          await supabase.from('menu_items').update({ sort_order: entry.sort_order }).eq('item_id', entry.item_id);
+        }
         return res.json({ success: true });
       }
 
@@ -514,7 +527,7 @@ app.post('/api', async (req, res) => {
       }
 
       case 'removeThaliItem': {
-        await supabase.from('thali_items').delete().eq('id', data.itemId || data.id);
+        await supabase.from('thali_items').delete().eq('id', data.id);
         return res.json({ success: true });
       }
 
@@ -552,20 +565,6 @@ app.post('/api', async (req, res) => {
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
           khataEnabled, ist, coupon: data.coupon || null, source: 'customer'
         });
-        // Mark coupon as used now that order is confirmed
-        if (data.coupon?.code) {
-          const { data: couponRow } = await supabase.from('coupons').select('used_count, used_by').eq('code', data.coupon.code.toUpperCase()).single();
-          if (couponRow) {
-            let usedBy = []; try { usedBy = JSON.parse(couponRow.used_by || '[]'); } catch { usedBy = []; }
-            if (phone && !usedBy.includes(phone)) usedBy.push(phone);
-            const newCount = (couponRow.used_count || 0) + 1;
-            await supabase.from('coupons').update({
-              used_count:  newCount,
-              usage_count: newCount,
-              used_by:     JSON.stringify(usedBy)
-            }).eq('code', data.coupon.code.toUpperCase());
-          }
-        }
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
       }
 
@@ -644,7 +643,7 @@ app.post('/api', async (req, res) => {
         const success = [], skipped = [];
         for (const sub of (subs || [])) {
           const { data: user } = await supabase.from('users').select('*').eq('phone', sub.phone).single();
-          if (!user) { skipped.push({ phone: sub.phone, reason: 'user not found' }); continue; }
+          if (!user) continue;
           const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', sub.phone).single();
           const balance = balRow?.balance || 0;
           if (balance >= (data.orderAmount || 0)) {
@@ -714,7 +713,10 @@ app.post('/api', async (req, res) => {
         let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
         if (data.phone && usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
         if (coupon.min_order && data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
-        // NOTE: DB write (used_count / used_by) is deferred to createOrder to avoid double-count
+        await supabase.from('coupons').update({
+          used_count: (coupon.used_count || 0) + 1,
+          used_by:    JSON.stringify([...usedBy, ...(data.phone ? [data.phone] : [])])
+        }).eq('id', coupon.id);
         return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, min_order: coupon.min_order } });
       }
 
@@ -1121,6 +1123,12 @@ app.post('/api', async (req, res) => {
         });
       }
 
+      case 'getUsers': {
+        const { data: rows, error: uErr2 } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        if (uErr2) throw new Error('DB error: ' + uErr2.message);
+        const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
+        return res.json({ success: true, users: safe });
+      }
 
       // ── NOTIFICATIONS ─────────────────────────────────────────────────────
 
@@ -1197,40 +1205,34 @@ app.post('/api', async (req, res) => {
       // ── DATA CLEANUP ──────────────────────────────────────────────────────
 
       case 'previewDeleteOrders': {
-        const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', data.before || data.before_date);
+        const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', data.before_date);
         return res.json({ success: true, count: count || 0 });
       }
 
       case 'previewDeleteTransactions': {
-        const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', data.before || data.before_date);
+        const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', data.before_date);
         return res.json({ success: true, count: count || 0 });
       }
 
       case 'previewDeleteNotifications': {
-        const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', data.before || data.before_date);
+        const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', data.before_date);
         return res.json({ success: true, count: count || 0 });
       }
 
       case 'deleteOldOrders': {
-        const { count } = await supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before || data.before_date);
+        const { count } = await supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before_date);
         return res.json({ success: true, deleted: count || 0 });
       }
 
       case 'deleteOldTransactions': {
-        const { count } = await supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before || data.before_date);
+        const { count } = await supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before_date);
         return res.json({ success: true, deleted: count || 0 });
       }
 
       case 'deleteOldData': {
-        const beforeDate = data.before || data.before_date;
-        const type = (data.type || '').toLowerCase();
-        if (type === 'notifications') {
-          const { count } = await supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', beforeDate);
-          return res.json({ success: true, deleted: count || 0 });
-        }
         const [r1, r2] = await Promise.all([
-          supabase.from('orders').delete({ count: 'exact' }).lte('date', beforeDate),
-          supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', beforeDate)
+          supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before_date),
+          supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before_date)
         ]);
         return res.json({ success: true, ordersDeleted: r1.count || 0, txnsDeleted: r2.count || 0 });
       }
@@ -1279,16 +1281,13 @@ app.post('/api', async (req, res) => {
 
       // ── ADMIN PANEL ALIASES (fixes action name mismatches) ────────────────
       case 'adminGetUsers':
-      case 'getUsers': {
-        const { data: rows, error: uErr } = await supabase.from('users').select('*').order('created_at', { ascending: false });
-        if (uErr) throw new Error('DB error: ' + uErr.message);
-        const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
-        return res.json({ success: true, users: safe });
-      }
+        { const { data: rows, error: uErr } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+          if (uErr) throw new Error('DB error: ' + uErr.message);
+          const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
+          return res.json({ success: true, users: safe }); }
 
       case 'getMenuItems':
-        { const { data: items, error: gmiErr } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
-          if (gmiErr) throw new Error('DB error: ' + gmiErr.message);
+        { const { data: items } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
           return res.json({ success: true, items: (items || []).map(formatMenuItem) }); }
 
       case 'getCoupons':
@@ -1342,8 +1341,6 @@ app.post('/api', async (req, res) => {
             result.push(formatThali(t, items || []));
           }
           return res.json({ success: true, thalis: result }); }
-
-      case 'getThaliItems':
         { const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', data.thaliId);
           return res.json({ success: true, items: items || [] }); }
 
@@ -1354,7 +1351,7 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, settings: {
             cutoff:         map['order_cutoff_config'] || {},
             weeklySchedule: map['weekly_schedule']     || [],
-            khataEnabled:   map['khata_enabled'] === true
+            khataEnabled:   map['khata_enabled']       !== false
           }}); }
 
       case 'adminResetUserPassword':
