@@ -146,9 +146,7 @@ function formatOrder(o) {
 function formatMenuItem(i) {
   return {
     ...i,
-    // Supabase JSONB returns parsed object; JSON.stringify fallback handles edge cases
-    variants: Array.isArray(i.variants) ? i.variants
-      : (typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || []))
+    variants: typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || [])
   };
 }
 
@@ -159,18 +157,16 @@ function formatThali(t, items = []) {
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
 async function _atomicWalletUpdate(phone, delta) {
-  // Atomic increment via Supabase RPC to prevent race conditions on concurrent requests
-  const { data, error } = await supabase.rpc('atomic_wallet_update', { p_phone: phone, p_delta: delta });
-  if (error) {
-    // Fallback: read-modify-write (safe for single-instance Render free tier)
-    const { data: rows } = await supabase
-      .from('khata_summary').select('balance').eq('phone', phone).single();
-    const newBalance = ((rows?.balance) ?? 0) + delta;
-    await supabase.from('khata_summary')
-      .upsert({ phone, balance: newBalance, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
-    return newBalance;
-  }
-  return data; // RPC returns new balance
+  const { data: rows } = await supabase
+    .from('khata_summary')
+    .select('balance')
+    .eq('phone', phone)
+    .single();
+  const newBalance = ((rows?.balance) ?? 0) + delta;
+  await supabase
+    .from('khata_summary')
+    .upsert({ phone, balance: newBalance, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+  return newBalance;
 }
 
 async function _createTxnEntry(phone, orderId, amount, newBalance, type, source, ist) {
@@ -243,11 +239,27 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
-    if (coupon.discount_type === 'percent') {
+    if (coupon.discount_type === 'percent' || coupon.discount_type === 'percent_cap') {
       discount = Math.round(subtotal * coupon.discount_value / 100);
+      const cap = coupon.cap_amount ?? coupon.max_cap ?? null;
+      if (cap != null && discount > cap) discount = cap;
     } else if (coupon.discount_type === 'flat') {
       discount = coupon.discount_value;
     }
+  }
+  // Mark coupon used at order-placement time (not at validate time)
+  if (coupon && coupon.code) {
+    try {
+      const { data: cpnRow } = await supabase.from('coupons').select('used_count,usage_count,used_by').eq('code', coupon.code).single();
+      if (cpnRow) {
+        let ub=[]; try{ub=JSON.parse(cpnRow.used_by||'[]');}catch{ub=[];}
+        await supabase.from('coupons').update({
+          used_count:  (cpnRow.used_count||0)+1,
+          usage_count: (cpnRow.usage_count||0)+1,
+          used_by:     JSON.stringify([...ub, ...(user.phone ? [user.phone] : [])])
+        }).eq('code', coupon.code);
+      }
+    } catch(_) {}
   }
   const finalAmount = subtotal + deliveryCharge - discount;
   const orderId  = generateOrderId(ist);
@@ -558,9 +570,13 @@ app.post('/api', async (req, res) => {
           const dc         = data.deliveryCharge || 0;
           let disc = 0;
           if (data.coupon) {
-            disc = data.coupon.discount_type === 'percent'
-              ? Math.round(subtotal * data.coupon.discount_value / 100)
-              : data.coupon.discount_value;
+            if (data.coupon.discount_type === 'percent' || data.coupon.discount_type === 'percent_cap') {
+              disc = Math.round(subtotal * data.coupon.discount_value / 100);
+              const cap = data.coupon.cap_amount ?? data.coupon.max_cap ?? null;
+              if (cap != null && disc > cap) disc = cap;
+            } else {
+              disc = data.coupon.discount_value;
+            }
           }
           const finalEst = subtotal + dc - disc;
           if (currentBal < finalEst) return res.json({ success: false, error: 'Insufficient wallet balance' });
@@ -707,35 +723,72 @@ app.post('/api', async (req, res) => {
 
       // ── COUPONS ──────────────────────────────────────────────────────────
 
-      case 'applyCoupon': {
-        if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
-        const { data: coupon } = await supabase.from('coupons').select('*').eq('code', data.code.toUpperCase()).single();
+      case 'applyCoupon':
+      case 'validateCoupon': {
+        const cpnCode = (data.code||'').toUpperCase();
+        if (!cpnCode) return res.json({ success: false, error: 'Coupon code required' });
+        const { data: coupon } = await supabase.from('coupons').select('*').eq('code', cpnCode).single();
         if (!coupon || !coupon.is_active) return res.json({ success: false, error: 'Invalid coupon' });
         const today = istDateStr(ist);
         if (coupon.expiry_date && coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
-        if (coupon.max_usage != null && (coupon.used_count || 0) >= coupon.max_usage) return res.json({ success: false, error: 'Coupon fully used' });
+        const maxUse = coupon.max_usage ?? coupon.total_usage_limit ?? null;
+        if (maxUse != null && (coupon.used_count||0) >= maxUse) return res.json({ success: false, error: 'Coupon fully used' });
         let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
-        if (data.phone && usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
-        if (coupon.min_order && data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
-        await supabase.from('coupons').update({
-          used_count: (coupon.used_count || 0) + 1,
-          used_by:    JSON.stringify([...usedBy, ...(data.phone ? [data.phone] : [])])
-        }).eq('id', coupon.id);
-        return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, min_order: coupon.min_order } });
+        const phone = data.phone || null;
+        const rtype = coupon.restriction_type || 'unlimited';
+        // --- restriction checks ---
+        if (rtype === 'specific_phone') {
+          let allowed=[]; try{allowed=JSON.parse(coupon.allowed_phones||'[]');}catch{allowed=[];}
+          if (!phone || !allowed.includes(phone)) return res.json({ success: false, error: 'This coupon is not valid for your number' });
+        }
+        if (rtype === 'new_users_only') {
+          if (!phone) return res.json({ success: false, error: 'Login required to use this coupon' });
+          const { data: usr } = await supabase.from('users').select('created_at').eq('phone', phone).single();
+          if (!usr) return res.json({ success: false, error: 'User not found' });
+          const regDays = (Date.now() - new Date(usr.created_at).getTime()) / 86400000;
+          if (regDays > 30) return res.json({ success: false, error: 'This coupon is only for new users' });
+          if (usedBy.includes(phone)) return res.json({ success: false, error: 'Already used this coupon' });
+        }
+        if (rtype === 'one_time_total') {
+          if ((coupon.used_count||0) >= 1) return res.json({ success: false, error: 'Coupon already used' });
+        }
+        if (rtype === 'one_time_per_user') {
+          if (phone && usedBy.filter(p=>p===phone).length >= 1) return res.json({ success: false, error: 'Already used this coupon' });
+        }
+        if (rtype === 'limited_total') {
+          // handled above by maxUse check
+        }
+        if (rtype === 'per_user_limit') {
+          const perLimit = coupon.per_user_limit ?? coupon.max_per_user ?? 1;
+          const userCount = phone ? usedBy.filter(p=>p===phone).length : 0;
+          if (phone && userCount >= perLimit) return res.json({ success: false, error: `Limit reached: ${perLimit}x per user` });
+        }
+        // unlimited: no extra check
+        const minOrd = coupon.min_order ?? coupon.min_order_amount ?? null;
+        if (minOrd && data.orderAmount < minOrd) return res.json({ success: false, error: 'Min order ₹' + minOrd });
+        const capAmt = coupon.cap_amount ?? coupon.max_cap ?? null;
+        return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, cap_amount: capAmt, min_order: minOrd, restriction_type: rtype } });
       }
+
 
       case 'createCoupon': {
         if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
         await supabase.from('coupons').insert({
-          code:           data.code.toUpperCase(),
-          discount_type:  data.discount_type,
-          discount_value: data.discount_value,
-          min_order:      data.min_order,
-          max_usage:      data.max_usage,
-          used_count:     0,
-          expiry_date:    data.expiry_date,
-          is_active:      true,
-          used_by:        '[]'
+          code:             data.code.toUpperCase(),
+          discount_type:    data.discount_type,
+          discount_value:   data.discount_value,
+          min_order:        data.min_order ?? null,
+          max_usage:        data.max_usage ?? null,
+          used_count:       0,
+          expiry_date:      data.expiry_date || null,
+          is_active:        true,
+          used_by:          '[]',
+          restriction_type: data.restriction_type || 'unlimited',
+          allowed_phones:   JSON.stringify(data.allowed_phones || []),
+          per_user_limit:   data.per_user_limit ?? null,
+          max_per_user:     data.per_user_limit ?? null,
+          cap_amount:       data.cap_amount ?? null,
+          max_cap:          data.cap_amount ?? null
         });
         return res.json({ success: true });
       }
@@ -1255,17 +1308,6 @@ app.post('/api', async (req, res) => {
       }
 
       // ── INDEX (CUSTOMER) ALIASES ──────────────────────────────────────────
-      case 'validateCoupon':
-        { const { data: coupon } = await supabase.from('coupons').select('*').eq('code', (data.code||'').toUpperCase()).single();
-          if (!coupon || !coupon.is_active) return res.json({ success: false, error: 'Invalid coupon' });
-          const today = istDateStr(ist);
-          if (coupon.expiry_date && coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
-          if (coupon.max_usage && (coupon.used_count||0) >= coupon.max_usage) return res.json({ success: false, error: 'Coupon fully used' });
-          let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
-          if (data.phone && usedBy.includes(data.phone)) return res.json({ success: false, error: 'Already used this coupon' });
-          if (coupon.min_order && data.orderAmount < coupon.min_order) return res.json({ success: false, error: 'Min order ₹' + coupon.min_order });
-          return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, min_order: coupon.min_order } }); }
-
       case 'updatePauseDelivery':
         { const allowed = ['none', 'lunch', 'dinner', 'both'];
           const mode = data.pauseMode || data.mode;
@@ -1300,8 +1342,9 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, coupons: rows || [] }); }
 
       case 'addCoupon':
-        { await supabase.from('coupons').insert({
-            code:              (data.code || '').toUpperCase(),
+        { if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
+          await supabase.from('coupons').insert({
+            code:             (data.code || '').toUpperCase(),
             discount_type:     data.discount_type,
             discount_value:    data.discount_value,
             expiry_date:       data.expiry_date || null,
@@ -1311,7 +1354,11 @@ app.post('/api', async (req, res) => {
             max_usage:         data.max_usage ?? null,
             total_usage_limit: data.max_usage ?? null,
             per_user_limit:    data.per_user_limit ?? null,
-            max_cap:           data.max_cap ?? null,
+            max_per_user:      data.per_user_limit ?? null,
+            cap_amount:        data.cap_amount ?? null,
+            max_cap:           data.cap_amount ?? null,
+            restriction_type:  data.restriction_type || 'unlimited',
+            allowed_phones:    JSON.stringify(data.allowed_phones || []),
             used_count:        0,
             usage_count:       0,
             used_by:           '[]',
@@ -1345,8 +1392,6 @@ app.post('/api', async (req, res) => {
             result.push(formatThali(t, items || []));
           }
           return res.json({ success: true, thalis: result }); }
-
-      case 'getThaliItems':
         { const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', data.thaliId);
           return res.json({ success: true, items: items || [] }); }
 
