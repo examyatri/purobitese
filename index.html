@@ -494,7 +494,7 @@ textarea{resize:vertical;min-height:80px}
           <div style="font-family:var(--ff);font-weight:700;font-size:14px">Your Tiffin Plan</div>
           <div id="sub-plan-dates" style="font-family:var(--fb);font-size:12px;opacity:.85;margin-top:2px"></div>
         </div>
-        <div style="background:rgba(255,255,255,.2);border-radius:8px;padding:4px 10px;font-family:var(--ff);font-size:12px;font-weight:700">Active ✓</div>
+        <div id="sub-plan-status-chip" style="background:rgba(255,255,255,.2);border-radius:8px;padding:4px 10px;font-family:var(--ff);font-size:12px;font-weight:700">Active ✓</div>
       </div>
 
       <!-- Search -->
@@ -1325,6 +1325,15 @@ function applyPauseState(mode) {
                               'All bulk orders off — tap to resume';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
+  // Update home banner status chip
+  const bannerChip = document.getElementById('sub-plan-status-chip');
+  if (bannerChip) {
+    bannerChip.textContent =
+      _pauseMode === 'none'   ? 'Active ✓' :
+      _pauseMode === 'lunch'  ? '⏸ Morning Off' :
+      _pauseMode === 'dinner' ? '⏸ Evening Off' : '⏸ Paused';
+    bannerChip.style.background = isPaused ? 'rgba(0,0,0,.25)' : 'rgba(255,255,255,.2)';
+  }
 }
 
 function togglePw(inputId, btn) {
@@ -2202,9 +2211,10 @@ function populateAccountPage() {
 
   if (u.is_subscriber) {
     document.querySelectorAll('.sub-only').forEach(el => el.style.display = '');
-    if (u.plan_start && u.plan_end) {
-      document.getElementById('sub-dates').textContent = fmtDate(u.plan_start) + ' – ' + fmtDate(u.plan_end);
-    }
+    const planMap = { morning:'☀️ Morning Tiffin', evening:'🌙 Evening Tiffin', both:'☀️🌙 Both Tiffins' };
+    const planLabel = planMap[u.plan] || 'Tiffin Plan';
+    const sinceStr  = u.plan_start ? ' · Since ' + fmtDate(u.plan_start) : '';
+    document.getElementById('sub-dates').textContent = planLabel + sinceStr;
   }
 }
 
@@ -2594,16 +2604,15 @@ function _applySubscriberUI() {
   if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? 'flex' : 'none';
   if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
   // Sub plan banner
-  if (u.is_subscriber && u.plan_start && u.plan_end) {
+  // Sub plan banner — show plan type, start date, and live pause status
+  if (u.is_subscriber) {
     document.getElementById('sub-plan-banner').style.display = 'flex';
-    document.getElementById('sub-plan-dates').textContent =
-      fmtDate(u.plan_start) + ' – ' + fmtDate(u.plan_end);
+    const planMap = { morning:'☀️ Morning Tiffin', evening:'🌙 Evening Tiffin', both:'☀️🌙 Both Tiffins' };
+    const planLabel = planMap[u.plan] || (u.plan ? u.plan : 'Tiffin Plan');
+    const sinceLabel = u.plan_start ? 'Since ' + fmtDate(u.plan_start) : 'Active';
+    document.getElementById('sub-plan-dates').textContent = planLabel + ' · ' + sinceLabel;
   }
 }
-
-/* ═══════════════════════════════════════════
-   BOOT SEQUENCE
-═══════════════════════════════════════════ */
 async function bootApp() {
   document.getElementById('app-loader').style.display = 'flex';
   document.getElementById('loader-status').textContent = 'Loading...';

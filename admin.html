@@ -232,6 +232,23 @@ tbody tr:hover td{background:#fafbff}
 .bulk-sub-row.selected{background:#eff6ff;border-color:#bfdbfe}
 .bulk-sub-row.ineligible{opacity:.55}
 
+/* ── SUBSCRIBER FILTER CHIPS ────────────────────────────── */
+.subs-chip{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 15px;
+  border-radius:22px;border:1.5px solid #e2e8f0;background:white;
+  font-family:var(--ff);font-size:12px;font-weight:600;color:#64748b;
+  cursor:pointer;transition:all 180ms;white-space:nowrap;
+}
+.subs-chip:hover{border-color:#cbd5e1;background:#f8fafc;color:#475569}
+.subs-chip.act{background:#0f172a;color:white;border-color:#0f172a;box-shadow:0 4px 12px rgba(15,23,42,.2)}
+.subs-chip i{font-size:11px}
+
+/* ── SUBSCRIBER TABLE ROW STATES ────────────────────────── */
+tbody tr.row-paused td{background:#fffbeb}
+tbody tr.row-paused:hover td{background:#fef9c3}
+tbody tr.row-low-bal td{background:#fff1f2}
+tbody tr.row-low-bal:hover td{background:#ffe4e6}
+
 /* ── STATUS BADGES ───────────────────────────────────────── */
 .badge-status{
   border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;
@@ -827,17 +844,30 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- SUBSCRIBERS -->
       <div id="p-subs" class="pg-v">
-        <div class="page-header">
-          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Subscribers</h2>
-        </div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="card-header"><div class="card-title"><i class="fa fa-user-plus"></i> Promote User to Subscriber</div></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-            <div class="field" style="flex:1;min-width:200px;margin-bottom:0"><label>Phone Number</label><input id="promote-phone" type="tel" placeholder="10-digit"></div>
-            <button class="btn btn-outline" onclick="findUserForPromote()"><i class="fa fa-magnifying-glass"></i> Find User</button>
+        <!-- Page Header -->
+        <div class="page-header" style="margin-bottom:18px">
+          <div>
+            <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Subscribers</h2>
+            <div style="font-size:12px;color:#94a3b8;margin-top:2px">Manage all tiffin subscribers</div>
           </div>
-          <div id="promote-user-info" style="margin-top:12px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-outline" onclick="openPromoteUserModal()"><i class="fa fa-arrow-up"></i> Promote User</button>
+            <button class="btn btn-p" onclick="openSubsAddUserModal()"><i class="fa fa-plus"></i> Add User</button>
+          </div>
         </div>
+
+        <!-- Filter Chips -->
+        <div id="subs-filter-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="subs-chip act" data-filter="all" onclick="setSubsChip(this,'all')"><i class="fa fa-users"></i> All Subscribers</button>
+          <button class="subs-chip" data-filter="day" onclick="setSubsChip(this,'day')"><i class="fa fa-sun"></i> Day</button>
+          <button class="subs-chip" data-filter="night" onclick="setSubsChip(this,'night')"><i class="fa fa-moon"></i> Night</button>
+          <button class="subs-chip" data-filter="both" onclick="setSubsChip(this,'both')"><i class="fa fa-layer-group"></i> Both</button>
+          <button class="subs-chip" data-filter="active" onclick="setSubsChip(this,'active')"><i class="fa fa-circle-check"></i> Active</button>
+          <button class="subs-chip" data-filter="paused" onclick="setSubsChip(this,'paused')"><i class="fa fa-pause-circle"></i> Paused</button>
+          <button class="subs-chip" data-filter="delivery_off" onclick="setSubsChip(this,'delivery_off')"><i class="fa fa-ban"></i> Delivery Off</button>
+        </div>
+
+        <!-- Nu Coupon Panel -->
         <div class="card" style="margin-bottom:16px">
           <div class="card-header"><div class="card-title"><i class="fa fa-ticket"></i> Nu Coupon Panel</div></div>
           <div class="tabs">
@@ -846,28 +876,39 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           </div>
           <div id="nu-coupon-list"><div style="color:#94a3b8;text-align:center;padding:20px">Click tab to load</div></div>
         </div>
+
+        <!-- Subscriber List Card -->
         <div class="card">
-          <div class="card-header"><div class="card-title"><i class="fa fa-crown"></i> Subscriber List</div></div>
+          <div class="card-header" style="margin-bottom:14px">
+            <div class="card-title"><i class="fa fa-crown"></i> Subscriber List</div>
+            <div id="subs-count-badge" style="font-size:12px;font-weight:700;font-family:var(--ff);background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:20px"></div>
+          </div>
+          <!-- Search + Sort Bar -->
           <div class="filter-bar" style="margin-bottom:12px">
             <input id="subs-search" type="search" placeholder="Search name or phone…" class="search-input" oninput="renderSubsTable()">
-            <select id="subs-status-filter" onchange="renderSubsTable()">
-              <option value="">All Status</option>
-              <option value="active">Active Only</option>
-              <option value="paused">Paused Only</option>
-            </select>
             <select id="subs-sort" onchange="renderSubsTable()">
-              <option value="default">Default</option>
+              <option value="default">Default Order</option>
               <option value="az">A–Z</option>
               <option value="za">Z–A</option>
-              <option value="newest">Newest Plan</option>
-              <option value="expiring">Expiring Soon</option>
-              <option value="low_balance">Low Balance</option>
+              <option value="newest">Newest First</option>
+              <option value="low_balance">Low Balance First</option>
               <option value="paused_first">Paused First</option>
             </select>
           </div>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Plan Start</th><th>Plan End</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Phone</th>
+                  <th>Name</th>
+                  <th>Plan</th>
+                  <th>Status</th>
+                  <th>Delivery</th>
+                  <th>Balance</th>
+                  <th>Start Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody id="subs-tbody"></tbody>
             </table>
           </div>
@@ -2499,7 +2540,9 @@ async function deleteCoupon(id) {
 }
 
 // ─── SUBSCRIBERS ─────────────────────────────────────────
+// ─── SUBSCRIBERS ─────────────────────────────────────────
 let _subs = [];
+let _subsChipFilter = 'all'; // all | day | night | both | active | paused | delivery_off
 
 async function loadSubscribers() {
   try {
@@ -2511,130 +2554,303 @@ async function loadSubscribers() {
   } catch(e) { npDone(); aToast('Subscribers load failed'); }
 }
 
+function setSubsChip(btn, filter) {
+  document.querySelectorAll('.subs-chip').forEach(b => b.classList.remove('act'));
+  btn.classList.add('act');
+  _subsChipFilter = filter;
+  renderSubsTable();
+}
+
+function getSubsPlan(s) {
+  // Determine plan from plan field or infer from paused fields
+  const p = (s.plan||'').toLowerCase();
+  if (p.includes('both') || p === 'morning_evening') return 'both';
+  if (p.includes('evening') || p.includes('night')) return 'night';
+  if (p.includes('morning') || p.includes('day')) return 'day';
+  return s.plan || '—';
+}
+
+function getPlanBadge(s) {
+  const p = getSubsPlan(s);
+  const map = {
+    day:   { label:'Morning Tiffin', bg:'#fffbeb', color:'#92400e', icon:'fa-sun' },
+    night: { label:'Evening Tiffin', bg:'#eff6ff', color:'#1d4ed8', icon:'fa-moon' },
+    both:  { label:'Both Tiffins',   bg:'#f0fdf4', color:'#166534', icon:'fa-layer-group' },
+  };
+  const cfg = map[p] || { label: p, bg:'#f8fafc', color:'#475569', icon:'fa-bowl-food' };
+  return `<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:${cfg.bg};color:${cfg.color};padding:3px 8px;border-radius:20px;white-space:nowrap"><i class="fa ${cfg.icon}" style="font-size:9px;margin-right:3px"></i>${cfg.label}</span>`;
+}
+
+function getStatusBadge(s) {
+  if (s.is_delivery_off || s.delivery_off) {
+    return '<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:#fee2e2;color:#be123c;padding:3px 8px;border-radius:20px"><i class="fa fa-ban" style="font-size:9px;margin-right:3px"></i>Delivery Off</span>';
+  }
+  const pm = s.pause_morning || s.is_paused_morning;
+  const pe = s.pause_evening || s.is_paused_evening;
+  if (pm && pe) return '<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:20px"><i class="fa fa-pause" style="font-size:9px;margin-right:3px"></i>Paused (Both)</span>';
+  if (pm)       return '<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:#fef9c3;color:#854d0e;padding:3px 8px;border-radius:20px"><i class="fa fa-pause" style="font-size:9px;margin-right:3px"></i>Paused (Morning)</span>';
+  if (pe)       return '<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:#fef9c3;color:#854d0e;padding:3px 8px;border-radius:20px"><i class="fa fa-pause" style="font-size:9px;margin-right:3px"></i>Paused (Evening)</span>';
+  if (s.is_paused) return '<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:20px"><i class="fa fa-pause" style="font-size:9px;margin-right:3px"></i>Paused</span>';
+  return '<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:#dcfce7;color:#166534;padding:3px 8px;border-radius:20px"><i class="fa fa-circle-check" style="font-size:9px;margin-right:3px"></i>Active</span>';
+}
+
+function isSubLowBal(s) { return (s.balance||0) < 200; }
+
+function isSubPaused(s) {
+  return s.is_paused || s.pause_morning || s.is_paused_morning || s.pause_evening || s.is_paused_evening;
+}
+
 function renderSubsTable() {
   const tbody = document.getElementById('subs-tbody');
   if (!tbody) return;
 
-  const search       = (document.getElementById('subs-search')?.value || '').toLowerCase();
-  const statusFilter = document.getElementById('subs-status-filter')?.value || '';
-  const sort         = document.getElementById('subs-sort')?.value || 'default';
+  const search = (document.getElementById('subs-search')?.value || '').toLowerCase();
+  const sort   = document.getElementById('subs-sort')?.value || 'default';
+  const cf     = _subsChipFilter;
 
   let subs = [..._subs];
 
+  // Chip filter
+  if (cf === 'day')          subs = subs.filter(s => { const p=getSubsPlan(s); return p==='day'; });
+  if (cf === 'night')        subs = subs.filter(s => { const p=getSubsPlan(s); return p==='night'; });
+  if (cf === 'both')         subs = subs.filter(s => { const p=getSubsPlan(s); return p==='both'; });
+  if (cf === 'active')       subs = subs.filter(s => !isSubPaused(s) && !(s.is_delivery_off||s.delivery_off));
+  if (cf === 'paused')       subs = subs.filter(s => isSubPaused(s));
+  if (cf === 'delivery_off') subs = subs.filter(s => s.is_delivery_off||s.delivery_off);
+
+  // Search
   if (search) subs = subs.filter(s =>
-    (s.name||'').toLowerCase().includes(search) ||
-    (s.phone||'').includes(search)
+    (s.name||'').toLowerCase().includes(search) || (s.phone||'').includes(search)
   );
-  if (statusFilter === 'active') subs = subs.filter(s => !s.is_paused);
-  if (statusFilter === 'paused') subs = subs.filter(s => s.is_paused);
 
-  if (sort === 'az')          subs.sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  if (sort === 'za')          subs.sort((a,b) => (b.name||'').localeCompare(a.name||''));
-  if (sort === 'newest')      subs.sort((a,b) => new Date(b.plan_start||0) - new Date(a.plan_start||0));
-  if (sort === 'expiring')    subs.sort((a,b) => {
-    if (!a.plan_end) return 1;
-    if (!b.plan_end) return -1;
-    return new Date(a.plan_end) - new Date(b.plan_end);
-  });
-  if (sort === 'low_balance') subs.sort((a,b) => (a.balance||0) - (b.balance||0));
-  if (sort === 'paused_first') subs.sort((a,b) => (b.is_paused ? 1 : 0) - (a.is_paused ? 1 : 0));
+  // Sort
+  if (sort === 'az')           subs.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'za')           subs.sort((a,b) => (b.name||'').localeCompare(a.name||''));
+  if (sort === 'newest')       subs.sort((a,b) => new Date(b.plan_start||0) - new Date(a.plan_start||0));
+  if (sort === 'low_balance')  subs.sort((a,b) => (a.balance||0) - (b.balance||0));
+  if (sort === 'paused_first') subs.sort((a,b) => (isSubPaused(b)?1:0) - (isSubPaused(a)?1:0));
 
-  tbody.innerHTML = subs.length ? subs.map(s => `
-    <tr>
-      <td><b>${s.name||'—'}</b></td>
-      <td>${s.phone||'—'}</td>
-      <td style="font-size:12px;max-width:140px">${s.address||'—'}</td>
-      <td style="font-size:12px">${fmtDate(s.plan_start)}</td>
-      <td style="font-size:12px">${fmtDate(s.plan_end)}</td>
-      <td><b style="color:${(s.balance||0)>=0?'var(--g)':'var(--p)'}">₹${s.balance||0}</b></td>
-      <td>${s.is_paused?'<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:20px">Paused</span>':'<span style="font-size:11px;background:#dcfce7;color:#166534;padding:3px 8px;border-radius:20px">Active</span>'}</td>
+  // Count badge
+  const badge = document.getElementById('subs-count-badge');
+  if (badge) badge.textContent = `${subs.length} subscriber${subs.length!==1?'s':''}`;
+
+  tbody.innerHTML = subs.length ? subs.map(s => {
+    const lowBal = isSubLowBal(s);
+    const paused = isSubPaused(s);
+    const rowCls = lowBal ? 'row-low-bal' : (paused ? 'row-paused' : '');
+    const bal    = s.balance||0;
+    const balColor = bal < 0 ? 'var(--p)' : (lowBal ? '#b45309' : 'var(--g)');
+    const lowWarn = lowBal ? ' <i class="fa fa-triangle-exclamation" style="color:#f59e0b;font-size:10px" title="Low balance"></i>' : '';
+    const pauseToggleLabel = isSubPaused(s) ? 'Resume' : 'Pause';
+    const pauseToggleIcon  = isSubPaused(s) ? 'fa-play' : 'fa-pause';
+    const pauseToggleStyle = isSubPaused(s) ? 'background:#f0fdf4;color:#166534;border:1.5px solid #bbf7d0' : 'background:#fffbeb;color:#92400e;border:1.5px solid #fde68a';
+    const addr = (s.address||'—').length > 28 ? (s.address||'').substring(0,28)+'…' : (s.address||'—');
+    return `
+    <tr class="${rowCls}">
+      <td style="font-size:13px">${s.phone||'—'}</td>
+      <td><b style="font-size:13.5px">${s.name||'—'}</b></td>
+      <td>${getPlanBadge(s)}</td>
+      <td>${getStatusBadge(s)}</td>
+      <td style="font-size:12px;max-width:130px;color:#64748b" title="${s.address||''}">${addr}</td>
+      <td><b style="color:${balColor}">₹${bal}</b>${lowWarn}</td>
+      <td style="font-size:12px;color:#64748b">${fmtDate(s.plan_start)}</td>
       <td>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openSubEditModal('${s.phone}')"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-g" style="padding:5px 10px;font-size:12px" onclick="openRechargeModal('${s.phone}','${s.name}')">₹+</button>
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="viewSubKhata('${s.phone}','${s.name}')"><i class="fa fa-book"></i></button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="removeSub('${s.phone}','${s.name}')"><i class="fa fa-trash"></i></button>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;min-width:200px">
+          <button class="btn btn-outline" style="padding:5px 9px;font-size:11px" title="Edit" onclick="openSubEditModal('${s.phone}')"><i class="fa fa-edit"></i></button>
+          <button class="btn btn-g" style="padding:5px 9px;font-size:11px" title="Recharge Wallet" onclick="openRechargeModal('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-wallet"></i> ₹+</button>
+          <button style="padding:5px 9px;font-size:11px;border-radius:9px;cursor:pointer;font-family:var(--ff);font-weight:600;${pauseToggleStyle}" title="${pauseToggleLabel}" onclick="openPauseModal('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa ${pauseToggleIcon}"></i> ${pauseToggleLabel}</button>
+          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px" title="Remove Subscription" onclick="removeSub('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-user-minus"></i></button>
+          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px;background:#3b0a0a;color:white;border-color:#3b0a0a" title="Delete User Completely" onclick="deleteSubUserCompletely('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
-    </tr>`).join('') :
-    '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8">No subscribers found</td></tr>';
+    </tr>`;
+  }).join('') :
+  `<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8"><i class="fa fa-crown" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>No subscribers found</td></tr>`;
+}
+
+// ── Pause / Resume Modal ──────────────────────────────────
+function openPauseModal(phone, name) {
+  const s = _subs.find(x => x.phone === phone);
+  if (!s) return;
+  const pm = s.pause_morning || s.is_paused_morning;
+  const pe = s.pause_evening || s.is_paused_evening;
+  const both = s.is_paused && !pm && !pe;
+  openMo(`
+    <div class="mo-title"><i class="fa fa-pause-circle" style="color:var(--o)"></i> Pause / Resume — ${name}</div>
+    <p style="font-size:13px;color:#64748b;margin-bottom:20px">Choose which sessions to pause or resume for this subscriber.</p>
+    <div style="display:grid;gap:10px">
+      <div class="refund-opt" onclick="doTogglePause('${phone}','morning')" style="cursor:pointer;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;display:flex;align-items:center;gap:10px;transition:all .15s">
+        <i class="fa fa-sun" style="color:#f59e0b;font-size:18px;width:24px"></i>
+        <div><div style="font-weight:700;font-size:13.5px">Morning Tiffin</div><div style="font-size:12px;color:#94a3b8">${pm?'Currently Paused — click to resume':'Currently Active — click to pause'}</div></div>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;background:${pm?'#fef9c3':'#dcfce7'};color:${pm?'#854d0e':'#166534'};padding:3px 10px;border-radius:20px">${pm?'Paused':'Active'}</span>
+      </div>
+      <div class="refund-opt" onclick="doTogglePause('${phone}','evening')" style="cursor:pointer;padding:14px 16px;border:2px solid #e5e7eb;border-radius:12px;display:flex;align-items:center;gap:10px;transition:all .15s">
+        <i class="fa fa-moon" style="color:#6366f1;font-size:18px;width:24px"></i>
+        <div><div style="font-weight:700;font-size:13.5px">Evening Tiffin</div><div style="font-size:12px;color:#94a3b8">${pe?'Currently Paused — click to resume':'Currently Active — click to pause'}</div></div>
+        <span style="margin-left:auto;font-size:11px;font-weight:700;background:${pe?'#fef9c3':'#dcfce7'};color:${pe?'#854d0e':'#166534'};padding:3px 10px;border-radius:20px">${pe?'Paused':'Active'}</span>
+      </div>
+    </div>
+    <button class="btn btn-outline" style="margin-top:16px;width:100%" onclick="closeMo()">Close</button>`);
+}
+
+async function doTogglePause(phone, session) {
+  const s = _subs.find(x => x.phone === phone);
+  if (!s) return;
+  const isPaused = session === 'morning'
+    ? (s.pause_morning || s.is_paused_morning)
+    : (s.pause_evening || s.is_paused_evening);
+  const action = isPaused ? 'resume' : 'pause';
+  try {
+    await api('toggleSubPause', { phone, session, action });
+    closeMo(); loadSubscribers(); aToast(`${action === 'pause' ? 'Paused' : 'Resumed'} ${session} ✅`);
+  } catch(e) {
+    // Fallback: try legacy single pause toggle
+    try {
+      await api('updateSubscriber', { phone, is_paused: !s.is_paused });
+      closeMo(); loadSubscribers(); aToast(`Subscription ${!s.is_paused ? 'paused' : 'resumed'} ✅`);
+    } catch(e2) { aToast(e2.message); }
+  }
+}
+
+// ── Promote User Modal ────────────────────────────────────
+function openPromoteUserModal() {
+  openMo(`
+    <div class="mo-title"><i class="fa fa-arrow-up" style="color:var(--blue)"></i> Promote User to Subscriber</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div class="field" style="flex:1;margin-bottom:0"><label>Search by Phone or Name</label><input id="promo-search" type="text" placeholder="Phone or name…"></div>
+      <button class="btn btn-outline" style="align-self:flex-end" onclick="findUserForPromote()"><i class="fa fa-magnifying-glass"></i> Find</button>
+    </div>
+    <div id="promote-user-info"></div>
+    <button class="btn btn-outline" style="margin-top:8px;width:100%" onclick="closeMo()">Cancel</button>`);
 }
 
 async function findUserForPromote() {
-  const phone = document.getElementById('promote-phone')?.value.trim();
-  if (!phone) { aToast('Enter phone'); return; }
+  const query = document.getElementById('promo-search')?.value.trim();
+  if (!query) { aToast('Enter phone or name'); return; }
   try {
-    const res = await api('getUserByPhone', { phone });
+    const res = await api('getUserByPhone', { phone: query });
     const u = res.user;
     document.getElementById('promote-user-info').innerHTML = `
-      <div class="card" style="background:#f8fafc;padding:14px;margin-bottom:12px">
-        <div><b>${u.name}</b> (${u.phone}) — ${u.email||''}</div>
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--blue),#6366f1);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px">${(u.name||'?')[0].toUpperCase()}</div>
+        <div><div style="font-weight:700;font-size:14px">${u.name||'—'}</div><div style="font-size:12px;color:#64748b">${u.phone} ${u.email?'· '+u.email:''}</div></div>
       </div>
-      <div class="field"><label>Plan Start</label><input id="promo-start" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
-      <div class="field"><label>Plan End</label><input id="promo-end" type="date"></div>
-      <div class="field"><label>Notes</label><textarea id="promo-notes" rows="2"></textarea></div>
-      <button class="btn btn-p" onclick="promoteUser('${u.phone}')">Promote to Subscriber</button>`;
+      <div class="field"><label>Plan</label>
+        <select id="promo-plan">
+          <option value="morning">Morning Tiffin (Day)</option>
+          <option value="evening">Evening Tiffin (Night)</option>
+          <option value="both">Both (Morning + Evening)</option>
+        </select>
+      </div>
+      <div class="field"><label>Plan Start Date</label><input id="promo-start" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div class="field"><label>Initial Wallet Recharge (₹) <span style="color:#94a3b8;font-weight:400">optional</span></label><input id="promo-recharge" type="number" min="0" placeholder="0"></div>
+      <div class="field"><label>Notes</label><textarea id="promo-notes" rows="2" placeholder="Optional internal note"></textarea></div>
+      <button class="btn btn-p" style="width:100%;margin-top:4px" onclick="promoteUser('${u.phone}')"><i class="fa fa-arrow-up"></i> Promote to Subscriber</button>`;
   } catch(e) { aToast(e.message||'User not found'); }
 }
 
 async function promoteUser(phone) {
   const data = {
     phone,
+    plan:       document.getElementById('promo-plan')?.value,
     plan_start: document.getElementById('promo-start')?.value,
-    plan_end:   document.getElementById('promo-end')?.value,
     notes:      document.getElementById('promo-notes')?.value.trim()
   };
-  if (!data.plan_end) { aToast('Set plan end date'); return; }
+  const recharge = parseFloat(document.getElementById('promo-recharge')?.value)||0;
   try {
     await api('promoteToSubscriber', data);
-    aToast('Promoted!');
-    document.getElementById('promote-user-info').innerHTML = '';
-    document.getElementById('promote-phone').value = '';
+    if (recharge > 0) {
+      try { await api('rechargeWallet', { phone, amount: recharge, note: 'Initial recharge on promotion' }); } catch(_){}
+    }
+    closeMo();
     loadSubscribers();
+    aToast('Promoted to subscriber! ✅');
   } catch(e) { aToast(e.message); }
 }
 
+// ── Add User from Subs Tab ────────────────────────────────
+function openSubsAddUserModal() {
+  openMo(`
+    <div class="mo-title"><i class="fa fa-user-plus" style="color:var(--g)"></i> Add New User</div>
+    <div class="field"><label>Mobile Number <span style="color:var(--p)">*</span></label><input id="sau-phone" type="tel" placeholder="10-digit mobile number"></div>
+    <div class="field"><label>Full Name <span style="color:var(--p)">*</span></label><input id="sau-name" placeholder="Customer's name"></div>
+    <div class="field"><label>Address</label><textarea id="sau-addr" rows="2" placeholder="Delivery address"></textarea></div>
+    <div class="field"><label>Password <span style="color:var(--p)">*</span></label><input id="sau-pw" type="password" placeholder="Set account password"></div>
+    <div class="field"><label>Initial Wallet Recharge (₹) <span style="color:#94a3b8;font-weight:400">optional</span></label><input id="sau-wallet" type="number" min="0" placeholder="0"></div>
+    <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#166534">
+      <i class="fa fa-circle-info" style="margin-right:4px"></i> User will appear in All Users tab. Promote them to subscriber using the Promote User button.
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
+      <button class="btn btn-g" onclick="createUserFromSubs()"><i class="fa fa-plus"></i> Create User</button>
+    </div>`);
+}
+
+async function createUserFromSubs() {
+  const name     = document.getElementById('sau-name')?.value.trim();
+  const phone    = document.getElementById('sau-phone')?.value.trim();
+  const address  = document.getElementById('sau-addr')?.value.trim();
+  const password = document.getElementById('sau-pw')?.value;
+  const wallet   = parseFloat(document.getElementById('sau-wallet')?.value)||0;
+  if (!name || !phone || !password) { aToast('Name, phone & password required'); return; }
+  try {
+    await api('adminCreateUser', { name, phone, address, password });
+    if (wallet > 0) {
+      try { await api('rechargeWallet', { phone, amount: wallet, note: 'Initial wallet recharge' }); } catch(_){}
+    }
+    closeMo(); loadUsers?.(); aToast('User created ✅');
+  } catch(e) { aToast(e.message); }
+}
+
+// ── Edit Subscriber Modal ─────────────────────────────────
 function openSubEditModal(phone) {
   const s = _subs.find(x => x.phone === phone);
   if (!s) return;
   openMo(`
-    <div class="mo-title">Edit Subscriber — ${s.name}</div>
-    <div class="field"><label>Plan Start</label><input id="se-start" type="date" value="${s.plan_start||''}"></div>
-    <div class="field"><label>Plan End</label><input id="se-end" type="date" value="${s.plan_end||''}"></div>
+    <div class="mo-title"><i class="fa fa-edit" style="color:var(--blue)"></i> Edit Subscriber — ${s.name}</div>
+    <div class="field"><label>Plan</label>
+      <select id="se-plan">
+        <option value="morning" ${getSubsPlan(s)==='day'?'selected':''}>Morning Tiffin (Day)</option>
+        <option value="evening" ${getSubsPlan(s)==='night'?'selected':''}>Evening Tiffin (Night)</option>
+        <option value="both" ${getSubsPlan(s)==='both'?'selected':''}>Both (Morning + Evening)</option>
+      </select>
+    </div>
+    <div class="field"><label>Plan Start Date</label><input id="se-start" type="date" value="${s.plan_start||''}"></div>
     <div class="field"><label>Notes</label><textarea id="se-notes" rows="3">${s.notes||''}</textarea></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveSubEdit('${phone}')">Save</button>
+      <button class="btn btn-p" onclick="saveSubEdit('${phone}')">Save Changes</button>
     </div>`);
 }
 
 async function saveSubEdit(phone) {
   const data = {
     phone,
+    plan:       document.getElementById('se-plan')?.value,
     plan_start: document.getElementById('se-start')?.value,
-    plan_end:   document.getElementById('se-end')?.value,
     notes:      document.getElementById('se-notes')?.value.trim()
   };
   try {
     await api('updateSubscriber', data);
-    closeMo(); loadSubscribers(); aToast('Updated');
+    closeMo(); loadSubscribers(); aToast('Subscriber updated ✅');
   } catch(e) { aToast(e.message); }
 }
 
+// ── Recharge Modal ────────────────────────────────────────
 function openRechargeModal(phone, name) {
   openMo(`
-    <div class="mo-title">Recharge Wallet — ${name}</div>
-    <div class="field"><label>Amount (₹)</label><input id="rch-amt" type="number" min="1" placeholder="Enter amount"></div>
+    <div class="mo-title"><i class="fa fa-wallet" style="color:var(--g)"></i> Recharge Wallet — ${name}</div>
+    <div class="field"><label>Amount (₹)</label><input id="rch-amt" type="number" min="1" placeholder="Enter amount to add"></div>
     <div class="field"><label>Note</label><input id="rch-note" placeholder="e.g. Monthly recharge"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-g" onclick="doRecharge('${phone}')">Recharge</button>
+      <button class="btn btn-g" onclick="doRecharge('${phone}')"><i class="fa fa-plus"></i> Recharge</button>
     </div>`);
 }
 
 async function doRecharge(phone) {
   const amount = parseFloat(document.getElementById('rch-amt')?.value);
-  const note = document.getElementById('rch-note')?.value.trim();
+  const note   = document.getElementById('rch-note')?.value.trim();
   if (!amount || amount <= 0) { aToast('Enter valid amount'); return; }
   try {
     await api('rechargeWallet', { phone, amount, note });
@@ -2642,10 +2858,22 @@ async function doRecharge(phone) {
   } catch(e) { aToast(e.message); }
 }
 
+// ── Remove Subscriber (keep user account) ─────────────────
 async function removeSub(phone, name) {
-  confirmAction(`Remove subscriber <b>${name}</b>?`, async function() {
-    try { await api('removeSubscriber', { phone }); loadSubscribers(); aToast('Removed'); }
+  confirmAction(`Remove <b>${name}</b> from subscribers?<br><small style="color:#64748b">User account will remain. Only subscription is removed.</small>`, async function() {
+    try { await api('removeSubscriber', { phone }); loadSubscribers(); aToast('Removed from subscribers'); }
     catch(e) { aToast(e.message); }
+  });
+}
+
+// ── Delete User Completely ────────────────────────────────
+async function deleteSubUserCompletely(phone, name) {
+  confirmAction(`⚠️ Permanently delete user <b>${name}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all data. Cannot be undone.</small>`, async function() {
+    try {
+      await api('removeSubscriber', { phone });
+      try { await api('adminDeleteUser', { phone }); } catch(_){}
+      loadSubscribers(); aToast('User deleted permanently');
+    } catch(e) { aToast(e.message); }
   });
 }
 
