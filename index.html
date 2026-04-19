@@ -1107,14 +1107,18 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
     const closeT = state.session === 'lunch' ? _fmtH(d.le, d.lem) : _fmtH(d.de, d.dem);
     const label  = state.session === 'lunch' ? 'Lunch' : 'Dinner';
     const emoji  = state.session === 'lunch' ? '🌞' : '🌙';
-    banner.innerHTML = '<div style="flex-shrink:0;width:44px;height:44px;background:rgba(42,157,143,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">' + emoji + '</div>'
-      + '<div style="flex:1">'
-      + '<div style="font-size:15px;font-weight:800;display:flex;align-items:center;gap:7px"><span class=\'dot-pulse\'></span>Orders open &nbsp;&middot;&nbsp; ' + label + '</div>'
-      + '<div style="font-weight:500;font-size:12px;font-family:var(--fb);margin-top:3px;opacity:.8">' + label + ' orders close at <b>' + closeT + '</b></div>'
-      + bothTimes + '</div>';
-    banner.style.background = 'linear-gradient(135deg,#f0fdf9,#d1fae5)';
-    banner.style.color = 'var(--g)';
-    banner.style.boxShadow = '0 6px 20px rgba(42,157,143,.18)';
+    const lunchPill  = d ? '<span style="background:rgba(255,255,255,.18);border-radius:20px;padding:2px 9px;font-size:10px;font-weight:600;white-space:nowrap">🌞 ' + _fmtH(d.ls,d.lsm) + '–' + _fmtH(d.le,d.lem) + '</span>' : '';
+    const dinnerPill = d ? '<span style="background:rgba(255,255,255,.18);border-radius:20px;padding:2px 9px;font-size:10px;font-weight:600;white-space:nowrap">🌙 ' + _fmtH(d.ds,d.dsm) + '–' + _fmtH(d.de,d.dem) + '</span>' : '';
+    banner.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'
+      + '<span class=\'dot-pulse\' style="background:#fff;flex-shrink:0"></span>'
+      + '<div style="min-width:0">'
+      + '<div style="font-size:15px;font-weight:800;color:#fff">' + emoji + ' Orders open &nbsp;&middot;&nbsp; ' + label + '</div>'
+      + '<div style="font-size:11px;font-weight:500;opacity:.85;margin-top:2px;color:#fff">' + label + ' orders close at <b>' + closeT + '</b></div>'
+      + (d ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px">' + lunchPill + dinnerPill + '</div>' : '')
+      + '</div></div>';
+    banner.style.background = 'linear-gradient(135deg,#1a7a6e,#2a9d8f)';
+    banner.style.color = '#fff';
+    banner.style.boxShadow = '0 6px 24px rgba(26,122,110,.35)';
     if (btn) btn.disabled = false;
   }
 }
