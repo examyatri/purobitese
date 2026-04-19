@@ -19,7 +19,7 @@
   --sh:0 2px 12px rgba(0,0,0,.07);--shl:0 8px 32px rgba(0,0,0,.14);
   --r:clamp(10px,2.5vw,14px);--rl:clamp(14px,3.5vw,20px);
   --ff:'Sora',sans-serif;--fb:'DM Sans',sans-serif;
-  --bnav-h:64px;--safe-b:env(safe-area-inset-bottom,0px);--pg-pad:clamp(10px,4vw,20px);
+  --bnav-h:64px;--safe-b:env(safe-area-inset-bottom,0px);--pg-pad:clamp(12px,4vw,24px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;height:100dvh}
@@ -127,7 +127,7 @@ textarea{resize:vertical;min-height:80px}
 .toggle-sw::after{content:'';position:absolute;width:20px;height:20px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left 200ms;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .toggle-sw:checked::after{left:23px}
 /* Cutoff banner */
-#cutoff-banner{border-radius:12px;padding:10px 14px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:10px;text-align:center}
+/* cutoff-banner defined below */
 /* Sub plan banner */
 .sub-plan-banner{background:var(--grad);border-radius:14px;padding:12px 14px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 /* Monthly plan card */
@@ -270,6 +270,39 @@ textarea{resize:vertical;min-height:80px}
 .backdrop.show{display:block}
 /* Wallet nav button */
 #bnav-wallet{transition:background 300ms}
+/* ── RESPONSIVE: flexible layout for all screen sizes ── */
+/* Tiny phones (<360px): tighter padding, smaller text */
+@media(max-width:359px){
+  :root{--pg-pad:10px;--bnav-h:58px}
+  .home-logo{font-size:20px}
+  .m-item-name{font-size:15px}
+  .m-item-img,.m-item-img-ph{width:68px;height:68px}
+  .cat-chip{padding:6px 12px;font-size:12px}
+  #cutoff-banner{font-size:12px;padding:12px 14px}
+  .monthly-plan-card{padding:12px 14px}
+  .btn-primary,.btn-outline{font-size:14px;padding:12px}
+}
+/* Standard phones (360-540px): default, already tuned */
+@media(min-width:360px) and (max-width:540px){
+  :root{--pg-pad:clamp(12px,4vw,18px)}
+}
+/* Large phones / small tablets (541-768px): expand max-width, bigger padding */
+@media(min-width:541px){
+  :root{--pg-pad:clamp(18px,3vw,28px)}
+  .pg,#bottom-nav,.sheet,#cart-fab,#toast,#cart-pill{max-width:600px}
+  .home-logo{font-size:24px}
+  .m-item-img,.m-item-img-ph{width:90px;height:90px}
+  .thali-card{width:260px}
+}
+/* Tablets (769px+): wider, centered card layout */
+@media(min-width:769px){
+  body{background:#e8e8e8}
+  .pg,#bottom-nav,.sheet,#cart-fab,#toast,#cart-pill,#app-loader,#retry-screen{max-width:480px}
+  :root{--pg-pad:24px}
+  /* show a subtle card shadow on tablet desktop view */
+  .pg{box-shadow:0 0 40px rgba(0,0,0,.15)}
+}
+/* ── END RESPONSIVE ── */
 </style>
 </head>
 <body>
@@ -862,6 +895,7 @@ const _MENU_CACHE_KEY = 'tf_menu_cache';
 const _MENU_TTL = 10 * 60 * 1000;
 let _stack = [];
 let _lastSchedule = null;
+let _lastCutoff   = null;
 
 /* ═══════════════════════════════════════════
    CORE MODULES
@@ -971,37 +1005,107 @@ function currentISTHour() {
   return Math.floor((Date.now() + 5.5 * 3600000) / 3600000) % 24;
 }
 
-function calcOrderState(schedule, currentH) {
-  if (!schedule || !Array.isArray(schedule)) return { closed: true, reason: 'Schedule not set', session: null };
-  const ist = new Date(Date.now() + 5.5 * 3600000);
-  const dayIdx = ist.getUTCDay();
-  const day = schedule[dayIdx];
-  if (!day || !day.open) return { closed: true, reason: 'Closed today', session: null };
-  const h = currentH;
-  const ls = parseInt(day.lunchStart), le = parseInt(day.lunchEnd);
-  const ds = parseInt(day.dinnerStart), de = parseInt(day.dinnerEnd);
-  if (h < ls)           return { closed: true, reason: `Opens at ${ls}:00`, session: null };
-  if (h >= ls && h < le) return { closed: false, reason: '', session: 'lunch' };
-  if (h >= le && h < ds) return { closed: true, reason: 'Lunch orders closed', session: null };
-  if (h >= ds && h < de) return { closed: false, reason: '', session: 'dinner' };
-  return { closed: true, reason: 'Closed for the day', session: null };
+/* Format 24h int + minutes → "hh:mm AM/PM" */
+function _fmtH(h24, m) {
+  m = m || 0;
+  const ap = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 || 12;
+  return String(h12).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ' ' + ap;
 }
 
-function updateCutoffBanner(schedule, currentH) {
-  if (!schedule) return;
-  _lastSchedule = schedule;
-  const state = calcOrderState(schedule, currentH);
+/* Parse "HH:MM" or plain hour int → {h, m} */
+function _parseHM(val) {
+  if (val == null) return { h: 0, m: 0 };
+  const s = String(val);
+  if (s.includes(':')) { const [hh, mm] = s.split(':'); return { h: parseInt(hh)||0, m: parseInt(mm)||0 }; }
+  return { h: parseInt(s)||0, m: 0 };
+}
+
+/* Normalise schedule: prefers weekly-schedule array; falls back to flat cutoff config.
+   Always returns an object with lunchStart/lunchEnd/dinnerStart/dinnerEnd (24h ints) or null. */
+function _getDaySchedule(rawSchedule, rawCutoff) {
+  if (rawSchedule && Array.isArray(rawSchedule) && rawSchedule.length === 7) {
+    const ist    = new Date(Date.now() + 5.5 * 3600000);
+    const dayIdx = ist.getUTCDay();
+    const day    = rawSchedule[dayIdx];
+    if (day && day.open) {
+      const ls = _parseHM(day.lunchStart),  le = _parseHM(day.lunchEnd);
+      const ds = _parseHM(day.dinnerStart), de = _parseHM(day.dinnerEnd);
+      return { lunchStart:ls.h, lunchStartMin:ls.m, lunchEnd:le.h, lunchEndMin:le.m,
+               dinnerStart:ds.h, dinnerStartMin:ds.m, dinnerEnd:de.h, dinnerEndMin:de.m };
+    }
+    if (day && !day.open) return { closed: true };
+  }
+  /* fallback: flat cutoff config has just one cutoffHour for evening */
+  if (rawCutoff && rawCutoff.cutoffHour != null) {
+    return {
+      lunchStart: parseInt(rawCutoff.lunchStart || 10),  lunchStartMin: 0,
+      lunchEnd:   parseInt(rawCutoff.lunchEnd   || 13),  lunchEndMin:   0,
+      dinnerStart:parseInt(rawCutoff.dinnerStart || 18), dinnerStartMin:0,
+      dinnerEnd:  parseInt(rawCutoff.cutoffHour),        dinnerEndMin:  parseInt(rawCutoff.cutoffMinute || 0)
+    };
+  }
+  return null;
+}
+
+function calcOrderState(schedule, currentH, rawCutoff) {
+  const day = _getDaySchedule(schedule, rawCutoff || null);
+  if (!day) return { closed: true, reason: 'Schedule not available', session: null, day: null };
+  if (day.closed) return { closed: true, reason: 'Closed today', session: null, day: null };
+  const ist = new Date(Date.now() + 5.5 * 3600000);
+  const m   = ist.getUTCMinutes();
+  const h   = currentH;
+  const ls = day.lunchStart,  lsm = day.lunchStartMin  || 0;
+  const le = day.lunchEnd,    lem = day.lunchEndMin     || 0;
+  const ds = day.dinnerStart, dsm = day.dinnerStartMin  || 0;
+  const de = day.dinnerEnd,   dem = day.dinnerEndMin    || 0;
+  const nowMins  = h * 60 + m;
+  const lsTotal  = ls * 60 + lsm, leTotal = le * 60 + lem;
+  const dsTotal  = ds * 60 + dsm, deTotal = de * 60 + dem;
+  let session = null, closed = true, reason = '';
+  if (nowMins < lsTotal)      { reason = 'Opens for lunch at ' + _fmtH(ls, lsm); }
+  else if (nowMins < leTotal) { closed = false; session = 'lunch'; }
+  else if (nowMins < dsTotal) { reason = 'Lunch orders closed · Dinner opens at ' + _fmtH(ds, dsm); }
+  else if (nowMins < deTotal) { closed = false; session = 'dinner'; }
+  else                        { reason = 'Closed for today'; }
+  return { closed, reason, session, day: { ls, lsm, le, lem, ds, dsm, de, dem } };
+}
+
+function updateCutoffBanner(schedule, currentH, rawCutoff) {
+  /* Always prefer weekly schedule array; only fall back to cutoff if schedule is empty/null */
+  const useSchedule = (schedule && Array.isArray(schedule) && schedule.length === 7) ? schedule : null;
+  const useCutoff   = useSchedule ? null : (rawCutoff || null);
+  if (!useSchedule && !useCutoff) return;
+  _lastSchedule = useSchedule;
+  _lastCutoff   = rawCutoff || null;
+  const state  = calcOrderState(useSchedule, currentH, useCutoff);
   const banner = document.getElementById('cutoff-banner');
   const btn    = document.getElementById('place-order-btn');
   if (!banner) return;
   banner.style.display = 'flex';
+
+  /* Build both-session time line if day data available */
+  const d = state.day;
+  const bothTimes = d
+    ? '<span style="font-weight:400;font-size:11px;font-family:var(--fb);opacity:.8;margin-top:2px;display:block">'
+      + '🌞 Lunch ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem)
+      + ' &nbsp;|&nbsp; 🌙 Dinner ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem)
+      + '</span>'
+    : '';
+
   if (state.closed) {
-    banner.innerHTML = '<i class="fa-regular fa-clock" style="font-size:20px;flex-shrink:0"></i><div>' + state.reason + '</div>';
+    banner.innerHTML = '<i class="fa-regular fa-clock" style="font-size:18px;flex-shrink:0"></i>'
+      + '<div><div>' + state.reason + '</div>' + bothTimes + '</div>';
     banner.style.background = '#fee2e2'; banner.style.color = 'var(--pd)';
     if (btn) btn.disabled = true;
   } else {
-    const closeT = state.session === 'lunch' ? (_lastSchedule&&_lastSchedule.lunchEnd?_lastSchedule.lunchEnd+':00':'') : (_lastSchedule&&_lastSchedule.dinnerEnd?_lastSchedule.dinnerEnd+':30':'');
-    banner.innerHTML = '<span style="width:12px;height:12px;background:var(--g);border-radius:50%;flex-shrink:0;box-shadow:0 0 0 4px rgba(42,157,143,.2)"></span><div><div style="font-size:14px">Orders open</div><div style="font-weight:400;font-size:12px;font-family:var(--fb);margin-top:1px">'+(state.session==='lunch'?'Lunch':'Dinner')+' orders close at '+closeT+'</div></div>';
+    const closeT = state.session === 'lunch' ? _fmtH(d.le, d.lem) : _fmtH(d.de, d.dem);
+    const label  = state.session === 'lunch' ? 'Lunch' : 'Dinner';
+    banner.innerHTML = '<span style="width:12px;height:12px;background:var(--g);border-radius:50%;flex-shrink:0;box-shadow:0 0 0 4px rgba(42,157,143,.2)"></span>'
+      + '<div><div style="font-size:14px;font-weight:700">Orders open · ' + label + '</div>'
+      + '<div style="font-weight:400;font-size:12px;font-family:var(--fb);margin-top:1px">'
+      + label + ' orders close at ' + closeT + '</div>'
+      + bothTimes + '</div>';
     banner.style.background = 'var(--gl)'; banner.style.color = 'var(--g)';
     if (btn) btn.disabled = false;
   }
@@ -1168,7 +1272,10 @@ function nav(id) {
   next.classList.add('here');
   next.style.transform = '';
   _stack.push(id);
-  history.pushState({pg:id,stackLen:_stack.length},'','');
+  // Use hash for page-wise URL: #cart, #orders, etc. Home = no hash
+  const hashMap = { 'pg-home':'', 'pg-cart':'cart', 'pg-orders':'orders', 'pg-account':'account', 'pg-khata':'wallet' };
+  const hash = hashMap[id] !== undefined ? hashMap[id] : '';
+  history.pushState({pg:id,stackLen:_stack.length},'', hash ? '#' + hash : location.pathname + location.search);
   updateBottomNav(id);
   onEnter(id);
   document.getElementById('cart-fab').style.display =
@@ -1189,9 +1296,7 @@ function back() {
   onEnter(prev);
 }
 
-window.addEventListener('popstate', function() {
-  if (_stack.length >= 2) back();
-});
+// popstate handled at bottom of script
 
 function onEnter(id) {
   if (id === 'pg-home')    { loadMenu(); loadPauseState(); refreshWalletBalance(); startPolling(); }
@@ -1223,14 +1328,24 @@ function switchTab(tab) {
   }
 }
 
-function prefillLoginForm() {
+function prefillLoginForm(wrongCreds) {
   const creds = Creds.get();
+  const hint  = document.getElementById('login-creds-hint');
   if (creds) {
     document.getElementById('login-phone').value = creds.phone;
     document.getElementById('login-pw').value    = creds.pw;
-    document.getElementById('login-creds-hint').style.display = 'block';
+    hint.style.display = 'block';
+    if (wrongCreds) {
+      hint.style.background = 'var(--pl)';
+      hint.style.color = 'var(--pd)';
+      hint.textContent = '⚠️ Incorrect details — please update and login';
+    } else {
+      hint.style.background = '';
+      hint.style.color = '';
+      hint.textContent = '✅ Credentials loaded — tap Login';
+    }
   } else {
-    document.getElementById('login-creds-hint').style.display = 'none';
+    hint.style.display = 'none';
   }
 }
 
@@ -1358,7 +1473,7 @@ async function _fetchFreshMenu() {
   ]);
   _khataEnabled = khataRes.enabled;
   applyKhataVisibility();
-  updateCutoffBanner(schedRes.schedule || cutoffRes.config, currentISTHour());
+  updateCutoffBanner(schedRes.schedule, currentISTHour(), cutoffRes.config);
   const newMenu   = menuRes.items   || [];
   const newThalis = thaliRes.thalis || [];
   if (JSON.stringify(newMenu) !== JSON.stringify(_fullMenu)) {
@@ -1740,7 +1855,7 @@ async function placeOrder() {
   if (!user.address) { toast('Add delivery address in Account → Edit Address'); return; }
 
   const hour = currentISTHour();
-  const stateObj = _lastSchedule ? calcOrderState(_lastSchedule, hour) : null;
+  const stateObj = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, hour, _lastCutoff) : null;
   if (stateObj?.closed) { showClosedPopup(stateObj.reason); return; }
   if (stateObj && _pauseMode !== 'none') {
     const session = stateObj.session;
@@ -2241,6 +2356,7 @@ async function bootApp() {
   const creds = Creds.get(); // key: tf_creds
 
   if (!creds) {
+    // No saved credentials -> show signup so user can register
     _transitionToLogin(false);
     return;
   }
@@ -2257,6 +2373,7 @@ async function bootApp() {
     api('getKhataEnabled')
       .then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); })
       .catch(() => {});
+    // Credentials valid -> always open home page
     _transitionToHome();
     loadMenu();
     startPolling();
@@ -2265,8 +2382,9 @@ async function bootApp() {
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found');
     if (isAuthError) {
-      Creds.clear();
-      _transitionToLogin(true);
+      // Creds exist but don't match DB -> show login tab prefilled so user can fix manually
+      // Do NOT Creds.clear() - keep phone prefilled so user sees what failed
+      _transitionToLogin(true, true); // true=login tab, true=wrongCreds warning
     } else {
       _showRetryUI('No internet connection. Check and try again.');
     }
@@ -2280,14 +2398,14 @@ function _transitionToHome() {
   home.classList.add('here');
   home.style.transform = '';
   _stack = ['pg-home'];
-  history.replaceState({pg:'pg-home',stackLen:1},'','');
+  history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
   updateBottomNav('pg-home');
   updateCartBadge();
   _applySubscriberUI();
   applyKhataVisibility();
 }
 
-function _transitionToLogin(showLoginTab = false) {
+function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
   document.getElementById('app-loader').style.display = 'none';
   document.getElementById('retry-screen').style.display = 'none';
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
@@ -2295,10 +2413,10 @@ function _transitionToLogin(showLoginTab = false) {
   auth.classList.add('here');
   auth.style.transform = '';
   _stack = ['pg-auth'];
-  history.replaceState({pg:'pg-auth',stackLen:1},'','');
+  history.replaceState({pg:'pg-auth',stackLen:1},'', location.pathname + location.search);
   if (showLoginTab) {
     document.getElementById('tab-login').click();
-    setTimeout(prefillLoginForm, 100);
+    setTimeout(() => prefillLoginForm(wrongCreds), 100);
   } else {
     document.getElementById('tab-signup').click();
   }
@@ -2340,6 +2458,7 @@ function doLogout() {
   _placingOrder  = false;
   _stack         = [];
   _lastSchedule  = null;
+  _lastCutoff    = null;
   _khataAllEntries = [];
   document.getElementById('cart-pill').style.display = 'none';
   updateCartBadge();
