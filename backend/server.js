@@ -1275,7 +1275,39 @@ app.post('/api', async (req, res) => {
         const phone = cleanPhone(data.phone);
         const { data: entries } = await supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: false });
         const { data: sumRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        return res.json({ success: true, balance: sumRow?.balance || 0, entries: entries || [] });
+
+        // ── Enrich entries with order details (items, discount, coupon) ──
+        const orderIds = (entries || []).map(e => e.order_id).filter(Boolean);
+        let orderMap = {};
+        if (orderIds.length) {
+          const { data: orders } = await supabase
+            .from('orders')
+            .select('order_id, items, discount, coupon_code, total_amount, delivery_charge, final_amount')
+            .in('order_id', orderIds);
+          for (const o of (orders || [])) {
+            let parsedItems = o.items;
+            if (typeof parsedItems === 'string') {
+              try { parsedItems = JSON.parse(parsedItems); } catch { parsedItems = []; }
+            }
+            orderMap[o.order_id] = {
+              items:           parsedItems || [],
+              discount:        o.discount        || 0,
+              coupon_code:     o.coupon_code      || null,
+              total_amount:    o.total_amount     || 0,
+              delivery_charge: o.delivery_charge  || 0,
+              final_amount:    o.final_amount     || 0
+            };
+          }
+        }
+
+        const enriched = (entries || []).map(e => {
+          if (e.order_id && orderMap[e.order_id]) {
+            return { ...e, ...orderMap[e.order_id] };
+          }
+          return e;
+        });
+
+        return res.json({ success: true, balance: sumRow?.balance || 0, entries: enriched });
       }
 
       case 'getSubscriberBalance': {
