@@ -488,6 +488,17 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="card-header"><div class="card-title"><i class="fa fa-boxes-stacked"></i> Bulk Order Creator</div></div>
           <div id="bulk-item-selector"></div>
           <div class="field" style="margin-top:12px"><label>Delivery Charge (₹)</label><input id="bulk-delivery" type="number" value="0" min="0"></div>
+          <div class="field" style="margin-top:12px">
+            <label>Slot</label>
+            <div style="display:flex;gap:16px;margin-top:6px">
+              <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer">
+                <input type="radio" name="bulk-slot" id="bulk-slot-morning" value="morning" checked> 🌅 Morning
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer">
+                <input type="radio" name="bulk-slot" id="bulk-slot-evening" value="evening"> 🌆 Evening
+              </label>
+            </div>
+          </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
             <button class="btn btn-g" onclick="bulkOrderBalance()">📦 Bulk Create (Balance Check)</button>
             <button class="btn btn-p" onclick="forceBulkAll()">⚡ Force Bulk (All Subscribers)</button>
@@ -1105,6 +1116,23 @@ function _getMorningCutoff(dateStr) {
   return daySched.lunchEnd || null; // e.g. "12:00"
 }
 
+// Helper: get evening cutoff (dinnerEnd) for a given date string "YYYY-MM-DD"
+// Returns "HH:MM" or null if not found
+function _getEveningCutoff(dateStr) {
+  if (!dateStr) return null;
+  const dow = new Date(dateStr + 'T00:00:00').getDay();
+  const daySched = _weeklySchedule[dow];
+  if (!daySched) return null;
+  return daySched.dinnerEnd || null; // e.g. "20:00"
+}
+
+// Helper: convert "HH:MM" to total minutes
+function _toMins(hhmm) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
 async function loadOrders() {
   try {
     npStart();
@@ -1153,28 +1181,25 @@ function renderOrdersTable(orders) {
     const todayIST = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
     filtered = filtered.filter(o => (o.date||'').startsWith(todayIST));
   } else if (sort === 'morning') {
-    // Morning = admin/bulk-created orders OR customer orders placed at/before lunchEnd cutoff for that day
+    // Morning = admin/bulk orders with slot='morning' (or slot unset, defaults morning)
+    //         + customer orders placed at/before lunchEnd cutoff for that day
     filtered = filtered.filter(o => {
-      if ((o.order_source || '') === 'admin') return true; // bulk/admin orders are always morning
-      const cutoff = _getMorningCutoff(o.date);
-      if (!cutoff) return false; // no schedule for this day → exclude
-      const [ch, cm] = cutoff.split(':').map(Number);
-      const [oh, om] = (o.time || '00:00').split(':').map(Number);
-      const cutoffMins = ch * 60 + cm;
-      const orderMins  = oh * 60 + om;
+      if ((o.order_source || '') === 'admin') return (o.slot || 'morning') === 'morning';
+      const cutoffMins = _toMins(_getMorningCutoff(o.date));
+      if (cutoffMins === null) return false;
+      const orderMins = _toMins(o.time || '00:00');
       return orderMins <= cutoffMins;
     });
   } else if (sort === 'evening') {
-    // Evening = customer orders placed AFTER lunchEnd cutoff for that day
+    // Evening = admin/bulk orders with slot='evening'
+    //         + customer orders placed AFTER lunchEnd and at/before dinnerEnd for that day
     filtered = filtered.filter(o => {
-      if ((o.order_source || '') === 'admin') return false; // admin/bulk orders are morning
-      const cutoff = _getMorningCutoff(o.date);
-      if (!cutoff) return false; // no schedule → exclude
-      const [ch, cm] = cutoff.split(':').map(Number);
-      const [oh, om] = (o.time || '00:00').split(':').map(Number);
-      const cutoffMins = ch * 60 + cm;
-      const orderMins  = oh * 60 + om;
-      return orderMins > cutoffMins;
+      if ((o.order_source || '') === 'admin') return (o.slot || 'morning') === 'evening';
+      const morningMins = _toMins(_getMorningCutoff(o.date));
+      const eveningMins = _toMins(_getEveningCutoff(o.date));
+      if (morningMins === null || eveningMins === null) return false;
+      const orderMins = _toMins(o.time || '00:00');
+      return orderMins > morningMins && orderMins <= eveningMins;
     });
   } else if (sort === 'oldest') {
     filtered.reverse();
@@ -1295,11 +1320,12 @@ function collectBulkItems() {
 async function bulkOrderBalance() {
   const items = collectBulkItems();
   const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
+  const slot = document.querySelector('input[name="bulk-slot"]:checked')?.value || 'morning';
   if (!items.length) { aToast('Select at least one item'); return; }
   confirmAction(`Create bulk orders for all eligible subscribers (balance check)?`, async function() {
     try {
       npStart();
-      const res = await api('bulkOrdersWithBalance', { items, deliveryCharge });
+      const res = await api('bulkOrdersWithBalance', { items, deliveryCharge, slot });
       npDone();
       document.getElementById('bulk-result').innerHTML = `
         <div class="card" style="background:#f0fdf4;border:1.5px solid #86efac;margin-top:8px">
@@ -1313,11 +1339,12 @@ async function bulkOrderBalance() {
 async function forceBulkAll() {
   const items = collectBulkItems();
   const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
+  const slot = document.querySelector('input[name="bulk-slot"]:checked')?.value || 'morning';
   if (!items.length) { aToast('Select at least one item'); return; }
   confirmAction(`Force create bulk orders for ALL subscribers (ignore balance)?`, async function() {
     try {
       npStart();
-      const res = await api('adminBulkCreate', { items, deliveryCharge });
+      const res = await api('adminBulkCreate', { items, deliveryCharge, slot });
       npDone();
       document.getElementById('bulk-result').innerHTML = `
         <div class="card" style="background:#f0fdf4;border:1.5px solid #86efac;margin-top:8px">
@@ -1348,11 +1375,12 @@ async function forceUdharOrder() {
   if (!_udharUser) { aToast('Find user first'); return; }
   const items = collectBulkItems();
   const deliveryCharge = parseFloat(document.getElementById('bulk-delivery')?.value)||0;
+  const slot = document.querySelector('input[name="bulk-slot"]:checked')?.value || 'morning';
   if (!items.length) { aToast('Select items above'); return; }
   confirmAction(`Force udhar order for <b>${_udharUser.name}</b> (ignore balance)?`, async function() {
     try {
       npStart();
-      await api('forceUdharOrder', { phone: _udharUser.phone, items, deliveryCharge });
+      await api('forceUdharOrder', { phone: _udharUser.phone, items, deliveryCharge, slot });
       npDone();
       aToast('Udhar order created');
     } catch(e) { npDone(); aToast(e.message); }
