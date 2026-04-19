@@ -35,7 +35,7 @@ body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;
 #bottom-nav button i{font-size:18px}
 /* Cart FAB */
 #cart-fab{position:fixed;bottom:calc(var(--bnav-h) + 16px + var(--safe-b));right:16px;background:var(--grad);color:#fff;border:none;border-radius:24px;padding:12px 20px;box-shadow:var(--shl);font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:8px;z-index:800}
-.badge{position:absolute;top:-6px;right:-6px;background:var(--p);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700}
+.badge{position:absolute;top:-7px;right:-9px;background:var(--p);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;pointer-events:none}
 /* Toast */
 #toast{position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;border-radius:24px;padding:10px 20px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none;font-family:var(--fb);font-size:14px}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -131,9 +131,14 @@ textarea{resize:vertical;min-height:80px}
 /* Sub plan banner */
 .sub-plan-banner{background:var(--grad);border-radius:14px;padding:12px 14px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 /* Monthly plan card */
-.monthly-plan-card{background:linear-gradient(135deg,#f4a261,#e76f51);border-radius:14px;padding:14px 16px;color:#fff;display:flex;align-items:center;gap:12px;margin-bottom:10px;cursor:pointer;box-shadow:var(--sh)}
+.monthly-plan-card{background:linear-gradient(135deg,#ff8c42 0%,#e76f51 50%,#c1440e 100%);border-radius:18px;padding:16px 18px;color:#fff;display:flex;align-items:center;gap:14px;margin-bottom:12px;cursor:pointer;box-shadow:0 8px 24px rgba(231,111,81,.45);position:relative;overflow:hidden;transition:transform 150ms,box-shadow 150ms}
+.monthly-plan-card:active{transform:scale(.98)}
+.monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
+.monthly-plan-card::after{content:'';position:absolute;bottom:-30px;right:40px;width:70px;height:70px;background:rgba(255,255,255,.08);border-radius:50%}
 /* Cutoff card */
-#cutoff-banner{border-radius:14px;padding:14px 16px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+#cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;overflow:hidden;transition:all 300ms}
+@keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(42,157,143,.5)}70%{box-shadow:0 0 0 8px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
+.dot-pulse{width:13px;height:13px;background:var(--g);border-radius:50%;flex-shrink:0;animation:pulse-ring 1.8s ease-out infinite}
 /* Search bar */
 .search-wrap{background:#fff;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:8px;box-shadow:var(--sh);margin-bottom:12px}
 .search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);padding:12px 0}
@@ -439,12 +444,12 @@ textarea{resize:vertical;min-height:80px}
 
       <!-- Monthly plan card (non-subscriber only) -->
       <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
-        <span style="font-size:20px">&#x1F371;</span>
-        <div style="flex:1">
-          <div style="font-family:var(--ff);font-weight:700;font-size:14px">Monthly Tiffin Plan</div>
-          <div style="font-family:var(--fb);font-size:12px;opacity:.85;margin-top:2px">Free Home Delivery + Save &#x20B9;200/month</div>
+        <div style="width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#x1F371;</div>
+        <div style="flex:1;position:relative;z-index:1">
+          <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
+          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;200</span> Free Home Delivery</div>
         </div>
-        <i class="fa-solid fa-chevron-right" style="font-size:14px;opacity:.7"></i>
+        <div style="background:rgba(255,255,255,.25);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px"></i></div>
       </div>
 
       <!-- Cutoff banner -->
@@ -716,14 +721,10 @@ textarea{resize:vertical;min-height:80px}
       <div style="background:#fff;border-radius:14px;padding:14px;box-shadow:var(--sh);margin-bottom:12px">
         <div style="font-family:var(--ff);font-weight:600;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
         <div style="display:flex;gap:8px;margin-bottom:10px">
-          <input type="date" id="khata-from" style="flex:1;font-size:13px;padding:10px;border-radius:10px;border:1.5px solid #e5e7eb;background:#f9f9f9;font-family:var(--fb)">
-          <input type="date" id="khata-to" style="flex:1;font-size:13px;padding:10px;border-radius:10px;border:1.5px solid #e5e7eb;background:#f9f9f9;font-family:var(--fb)">
+          <input type="date" id="khata-from" onchange="filterKhata()" style="flex:1;font-size:13px;padding:10px;border-radius:10px;border:1.5px solid #e5e7eb;background:#f9f9f9;font-family:var(--fb)">
+          <input type="date" id="khata-to" onchange="filterKhata()" style="flex:1;font-size:13px;padding:10px;border-radius:10px;border:1.5px solid #e5e7eb;background:#f9f9f9;font-family:var(--fb)">
         </div>
-        <button onclick="filterKhata()" style="width:100%;background:var(--grad);color:#fff;border:none;border-radius:10px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
-        <div style="display:flex;gap:8px">
-          <button onclick="resetKhataFilter()" style="flex:1;background:#f0f0f0;color:var(--dk);border:none;border-radius:10px;padding:10px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">&#x2715; Reset</button>
-          <button onclick="generateKhataPDF()" style="flex:1;background:var(--grad);color:#fff;border:none;border-radius:10px;padding:10px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="fa-solid fa-file-pdf"></i> Generate PDF Statement</button>
-        </div>
+        <button onclick="generateKhataPDF()" style="width:100%;background:var(--grad);color:#fff;border:none;border-radius:10px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><i class="fa-solid fa-file-pdf"></i> Generate PDF Statement</button>
       </div>
       <!-- Transaction list -->
       <div id="khata-list"></div>
@@ -738,10 +739,12 @@ textarea{resize:vertical;min-height:80px}
   <button onclick="nav('pg-home')" data-pg="pg-home">
     <i class="fa-solid fa-house"></i><span>Home</span>
   </button>
-  <button onclick="nav('pg-cart')" data-pg="pg-cart" style="position:relative">
-    <i class="fa-solid fa-bag-shopping"></i>
+  <button onclick="nav('pg-cart')" data-pg="pg-cart">
+    <span style="position:relative;display:inline-flex;align-items:center;justify-content:center">
+      <i class="fa-solid fa-bag-shopping"></i>
+      <span id="cart-badge" class="badge" style="display:none">0</span>
+    </span>
     <span>Cart</span>
-    <span id="cart-badge" class="badge" style="display:none">0</span>
   </button>
   <button onclick="nav('pg-orders')" data-pg="pg-orders">
     <i class="fa-solid fa-receipt"></i><span>Orders</span>
@@ -1087,26 +1090,31 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
   /* Build both-session time line if day data available */
   const d = state.day;
   const bothTimes = d
-    ? '<span style="font-weight:400;font-size:11px;font-family:var(--fb);opacity:.8;margin-top:2px;display:block">'
-      + '🌞 Lunch ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem)
-      + ' &nbsp;|&nbsp; 🌙 Dinner ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem)
-      + '</span>'
+    ? '<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">'
+      + '<span style="background:rgba(0,0,0,.07);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--fb)">🌞 Lunch ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem) + '</span>'
+      + '<span style="background:rgba(0,0,0,.07);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--fb)">🌙 Dinner ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem) + '</span>'
+      + '</div>'
     : '';
 
   if (state.closed) {
-    banner.innerHTML = '<i class="fa-regular fa-clock" style="font-size:18px;flex-shrink:0"></i>'
-      + '<div><div>' + state.reason + '</div>' + bothTimes + '</div>';
-    banner.style.background = '#fee2e2'; banner.style.color = 'var(--pd)';
+    banner.innerHTML = '<div style="width:44px;height:44px;background:rgba(220,38,38,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-regular fa-clock" style="font-size:20px;color:#dc2626"></i></div>'
+      + '<div style="flex:1"><div style="font-size:14px;font-weight:800;color:#b91c1c">' + state.reason + '</div>' + bothTimes + '</div>';
+    banner.style.background = 'linear-gradient(135deg,#fff5f5,#fee2e2)';
+    banner.style.color = '#b91c1c';
+    banner.style.boxShadow = '0 6px 20px rgba(220,38,38,.12)';
     if (btn) btn.disabled = true;
   } else {
     const closeT = state.session === 'lunch' ? _fmtH(d.le, d.lem) : _fmtH(d.de, d.dem);
     const label  = state.session === 'lunch' ? 'Lunch' : 'Dinner';
-    banner.innerHTML = '<span style="width:12px;height:12px;background:var(--g);border-radius:50%;flex-shrink:0;box-shadow:0 0 0 4px rgba(42,157,143,.2)"></span>'
-      + '<div><div style="font-size:14px;font-weight:700">Orders open · ' + label + '</div>'
-      + '<div style="font-weight:400;font-size:12px;font-family:var(--fb);margin-top:1px">'
-      + label + ' orders close at ' + closeT + '</div>'
+    const emoji  = state.session === 'lunch' ? '🌞' : '🌙';
+    banner.innerHTML = '<div style="flex-shrink:0;width:44px;height:44px;background:rgba(42,157,143,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">' + emoji + '</div>'
+      + '<div style="flex:1">'
+      + '<div style="font-size:15px;font-weight:800;display:flex;align-items:center;gap:7px"><span class=\'dot-pulse\'></span>Orders open &nbsp;&middot;&nbsp; ' + label + '</div>'
+      + '<div style="font-weight:500;font-size:12px;font-family:var(--fb);margin-top:3px;opacity:.8">' + label + ' orders close at <b>' + closeT + '</b></div>'
       + bothTimes + '</div>';
-    banner.style.background = 'var(--gl)'; banner.style.color = 'var(--g)';
+    banner.style.background = 'linear-gradient(135deg,#f0fdf9,#d1fae5)';
+    banner.style.color = 'var(--g)';
+    banner.style.boxShadow = '0 6px 20px rgba(42,157,143,.18)';
     if (btn) btn.disabled = false;
   }
 }
@@ -1207,7 +1215,10 @@ function updateWalletUI(bal) {
   const navBtn = document.getElementById('bnav-wallet');
   const navBal = document.getElementById('bnav-bal');
   if (navBal) navBal.textContent = '₹' + rounded;
-  if (navBtn) navBtn.style.background = _walletBal > 100 ? 'var(--g)' : 'var(--pd)';
+  if (navBtn) navBtn.style.background = _walletBal >= 200 ? 'var(--g)' : 'var(--pd)';
+  // Update balance card color: green >=200, red <200
+  const balCard = document.querySelector('.khata-bal-card');
+  if (balCard) balCard.style.background = _walletBal >= 200 ? 'linear-gradient(135deg,#2a9d8f,#3ab5a5)' : 'linear-gradient(135deg,#c1121f,#e63946)';
 }
 
 function applyKhataVisibility() {
@@ -1258,13 +1269,21 @@ function setDeliveryTime(elId) {
 ═══════════════════════════════════════════ */
 function openWhatsAppPlan() {
   var msg = encodeURIComponent("Mujhe monthly tiffin join karna hai, please information dijiye.");
-  window.open("https://wa.me/919889760350?text=" + msg, "_blank");
+  window.open("https://wa.me/" + (CFG.WA || '919889760350') + "?text=" + msg, "_blank");
 }
 
 /* ═══════════════════════════════════════════
    ROUTING
 ═══════════════════════════════════════════ */
+const _pgHashMap = { 'pg-home':'', 'pg-cart':'cart', 'pg-orders':'orders', 'pg-account':'account', 'pg-khata':'wallet' };
+function _pgHash(id) {
+  const h = _pgHashMap[id];
+  return h !== undefined ? (h ? '#' + h : location.pathname + location.search) : '';
+}
+
 function nav(id) {
+  // Prevent duplicate stack entry for same page
+  if (_stack.length && _stack[_stack.length - 1] === id) return;
   const cur = document.querySelector('.pg.here');
   if (cur && cur.id !== id) { cur.classList.remove('here'); cur.style.transform = ''; }
   const next = document.getElementById(id);
@@ -1272,10 +1291,7 @@ function nav(id) {
   next.classList.add('here');
   next.style.transform = '';
   _stack.push(id);
-  // Use hash for page-wise URL: #cart, #orders, etc. Home = no hash
-  const hashMap = { 'pg-home':'', 'pg-cart':'cart', 'pg-orders':'orders', 'pg-account':'account', 'pg-khata':'wallet' };
-  const hash = hashMap[id] !== undefined ? hashMap[id] : '';
-  history.pushState({pg:id,stackLen:_stack.length},'', hash ? '#' + hash : location.pathname + location.search);
+  history.pushState({pg:id,stackLen:_stack.length},'', _pgHash(id));
   updateBottomNav(id);
   onEnter(id);
   document.getElementById('cart-fab').style.display =
@@ -1292,6 +1308,8 @@ function back() {
   if (!target) return;
   target.classList.add('here');
   target.style.transform = '';
+  // FIX A: update URL hash when going back
+  history.replaceState({pg:prev,stackLen:_stack.length},'', _pgHash(prev));
   updateBottomNav(prev);
   onEnter(prev);
 }
@@ -1364,6 +1382,9 @@ async function doLogin() {
     const res = await api('login', { phone, password: pw });
     Creds.save(phone, pw);
     Auth.set(res.user);
+    // Reset wrong-creds hint styling if it was shown
+    const _hint = document.getElementById('login-creds-hint');
+    if (_hint) { _hint.style.display = 'none'; _hint.style.background = ''; _hint.style.color = ''; }
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
     updateWalletUI(_walletBal);
@@ -2056,7 +2077,7 @@ async function loadUserKhata() {
     updateWalletUI(res.balance);
     // Update status text
     const statusEl = document.getElementById('wallet-bal-status');
-    if (statusEl) statusEl.textContent = (res.balance || 0) <= 0 ? '\u26A0\uFE0F Low balance' : '\u2705 Balance looks good';
+    if (statusEl) statusEl.textContent = (res.balance || 0) < 200 ? '\u26A0\uFE0F Balance low' : '\u2705 Balance looks good';
     const newStr = JSON.stringify(res.entries);
     if (newStr !== _lastKhataStr) {
       _lastKhataStr = newStr;
@@ -2083,6 +2104,7 @@ function renderUserKhataList(entries) {
     const sign = isCredit ? '+' : '';
     const label = typeStr.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
     const note  = e.note || (e.order_id ? 'ORD-' + e.order_id : '');
+    const srcNote = e.order_source === 'admin' ? '🤖 Auto order by admin' : (e.order_id ? '👤 Order created by you' : '');
     const dateStr = fmtDate(e.created_at) + (e.time ? ' \u00B7 ' + fmtTime(e.time) : '');
     const runBal  = e.running_balance !== undefined && e.running_balance !== null ? 'Bal: \u20B9' + e.running_balance : '';
     return '<div class="khata-entry ' + cls + '">' +
@@ -2091,6 +2113,7 @@ function renderUserKhataList(entries) {
         '<div class="ke-label" style="font-family:var(--ff);font-weight:600;font-size:13px">' + label + '</div>' +
         '<div class="ke-date" style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:2px">' + dateStr + '</div>' +
         (note ? '<div class="ke-note" style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + note + '</div>' : '') +
+        (srcNote ? '<div style="font-family:var(--fb);font-size:10px;color:#aaa;margin-top:1px">' + srcNote + '</div>' : '') +
       '</div>' +
       '<div style="text-align:right;flex-shrink:0">' +
         '<div class="ke-amt" style="font-family:var(--ff);font-weight:700;font-size:15px;color:' + (isCredit?'var(--g)':'var(--pd)') + '">' + sign + '\u20B9' + Math.abs(e.amount) + '</div>' +
@@ -2122,6 +2145,7 @@ function resetKhataFilter() {
 function generateKhataPDF() {
   const from = document.getElementById('khata-from').value;
   const to   = document.getElementById('khata-to').value;
+  // Latest first
   let entries = [..._khataAllEntries].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   if (from || to) {
     entries = entries.filter(e => {
@@ -2134,39 +2158,63 @@ function generateKhataPDF() {
   if (!entries.length) { toast('No transactions in this range'); return; }
   const user = Auth.get();
   const bal  = _walletBal;
-  const rangeLabel = from && to ? from + ' to ' + to : from ? 'From ' + from : to ? 'Up to ' + to : 'All Transactions';
-  // Build printable HTML and open in new window
+  const now  = new Date().toLocaleString('en-IN',{hour12:false});
+  const fmtD = v => { if(!v) return '—'; const d=new Date(v); return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'}); };
+  const fmtT = v => { if(!v) return ''; const d=new Date(v); return d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}); };
+  const rangeLabel = from && to ? from + ' → ' + to : from ? 'From ' + from : to ? 'Up to ' + to : 'All Transactions';
   const rows = entries.map(e => {
-    const isC = e.amount > 0 || (e.type||'').includes('recharge') || (e.type||'').includes('received');
+    const isC  = e.amount > 0 || (e.type||'').includes('recharge') || (e.type||'').includes('received');
     const sign = isC ? '+' : '';
-    const color = isC ? '#2a9d8f' : '#c1121f';
-    const label = (e.type||'entry').replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
-    const note  = e.note || (e.order_id?'ORD-'+e.order_id:'');
-    const dateStr = fmtDate(e.created_at) + (e.time?' '+fmtTime(e.time):'');
-    const runBal  = e.running_balance!==undefined&&e.running_balance!==null?'\u20B9'+e.running_balance:'';
-    return '<tr><td>' + dateStr + '</td><td>' + label + (note?'<br><small style="color:#888">'+note+'</small>':'') + '</td>' +
+    const color= isC ? '#2a9d8f' : '#c1121f';
+    const rowBg= isC ? '#f0faf8' : '#fff5f5';
+    const label= (e.type||'entry').replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+    const note = e.note || (e.order_id ? 'ORD-'+e.order_id : '—');
+    const srcNote = e.order_source === 'admin' ? 'Auto order by admin' : (e.order_id ? 'Order created by you' : '—');
+    const dateStr = fmtD(e.created_at);
+    const timeStr = e.time ? e.time : fmtT(e.created_at);
+    const runBal  = e.running_balance!==undefined&&e.running_balance!==null?'\u20B9'+e.running_balance:'—';
+    return '<tr style="background:'+rowBg+'"><td>'+dateStr+'</td><td>'+timeStr+'</td><td>'+label+'</td>' +
       '<td style="color:'+color+';font-weight:700;text-align:right">'+sign+'\u20B9'+Math.abs(e.amount)+'</td>' +
-      '<td style="text-align:right;color:#555">'+runBal+'</td></tr>';
+      '<td style="text-align:right;color:#333">'+runBal+'</td>' +
+      '<td style="font-size:10px;color:#666">'+srcNote+'<br><span style="color:#aaa;font-size:9px">'+note+'</span></td></tr>';
   }).join('');
   const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Wallet Statement</title>' +
-    '<style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h2{color:#e63946}' +
-    'table{width:100%;border-collapse:collapse;margin-top:16px}' +
-    'th{background:#e63946;color:#fff;padding:8px 10px;text-align:left;font-size:12px}' +
-    'td{padding:7px 10px;border-bottom:1px solid #f0f0f0;font-size:12px}' +
-    'tr:nth-child(even){background:#fafafa}.summary{background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px}' +
-    '@media print{button{display:none}}' +
+    '<style>*{box-sizing:border-box}body{font-family:Arial,sans-serif;padding:24px;color:#111;font-size:13px}' +
+    '.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}' +
+    '.brand{font-size:22px;font-weight:800;color:#e63946}.sub{font-size:12px;color:#666}' +
+    '.badge{background:#e63946;color:#fff;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700}' +
+    'hr{border:none;border-top:2px solid #e63946;margin:12px 0}' +
+    '.info-box{background:#f8f8f8;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;font-size:12px}' +
+    '.sumbox{display:flex;gap:12px;margin-bottom:16px}' +
+    '.sumcard{flex:1;border-radius:8px;padding:10px 14px;text-align:center}' +
+    '.sumcard.green{border:1.5px solid #2a9d8f;color:#2a9d8f}.sumcard.orange{border:1.5px solid #f4a261;color:#f4a261}' +
+    '.sumcard .lbl{font-size:10px;letter-spacing:1px;font-weight:600;opacity:.8;text-transform:uppercase}' +
+    '.sumcard .val{font-size:22px;font-weight:800}' +
+    'table{width:100%;border-collapse:collapse;font-size:11px}' +
+    'th{background:#1a1a2e;color:#fff;padding:8px 8px;text-align:left;font-size:10px;letter-spacing:.5px}' +
+    'td{padding:6px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}' +
+    '.footer{margin-top:18px;font-size:10px;color:#aaa;display:flex;justify-content:space-between}' +
+    '@media print{button{display:none!important}}' +
     '</style></head><body>' +
-    '<h2>Tiffo &#x2013; Wallet Statement</h2>' +
-    '<div class="summary"><b>Name:</b> '+(user?.name||'—')+'&nbsp;&nbsp;<b>Phone:</b> '+(user?.phone||'—')+'<br>' +
-    '<b>Period:</b> '+rangeLabel+'&nbsp;&nbsp;<b>Current Balance:</b> <span style="color:#2a9d8f;font-weight:700">&#x20B9;'+Math.round(bal)+'</span></div>' +
-    '<button onclick="window.print()" style="background:#e63946;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;margin-bottom:12px">&#x1F5A8; Print / Save PDF</button>' +
-    '<table><thead><tr><th>Date &amp; Time</th><th>Description</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th></tr></thead>' +
+    '<div class="hdr"><div>' +
+      '<div class="brand">&#x1F372; Tiffo</div>' +
+      '<div class="sub">Ghar ka khana &#x2665;<br>&#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'<br>Wallet Statement</div>' +
+    '</div><div class="badge">&#x1F4C5; '+rangeLabel+'</div></div>' +
+    '<hr>' +
+    '<div class="info-box"><div><b>'+(user?.name||'—')+'</b><br>&#x260E; '+(user?.phone||'—')+'<br>&#x1F4CD; '+(user?.address||'—')+'</div>' +
+      '<div style="text-align:right"><small style="color:#aaa">Generated</small><br><b>'+now+'</b></div></div>' +
+    '<div class="sumbox">' +
+      '<div class="sumcard green"><div class="lbl">Closing Balance</div><div class="val">\u20B9'+Math.round(bal)+'</div></div>' +
+      '<div class="sumcard orange"><div class="lbl">Transactions</div><div class="val">'+entries.length+'</div></div>' +
+    '</div>' +
+    '<button onclick="window.print()" style="background:#e63946;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin-bottom:14px;font-size:13px">&#x1F5A8; Print / Save PDF</button>' +
+    '<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th><th>Note</th></tr></thead>' +
     '<tbody>'+rows+'</tbody></table>' +
-    '<p style="margin-top:16px;font-size:11px;color:#888">Generated on '+new Date().toLocaleString('en-IN')+' &bull; Tiffo &ndash; Ghar ka Khana</p>' +
+    '<div class="footer"><span>Powered by <b>Tiffo</b> &#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'</span><span>Generated: '+now+'</span></div>' +
     '</body></html>';
-  const w = window.open('','_blank','width=800,height=600');
-  w.document.write(html);
-  w.document.close();
+  const w = window.open('','_blank','width=900,height=650');
+  if (w) { w.document.write(html); w.document.close(); }
+  else toast('Allow popups to generate PDF');
 }
 
 function exportKhataPDF() { generateKhataPDF(); }

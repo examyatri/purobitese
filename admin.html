@@ -533,23 +533,6 @@ function manualRefresh() {
 }
 
 // ─── ROUTING ─────────────────────────────────────────────
-function showPage(id) {
-  document.querySelectorAll('.pg-v').forEach(p => p.classList.remove('act'));
-  document.querySelectorAll('.sb-nav a').forEach(a => a.classList.remove('act'));
-  document.getElementById(id)?.classList.add('act');
-  document.querySelector(`.sb-nav a[data-pg="${id}"]`)?.classList.add('act');
-  const title = document.querySelector(`.sb-nav a[data-pg="${id}"]`)?.textContent.trim() || '';
-  document.getElementById('page-title').textContent = title;
-  const loaders = {
-    'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
-    'p-thalis': loadThalis, 'p-coupons': loadCoupons, 'p-subs': loadSubscribers,
-    'p-users': loadUsers, 'p-riders': loadRiders, 'p-khata': loadAllKhata,
-    'p-staff': loadStaff, 'p-notifs': loadNotifications
-  };
-  if (loaders[id]) loaders[id]().catch(()=>{});
-  closeSidebar();
-}
-
 // ─── UI HELPERS ───────────────────────────────────────────
 function npStart() {
   const el = document.getElementById('nprogress');
