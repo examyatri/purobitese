@@ -8,89 +8,330 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-:root{--sb-bg:#0f172a;--sb-w:240px;--sb-text:#94a3b8;--sb-active:#e63946;--body-bg:#f1f5f9;--card-bg:#ffffff;--p:#e63946;--pd:#c1121f;--g:#2a9d8f;--o:#f4a261;--y:#ffd166;--ff:'Sora',sans-serif;--fb:'DM Sans',sans-serif;--sh:0 1px 8px rgba(0,0,0,.08);--shl:0 4px 24px rgba(0,0,0,.12)}
+/* ── DESIGN TOKENS ───────────────────────────────────────── */
+:root{
+  --sb-bg:#0f172a;--sb-w:252px;--sb-text:#94a3b8;--sb-active:#e63946;
+  --body-bg:#f0f4f8;--card-bg:#ffffff;
+  --p:#e63946;--pd:#c1121f;--g:#10b981;--o:#f59e0b;--y:#ffd166;--blue:#3b82f6;
+  --ff:'Sora',sans-serif;--fb:'DM Sans',sans-serif;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.05);
+  --shl:0 8px 32px rgba(0,0,0,.12);
+  --radius:14px;--radius-sm:10px;
+}
+/* ── RESET ───────────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0}
-body{display:flex;min-height:100vh;background:var(--body-bg);font-family:var(--fb)}
-#sidebar{width:var(--sb-w);background:var(--sb-bg);position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;transition:transform 300ms}
+body{display:flex;min-height:100vh;background:var(--body-bg);font-family:var(--fb);color:#1e293b}
+
+/* ── SIDEBAR ─────────────────────────────────────────────── */
+#sidebar{
+  width:var(--sb-w);background:var(--sb-bg);position:fixed;top:0;left:0;
+  height:100vh;overflow-y:auto;z-index:100;transition:transform 300ms ease;
+  display:flex;flex-direction:column;
+}
+#sidebar::-webkit-scrollbar{width:4px}
+#sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+
+.sb-logo{
+  padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+.sb-logo-icon{
+  width:36px;height:36px;background:linear-gradient(135deg,var(--p),#ff6b6b);
+  border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;box-shadow:0 4px 12px rgba(230,57,70,.4);
+}
+.sb-logo-text{font-family:var(--ff);font-weight:800;font-size:18px;color:white;letter-spacing:-.3px}
+.sb-logo-text span{color:#10b981}
+
+.sb-section-label{
+  padding:20px 20px 6px;font-size:10px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:rgba(148,163,184,.5);
+}
+.sb-nav{padding:4px 10px;flex:1}
+.sb-nav a{
+  display:flex;align-items:center;gap:11px;padding:9px 12px;
+  color:var(--sb-text);text-decoration:none;font-size:13.5px;font-weight:500;
+  transition:all 180ms;border-radius:9px;margin-bottom:1px;position:relative;
+}
+.sb-nav a i{width:18px;text-align:center;font-size:14px;opacity:.8}
+.sb-nav a:hover{background:rgba(255,255,255,.06);color:#cbd5e1}
+.sb-nav a.act{background:rgba(230,57,70,.18);color:#fff;font-weight:600}
+.sb-nav a.act i{opacity:1}
+.sb-nav a.act::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:60%;background:var(--p);border-radius:0 3px 3px 0;
+}
+.sb-nav a .badge{
+  margin-left:auto;background:var(--p);color:white;border-radius:20px;
+  padding:2px 7px;font-size:10px;font-weight:700;font-family:var(--ff);
+  animation:badgePulse 2s infinite;
+}
+@keyframes badgePulse{0%,100%{box-shadow:0 0 0 0 rgba(230,57,70,.4)}50%{box-shadow:0 0 0 4px rgba(230,57,70,0)}}
+
+.sb-footer{
+  padding:14px 20px;border-top:1px solid rgba(255,255,255,.07);
+  font-size:11px;color:rgba(148,163,184,.5);text-align:center;flex-shrink:0;
+}
+
+/* ── MAIN AREA ───────────────────────────────────────────── */
 #main{margin-left:var(--sb-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
-#topbar{height:60px;background:white;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:99;box-shadow:var(--sh)}
-#content{padding:24px;flex:1}
-.sb-logo{padding:24px 20px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
-.sb-logo .t{color:#e63946;font-family:var(--ff);font-weight:800;font-size:22px}
-.sb-logo .g{color:#2a9d8f}
-.sb-nav a{display:flex;align-items:center;gap:12px;padding:11px 20px;color:var(--sb-text);text-decoration:none;font-size:14px;transition:all 200ms;border-left:3px solid transparent}
-.sb-nav a:hover{background:rgba(255,255,255,.05);color:white}
-.sb-nav a.act{background:rgba(230,57,70,.15);color:white;border-left-color:var(--sb-active)}
-.sb-nav a .badge{margin-left:auto;background:var(--p);color:white;border-radius:10px;padding:1px 7px;font-size:11px}
-.card{background:var(--card-bg);border-radius:14px;padding:20px;box-shadow:var(--sh)}
-.stat-card{cursor:pointer;transition:transform 200ms,box-shadow 200ms}
-.stat-card:hover{transform:translateY(-2px);box-shadow:var(--shl)}
-.tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse}
-th{background:#f8fafc;font-family:var(--ff);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#64748b;padding:10px 14px;text-align:left;border-bottom:1px solid #e2e8f0}
-td{padding:12px 14px;font-size:14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-tr:hover td{background:#fafafa}
-.mo-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
-.mo-box{background:white;border-radius:16px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:var(--shl)}
-.mo-title{font-family:var(--ff);font-weight:700;font-size:18px;margin-bottom:20px}
-.field{margin-bottom:14px}
-.field label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}
-.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-family:var(--fb);font-size:14px;outline:none;box-sizing:border-box;transition:border-color 200ms}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--p)}
-.btn{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family:var(--ff);font-weight:600;font-size:13px;transition:opacity 200ms;display:inline-flex;align-items:center;gap:6px}
-.btn-p{background:var(--p);color:white}
-.btn-g{background:var(--g);color:white}
-.btn-dk{background:#1e293b;color:white}
-.btn-outline{background:transparent;border:1.5px solid #e5e7eb;color:#374151}
-.btn-danger{background:#fee2e2;color:var(--pd)}
-.btn:hover{opacity:.9}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.badge-status{border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--ff)}
-.s-pending{background:#fef3c7;color:#92400e}
-.s-verified{background:#dbeafe;color:#1e40af}
-.s-preparing{background:#ede9fe;color:#5b21b6}
-.s-out{background:#cffafe;color:#0e7490}
-.s-out-for-delivery{background:#cffafe;color:#0e7490}
-.s-delivered{background:#dcfce7;color:#166534}
-.s-rejected{background:#fee2e2;color:#991b1b}
-.sk{background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);background-size:200%;animation:shimmer 1.5s infinite;border-radius:6px}
-@keyframes shimmer{0%{background-position:200%}100%{background-position:-200%}}
-#nprogress{position:fixed;top:0;left:0;height:3px;background:var(--p);z-index:9999;transition:width 300ms}
-#a-toast{position:fixed;top:20px;right:20px;background:#1e293b;color:white;padding:12px 20px;border-radius:10px;font-size:14px;opacity:0;transform:translateY(-10px);transition:all 300ms;z-index:9999;max-width:320px}
-#a-toast.show{opacity:1;transform:translateY(0)}
-.live-dot{width:8px;height:8px;background:#22c55e;border-radius:50%;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.pg-v{display:none}
-.pg-v.act{display:block}
-.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
-.tab-btn{padding:7px 16px;border-radius:8px;border:1.5px solid #e5e7eb;background:white;cursor:pointer;font-family:var(--ff);font-size:13px;font-weight:600;color:#64748b;transition:all 200ms}
-.tab-btn.act{background:var(--p);color:white;border-color:var(--p)}
+
+/* ── TOP BAR ─────────────────────────────────────────────── */
+#topbar{
+  height:62px;background:white;border-bottom:1px solid #e8ecf0;
+  display:flex;align-items:center;padding:0 24px;gap:14px;
+  position:sticky;top:0;z-index:99;
+  box-shadow:0 1px 0 rgba(0,0,0,.06);
+}
+.topbar-title{
+  font-family:var(--ff);font-weight:700;font-size:16px;color:#0f172a;
+  display:flex;align-items:center;gap:8px;
+}
+.topbar-title::before{content:'';width:4px;height:18px;background:var(--p);border-radius:2px;display:inline-block}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.topbar-chip{
+  display:flex;align-items:center;gap:6px;padding:5px 12px;
+  background:#f8fafc;border:1px solid #e8ecf0;border-radius:20px;
+  font-size:12px;color:#64748b;
+}
+.live-dot{width:7px;height:7px;background:#22c55e;border-radius:50%;animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+
+/* ── CONTENT ─────────────────────────────────────────────── */
+#content{padding:24px;flex:1;max-width:1400px;width:100%}
+
+/* ── CARDS ───────────────────────────────────────────────── */
+.card{
+  background:var(--card-bg);border-radius:var(--radius);padding:22px;
+  box-shadow:var(--sh);border:1px solid rgba(226,232,240,.6);
+}
+.card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;
+}
+.card-title{font-family:var(--ff);font-weight:700;font-size:15px;color:#0f172a;display:flex;align-items:center;gap:8px}
+.card-title i{color:var(--p);font-size:14px}
+
+/* ── STAT CARDS ──────────────────────────────────────────── */
+.stat-card{
+  cursor:pointer;transition:transform 200ms cubic-bezier(.34,1.56,.64,1),box-shadow 200ms;
+  position:relative;overflow:hidden;
+}
+.stat-card:hover{transform:translateY(-3px);box-shadow:var(--shl)}
+.stat-card::after{
+  content:'';position:absolute;top:0;right:0;width:80px;height:80px;
+  border-radius:50%;transform:translate(30%,-30%);opacity:.06;
+  background:currentColor;
+}
+.stat-icon{
+  width:48px;height:48px;border-radius:12px;display:flex;align-items:center;
+  justify-content:center;margin-bottom:14px;
+}
+.stat-icon i{font-size:20px}
+.stat-val{font-size:26px;font-family:var(--ff);font-weight:800;color:#0f172a;line-height:1}
+.stat-label{font-size:12px;color:#64748b;font-family:var(--ff);font-weight:500;margin-top:5px}
+.stat-trend{font-size:11px;margin-top:8px;display:flex;align-items:center;gap:4px}
+
+/* ── GRID STATS ──────────────────────────────────────────── */
 .grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
-.toggle-sw{position:relative;display:inline-block;width:48px;height:26px}
+
+/* ── PAGE HEADER ─────────────────────────────────────────── */
+.page-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:20px;
+}
+.page-header h2{font-family:var(--ff);font-weight:700;font-size:20px;color:#0f172a}
+
+/* ── TABLE ───────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;margin:-2px}
+table{width:100%;border-collapse:collapse}
+thead tr{border-bottom:2px solid #f1f5f9}
+th{
+  background:#fafbfc;font-family:var(--ff);font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;
+  padding:11px 14px;text-align:left;white-space:nowrap;
+}
+td{
+  padding:13px 14px;font-size:13.5px;border-bottom:1px solid #f8fafc;
+  vertical-align:middle;color:#334155;
+}
+tr:last-child td{border-bottom:none}
+tbody tr{transition:background 150ms}
+tbody tr:hover td{background:#fafbff}
+
+/* ── FILTER BAR ──────────────────────────────────────────── */
+.filter-bar{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  padding:14px 18px;background:#fafbfc;border-radius:var(--radius-sm);
+  border:1px solid #e8ecf0;margin-bottom:16px;
+}
+.filter-bar .search-input{
+  padding:8px 12px 8px 34px;border:1.5px solid #e5e7eb;border-radius:8px;
+  font-size:13px;font-family:var(--fb);outline:none;min-width:200px;
+  transition:border-color 200ms;background:white;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:10px center;
+}
+.filter-bar .search-input:focus{border-color:var(--p)}
+.filter-bar select{
+  padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;
+  font-size:13px;font-family:var(--fb);outline:none;background:white;
+  transition:border-color 200ms;cursor:pointer;
+}
+.filter-bar select:focus{border-color:var(--p)}
+
+/* ── TABS ────────────────────────────────────────────────── */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content}
+.tab-btn{
+  padding:6px 14px;border-radius:7px;border:none;background:transparent;
+  cursor:pointer;font-family:var(--ff);font-size:12.5px;font-weight:600;
+  color:#64748b;transition:all 180ms;white-space:nowrap;
+}
+.tab-btn.act{background:white;color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+/* ── FORM FIELDS ─────────────────────────────────────────── */
+.mo-bg{position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.mo-box{
+  background:white;border-radius:20px;padding:30px;width:100%;
+  max-width:520px;max-height:90vh;overflow-y:auto;
+  box-shadow:0 24px 64px rgba(0,0,0,.2);
+}
+.mo-title{font-family:var(--ff);font-weight:700;font-size:18px;margin-bottom:22px;color:#0f172a;display:flex;align-items:center;gap:8px}
+.field{margin-bottom:15px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px;letter-spacing:.1px}
+.field input,.field select,.field textarea{
+  width:100%;padding:10px 13px;border:1.5px solid #e5e7eb;border-radius:9px;
+  font-family:var(--fb);font-size:14px;outline:none;box-sizing:border-box;
+  transition:border-color 200ms,box-shadow 200ms;color:#1e293b;background:#fafbfc;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--p);box-shadow:0 0 0 3px rgba(230,57,70,.1);background:white;
+}
+
+/* ── BUTTONS ─────────────────────────────────────────────── */
+.btn{
+  padding:9px 18px;border-radius:9px;border:none;cursor:pointer;
+  font-family:var(--ff);font-weight:600;font-size:13px;
+  transition:all 180ms;display:inline-flex;align-items:center;gap:7px;
+  white-space:nowrap;letter-spacing:.1px;
+}
+.btn-p{background:linear-gradient(135deg,#e63946,#c1121f);color:white;box-shadow:0 4px 12px rgba(230,57,70,.3)}
+.btn-p:hover{box-shadow:0 6px 16px rgba(230,57,70,.4);transform:translateY(-1px)}
+.btn-g{background:linear-gradient(135deg,#10b981,#059669);color:white;box-shadow:0 4px 12px rgba(16,185,129,.3)}
+.btn-g:hover{box-shadow:0 6px 16px rgba(16,185,129,.4);transform:translateY(-1px)}
+.btn-dk{background:#1e293b;color:white}
+.btn-outline{background:white;border:1.5px solid #e2e8f0;color:#374151;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.btn-outline:hover{border-color:#cbd5e1;background:#f8fafc}
+.btn-danger{background:#fff1f2;color:#be123c;border:1.5px solid #fecdd3}
+.btn-danger:hover{background:#fee2e2}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+
+/* ── STATUS BADGES ───────────────────────────────────────── */
+.badge-status{
+  border-radius:20px;padding:4px 11px;font-size:11px;font-weight:700;
+  font-family:var(--ff);letter-spacing:.2px;display:inline-block;
+}
+.s-pending{background:#fef9c3;color:#854d0e}
+.s-verified{background:#dbeafe;color:#1d4ed8}
+.s-preparing{background:#ede9fe;color:#6d28d9}
+.s-out,.s-out-for-delivery{background:#e0f2fe;color:#0369a1}
+.s-delivered{background:#dcfce7;color:#15803d}
+.s-rejected{background:#ffe4e6;color:#be123c}
+
+/* ── SKELETON ────────────────────────────────────────────── */
+.sk{
+  background:linear-gradient(90deg,#f1f5f9 25%,#e9edf4 50%,#f1f5f9 75%);
+  background-size:200%;animation:shimmer 1.5s infinite;border-radius:6px;
+}
+@keyframes shimmer{0%{background-position:200%}100%{background-position:-200%}}
+
+/* ── PROGRESS BAR ────────────────────────────────────────── */
+#nprogress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--p),#ff6b6b);z-index:9999;transition:width 300ms ease;border-radius:0 3px 3px 0}
+
+/* ── TOAST ───────────────────────────────────────────────── */
+#a-toast{
+  position:fixed;bottom:24px;right:24px;background:#0f172a;color:white;
+  padding:12px 20px;border-radius:12px;font-size:13.5px;opacity:0;
+  transform:translateY(8px);transition:all 280ms cubic-bezier(.34,1.56,.64,1);
+  z-index:9999;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.3);
+  display:flex;align-items:center;gap:8px;font-family:var(--ff);font-weight:600;
+}
+#a-toast::before{content:'';width:6px;height:6px;background:var(--g);border-radius:50%;flex-shrink:0}
+#a-toast.show{opacity:1;transform:translateY(0)}
+
+/* ── TOGGLE SWITCH ───────────────────────────────────────── */
+.toggle-sw{position:relative;display:inline-block;width:46px;height:24px}
 .toggle-sw input{opacity:0;width:0;height:0}
-.toggle-sl{position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:26px;transition:.3s}
-.toggle-sl:before{content:'';position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s}
+.toggle-sl{position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:24px;transition:.3s}
+.toggle-sl:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 input:checked+.toggle-sl{background:var(--g)}
 input:checked+.toggle-sl:before{transform:translateX(22px)}
-#ham-btn{background:none;border:none;font-size:20px;cursor:pointer;display:none}
+
+/* ── HAM / OVERLAY ───────────────────────────────────────── */
+#ham-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;display:none;padding:4px;border-radius:6px}
+#ham-btn:hover{background:#f1f5f9}
 .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
-#auth-pg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%)}
-.auth-card{background:white;border-radius:20px;padding:40px;width:100%;max-width:380px;box-shadow:var(--shl)}
-.auth-logo{font-family:var(--ff);font-size:28px;font-weight:800;text-align:center;margin-bottom:24px}
+
+/* ── AUTH SCREEN ─────────────────────────────────────────── */
+#auth-pg{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#162032 100%);
+}
+#auth-pg::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 70% 50%, rgba(230,57,70,.12) 0%, transparent 70%),
+             radial-gradient(ellipse 40% 40% at 30% 30%, rgba(16,185,129,.08) 0%, transparent 60%);
+}
+.auth-card{
+  background:white;border-radius:24px;padding:44px 40px;width:100%;
+  max-width:390px;box-shadow:0 32px 80px rgba(0,0,0,.4);position:relative;
+}
+.auth-logo{font-family:var(--ff);font-size:26px;font-weight:800;text-align:center;margin-bottom:8px;color:#0f172a}
 .auth-logo span{color:var(--g)}
-.settings-list{display:flex;flex-direction:column;gap:8px}
-.settings-item{background:white;border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;box-shadow:var(--sh);transition:all 200ms;border:2px solid transparent}
-.settings-item:hover{border-color:var(--p)}
-.settings-item.act{border-color:var(--p);background:#fff5f5}
-.settings-panel{background:white;border-radius:14px;padding:24px;box-shadow:var(--sh);margin-top:16px}
+.auth-subtitle{text-align:center;font-size:13px;color:#94a3b8;margin-bottom:28px}
+.auth-logo-icon{
+  width:56px;height:56px;background:linear-gradient(135deg,var(--p),#ff6b6b);
+  border-radius:16px;display:flex;align-items:center;justify-content:center;
+  margin:0 auto 16px;box-shadow:0 8px 24px rgba(230,57,70,.4);font-size:22px;
+}
+
+/* ── SETTINGS ────────────────────────────────────────────── */
+.settings-list{display:flex;flex-direction:column;gap:6px}
+.settings-item{
+  background:white;border-radius:var(--radius-sm);padding:14px 16px;
+  display:flex;align-items:center;gap:12px;cursor:pointer;
+  box-shadow:var(--sh);transition:all 180ms;border:2px solid transparent;
+}
+.settings-item .si-icon{
+  width:36px;height:36px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;font-size:15px;
+}
+.settings-item:hover{border-color:#e2e8f0;box-shadow:var(--shl)}
+.settings-item.act{border-color:var(--p);background:#fff8f8}
+.settings-panel{background:white;border-radius:var(--radius);padding:26px;box-shadow:var(--sh);border:1px solid rgba(226,232,240,.6)}
+
+/* ── VARIANTS ────────────────────────────────────────────── */
 .variant-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-.notif-card{border-left:4px solid #e2e8f0;background:white;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:var(--sh)}
-.notif-card.unread{font-weight:600;box-shadow:var(--shl)}
+
+/* ── NOTIFICATIONS ───────────────────────────────────────── */
+.notif-card{
+  border-left:4px solid #e2e8f0;background:white;border-radius:var(--radius-sm);
+  padding:16px 18px;margin-bottom:10px;box-shadow:var(--sh);
+  transition:box-shadow 180ms;
+}
+.notif-card:hover{box-shadow:var(--shl)}
+.notif-card.unread{border-left-width:4px}
 .notif-order{border-left-color:var(--p)}
 .notif-user{border-left-color:var(--g)}
-.notif-txn{border-left-color:#3b82f6}
+.notif-txn{border-left-color:var(--blue)}
 .notif-recharge{border-left-color:#8b5cf6}
 .notif-pause{border-left-color:var(--o)}
+
+/* ── PAGE VISIBILITY ─────────────────────────────────────── */
+.pg-v{display:none}
+.pg-v.act{display:block}
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
 @media(max-width:768px){
   #sidebar{transform:translateX(-100%)}
   #sidebar.open{transform:translateX(0)}
@@ -98,7 +339,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   #ham-btn{display:flex}
   .sb-overlay{display:block}
   .grid-stats{grid-template-columns:repeat(2,1fr)}
-  .mo-box{padding:20px}
+  .mo-box{padding:22px;border-radius:16px}
+  #content{padding:16px}
+  .filter-bar{flex-direction:column;align-items:stretch}
+  .filter-bar .search-input{min-width:unset;width:100%}
 }
 @media(max-width:480px){.grid-stats{grid-template-columns:1fr 1fr}}
 </style>
@@ -107,7 +351,9 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
 <div id="auth-pg">
   <div class="auth-card">
+    <div class="auth-logo-icon">🍱</div>
     <div class="auth-logo">Tif<span>fo</span> Admin</div>
+    <p class="auth-subtitle">Sign in to your dashboard</p>
     <div class="field">
       <label>Role</label>
       <select id="role-select">
@@ -117,46 +363,68 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     </div>
     <div class="field"><label>Username</label><input id="a-username" type="text" placeholder="admin" autocomplete="username"></div>
     <div class="field"><label>Password</label><input id="a-password" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
-    <button class="btn btn-p" style="width:100%;justify-content:center" onclick="doAdminLogin()">Login</button>
-    <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:12px">Default: admin / admin123</p>
+    <button class="btn btn-p" style="width:100%;justify-content:center;padding:12px 18px;font-size:14px;margin-top:4px" onclick="doAdminLogin()"><i class="fa fa-right-to-bracket"></i> Sign In</button>
+    <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:14px;background:#f8fafc;border-radius:8px;padding:8px">Default: admin / admin123</p>
   </div>
 </div>
 
 <div id="main-layout" style="display:none;width:100%">
   <aside id="sidebar">
-    <div class="sb-logo"><span class="t">Tif</span><span class="g">fo</span> Admin</div>
+    <div class="sb-logo">
+      <div class="sb-logo-icon">🍱</div>
+      <div class="sb-logo-text">Tif<span>fo</span></div>
+    </div>
+    <div class="sb-section-label">Main</div>
     <nav class="sb-nav">
       <a href="#" onclick="showPage('p-dash');return false" data-pg="p-dash"><i class="fa fa-chart-line"></i> Dashboard</a>
       <a href="#" onclick="showPage('p-orders');return false" data-pg="p-orders"><i class="fa fa-bag-shopping"></i> Orders</a>
       <a href="#" onclick="showPage('p-bulk');return false" data-pg="p-bulk"><i class="fa fa-boxes-stacked"></i> Bulk Orders</a>
+    </nav>
+    <div class="sb-section-label">Catalogue</div>
+    <nav class="sb-nav">
       <a href="#" onclick="showPage('p-menu');return false" data-pg="p-menu"><i class="fa fa-utensils"></i> Menu</a>
       <a href="#" onclick="showPage('p-thalis');return false" data-pg="p-thalis"><i class="fa fa-bowl-food"></i> Thalis</a>
       <a href="#" onclick="showPage('p-coupons');return false" data-pg="p-coupons"><i class="fa fa-tags"></i> Coupons</a>
+    </nav>
+    <div class="sb-section-label">People</div>
+    <nav class="sb-nav">
       <a href="#" onclick="showPage('p-subs');return false" data-pg="p-subs"><i class="fa fa-crown"></i> Subscribers</a>
       <a href="#" onclick="showPage('p-users');return false" data-pg="p-users"><i class="fa fa-users"></i> All Users</a>
       <a href="#" onclick="showPage('p-riders');return false" data-pg="p-riders"><i class="fa fa-motorcycle"></i> Riders</a>
-      <a href="#" onclick="showPage('p-khata');return false" data-pg="p-khata" class="admin-only"><i class="fa fa-book"></i> Khata / Wallet</a>
+    </nav>
+    <div class="sb-section-label">Admin</div>
+    <nav class="sb-nav">
+      <a href="#" onclick="showPage('p-khata');return false" data-pg="p-khata" class="admin-only"><i class="fa fa-wallet"></i> Khata / Wallet</a>
       <a href="#" onclick="showPage('p-staff');return false" data-pg="p-staff" class="admin-only"><i class="fa fa-id-badge"></i> Staff Members</a>
       <a href="#" onclick="showPage('p-settings');return false" data-pg="p-settings" class="admin-only"><i class="fa fa-gear"></i> Settings</a>
       <a href="#" onclick="showPage('p-notifs');return false" data-pg="p-notifs"><i class="fa fa-bell"></i> Notifications <span id="notif-badge" class="badge" style="display:none">0</span></a>
     </nav>
+    <div class="sb-footer">Tiffo Admin © 2026</div>
   </aside>
 
   <div id="main">
     <header id="topbar">
       <button id="ham-btn" onclick="toggleSidebar()"><i class="fa fa-bars"></i></button>
-      <span id="page-title" style="font-family:var(--ff);font-weight:700;font-size:16px">Dashboard</span>
-      <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
-        <span class="live-dot"></span>
-        <span id="refresh-countdown" style="font-size:12px;color:#94a3b8"></span>
-        <button class="btn btn-outline" onclick="manualRefresh()">↻ Refresh</button>
-        <button class="btn btn-danger" onclick="doAdminLogout()">Logout</button>
+      <span id="page-title" class="topbar-title">Dashboard</span>
+      <div class="topbar-right">
+        <div class="topbar-chip">
+          <span class="live-dot"></span>
+          <span id="refresh-countdown" style="font-size:12px;color:#64748b">Live</span>
+        </div>
+        <button class="btn btn-outline" style="padding:7px 14px;font-size:13px" onclick="manualRefresh()"><i class="fa fa-rotate-right"></i> Refresh</button>
+        <button class="btn btn-danger" style="padding:7px 14px;font-size:13px" onclick="doAdminLogout()"><i class="fa fa-right-from-bracket"></i> Logout</button>
       </div>
     </header>
 
     <div id="content">
       <!-- DASHBOARD -->
       <div id="p-dash" class="pg-v act">
+        <div class="page-header" style="margin-bottom:20px">
+          <div>
+            <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Dashboard</h2>
+            <p style="color:#94a3b8;font-size:13px;margin-top:2px">Welcome back! Here's what's happening today.</p>
+          </div>
+        </div>
         <div class="grid-stats">
           <div class="card stat-card" id="stat-today-orders" onclick="openStatDetail('todayOrders')"></div>
           <div class="card stat-card admin-only" id="stat-today-rev" onclick="openStatDetail('todayRevenue')"></div>
@@ -168,32 +436,35 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="card stat-card" id="stat-new-users" onclick="openStatDetail('newUsers')"></div>
         </div>
         <div class="card">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">Recent Orders</div>
+          <div class="card-header">
+            <div class="card-title"><i class="fa fa-clock-rotate-left"></i> Recent Orders</div>
+          </div>
           <div class="tbl-wrap" id="dash-recent-orders"><div style="text-align:center;padding:40px;color:#94a3b8">Loading...</div></div>
         </div>
       </div>
 
       <!-- ORDERS -->
       <div id="p-orders" class="pg-v">
-        <div class="card" style="margin-bottom:16px">
-          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
-            <div class="tabs" id="order-filter-tabs" style="margin-bottom:0">
-              <button class="tab-btn act" data-filter="all" onclick="setOrderFilter('all',this)">All</button>
-              <button class="tab-btn" data-filter="pending" onclick="setOrderFilter('pending',this)">Pending</button>
-              <button class="tab-btn" data-filter="verified" onclick="setOrderFilter('verified',this)">Verified</button>
-              <button class="tab-btn" data-filter="preparing" onclick="setOrderFilter('preparing',this)">Preparing</button>
-              <button class="tab-btn" data-filter="out for delivery" onclick="setOrderFilter('out for delivery',this)">Out for Delivery</button>
-              <button class="tab-btn" data-filter="delivered" onclick="setOrderFilter('delivered',this)">Delivered</button>
-              <button class="tab-btn" data-filter="rejected" onclick="setOrderFilter('rejected',this)">Rejected</button>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
-              <input id="order-search" type="search" placeholder="Search ID, name, phone…" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;min-width:200px" oninput="renderOrdersTable(_allOrders)">
-              <select id="order-sort" onchange="renderOrdersTable(_allOrders)" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px">
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="amount">Amount ↓</option>
-              </select>
-            </div>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Orders</h2>
+        </div>
+        <div class="filter-bar">
+          <div class="tabs" id="order-filter-tabs" style="margin-bottom:0;background:transparent;padding:0">
+            <button class="tab-btn act" data-filter="all" onclick="setOrderFilter('all',this)">All</button>
+            <button class="tab-btn" data-filter="pending" onclick="setOrderFilter('pending',this)">Pending</button>
+            <button class="tab-btn" data-filter="verified" onclick="setOrderFilter('verified',this)">Verified</button>
+            <button class="tab-btn" data-filter="preparing" onclick="setOrderFilter('preparing',this)">Preparing</button>
+            <button class="tab-btn" data-filter="out for delivery" onclick="setOrderFilter('out for delivery',this)">Out for Delivery</button>
+            <button class="tab-btn" data-filter="delivered" onclick="setOrderFilter('delivered',this)">Delivered</button>
+            <button class="tab-btn" data-filter="rejected" onclick="setOrderFilter('rejected',this)">Rejected</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap">
+            <input id="order-search" type="search" placeholder="Search ID, name, phone…" class="search-input" oninput="renderOrdersTable(_allOrders)">
+            <select id="order-sort" onchange="renderOrdersTable(_allOrders)" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;background:white;font-family:var(--fb);outline:none">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="amount">Amount ↓</option>
+            </select>
           </div>
         </div>
         <div class="card">
@@ -208,8 +479,9 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- BULK ORDERS -->
       <div id="p-bulk" class="pg-v">
+        <div class="page-header"><h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Bulk Orders</h2></div>
         <div class="card" style="margin-bottom:16px">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">📦 Bulk Order Creator</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-boxes-stacked"></i> Bulk Order Creator</div></div>
           <div id="bulk-item-selector"></div>
           <div class="field" style="margin-top:12px"><label>Delivery Charge (₹)</label><input id="bulk-delivery" type="number" value="0" min="0"></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
@@ -219,7 +491,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div id="bulk-result" style="margin-top:16px"></div>
         </div>
         <div class="card">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">🔥 Force Single Udhar</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-fire" style="color:#f59e0b"></i> Force Single Udhar</div></div>
           <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <div class="field" style="flex:1;min-width:200px;margin-bottom:0"><label>Customer Phone</label><input id="udhar-phone" type="tel" placeholder="10-digit number"></div>
             <button class="btn btn-outline" onclick="lookupUdharUser()">Find User</button>
@@ -231,8 +503,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- MENU -->
       <div id="p-menu" class="pg-v">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2 style="font-family:var(--ff);font-size:18px">Menu Items</h2>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Menu Items</h2>
           <button class="btn btn-p" onclick="openMenuModal()"><i class="fa fa-plus"></i> Add Item</button>
         </div>
         <div class="card">
@@ -247,8 +519,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- THALIS -->
       <div id="p-thalis" class="pg-v">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2 style="font-family:var(--ff);font-size:18px">Thalis</h2>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Thalis</h2>
           <button class="btn btn-p" onclick="openThaliModal()"><i class="fa fa-plus"></i> Add Thali</button>
         </div>
         <div class="card">
@@ -263,8 +535,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- COUPONS -->
       <div id="p-coupons" class="pg-v">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2 style="font-family:var(--ff);font-size:18px">Coupons</h2>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Coupons</h2>
           <button class="btn btn-p" onclick="openCouponModal()"><i class="fa fa-plus"></i> Add Coupon</button>
         </div>
         <div class="card">
@@ -279,16 +551,19 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- SUBSCRIBERS -->
       <div id="p-subs" class="pg-v">
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Subscribers</h2>
+        </div>
         <div class="card" style="margin-bottom:16px">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">Promote User to Subscriber</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-user-plus"></i> Promote User to Subscriber</div></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
             <div class="field" style="flex:1;min-width:200px;margin-bottom:0"><label>Phone Number</label><input id="promote-phone" type="tel" placeholder="10-digit"></div>
-            <button class="btn btn-outline" onclick="findUserForPromote()">Find User</button>
+            <button class="btn btn-outline" onclick="findUserForPromote()"><i class="fa fa-magnifying-glass"></i> Find User</button>
           </div>
           <div id="promote-user-info" style="margin-top:12px"></div>
         </div>
         <div class="card" style="margin-bottom:16px">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">🎟️ Nu Coupon Panel</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-ticket"></i> Nu Coupon Panel</div></div>
           <div class="tabs">
             <button class="tab-btn act" onclick="loadNuCoupons('pending',this)">Pending</button>
             <button class="tab-btn" onclick="loadNuCoupons('sent',this)">Sent</button>
@@ -296,7 +571,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div id="nu-coupon-list"><div style="color:#94a3b8;text-align:center;padding:20px">Click tab to load</div></div>
         </div>
         <div class="card">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">Subscribers</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-crown"></i> Subscriber List</div></div>
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Address</th><th>Plan Start</th><th>Plan End</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
@@ -308,12 +583,12 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- ALL USERS -->
       <div id="p-users" class="pg-v">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2 style="font-family:var(--ff);font-size:18px">All Users</h2>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">All Users</h2>
           <button class="btn btn-p" onclick="openAddUserModal()"><i class="fa fa-plus"></i> Add User</button>
         </div>
-        <div class="card" style="margin-bottom:12px">
-          <input id="users-search" type="search" placeholder="Search by name or phone…" style="padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;width:100%;max-width:340px" oninput="filterUsers()">
+        <div class="filter-bar" style="margin-bottom:16px">
+          <input id="users-search" type="search" placeholder="Search by name or phone…" class="search-input" oninput="filterUsers()">
         </div>
         <div class="card">
           <div class="tbl-wrap">
@@ -327,8 +602,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- RIDERS -->
       <div id="p-riders" class="pg-v">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2 style="font-family:var(--ff);font-size:18px">Riders</h2>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Riders</h2>
           <button class="btn btn-p" onclick="openRiderModal()"><i class="fa fa-plus"></i> Add Rider</button>
         </div>
         <div class="card">
@@ -343,8 +618,11 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- KHATA (admin-only) -->
       <div id="p-khata" class="pg-v admin-only">
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Khata / Wallet</h2>
+        </div>
         <div class="card">
-          <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:16px">Khata / Wallet — All Subscribers</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-wallet"></i> All Subscriber Balances</div></div>
           <div class="tbl-wrap">
             <table>
               <thead><tr><th>Name</th><th>Phone</th><th>Balance</th><th>Actions</th></tr></thead>
@@ -356,8 +634,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- STAFF (admin-only) -->
       <div id="p-staff" class="pg-v admin-only">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h2 style="font-family:var(--ff);font-size:18px">Staff Members</h2>
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Staff Members</h2>
           <button class="btn btn-p" onclick="openStaffModal()"><i class="fa fa-plus"></i> Add Staff</button>
         </div>
         <div class="card">
@@ -372,15 +650,35 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- SETTINGS (admin-only) -->
       <div id="p-settings" class="pg-v admin-only">
-        <h2 style="font-family:var(--ff);font-size:18px;margin-bottom:16px">Settings</h2>
-        <div style="display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start">
+        <div class="page-header" style="margin-bottom:20px">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Settings</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:270px 1fr;gap:20px;align-items:start">
           <div class="settings-list">
-            <div class="settings-item act" onclick="showSettingPanel('cutoff',this)"><i class="fa fa-clock" style="color:var(--o)"></i><span style="font-family:var(--ff);font-size:14px;font-weight:600">Order Cutoff</span></div>
-            <div class="settings-item" onclick="showSettingPanel('schedule',this)"><i class="fa fa-calendar-week" style="color:var(--g)"></i><span style="font-family:var(--ff);font-size:14px;font-weight:600">Weekly Schedule</span></div>
-            <div class="settings-item" onclick="showSettingPanel('khata-toggle',this)"><i class="fa fa-wallet" style="color:#8b5cf6"></i><span style="font-family:var(--ff);font-size:14px;font-weight:600">Khata Toggle</span></div>
-            <div class="settings-item" onclick="showSettingPanel('reset-pw',this)"><i class="fa fa-key" style="color:var(--p)"></i><span style="font-family:var(--ff);font-size:14px;font-weight:600">Reset Password</span></div>
-            <div class="settings-item" onclick="showSettingPanel('cleanup',this)"><i class="fa fa-broom" style="color:#64748b"></i><span style="font-family:var(--ff);font-size:14px;font-weight:600">Data Cleanup</span></div>
-            <div class="settings-item" onclick="showSettingPanel('master-del',this)"><i class="fa fa-skull-crossbones" style="color:var(--pd)"></i><span style="font-family:var(--ff);font-size:14px;font-weight:600">Master Delete</span></div>
+            <div class="settings-item act" onclick="showSettingPanel('cutoff',this)">
+              <div class="si-icon" style="background:#fef3c7"><i class="fa fa-clock" style="color:#d97706"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Order Cutoff</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('schedule',this)">
+              <div class="si-icon" style="background:#dcfce7"><i class="fa fa-calendar-week" style="color:#16a34a"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Weekly Schedule</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('khata-toggle',this)">
+              <div class="si-icon" style="background:#ede9fe"><i class="fa fa-wallet" style="color:#7c3aed"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Khata Toggle</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('reset-pw',this)">
+              <div class="si-icon" style="background:#fde8ea"><i class="fa fa-key" style="color:var(--p)"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Reset Password</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('cleanup',this)">
+              <div class="si-icon" style="background:#f1f5f9"><i class="fa fa-broom" style="color:#64748b"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Data Cleanup</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('master-del',this)">
+              <div class="si-icon" style="background:#fee2e2"><i class="fa fa-skull-crossbones" style="color:#be123c"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Master Delete</span>
+            </div>
           </div>
           <div id="settings-panel-area"></div>
         </div>
@@ -388,12 +686,15 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
       <!-- NOTIFICATIONS -->
       <div id="p-notifs" class="pg-v">
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Notifications</h2>
+        </div>
         <div class="card" style="margin-bottom:16px">
-          <div style="font-family:var(--ff);font-weight:600;font-size:14px;margin-bottom:12px">Delete by Date Range</div>
+          <div class="card-header"><div class="card-title"><i class="fa fa-calendar-xmark" style="color:#be123c"></i> Delete by Date Range</div></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
             <div class="field" style="margin-bottom:0"><label>From</label><input id="notif-del-from" type="date"></div>
             <div class="field" style="margin-bottom:0"><label>To</label><input id="notif-del-to" type="date"></div>
-            <button class="btn btn-danger" onclick="deleteNotifRange()">Delete Range</button>
+            <button class="btn btn-danger" onclick="deleteNotifRange()"><i class="fa fa-trash"></i> Delete Range</button>
           </div>
         </div>
         <div class="tabs">
@@ -607,15 +908,11 @@ function renderStatCard(id, val, label, icon, iconBg, adminOnly = false) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:14px">
-      <div style="width:46px;height:46px;background:${iconBg};border-radius:12px;display:flex;align-items:center;justify-content:center">
-        <i class="fa ${icon}" style="font-size:20px;color:var(--p)"></i>
-      </div>
-      <div>
-        <div style="font-size:22px;font-family:var(--ff);font-weight:800">${val ?? '—'}</div>
-        <div style="font-size:12px;color:#64748b;font-family:var(--ff)">${label}</div>
-      </div>
-    </div>`;
+    <div class="stat-icon" style="background:${iconBg}">
+      <i class="fa ${icon}" style="color:var(--p)"></i>
+    </div>
+    <div class="stat-val">${val ?? '—'}</div>
+    <div class="stat-label">${label}</div>`;
 }
 
 async function loadDashboard() {
