@@ -121,11 +121,26 @@ textarea{resize:vertical;min-height:80px}
 #ptr-arrow{transition:transform 300ms;font-size:18px;display:inline-block}
 #ptr-spinner{display:none;width:20px;height:20px;border:2px solid #f0f0f0;border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
 /* Pause toggle */
-.pause-row{background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:10px}
+.pause-row{background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:10px;border:2px solid transparent;transition:border-color 250ms,background 250ms}
+.pause-row.paused{border-color:var(--pd);background:#fff8f8}
+.pause-status-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:var(--ff);border-radius:20px;padding:2px 8px;margin-top:3px}
+.pause-status-badge.active{background:var(--gl);color:var(--g)}
+.pause-status-badge.paused{background:#fde8ea;color:var(--pd)}
 .toggle-sw{appearance:none;width:46px;height:26px;background:#e5e7eb;border-radius:13px;position:relative;cursor:pointer;transition:background 200ms;flex-shrink:0;border:none}
-.toggle-sw:checked{background:var(--g)}
+.toggle-sw.active{background:var(--g)}
+.toggle-sw.paused{background:var(--pd)}
 .toggle-sw::after{content:'';position:absolute;width:20px;height:20px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left 200ms;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-.toggle-sw:checked::after{left:23px}
+.toggle-sw.active::after,.toggle-sw.paused::after{left:23px}
+/* Pause Sheet redesign */
+.pause-option-card{border:2px solid #f0f0f0;border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all 200ms;background:#fff}
+.pause-option-card:has(input:checked){border-color:var(--pd);background:#fff8f8}
+.pause-option-card input[type=radio]{appearance:none;width:20px;height:20px;border:2px solid #d1d5db;border-radius:50%;flex-shrink:0;transition:all 150ms;position:relative}
+.pause-option-card input[type=radio]:checked{border-color:var(--pd);background:var(--pd)}
+.pause-option-card input[type=radio]:checked::after{content:'';position:absolute;width:8px;height:8px;background:#fff;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
+.pause-option-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.picon-morning{background:#fff8e7}
+.picon-evening{background:#f0f4ff}
+.picon-both{background:#fde8ea}
 /* Cutoff banner */
 /* cutoff-banner defined below */
 /* Sub plan banner */
@@ -271,9 +286,6 @@ textarea{resize:vertical;min-height:80px}
 /* Pause Sheet */
 .sheet-title{font-family:var(--ff);font-weight:700;font-size:18px}
 .sheet-close{border:none;background:#f5f5f5;border-radius:10px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px}
-.pause-option{border:2px solid #f0f0f0;border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all 200ms}
-.pause-option:has(input:checked){border-color:var(--p);background:var(--pl)}
-.pause-option input[type=radio]{accent-color:var(--p)}
 .resume-link{color:var(--g);font-family:var(--ff);font-weight:600;font-size:14px;border:none;background:none;cursor:pointer;text-align:center;width:100%;margin-top:10px}
 /* Account Panel Sheet */
 .panel-hero{background:var(--grad);border-radius:16px;padding:20px;color:#fff;text-align:center;margin-bottom:14px}
@@ -455,10 +467,11 @@ textarea{resize:vertical;min-height:80px}
       <!-- Pause toggle (PRO subscribers only) -->
       <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
         <div style="flex:1">
-          <div style="font-family:var(--ff);font-weight:600;font-size:14px">Pause Your Auto Tiffin</div>
-          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">If you turn this off, no automatic order will be generated.</div>
+          <div style="font-family:var(--ff);font-weight:600;font-size:14px">Auto Tiffin</div>
+          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Tap to pause automatic orders</div>
+          <span class="pause-status-badge active" id="pause-status-badge">● Active</span>
         </div>
-        <input type="checkbox" class="toggle-sw" id="pause-toggle" onchange="onPauseToggle(this)" checked>
+        <input type="checkbox" class="toggle-sw active" id="pause-toggle" onchange="onPauseToggle(this)" checked>
       </div>
 
       <!-- Monthly plan card (non-subscriber only) -->
@@ -797,29 +810,33 @@ textarea{resize:vertical;min-height:80px}
      PAUSE SHEET
 ══════════════════════════════════════════════ -->
 <div id="pause-sheet" class="sheet" style="display:none">
-  <div class="flex-sb" style="margin-bottom:16px">
+  <div class="flex-sb" style="margin-bottom:4px">
     <div class="sheet-title">Pause Deliveries</div>
     <button class="sheet-close" onclick="closePauseSheet()"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <label class="pause-option">
+  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px">Select which tiffin to skip today</div>
+  <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="lunch">
+    <div class="pause-option-icon picon-morning">☀️</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">☀️ Only Morning Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Skip morning tiffin only</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Morning Only</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip today's morning tiffin</div>
     </div>
   </label>
-  <label class="pause-option">
+  <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="dinner">
+    <div class="pause-option-icon picon-evening">🌙</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">🌙 Only Evening Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Skip evening tiffin only</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Evening Only</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip today's evening tiffin</div>
     </div>
   </label>
-  <label class="pause-option">
+  <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="both">
+    <div class="pause-option-icon picon-both">⏸</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">⏸ Both Tiffin Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr)">Pause all tiffin deliveries</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Both Tiffins</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Pause all deliveries</div>
     </div>
   </label>
   <div class="mt16">
@@ -1280,13 +1297,24 @@ function applyPauseState(mode) {
   _pauseMode = mode || 'none';
   const toggle = document.getElementById('pause-toggle');
   const sub    = document.getElementById('pause-subtitle');
-  if (toggle) toggle.checked = (_pauseMode === 'none');
+  const row    = document.getElementById('pause-toggle-row');
+  const badge  = document.getElementById('pause-status-badge');
+  const isPaused = _pauseMode !== 'none';
+  if (toggle) {
+    toggle.checked = true; // always visually "on" (right side)
+    toggle.className = 'toggle-sw ' + (isPaused ? 'paused' : 'active');
+  }
+  if (row) { row.classList.toggle('paused', isPaused); }
+  if (badge) {
+    badge.className = 'pause-status-badge ' + (isPaused ? 'paused' : 'active');
+    badge.textContent = isPaused ? '● Paused' : '● Active';
+  }
   if (sub) sub.textContent =
-    _pauseMode === 'none'   ? 'If you turn this off, no automatic order will be generated.' :
-    _pauseMode === 'lunch'  ? 'Morning tiffin paused' :
-    _pauseMode === 'dinner' ? 'Evening tiffin paused' : 'Both tiffins paused';
+    _pauseMode === 'none'   ? 'Tap to pause automatic orders' :
+    _pauseMode === 'lunch'  ? 'Morning tiffin paused — tap to resume' :
+    _pauseMode === 'dinner' ? 'Evening tiffin paused — tap to resume' : 'All tiffins paused — tap to resume';
   const resumeLink = document.getElementById('resume-all-link');
-  if (resumeLink) resumeLink.style.display = _pauseMode !== 'none' ? 'block' : 'none';
+  if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
 }
 
 function togglePw(inputId, btn) {
@@ -2318,13 +2346,20 @@ function closePauseSheet() {
   document.getElementById('pause-sheet').classList.remove('open');
   document.getElementById('sheet-backdrop').classList.remove('show');
   setTimeout(() => document.getElementById('pause-sheet').style.display = 'none', 350);
-  // Revert toggle if no pause was confirmed
-  document.getElementById('pause-toggle').checked = _pauseMode !== 'none';
+  // Reset radio selections
+  document.querySelectorAll('input[name="pause-opt"]').forEach(r => r.checked = false);
 }
 
 function onPauseToggle(chk) {
-  if (chk.checked) { openPauseSheet(); }
-  else { resumeDelivery(); }
+  // Always keep toggle visually checked (right side); color indicates state
+  chk.checked = true;
+  if (_pauseMode === 'none') {
+    // Currently active → user wants to pause → show options
+    openPauseSheet();
+  } else {
+    // Currently paused → user wants to resume
+    resumeDelivery();
+  }
 }
 
 async function confirmPause() {
