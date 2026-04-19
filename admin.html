@@ -100,75 +100,6 @@ body{display:flex;min-height:100vh;background:var(--body-bg);font-family:var(--f
 /* ── MAIN AREA ───────────────────────────────────────────── */
 #main{margin-left:var(--sb-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
 
-/* ── MAIN FOOTER ─────────────────────────────────────────── */
-#main-footer{
-  background:#fff;border-top:1px solid #e8ecf0;padding:28px 24px 24px;
-  margin-top:auto;
-}
-.mf-inner{max-width:1400px;width:100%}
-.mf-top{
-  display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:28px;
-  margin-bottom:24px;
-}
-.mf-brand-col{}
-.mf-brand-row{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-.mf-brand-icon{
-  width:34px;height:34px;background:linear-gradient(135deg,var(--p),#ff6b6b);
-  border-radius:9px;display:flex;align-items:center;justify-content:center;
-  font-size:15px;box-shadow:0 3px 10px rgba(230,57,70,.25);flex-shrink:0;
-}
-.mf-brand-name{font-family:var(--ff);font-weight:800;font-size:16px;color:#0f172a;letter-spacing:-.3px}
-.mf-brand-name span{color:#10b981}
-.mf-tagline{font-size:12.5px;color:#64748b;line-height:1.6;max-width:220px}
-.mf-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.mf-badge{
-  display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
-  background:#f8fafc;border:1px solid #e8ecf0;border-radius:20px;
-  font-size:11px;color:#64748b;
-}
-.mf-badge i{font-size:10px;color:var(--p)}
-.mf-col-title{
-  font-family:var(--ff);font-weight:700;font-size:11px;text-transform:uppercase;
-  letter-spacing:1px;color:#94a3b8;margin-bottom:12px;
-}
-.mf-col-links{list-style:none}
-.mf-col-links li{margin-bottom:7px}
-.mf-col-links a{
-  font-size:13px;color:#64748b;text-decoration:none;
-  transition:color 160ms;display:flex;align-items:center;gap:6px;
-}
-.mf-col-links a i{font-size:11px;color:#cbd5e1;width:14px}
-.mf-col-links a:hover{color:var(--p)}
-.mf-col-links a:hover i{color:var(--p)}
-.mf-divider{height:1px;background:#f1f5f9;margin-bottom:18px}
-.mf-bottom{
-  display:flex;align-items:center;justify-content:space-between;
-  flex-wrap:wrap;gap:10px;
-}
-.mf-copy{font-size:12px;color:#94a3b8}
-.mf-copy strong{color:#64748b;font-weight:600}
-.mf-bottom-links{display:flex;gap:16px;flex-wrap:wrap}
-.mf-bottom-links a{
-  font-size:12px;color:#94a3b8;text-decoration:none;transition:color 160ms;
-}
-.mf-bottom-links a:hover{color:var(--p)}
-.mf-status-dot{
-  display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#10b981;
-  font-weight:600;
-}
-.mf-status-dot::before{
-  content:'';width:7px;height:7px;background:#10b981;border-radius:50%;
-  display:inline-block;animation:pulse 2s infinite;
-}
-@media(max-width:900px){
-  .mf-top{grid-template-columns:1fr 1fr;gap:20px}
-  .mf-brand-col{grid-column:1/-1}
-}
-@media(max-width:600px){
-  .mf-top{grid-template-columns:1fr;gap:16px}
-  #main-footer{padding:20px 16px 18px}
-  .mf-bottom{flex-direction:column;align-items:flex-start;gap:8px}
-}
 
 /* ── TOP BAR ─────────────────────────────────────────────── */
 #topbar{
@@ -526,7 +457,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .refund-opt-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 /* PDF print styles */
 @media print{
-  #sidebar,#topbar,#a-toast,#nprogress,#mo-bg,#main-footer,
+  #sidebar,#topbar,#a-toast,#nprogress,#mo-bg,
   .act-btn,.act-btn-wa,.status-inline-select,
   #ord-cat-tabs,#ord-status-chips,#ord-count-badge,
   #ord-pdf-btn,.filter-bar,.page-header button{display:none!important}
@@ -547,13 +478,9 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   #content{padding:16px}
   .filter-bar{flex-direction:column;align-items:stretch}
   .filter-bar .search-input{min-width:unset;width:100%}
-  #main-footer{padding:20px 16px 16px}
 }
 @media(max-width:480px){
   .grid-stats{grid-template-columns:1fr 1fr}
-  .mf-top{grid-template-columns:1fr;gap:14px}
-  .mf-brand-col{grid-column:auto}
-  .mf-bottom{flex-direction:column;align-items:flex-start;gap:8px}
 }
 </style>
 </head>
@@ -1300,65 +1227,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     </div>
   </div>
 
-  <footer id="main-footer">
-    <div class="mf-inner">
-      <div class="mf-top">
-        <!-- Brand col -->
-        <div class="mf-brand-col">
-          <div class="mf-brand-row">
-            <div class="mf-brand-icon">🍱</div>
-            <div class="mf-brand-name">Tif<span>fo</span> Admin</div>
-          </div>
-          <p class="mf-tagline">Powering home kitchens with a simple, fast and reliable admin panel.</p>
-          <div class="mf-badges">
-            <span class="mf-badge"><i class="fa fa-shield-halved"></i> Secure</span>
-            <span class="mf-badge"><i class="fa fa-bolt"></i> Fast</span>
-            <span class="mf-badge"><i class="fa fa-mobile-screen"></i> Responsive</span>
-          </div>
-        </div>
-        <!-- Quick Links -->
-        <div>
-          <div class="mf-col-title">Quick Links</div>
-          <ul class="mf-col-links">
-            <li><a href="#" onclick="showPage('p-dash');return false"><i class="fa fa-chart-line"></i> Dashboard</a></li>
-            <li><a href="#" onclick="showPage('p-orders');return false"><i class="fa fa-bag-shopping"></i> Orders</a></li>
-            <li><a href="#" onclick="showPage('p-bulk');return false"><i class="fa fa-boxes-stacked"></i> Bulk Orders</a></li>
-            <li><a href="#" onclick="showPage('p-menu');return false"><i class="fa fa-utensils"></i> Menu</a></li>
-            <li><a href="#" onclick="showPage('p-thalis');return false"><i class="fa fa-bowl-food"></i> Thalis</a></li>
-          </ul>
-        </div>
-        <!-- People -->
-        <div>
-          <div class="mf-col-title">People</div>
-          <ul class="mf-col-links">
-            <li><a href="#" onclick="showPage('p-users');return false"><i class="fa fa-users"></i> All Users</a></li>
-            <li><a href="#" onclick="showPage('p-subs');return false"><i class="fa fa-crown"></i> Subscribers</a></li>
-            <li><a href="#" onclick="showPage('p-riders');return false"><i class="fa fa-motorcycle"></i> Riders</a></li>
-            <li><a href="#" onclick="showPage('p-staff');return false"><i class="fa fa-id-badge"></i> Staff</a></li>
-            <li><a href="#" onclick="showPage('p-coupons');return false"><i class="fa fa-tags"></i> Coupons</a></li>
-          </ul>
-        </div>
-        <!-- Admin -->
-        <div>
-          <div class="mf-col-title">Admin</div>
-          <ul class="mf-col-links">
-            <li><a href="#" onclick="showPage('p-khata');return false"><i class="fa fa-wallet"></i> Khata / Wallet</a></li>
-            <li><a href="#" onclick="showPage('p-settings');return false"><i class="fa fa-gear"></i> Settings</a></li>
-            <li><a href="#" onclick="showPage('p-notifs');return false"><i class="fa fa-bell"></i> Notifications</a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="mf-divider"></div>
-      <div class="mf-bottom">
-        <div class="mf-copy">© 2026 <strong>Tiffo</strong> · All rights reserved · Built for home food businesses</div>
-        <span class="mf-status-dot">All systems operational</span>
-        <div class="mf-bottom-links">
-          <a href="#" onclick="showPage('p-settings');return false">Settings</a>
-          <a href="#" onclick="doAdminLogout()">Logout</a>
-        </div>
-      </div>
-    </div>
-  </footer>
+
 
 </div>
 </div>
