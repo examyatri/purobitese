@@ -1039,12 +1039,6 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, pauseMode: row?.pause_delivery || 'none' });
       }
 
-      case 'pauseUserDelivery': {
-        const allowed = ['none', 'lunch', 'dinner', 'both'];
-        if (!allowed.includes(data.mode)) return res.json({ success: false, error: 'Invalid mode' });
-        await supabase.from('subscribers').update({ pause_delivery: data.mode }).eq('phone', cleanPhone(data.phone));
-        return res.json({ success: true, pauseMode: data.mode });
-      }
 
       case 'adminGetSubscribers': {
         const { data: subs } = await supabase.from('subscribers').select('*');
