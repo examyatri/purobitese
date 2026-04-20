@@ -1470,6 +1470,7 @@ async function doLogin() {
   if (!phone || phone.length !== 10) { toast('Enter 10-digit phone number'); return; }
   if (!pw) { toast('Enter password'); return; }
   setLoading('login-btn', true);
+  toast('⚙️ Setting up your diet preferences… just a moment!', 4000);
   try {
     const res = await api('login', { phone, password: pw });
     Creds.save(phone, pw);
@@ -1517,6 +1518,7 @@ async function doSignup() {
 
   if (!valid) return;
   setLoading('su-btn', true);
+  toast('⚙️ Setting up your diet preferences… just a moment!', 5000);
   try {
     const res = await api('signup', { name, phone, email, address, password: pw });
     Creds.save(phone, pw);
