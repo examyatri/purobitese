@@ -2184,8 +2184,6 @@ async function placeOrder() {
     } else {
       document.getElementById('s-order-id').textContent = res.orderId;
       setDeliveryTime('s-delivery-time');
-      const _waBtnReset = document.getElementById('s-wa-btn');
-      if (_waBtnReset) { _waBtnReset.style.display = 'none'; _waBtnReset.onclick = null; }
       nav('pg-success');
       setTimeout(() => {
         const waBtn = document.getElementById('s-wa-btn');
@@ -2254,16 +2252,15 @@ async function confirmInsufOrder() {
     // Use the same success page and WA button flow as a normal (non-subscriber) user
     document.getElementById('s-order-id').textContent = res.orderId;
     setDeliveryTime('s-delivery-time');
-    const _waBtnInsufReset = document.getElementById('s-wa-btn');
-    if (_waBtnInsufReset) { _waBtnInsufReset.style.display = 'none'; _waBtnInsufReset.onclick = null; }
     nav('pg-success');
     setTimeout(() => {
       const waBtn = document.getElementById('s-wa-btn');
       if (waBtn) {
         waBtn.style.display = 'flex';
         waBtn.onclick = () => {
+          const _cartSnap = []; // cart already cleared, use totals available
           openWA(CFG.TIFFIN,
-            `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address on file'}\n\n💰 Subtotal: ₹${subtotal}${discount > 0 ? `\n🎟️ Discount: −₹${discount}` : ''}\n🚴 Delivery: ₹${deliveryCharge}\n✅ *Total: ₹${total}*\n\n⚠️ Due to insufficient wallet balance, I am paying via UPI. Please share your UPI/QR details so I can complete the payment and send the screenshot. 🙏`
+            `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address on file'}\n\n💰 Subtotal: ₹${subtotal}${discount > 0 ? `\n🎟️ Discount: −₹${discount}` : ''}\n🚴 Delivery: ₹${deliveryCharge}\n✅ *Total: ₹${total}*\n\n⚠️ Wallet balance was insufficient. Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`
           );
         };
       }
@@ -2357,8 +2354,7 @@ function renderOrderList(orders) {
       ? `<div style="color:var(--gr);font-size:11px;margin-top:2px;font-style:italic">+${items.length-3} more items</div>`
       : '';
 
-    const isInsufUpi = o.payment_mode === 'upi_insuf';
-    const isWallet = !isInsufUpi && ((o.user_type === 'subscriber') || (o.payment_status === 'wallet'));
+    const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
     const orderId   = o.order_id || o.id;
     const ordAmt    = o.final_amount || o.total_amount || 0;
     const _oItems   = items.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''}${i.qty > 1 ? ` ×${i.qty}` : ''} — ₹${(i.price || 0) * (i.qty || 1)}`).join('\\n');
@@ -2366,18 +2362,12 @@ function renderOrderList(orders) {
     const _oDel     = o.delivery_charge > 0 ? `\\n🚴 Delivery: ₹${o.delivery_charge}` : '';
     const _oCoupon  = o.coupon_code ? ` (${o.coupon_code})` : '';
     const waMsg     = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n*Items:*\n${_oItems}${_oDisc}${_oDel}\n✅ *Total: ₹${ordAmt}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
-    const waMsgInsuf = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n💰 Total: ₹${ordAmt}${_oDisc}${_oDel}\n\n⚠️ Due to insufficient wallet balance, I am paying via UPI. Please share your UPI/QR details so I can complete the payment and send the screenshot. 🙏`);
     const payBadge = isWallet
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
-      : isInsufUpi
-        ? `<span class="ord-pay-badge" style="background:#fef3c7;color:#92400e">⚠️ Wallet Insf → UPI</span>
-           <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsgInsuf}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
-           </button>`
-        : `<span class="ord-pay-badge">💵 Cash / UPI</span>
-           <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsg}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
-           </button>`;
+      : `<span class="ord-pay-badge">💵 Cash / UPI</span>
+         <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsg}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+           <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+         </button>`;
 
     // Slot indicator
     const slotBadge = o.slot
