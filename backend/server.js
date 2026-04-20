@@ -264,14 +264,20 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
   // Mark coupon used at order-placement time (not at validate time)
   if (coupon && coupon.code) {
     try {
-      const { data: cpnRow } = await supabase.from('coupons').select('used_count,usage_count,used_by').eq('code', coupon.code).single();
+      const { data: cpnRow } = await supabase.from('coupons').select('used_count,usage_count,used_by,auto_delete,max_usage,total_usage_limit').eq('code', coupon.code).single();
       if (cpnRow) {
+        const newUsedCount = (cpnRow.used_count||0) + 1;
         let ub=[]; try{ub=JSON.parse(cpnRow.used_by||'[]');}catch{ub=[];}
         await supabase.from('coupons').update({
-          used_count:  (cpnRow.used_count||0)+1,
+          used_count:  newUsedCount,
           usage_count: (cpnRow.usage_count||0)+1,
           used_by:     JSON.stringify([...ub, ...(user.phone ? [user.phone] : [])])
         }).eq('code', coupon.code);
+        // Auto-delete: remove from DB if auto_delete=true and usage limit is now reached
+        const limit = cpnRow.max_usage ?? cpnRow.total_usage_limit ?? null;
+        if (cpnRow.auto_delete === true && limit !== null && newUsedCount >= limit) {
+          await supabase.from('coupons').delete().eq('code', coupon.code);
+        }
       }
     } catch(_) {}
   }
@@ -1712,22 +1718,27 @@ app.post('/api', async (req, res) => {
 
       case 'addCoupon':
         { if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
+          // usage_limit: explicit field, or fall back to max_usage; for new-user coupons this will be 1
+          const usageLimit = data.usage_limit ?? data.max_usage ?? null;
+          // auto_delete: delete coupon from DB once usage_limit is reached (used for new-user welcome coupons)
+          const autoDelete = data.auto_delete === true ? true : false;
           await supabase.from('coupons').insert({
-            code:             (data.code || '').toUpperCase(),
+            code:              (data.code || '').toUpperCase(),
             discount_type:     data.discount_type,
             discount_value:    data.discount_value,
             expiry_date:       data.expiry_date || null,
             is_active:         true,
             min_order:         data.min_order ?? null,
             min_order_amount:  data.min_order ?? null,
-            max_usage:         data.max_usage ?? null,
-            total_usage_limit: data.max_usage ?? null,
+            max_usage:         usageLimit,
+            total_usage_limit: usageLimit,
             per_user_limit:    data.per_user_limit ?? null,
             max_per_user:      data.per_user_limit ?? null,
             cap_amount:        data.cap_amount ?? null,
             max_cap:           data.cap_amount ?? null,
             restriction_type:  data.restriction_type || 'unlimited',
             allowed_phones:    JSON.stringify(data.allowed_phones || []),
+            auto_delete:       autoDelete,
             used_count:        0,
             usage_count:       0,
             used_by:           '[]',
