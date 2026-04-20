@@ -34,7 +34,7 @@ body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;
 #bottom-nav button.active{color:var(--p)}
 #bottom-nav button i{font-size:18px}
 /* Cart FAB */
-#cart-fab{position:fixed;bottom:calc(var(--bnav-h) + 16px + var(--safe-b));right:16px;background:var(--grad);color:#fff;border:none;border-radius:24px;padding:12px 20px;box-shadow:var(--shl);font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:8px;z-index:800}
+#cart-fab{display:none!important}
 .badge{position:absolute;top:-7px;right:-9px;background:var(--p);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;pointer-events:none}
 /* Toast */
 #toast{position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;border-radius:24px;padding:10px 20px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none;font-family:var(--fb);font-size:14px}
@@ -491,7 +491,8 @@ textarea{resize:vertical;min-height:80px}
       <!-- Search -->
       <div class="search-wrap">
         <i class="fa-solid fa-magnifying-glass" style="color:var(--gr)"></i>
-        <input type="search" id="menu-search" placeholder="Search dishes..." oninput="onMenuSearch(this.value)">
+        <input type="search" id="menu-search" placeholder="Search dishes..." onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}" oninput="_menuSearchDebounce(this.value)">
+        <button id="search-go-btn" onclick="onMenuSearch(document.getElementById('menu-search').value)" style="border:none;background:none;padding:0 4px;cursor:pointer;color:var(--p);font-size:17px;display:flex;align-items:center"><i class="fa-solid fa-magnifying-glass"></i></button>
         <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
       </div>
 
@@ -751,6 +752,8 @@ textarea{resize:vertical;min-height:80px}
         <div class="khata-bal-amt wallet-bal">&#x20B9;0</div>
         <div id="wallet-bal-status" style="font-family:var(--fb);font-size:12px;opacity:.8;margin-top:4px">&#x2705; Balance looks good</div>
       </div>
+      <!-- Recharge Wallet -->
+      <button onclick="openWA('9889760350','I Want To Recharge My Wallet, Please Provide Your UPI Details.')" style="width:100%;background:#25d366;color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;box-shadow:0 4px 12px rgba(37,211,102,.35)"><i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Recharge Wallet</button>
       <!-- Date filter -->
       <div style="background:#fff;border-radius:14px;padding:14px;box-shadow:var(--sh);margin-bottom:12px">
         <div style="font-family:var(--ff);font-weight:600;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
@@ -1286,8 +1289,14 @@ function toast(msg, duration = 3000) {
 function setLoading(btnId, on) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
-  if (on) { btn.dataset.orig = btn.innerHTML; btn.innerHTML = '…'; btn.disabled = true; }
-  else { btn.innerHTML = btn.dataset.orig || btn.innerHTML; btn.disabled = false; }
+  if (on) {
+    btn.dataset.orig = btn.innerHTML;
+    btn.innerHTML = '<svg style="display:inline-block;vertical-align:middle;animation:spin 0.7s linear infinite" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-opacity="0.3" stroke-width="2.5"/><path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn.dataset.orig || btn.innerHTML;
+    btn.disabled = false;
+  }
 }
 
 function openWA(phone, msg) {
@@ -1343,11 +1352,6 @@ function updateCartBadge() {
   const fabCount = document.getElementById('fab-count');
   if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'flex' : 'none'; }
   if (hBadge) { hBadge.textContent = count; hBadge.style.display = count > 0 ? 'flex' : 'none'; }
-  if (fabCount) fabCount.textContent = count;
-  if (fab) {
-    const cur = document.querySelector('.pg.here')?.id;
-    fab.style.display = (cur === 'pg-home' && count > 0) ? 'flex' : 'none';
-  }
 }
 
 function updateWalletUI(bal) {
@@ -1457,8 +1461,7 @@ function nav(id) {
   history.pushState({pg:id,stackLen:_stack.length},'', _pgHash(id));
   updateBottomNav(id);
   onEnter(id);
-  document.getElementById('cart-fab').style.display =
-    (id === 'pg-home' && Cart.get().length > 0) ? 'flex' : 'none';
+  // cart-fab removed; badge in bottom-nav handles cart count
 }
 
 function back() {
@@ -1697,6 +1700,14 @@ function selectCategory(cat) {
   // Smooth scroll to active chip
   const active = document.querySelector('.cat-chip.active');
   if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
+let _menuSearchDebounceTimer = null;
+function _menuSearchDebounce(val) {
+  // Only show/hide clear button on type; actual search fires on icon click or Enter
+  document.getElementById('search-clear').style.display = val ? 'flex' : 'none';
+  clearTimeout(_menuSearchDebounceTimer);
+  _menuSearchDebounceTimer = setTimeout(() => { onMenuSearch(val); }, 600);
 }
 
 function onMenuSearch(val) {
