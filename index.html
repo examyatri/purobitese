@@ -1466,7 +1466,7 @@ function setDeliveryTime(elId) {
    WHATSAPP PLAN
 ═══════════════════════════════════════════ */
 function openWhatsAppPlan() {
-  var msg = encodeURIComponent("🍱 *Monthly Tiffin Plan — Enquiry*\n\nHello! I'm interested in joining the *Monthly Tiffin Service*. Could you please share the following details?\n\n📦 *Plan Options* (veg/non-veg, half/full)\n💰 *Monthly Pricing & Packages*\n📅 *Start Date & Billing Cycle*\n🚴 *Delivery Slots* (Morning / Evening)\n📍 *Delivery Area Coverage*\n\nKindly guide me through the subscription process. Thank you! 🙏");
+  var msg = encodeURIComponent("Mujhe monthly tiffin join karna hai, please information dijiye.");
   window.open("https://wa.me/" + (CFG.WA || '919889760350') + "?text=" + msg, "_blank");
 }
 
@@ -2189,14 +2189,8 @@ async function placeOrder() {
         const waBtn = document.getElementById('s-wa-btn');
         if (waBtn) {
           waBtn.style.display = 'flex';
-          waBtn.onclick = () => {
-            const _itemLines = cart.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-            const _disc = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
-            const _del  = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
-            openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address on file'}\n\n*Items:*\n${_itemLines}${_disc}${_del}\n✅ *Total: ₹${total}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`
-            );
-          };
+          waBtn.onclick = () => openWA(CFG.TIFFIN,
+            `Hi! I just placed Order #${res.orderId}. Total: ₹${total}. Please confirm.`);
         }
       }, 2500);
     }
@@ -2257,12 +2251,8 @@ async function confirmInsufOrder() {
       const waBtn = document.getElementById('s-wa-btn');
       if (waBtn) {
         waBtn.style.display = 'flex';
-        waBtn.onclick = () => {
-          const _cartSnap = []; // cart already cleared, use totals available
-          openWA(CFG.TIFFIN,
-            `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address on file'}\n\n💰 Subtotal: ₹${subtotal}${discount > 0 ? `\n🎟️ Discount: −₹${discount}` : ''}\n🚴 Delivery: ₹${deliveryCharge}\n✅ *Total: ₹${total}*\n\n⚠️ Wallet balance was insufficient. Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`
-          );
-        };
+        waBtn.onclick = () => openWA(CFG.TIFFIN,
+          `Hi! I just placed Order #${res.orderId}. Total: ₹${total}.\nI am paying via UPI. Please share your UPI ID so I can pay and send the screenshot.`);
       }
     }, 2500);
     startPolling(true);
@@ -2357,11 +2347,7 @@ function renderOrderList(orders) {
     const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
     const orderId   = o.order_id || o.id;
     const ordAmt    = o.final_amount || o.total_amount || 0;
-    const _oItems   = items.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''}${i.qty > 1 ? ` ×${i.qty}` : ''} — ₹${(i.price || 0) * (i.qty || 1)}`).join('\\n');
-    const _oDisc    = o.discount > 0 ? `\\n🎟️ Discount: −₹${o.discount}` : '';
-    const _oDel     = o.delivery_charge > 0 ? `\\n🚴 Delivery: ₹${o.delivery_charge}` : '';
-    const _oCoupon  = o.coupon_code ? ` (${o.coupon_code})` : '';
-    const waMsg     = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n*Items:*\n${_oItems}${_oDisc}${_oDel}\n✅ *Total: ₹${ordAmt}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
+    const waMsg     = encodeURIComponent(`Hi! I just placed Order #${orderId}. Total: ₹${ordAmt}. Please confirm.`);
     const payBadge = isWallet
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
       : `<span class="ord-pay-badge">💵 Cash / UPI</span>
