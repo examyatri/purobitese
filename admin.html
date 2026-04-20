@@ -2433,7 +2433,7 @@ function openMenuModal(editId = null) {
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveMenuItem(${!!m},${editId||'null'})">Save Item</button>
+      <button class="btn btn-p" onclick="saveMenuItem(${!!m},'${editId||''}')">Save Item</button>
     </div>`);
 }
 
@@ -2544,7 +2544,7 @@ function openThaliModal(editId = null) {
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveThali(${!!t},${editId||'null'})">Save</button>
+      <button class="btn btn-p" onclick="saveThali(${!!t},'${editId||''}')">Save</button>
     </div>`);
 }
 
@@ -3370,7 +3370,7 @@ function openRiderModal(editId = null) {
     <div class="field"><label>Password ${r?'(leave blank to keep)':''}</label><input id="rf-pw" type="password" ${r?'':'required'}></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveRider(${!!r},${editId||'null'})">Save</button>
+      <button class="btn btn-p" onclick="saveRider(${!!r},'${editId||''}')">Save</button>
     </div>`);
 }
 
@@ -3618,7 +3618,7 @@ function openStaffModal(editId = null) {
     <div class="field"><label>Password ${s?'(leave blank to keep)':''}</label><input id="sf-pw" type="password"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveStaff(${!!s},${editId||'null'})">Save</button>
+      <button class="btn btn-p" onclick="saveStaff(${!!s},'${editId||''}')">Save</button>
     </div>`);
 }
 
@@ -4161,13 +4161,13 @@ function renderNotifCard(n) {
       <button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="gotoCouponTab('${phone}')">
         <i class="fa fa-tags"></i> Open Coupon Tab
       </button>
-      ${!n.is_read ? `<button class="btn btn-g" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="openCouponWorkflow(${n.id},'${phone}','${safeName}','${safeAddress}')">
+      ${!n.is_read ? `<button class="btn btn-g" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="openCouponWorkflow('${n.id}','${phone}','${safeName}','${safeAddress}')">
         <i class="fa fa-ticket"></i> Create Coupon
       </button>` : ''}`;
 
   } else if (isOrder) {
     // Card Type 1 — Order / Transaction
-    const markReadOnView = !n.is_read ? `markNotifRead(${n.id});` : '';
+    const markReadOnView = !n.is_read ? `markNotifRead('${n.id}');` : '';
     const khataBtn = isSub
       ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="${markReadOnView}gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
       : `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap;opacity:.5;cursor:not-allowed" disabled title="Normal user — no khata access"><i class="fa fa-wallet"></i> View Transaction <span style="background:#fef2f2;color:#be123c;border-radius:10px;padding:1px 6px;font-size:9px;font-family:var(--ff);font-weight:700;margin-left:3px">Non-sub</span></button>`;
@@ -4177,7 +4177,7 @@ function renderNotifCard(n) {
 
   } else if (isTxn) {
     // Card Type 1 — Transaction
-    const markReadOnView = !n.is_read ? `markNotifRead(${n.id});` : '';
+    const markReadOnView = !n.is_read ? `markNotifRead('${n.id}');` : '';
     actionBtns = phone
       ? `<button class="btn btn-outline" style="padding:5px 11px;font-size:11px;white-space:nowrap" onclick="${markReadOnView}gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Transaction</button>`
       : '';
@@ -4185,7 +4185,7 @@ function renderNotifCard(n) {
   } else {
     // Card Type 3 — System/Info — mark read on card click, no action buttons shown
     if (!n.is_read) {
-      actionBtns = `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead(${n.id})"><i class="fa fa-check"></i> Mark Read</button>`;
+      actionBtns = `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead('${n.id}')"><i class="fa fa-check"></i> Mark Read</button>`;
     }
   }
 
@@ -4196,7 +4196,7 @@ function renderNotifCard(n) {
   return `
     <div class="notif-card ${n.is_read ? '' : 'unread'}" id="notif-${n.id}"
          style="border-left-color:${borderColor};${cardOpacity}"
-         ${isSystem && !n.is_read ? `onclick="markNotifRead(${n.id})" style="border-left-color:${borderColor};${cardOpacity};cursor:pointer"` : ''}>
+         ${isSystem && !n.is_read ? `onclick="markNotifRead('${n.id}')" style="border-left-color:${borderColor};${cardOpacity};cursor:pointer"` : ''}>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="display:flex;gap:12px;align-items:flex-start;flex:1">
           <div style="width:38px;height:38px;border-radius:11px;background:${iconBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${iconBg}">
@@ -4215,7 +4215,7 @@ function renderNotifCard(n) {
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0">
           ${actionBtns}
-          <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deleteNotif(${n.id})"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-danger" style="padding:4px 10px;font-size:11px" onclick="deleteNotif('${n.id}')"><i class="fa fa-trash"></i></button>
         </div>
       </div>
     </div>`;
@@ -4302,7 +4302,7 @@ async function openCouponWorkflow(notifId, phone, name, address) {
     </div>
     <div id="cf-preview" style="background:#f8fafc;border:1px dashed #e2e8f0;border-radius:8px;padding:10px;font-size:12px;color:#64748b;margin-bottom:14px"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn btn-g" style="flex:1" onclick="saveAndSendCoupon(${notifId},'${phone}','${(name||'').replace(/'/g,"\\'")}')">
+      <button class="btn btn-g" style="flex:1" onclick="saveAndSendCoupon('${notifId||''}','${phone}','${(name||'').replace(/'/g,"\\'")}')">
         <i class="fa fa-whatsapp" style="font-family:'Font Awesome 6 Brands'"></i> <i class="fab fa-whatsapp"></i> Save & Open WhatsApp
       </button>
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
@@ -4450,7 +4450,7 @@ function openWaPopup(phone, name, notifId) {
     </div>
     <div style="font-size:11px;color:#94a3b8;margin-bottom:14px"><i class="fa fa-circle-info"></i> After clicking Send, this user will automatically move to <b>Sent</b> and the notification will be marked as Read.</div>
     <div style="display:flex;gap:10px">
-      <button class="btn btn-g" style="flex:1" onclick="sendWaAndMarkSent('${phone}',${notifId||'null'})"><i class="fab fa-whatsapp"></i> Send via WhatsApp</button>
+      <button class="btn btn-g" style="flex:1" onclick="sendWaAndMarkSent('${phone}','${notifId||''}')"><i class="fab fa-whatsapp"></i> Send via WhatsApp</button>
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
     </div>`;
 }
