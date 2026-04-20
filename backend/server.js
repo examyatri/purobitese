@@ -468,8 +468,10 @@ app.post('/api', async (req, res) => {
           is_active:   data.is_active !== undefined ? data.is_active : true,
           stock_grams: data.stock_grams ?? null,
           veg_type:    data.veg_type || 'veg',
-          sub_items:   data.sub_items || null,
-          created_at:  new Date().toISOString()
+          sub_items:    data.sub_items || null,
+          sub_category: data.sub_category || null,
+          meal_session: data.meal_session || 'both',
+          created_at:   new Date().toISOString()
         });
         if (miErr) throw new Error(miErr.message || 'Failed to add menu item');
         return res.json({ success: true });
