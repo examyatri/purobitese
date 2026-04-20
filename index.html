@@ -295,6 +295,15 @@ textarea{resize:vertical;min-height:80px}
 /* Closed popup */
 .closed-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;max-width:300px;width:90%;box-shadow:var(--shl)}
 .closed-emoji{font-size:48px;margin-bottom:12px}
+/* Insufficient balance UPI popup */
+.insuf-card{background:#fff;border-radius:20px;padding:28px 22px;text-align:center;max-width:320px;width:92%;box-shadow:var(--shl)}
+.insuf-card .insuf-emoji{font-size:44px;margin-bottom:10px}
+.insuf-card .insuf-title{font-family:var(--ff);font-weight:700;font-size:17px;margin-bottom:8px;color:#1a1a1a}
+.insuf-card .insuf-bal-row{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:12px;line-height:1.6}
+.insuf-card .insuf-note{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:18px;line-height:1.6;background:#fef9c3;border-radius:10px;padding:10px 12px;color:#854d0e}
+.insuf-card .insuf-btn-row{display:flex;gap:10px}
+.insuf-card .insuf-btn-row .btn-cancel{flex:1;background:#f2f2f2;color:#555;border:none;border-radius:12px;padding:13px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer}
+.insuf-card .insuf-btn-row .btn-yes{flex:2;background:var(--grad);color:#fff;border:none;border-radius:12px;padding:13px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer}
 .sub-only{display:none}
 .pg-pad{padding:0 var(--pg-pad)}
 /* Scroll helper */
@@ -587,7 +596,7 @@ textarea{resize:vertical;min-height:80px}
       💳 Send payment screenshot on WhatsApp to confirm your order
     </div>
     <button class="wa-btn" id="s-wa-btn" style="display:none">
-      <i class="fa-brands fa-whatsapp"></i> Send Payment Screenshot
+      <i class="fa-brands fa-whatsapp"></i> Click Here To Pay & Send Your Payment Screenshot
     </button>
     <div class="flex gap8 w100">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
@@ -898,6 +907,26 @@ textarea{resize:vertical;min-height:80px}
     <div style="font-family:var(--ff);font-weight:700;font-size:18px;margin-bottom:6px">Restaurant Closed</div>
     <div id="closed-reason" style="font-family:var(--fb);font-size:14px;color:var(--gr);margin-bottom:16px"></div>
     <button class="btn-primary" onclick="document.getElementById('closed-popup').style.display='none'">OK</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     INSUFFICIENT BALANCE — UPI PAY POPUP
+══════════════════════════════════════════════ -->
+<div id="insuf-bal-popup" class="modal-overlay" style="display:none">
+  <div class="insuf-card">
+    <div class="insuf-emoji">💳</div>
+    <div class="insuf-title">Insufficient Wallet Balance</div>
+    <div class="insuf-bal-row">
+      Your wallet has <strong id="insuf-avail">₹0</strong> but this order needs <strong id="insuf-need">₹0</strong>.
+    </div>
+    <div class="insuf-note">
+      Would you like to place this order and pay via UPI? After placing, you'll get a button to send your payment screenshot on WhatsApp.
+    </div>
+    <div class="insuf-btn-row">
+      <button class="btn-cancel" onclick="closeInsufPopup()">Cancel</button>
+      <button class="btn-yes" id="insuf-yes-btn" onclick="confirmInsufOrder()">Yes, Place Order</button>
+    </div>
   </div>
 </div>
 
@@ -2124,7 +2153,7 @@ async function placeOrder() {
 
   if (user.is_subscriber && _khataEnabled) {
     if (_walletBal < total) {
-      toast(`Wallet low: ₹${Math.round(_walletBal)} available, need ₹${total}`); return;
+      showInsufPopup(_walletBal, total); return;
     }
   }
 
@@ -2175,6 +2204,62 @@ async function placeOrder() {
 function showClosedPopup(reason) {
   document.getElementById('closed-reason').textContent = reason;
   document.getElementById('closed-popup').style.display = 'flex';
+}
+
+function showInsufPopup(avail, need) {
+  document.getElementById('insuf-avail').textContent = '₹' + Math.round(avail);
+  document.getElementById('insuf-need').textContent  = '₹' + need;
+  document.getElementById('insuf-bal-popup').style.display = 'flex';
+}
+function closeInsufPopup() {
+  document.getElementById('insuf-bal-popup').style.display = 'none';
+}
+async function confirmInsufOrder() {
+  closeInsufPopup();
+  const cart = Cart.get();
+  const user = Auth.get();
+  if (!cart.length || !user) return;
+
+  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  const discount = calcCouponDiscount(_appliedCoupon, subtotal);
+  // Treat as non-subscriber for this order (pay via UPI, delivery charge applies)
+  const deliveryCharge = 20;
+  const total = subtotal + deliveryCharge - discount;
+
+  if (_placingOrder) return;
+  if (Store.get('pb_order_processing')) return;
+  _placingOrder = true;
+  Store.set('pb_order_processing', '1');
+  setLoading('place-order-btn', true);
+  try {
+    const res = await api('createOrder', {
+      phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null,
+      paymentMode: 'upi_insuf'
+    });
+    Cart.clear();
+    _appliedCoupon = null;
+    updateCartBadge();
+    // Use the same success page and WA button flow as a normal (non-subscriber) user
+    document.getElementById('s-order-id').textContent = res.orderId;
+    setDeliveryTime('s-delivery-time');
+    nav('pg-success');
+    setTimeout(() => {
+      const waBtn = document.getElementById('s-wa-btn');
+      if (waBtn) {
+        waBtn.style.display = 'flex';
+        waBtn.onclick = () => openWA(CFG.TIFFIN,
+          `Hi! I just placed Order #${res.orderId}. Total: ₹${total}.\nI am paying via UPI. Please share your UPI ID so I can pay and send the screenshot.`);
+      }
+    }, 2500);
+    startPolling(true);
+    setTimeout(() => startPolling(false), 5 * 60000);
+  } catch(e) {
+    toast(e.message || 'Order failed. Try again.');
+  } finally {
+    _placingOrder = false;
+    Store.remove('pb_order_processing');
+    setLoading('place-order-btn', false);
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -2256,9 +2341,15 @@ function renderOrderList(orders) {
       : '';
 
     const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
+    const orderId   = o.order_id || o.id;
+    const ordAmt    = o.final_amount || o.total_amount || 0;
+    const waMsg     = encodeURIComponent(`Hi! I just placed Order #${orderId}. Total: ₹${ordAmt}. Please confirm.`);
     const payBadge = isWallet
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
-      : `<span class="ord-pay-badge">💵 Cash / UPI</span>`;
+      : `<span class="ord-pay-badge">💵 Cash / UPI</span>
+         <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsg}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+           <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+         </button>`;
 
     // Slot indicator
     const slotBadge = o.slot
@@ -2686,12 +2777,43 @@ function stopPolling() {
 
 async function _runPollTick() {
   if (document.hidden) return;
+  refreshSubscriberStatus().catch(() => {});
   refreshWalletBalance().catch(() => {});
   refreshPauseStatus().catch(() => {});
   const cur = document.querySelector('.pg.here')?.id;
   if (cur === 'pg-orders') loadOrders().catch(() => {});
   if (cur === 'pg-khata')  loadUserKhata().catch(() => {});  // real-time wallet update
   if (cur === 'pg-home')   loadMenu().catch(() => {});        // always refresh menu + open/close on each tick
+}
+
+// Auto-detect subscription status changes made by admin — no logout required
+async function refreshSubscriberStatus() {
+  if (!_session?.phone) return;
+  try {
+    const res = await api('checkSubscriber', { phone: _session.phone });
+    const nowSubscriber = !!res.isSubscriber;
+    if (nowSubscriber === !!_session.is_subscriber) return; // No change
+
+    // Status changed — update in-memory session
+    _session.is_subscriber = nowSubscriber;
+    _pauseMode = res.subscriber?.pause_delivery || 'none';
+    _walletBal = nowSubscriber ? (_walletBal || 0) : 0;
+
+    // Re-apply all subscriber UI immediately
+    applyPauseState(_pauseMode);
+    updateWalletUI(_walletBal);
+    _applySubscriberUI();
+    applyKhataVisibility();
+
+    // Persist updated status to cache
+    SessionCache.save({
+      user:          _session,
+      is_subscriber: nowSubscriber,
+      walletBalance: _walletBal,
+      pauseMode:     _pauseMode,
+      khataEnabled:  _khataEnabled
+    });
+  } catch {}
 }
 
 // Faster polling when wallet page is open (15s)

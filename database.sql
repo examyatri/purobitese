@@ -93,8 +93,10 @@ CREATE TABLE menu_items (
   is_active   BOOLEAN     NOT NULL DEFAULT true,
   stock_grams NUMERIC,
   veg_type    TEXT        NOT NULL DEFAULT 'veg',
-  sub_items   TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  sub_items     TEXT,
+  sub_category  TEXT,
+  meal_session  TEXT        NOT NULL DEFAULT 'both',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 3.6  thalis  (combo meals)
@@ -134,6 +136,7 @@ CREATE TABLE orders (
   discount        NUMERIC     NOT NULL DEFAULT 0,
   order_status    TEXT        NOT NULL DEFAULT 'pending',
   payment_status  TEXT        NOT NULL DEFAULT 'pending',
+  payment_mode    TEXT        DEFAULT NULL,
   user_type       TEXT        NOT NULL DEFAULT 'daily',
   rider_id        TEXT,
   slot            TEXT        DEFAULT NULL,
@@ -154,14 +157,26 @@ CREATE TABLE coupons (
   max_usage          INTEGER,
   total_usage_limit  INTEGER,
   per_user_limit     INTEGER,
+  max_per_user       INTEGER,
   used_count         INTEGER     NOT NULL DEFAULT 0,
   usage_count        INTEGER     NOT NULL DEFAULT 0,
   expiry_date        DATE,
   is_active          BOOLEAN     NOT NULL DEFAULT true,
+  cap_amount         NUMERIC,
   max_cap            NUMERIC,
+  restriction_type   TEXT        NOT NULL DEFAULT 'unlimited',
+  allowed_phones     JSONB       NOT NULL DEFAULT '[]',
   used_by            JSONB       NOT NULL DEFAULT '[]',
+  auto_delete        BOOLEAN     NOT NULL DEFAULT false,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Migration note: run these if upgrading an existing database:
+-- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS auto_delete BOOLEAN NOT NULL DEFAULT false;
+-- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS restriction_type TEXT NOT NULL DEFAULT 'unlimited';
+-- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS allowed_phones JSONB NOT NULL DEFAULT '[]';
+-- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS cap_amount NUMERIC;
+-- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS max_per_user INTEGER;
 
 -- 3.10  khata_summary  (wallet balance per user)
 CREATE TABLE khata_summary (
@@ -250,7 +265,9 @@ DROP TABLE _staff_backup;
 ALTER TABLE khata_entries   ADD COLUMN IF NOT EXISTS order_source  TEXT;
 ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS created_at    TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS veg_type      TEXT NOT NULL DEFAULT 'veg';
-ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS sub_items     TEXT;
+ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS sub_items      TEXT;
+ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS sub_category   TEXT;
+ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS meal_session   TEXT NOT NULL DEFAULT 'both';
 ALTER TABLE nu_coupon_sent  ADD COLUMN IF NOT EXISTS coupon_code   TEXT;
 ALTER TABLE subscribers     ADD COLUMN IF NOT EXISTS auto_tiffin   BOOLEAN NOT NULL DEFAULT true; -- legacy column, kept for compatibility
 
@@ -304,3 +321,10 @@ ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS notif_id TEXT;
 -- Index to speed up pending-list query (unread user notifications)
 CREATE INDEX IF NOT EXISTS idx_notifs_type_unread ON notifications (type, is_read) WHERE is_read = false;
 -- ── END MIGRATION v15 ─────────────────────────────────────────────────────────
+
+-- ── MIGRATION: payment_mode column ────────────────────────────────────────────
+-- Adds payment_mode to orders table to track how each order was paid.
+-- Values: 'wallet' | 'upi' | 'upi_insuf' | 'unpaid'
+-- Run this once on your existing Supabase database.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode TEXT DEFAULT NULL;
+-- ── END MIGRATION: payment_mode ───────────────────────────────────────────────

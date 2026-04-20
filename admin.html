@@ -681,6 +681,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
                   <th style="padding:13px 16px">Pricing</th>
                   <th style="padding:13px 16px">Source</th>
                   <th style="padding:13px 16px">Payment</th>
+                  <th style="padding:13px 16px">Pay Mode</th>
                   <th style="padding:13px 16px">Status</th>
                   <th style="padding:13px 16px">Date</th>
                   <th style="padding:13px 16px">Rider</th>
@@ -1402,6 +1403,14 @@ function statusBadge(s) {
   return `<span class="badge-status s-${cls}">${s||'pending'}</span>`;
 }
 
+function payModeBadge(pm) {
+  if (pm === 'wallet')    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:#0369a1;background:#e0f2fe;padding:3px 9px;border-radius:20px;white-space:nowrap"><i class="fa fa-wallet" style="font-size:10px"></i> Wallet</span>';
+  if (pm === 'upi')       return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:#7c3aed;background:#ede9fe;padding:3px 9px;border-radius:20px;white-space:nowrap"><i class="fa fa-mobile-screen" style="font-size:10px"></i> UPI</span>';
+  if (pm === 'upi_insuf') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:#b45309;background:#fef3c7;padding:3px 9px;border-radius:20px;white-space:nowrap"><i class="fa fa-mobile-screen" style="font-size:10px"></i> UPI <span style="font-weight:500;font-size:10px">(Insuf.)</span></span>';
+  if (pm === 'unpaid')    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:#b91c1c;background:#fee2e2;padding:3px 9px;border-radius:20px;white-space:nowrap"><i class="fa fa-clock" style="font-size:10px"></i> Unpaid</span>';
+  return '<span style="color:#94a3b8;font-size:12px">—</span>';
+}
+
 function fmtDate(d) { return d ? d.toString().split('T')[0] : '—'; }
 
 // ─── API ─────────────────────────────────────────────────
@@ -1679,6 +1688,9 @@ function renderOrdersTable(orders) {
       ? `<span style="font-size:12px;font-weight:600;color:#334155">${o.payment_status}</span>`
       : '<span style="color:#94a3b8;font-size:12px">—</span>';
 
+    // ── Pay Mode ──
+    const payModeHtml = payModeBadge(o.payment_mode);
+
     // ── Rider ──
     const riderHtml = o.rider_name
       ? `<div class="rider-cell"><div style="font-weight:600">${o.rider_name}</div><div class="rider-id">${o.rider_id||''}</div></div>`
@@ -1707,6 +1719,7 @@ function renderOrdersTable(orders) {
       <td style="min-width:140px">${priceHtml}</td>
       <td>${srcHtml}</td>
       <td>${payHtml}</td>
+      <td>${payModeHtml}</td>
       <td>${statusBadge(o.order_status)}</td>
       <td>
         <div style="font-size:12.5px;font-weight:600;color:#334155">${dt}</div>
@@ -4220,21 +4233,26 @@ function gotoCouponTab(phone) {
 }
 
 // ─── NOTIFICATION → ORDERS AUTO-SEARCH BY ORDER ID ───────
-function gotoOrderById(orderIdOrPhone) {
+function gotoOrderById(searchTerm) {
   showPage('p-orders');
-  setTimeout(() => {
+  // Poll until _allOrders is loaded, then fill search and render
+  let attempts = 0;
+  const tryFill = () => {
     const inp = document.getElementById('order-search');
-    if (inp) { inp.value = orderIdOrPhone; inp.dispatchEvent(new Event('input')); }
-  }, 400);
+    if (inp && _allOrders && _allOrders.length > 0) {
+      inp.value = searchTerm;
+      inp.dispatchEvent(new Event('input'));
+      document.getElementById('p-orders')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (attempts++ < 20) {
+      setTimeout(tryFill, 200);
+    }
+  };
+  setTimeout(tryFill, 300);
 }
 
 // ─── NOTIFICATION → ORDERS / KHATA AUTO-SEARCH ───────────
 function gotoOrdersForPhone(phone) {
-  showPage('p-orders');
-  setTimeout(() => {
-    const inp = document.getElementById('order-search');
-    if (inp) { inp.value = phone; inp.dispatchEvent(new Event('input')); }
-  }, 400);
+  gotoOrderById(phone);
 }
 
 // ─── OPEN NU COUPON PANEL AND HIGHLIGHT USER ──────────────
@@ -4259,10 +4277,18 @@ function openNuCouponPanelForUser(phone, name, address, notifId) {
 
 function gotoKhataForPhone(phone) {
   showPage('p-khata');
-  setTimeout(() => {
-    const inp = document.querySelector('#p-khata input[type="search"], #p-khata input[type="text"]');
-    if (inp) { inp.value = phone; inp.dispatchEvent(new Event('input')); }
-  }, 400);
+  let attempts = 0;
+  const tryFill = () => {
+    const inp = document.getElementById('khata-search');
+    if (inp && _khataList && _khataList.length > 0) {
+      inp.value = phone;
+      inp.dispatchEvent(new Event('input'));
+      document.getElementById('p-khata')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (attempts++ < 20) {
+      setTimeout(tryFill, 200);
+    }
+  };
+  setTimeout(tryFill, 300);
 }
 
 // ─── COUPON WORKFLOW: New User → Pending → WhatsApp → Sent ─
@@ -4394,12 +4420,12 @@ async function saveAndSendCoupon(notifId, phone, name) {
     closeMo();
     // Open WhatsApp with the actual message
     window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(waMsg)}`, '_blank');
-    setTimeout(() => markCouponSentAndNotifRead(phone, notifId), 1800);
+    setTimeout(() => markCouponSentAndNotifRead(phone, notifId, name, code), 1800);
   } catch(e) { aToast('Error saving coupon: ' + e.message); }
 }
 
-async function markCouponSentAndNotifRead(phone, notifId) {
-  try { await api('markNuCouponSent', { phone }); } catch(_) {}
+async function markCouponSentAndNotifRead(phone, notifId, name, couponCode) {
+  try { await api('markNuCouponSent', { phone, name: name||null, coupon_code: couponCode||null }); } catch(_) {}
   try {
     await api('markNotificationRead', { id: notifId });
     _lastNotifsStr = '';
@@ -4481,7 +4507,8 @@ async function loadNuCoupons(type, btn) {
           <div style="font-size:12px;color:#64748b;margin-top:2px"><i class="fa fa-phone" style="font-size:10px"></i> ${u.phone}</div>
           ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${u.address}</div>`:''}
           ${type==='sent' && u.sent_at
-            ? `<div style="font-size:10px;color:#10b981;margin-top:3px;font-weight:600"><i class="fa fa-check-circle" style="font-size:9px"></i> Sent ${relTime(u.sent_at)}</div>`
+            ? `<div style="font-size:10px;color:#10b981;margin-top:3px;font-weight:600"><i class="fa fa-check-circle" style="font-size:9px"></i> Sent ${relTime(u.sent_at)}</div>
+               ${u.coupon_code ? `<div style="font-size:10px;color:#64748b;margin-top:2px"><i class="fa fa-tag" style="font-size:9px"></i> Code: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${u.coupon_code}</code></div>` : ''}`
             : (u.created_at ? `<div style="font-size:10px;color:#cbd5e1;margin-top:3px">Joined ${relTime(u.created_at)}</div>` : '')
           }
         </div>
