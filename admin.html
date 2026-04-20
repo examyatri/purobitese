@@ -1309,25 +1309,27 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── POLLING ─────────────────────────────────────────────
-let _pollTimer = null, _pollSeconds = 120, _countdownTimer = null;
+let _pollTimer = null, _pollSeconds = 180, _countdownTimer = null;
 
 function startPolling() {
   clearInterval(_pollTimer); clearInterval(_countdownTimer);
-  _pollSeconds = 120;
+  _pollSeconds = 180;
   _countdownTimer = setInterval(() => {
     _pollSeconds--;
     const el = document.getElementById('refresh-countdown');
     if (el) el.textContent = `Auto-refresh in ${_pollSeconds}s`;
-    if (_pollSeconds <= 0) _pollSeconds = 120;
+    if (_pollSeconds <= 0) _pollSeconds = 180;
   }, 1000);
   _pollTimer = setInterval(() => {
     if (document.hidden) return;
     const cur = document.querySelector('.pg-v.act')?.id;
+    // Only refresh what's currently visible — not everything every tick
     if (cur === 'p-orders') loadOrders().catch(()=>{});
-    loadDashboard().catch(()=>{});
-    fetchNotifCount().catch(()=>{});
-    _pollSeconds = 120;
-  }, 120_000);
+    if (cur === 'p-dash')   loadDashboard().catch(()=>{});
+    if (cur === 'p-notifs') loadNotifications().catch(()=>{});
+    else fetchNotifCount().catch(()=>{}); // badge count only when not on notifs page
+    _pollSeconds = 180;
+  }, 180_000); // was 120s — 3 min is plenty for admin
 }
 
 function stopPolling() {
