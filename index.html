@@ -26,7 +26,7 @@ body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;
 /* Pages */
 .pg{position:fixed;top:0;bottom:0;overflow:hidden;transition:transform 300ms ease;background:var(--lt);width:100%;max-width:540px;left:50%;transform:translateX(calc(-50% + 100vw))}
 .pg.here{transform:translateX(-50%)!important}
-.pg-scroll{height:calc(100% - var(--bnav-h) - var(--safe-b));overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 32px);scroll-padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);overscroll-behavior-y:contain}
+.pg-scroll{height:calc(100% - var(--bnav-h) - var(--safe-b));overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--safe-b) + 28px);scroll-padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);overscroll-behavior-y:contain}
 .pg-scroll-full{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 /* Bottom Nav */
 #bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:540px;height:var(--bnav-h);background:#fff;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-around;padding-bottom:var(--safe-b);z-index:900}
@@ -80,19 +80,11 @@ textarea{resize:vertical;min-height:80px}
 .ff-s{font-family:var(--ff)}.ff-b{font-family:var(--fb)}
 .w100{width:100%}.text-center{text-align:center}
 .hidden{display:none!important}
-/* ── Global top progress bar (Twitter/FB-lite style) ── */
-#g-progress-rail{position:fixed;top:0;left:0;width:100%;height:3px;z-index:99999;pointer-events:none;background:transparent}
-#g-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--p),var(--g));border-radius:0 2px 2px 0;transition:width .18s ease,background .3s;box-shadow:0 0 6px var(--p)}
-#g-progress-pct{position:fixed;top:6px;right:10px;font-family:var(--fb);font-size:10px;color:var(--p);z-index:99999;pointer-events:none;opacity:0;transition:opacity .2s;font-weight:700;letter-spacing:.3px}
 /* App Loader */
 #app-loader{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9000;gap:12px}
 .loader-logo{font-family:var(--ff);font-weight:800;font-size:36px}.loader-logo .r{color:var(--p)}.loader-logo .g{color:var(--g)}
 .loader-tag{font-family:var(--fb);color:var(--gr);font-size:14px}
 .loader-spinner{width:36px;height:36px;border:3px solid var(--pl);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin-top:8px}
-/* Splash progress bar inside loader */
-#splash-progress-wrap{width:180px;height:4px;background:var(--pl);border-radius:4px;margin-top:4px;overflow:hidden}
-#splash-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--p),var(--g));border-radius:4px;transition:width .22s ease}
-#splash-pct-label{font-family:var(--fb);font-size:11px;color:var(--p);font-weight:700;margin-top:2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 #loader-status{font-family:var(--fb);color:var(--gr);font-size:13px}
 /* Retry Screen */
@@ -100,8 +92,6 @@ textarea{resize:vertical;min-height:80px}
 #retry-screen i{font-size:48px;color:var(--gr)}
 .retry-msg{font-family:var(--fb);color:var(--gr);text-align:center;font-size:15px;max-width:280px}
 .retry-btn{max-width:200px}
-/* Button % inline progress */
-.btn-pct{font-size:10px;opacity:.85;font-weight:700;margin-left:5px;letter-spacing:.3px}
 /* Auth page */
 #pg-auth{background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;overscroll-behavior-y:contain}
 .auth-top{background:var(--grad);width:100%;padding:48px 24px 32px;text-align:center}
@@ -181,7 +171,7 @@ textarea{resize:vertical;min-height:80px}
 .thali-img-ph{width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,#fde8ea,#f4591d22);display:flex;align-items:center;justify-content:center;font-size:40px}
 .thali-body{padding:10px 12px 12px}
 /* Menu grid */
-#menu-list{display:flex;flex-direction:column;gap:0;padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 40px)}
+#menu-list{display:flex;flex-direction:column;gap:0}
 .m-item{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .m-item-inner{display:flex;gap:12px}
 .m-item-info{flex:1;min-width:0}
@@ -361,17 +351,11 @@ textarea{resize:vertical;min-height:80px}
 <body>
 
 <!-- App Loader -->
-<!-- Global top progress rail -->
-<div id="g-progress-rail"><div id="g-progress-bar"></div></div>
-<div id="g-progress-pct"></div>
-
 <div id="app-loader">
   <div class="loader-logo"><span class="r">Tif</span><span class="g">fo</span></div>
   <div class="loader-tag">Ghar Ka Tiffin 😍</div>
   <div class="loader-spinner"></div>
   <div id="loader-status">Loading...</div>
-  <div id="splash-progress-wrap"><div id="splash-progress-fill"></div></div>
-  <div id="splash-pct-label">0%</div>
 </div>
 
 <!-- Retry Screen -->
@@ -1058,94 +1042,9 @@ const SessionCache = {
   }
 };
 
-/* ═══════════════════════════════════════════
-   GLOBAL PROGRESS ENGINE  (Twitter/FB-lite style)
-   – thin top bar + small % label
-   – used by api(), bootApp, sections
-═══════════════════════════════════════════ */
-const GProgress = (() => {
-  let _pct   = 0;
-  let _timer = null;
-  let _crawl = null;
-  let _active = 0; // reference count so parallel calls don't fight
-
-  const bar  = () => document.getElementById('g-progress-bar');
-  const pct  = () => document.getElementById('g-progress-pct');
-  const spFill  = () => document.getElementById('splash-progress-fill');
-  const spLabel = () => document.getElementById('splash-pct-label');
-
-  function _setPct(v) {
-    _pct = Math.min(100, Math.max(0, v));
-    const b = bar(); if (b) b.style.width = _pct + '%';
-    const p = pct();
-    if (p) { p.textContent = Math.round(_pct) + '%'; p.style.opacity = _pct > 0 && _pct < 100 ? '1' : '0'; }
-    const sf = spFill(); if (sf) sf.style.width = _pct + '%';
-    const sl = spLabel(); if (sl) sl.textContent = Math.round(_pct) + '%';
-  }
-
-  // Slow crawl during waiting/retry — moves to ~70% asymptotically
-  function _startCrawl(fromPct) {
-    _stopCrawl();
-    _setPct(fromPct);
-    _crawl = setInterval(() => {
-      const remaining = 70 - _pct;
-      if (remaining <= 0.5) { _stopCrawl(); return; }
-      _setPct(_pct + remaining * 0.04); // slow ease toward 70
-    }, 180);
-  }
-
-  function _stopCrawl() {
-    if (_crawl) { clearInterval(_crawl); _crawl = null; }
-  }
-
-  return {
-    start(fromPct = 0) {
-      _active++;
-      _stopCrawl();
-      _setPct(fromPct);
-      _startCrawl(fromPct);
-    },
-    // Call on retry — reset slightly and crawl again slowly (shows "stuck-ness")
-    retry() {
-      _stopCrawl();
-      const bump = Math.max(10, _pct - 15); // step back a bit
-      _startCrawl(bump);
-    },
-    // Call on success — race to 100% then hide
-    done() {
-      _active = Math.max(0, _active - 1);
-      if (_active > 0) return; // other parallel calls still in flight
-      _stopCrawl();
-      _setPct(98);
-      clearTimeout(_timer);
-      _timer = setTimeout(() => {
-        _setPct(100);
-        setTimeout(() => {
-          _setPct(0);
-          const b = bar(); if (b) b.style.width = '0%';
-          const p = pct(); if (p) p.style.opacity = '0';
-          const sf = spFill(); if (sf) sf.style.width = '0%';
-        }, 350);
-      }, 120);
-    },
-    // Force a specific percentage (for splash boot sequence)
-    set(v) { _setPct(v); },
-    // Hard reset
-    reset() {
-      _active = 0;
-      _stopCrawl();
-      clearTimeout(_timer);
-      _setPct(0);
-    }
-  };
-})();
-
-/* ── Enhanced api() with retry + progress ── */
 async function api(action, data = {}, _retry = 1) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 22000);
-  const isTopLevel = (_retry === 1);
-  if (isTopLevel) GProgress.start(5);
   try {
     const res = await fetch(CFG.API, {
       method: 'POST',
@@ -1155,16 +1054,11 @@ async function api(action, data = {}, _retry = 1) {
     });
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Request failed');
-    if (isTopLevel) GProgress.done();
     return json;
   } catch(e) {
     if (_retry > 0 && (e.name === 'AbortError' || e.name === 'TypeError')) {
-      GProgress.retry(); // show visual "slowing down / retrying"
-      clearTimeout(timer);
-      await new Promise(r => setTimeout(r, 300)); // brief pause before retry
       return api(action, data, _retry - 1);
     }
-    if (isTopLevel) GProgress.done();
     throw e;
   } finally {
     clearTimeout(timer);
@@ -1428,17 +1322,9 @@ function setLoading(btnId, on) {
   if (!btn) return;
   if (on) {
     btn.dataset.orig = btn.innerHTML;
-    btn.innerHTML = '<svg style="display:inline-block;vertical-align:middle;animation:spin 0.7s linear infinite" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-opacity="0.3" stroke-width="2.5"/><path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg><span class="btn-pct" id="' + btnId + '-pct">0%</span>';
+    btn.innerHTML = '<svg style="display:inline-block;vertical-align:middle;animation:spin 0.7s linear infinite" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-opacity="0.3" stroke-width="2.5"/><path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
     btn.disabled = true;
-    // Animate % in the button to match global bar
-    let pv = 0;
-    btn._pctTimer = setInterval(() => {
-      const globalPct = parseFloat(document.getElementById('g-progress-bar')?.style.width || '0');
-      if (globalPct > pv) { pv = globalPct; const el = document.getElementById(btnId + '-pct'); if (el) el.textContent = Math.round(pv) + '%'; }
-      if (pv >= 99) clearInterval(btn._pctTimer);
-    }, 200);
   } else {
-    if (btn._pctTimer) { clearInterval(btn._pctTimer); btn._pctTimer = null; }
     btn.innerHTML = btn.dataset.orig || btn.innerHTML;
     btn.disabled = false;
   }
@@ -1782,7 +1668,6 @@ function hideMenuSkeletons() {
 async function loadMenu() {
   if (_menuLoading) return;
   _menuLoading = true;
-  GProgress.start(10);
   try {
     const cache = Store.getJSON(_MENU_CACHE_KEY);
     const age   = cache ? Date.now() - cache.ts : Infinity;
@@ -1806,7 +1691,6 @@ async function loadMenu() {
     }
   } finally {
     _menuLoading = false;
-    GProgress.done();
   }
 }
 
@@ -2300,6 +2184,8 @@ async function placeOrder() {
     } else {
       document.getElementById('s-order-id').textContent = res.orderId;
       setDeliveryTime('s-delivery-time');
+      const _waBtnReset = document.getElementById('s-wa-btn');
+      if (_waBtnReset) { _waBtnReset.style.display = 'none'; _waBtnReset.onclick = null; }
       nav('pg-success');
       setTimeout(() => {
         const waBtn = document.getElementById('s-wa-btn');
@@ -2368,15 +2254,16 @@ async function confirmInsufOrder() {
     // Use the same success page and WA button flow as a normal (non-subscriber) user
     document.getElementById('s-order-id').textContent = res.orderId;
     setDeliveryTime('s-delivery-time');
+    const _waBtnInsufReset = document.getElementById('s-wa-btn');
+    if (_waBtnInsufReset) { _waBtnInsufReset.style.display = 'none'; _waBtnInsufReset.onclick = null; }
     nav('pg-success');
     setTimeout(() => {
       const waBtn = document.getElementById('s-wa-btn');
       if (waBtn) {
         waBtn.style.display = 'flex';
         waBtn.onclick = () => {
-          const _cartSnap = []; // cart already cleared, use totals available
           openWA(CFG.TIFFIN,
-            `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address on file'}\n\n💰 Subtotal: ₹${subtotal}${discount > 0 ? `\n🎟️ Discount: −₹${discount}` : ''}\n🚴 Delivery: ₹${deliveryCharge}\n✅ *Total: ₹${total}*\n\n⚠️ Wallet balance was insufficient. Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`
+            `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address on file'}\n\n💰 Subtotal: ₹${subtotal}${discount > 0 ? `\n🎟️ Discount: −₹${discount}` : ''}\n🚴 Delivery: ₹${deliveryCharge}\n✅ *Total: ₹${total}*\n\n⚠️ Due to insufficient wallet balance, I am paying via UPI. Please share your UPI/QR details so I can complete the payment and send the screenshot. 🙏`
           );
         };
       }
@@ -2399,15 +2286,13 @@ async function loadOrders() {
   const phone = Auth.get()?.phone;
   if (!phone) return;
   document.getElementById('orders-loading').style.display = 'block';
-  GProgress.start(15);
   try {
     const res = await api('getUserOrders', { phone });
     const newStr = JSON.stringify(res.orders);
-    if (newStr === _lastOrders) { GProgress.done(); document.getElementById('orders-loading').style.display = 'none'; return; }
+    if (newStr === _lastOrders) { document.getElementById('orders-loading').style.display = 'none'; return; }
     _lastOrders = newStr;
     renderOrderList(res.orders);
   } catch {} finally {
-    GProgress.done();
     document.getElementById('orders-loading').style.display = 'none';
   }
 }
@@ -2472,25 +2357,27 @@ function renderOrderList(orders) {
       ? `<div style="color:var(--gr);font-size:11px;margin-top:2px;font-style:italic">+${items.length-3} more items</div>`
       : '';
 
-    const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
+    const isInsufUpi = o.payment_mode === 'upi_insuf';
+    const isWallet = !isInsufUpi && ((o.user_type === 'subscriber') || (o.payment_status === 'wallet'));
     const orderId   = o.order_id || o.id;
     const ordAmt    = o.final_amount || o.total_amount || 0;
-    const _oItems   = items.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''}${i.qty > 1 ? ` ×${i.qty}` : ''} — ₹${(i.price || 0) * (i.qty || 1)}`).join('\n');
-    const _oDisc    = o.discount > 0 ? `\n🎟️ Discount: −₹${o.discount}` : '';
-    const _oDel     = o.delivery_charge > 0 ? `\n🚴 Delivery: ₹${o.delivery_charge}` : '';
+    const _oItems   = items.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''}${i.qty > 1 ? ` ×${i.qty}` : ''} — ₹${(i.price || 0) * (i.qty || 1)}`).join('\\n');
+    const _oDisc    = o.discount > 0 ? `\\n🎟️ Discount: −₹${o.discount}` : '';
+    const _oDel     = o.delivery_charge > 0 ? `\\n🚴 Delivery: ₹${o.delivery_charge}` : '';
     const _oCoupon  = o.coupon_code ? ` (${o.coupon_code})` : '';
     const waMsg     = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n*Items:*\n${_oItems}${_oDisc}${_oDel}\n✅ *Total: ₹${ordAmt}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
-    const waMsgSub  = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n*Items:*\n${_oItems}${_oDisc}${_oDel}\n✅ *Total: ₹${ordAmt}*\n\n⚠️ I am a subscriber but due to insufficient wallet balance, I want to pay via UPI. Please provide your UPI details. 🙏`);
-    const _tiffin   = (typeof CFG !== 'undefined' && CFG.TIFFIN) ? CFG.TIFFIN : ((typeof CFG !== 'undefined' && CFG.WA) ? CFG.WA : '919889760350');
+    const waMsgInsuf = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n💰 Total: ₹${ordAmt}${_oDisc}${_oDel}\n\n⚠️ Due to insufficient wallet balance, I am paying via UPI. Please share your UPI/QR details so I can complete the payment and send the screenshot. 🙏`);
     const payBadge = isWallet
-      ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>
-         <button onclick="openWA('${_tiffin}', decodeURIComponent('${waMsgSub}'))" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-           <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Pay via UPI
-         </button>`
-      : `<span class="ord-pay-badge">💵 Cash / UPI</span>
-         <button onclick="openWA('${_tiffin}', decodeURIComponent('${waMsg}'))" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-           <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
-         </button>`;
+      ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
+      : isInsufUpi
+        ? `<span class="ord-pay-badge" style="background:#fef3c7;color:#92400e">⚠️ Wallet Insf → UPI</span>
+           <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsgInsuf}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+           </button>`
+        : `<span class="ord-pay-badge">💵 Cash / UPI</span>
+           <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsg}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+           </button>`;
 
     // Slot indicator
     const slotBadge = o.slot
@@ -2623,7 +2510,6 @@ async function loadUserKhata() {
   // Spin refresh icon
   const btn = document.getElementById('khata-refresh-btn');
   if (btn) btn.querySelector('i').style.animation = 'spin .6s linear infinite';
-  GProgress.start(15);
   try {
     const res = await api('getKhata', { phone });
     updateWalletUI(res.balance);
@@ -2637,7 +2523,7 @@ async function loadUserKhata() {
       filterKhata(); // apply date filter immediately
     }
   } catch {}
-  finally { GProgress.done(); if (btn) btn.querySelector('i').style.animation = ''; }
+  finally { if (btn) btn.querySelector('i').style.animation = ''; }
 }
 
 function renderUserKhataList(entries) {
@@ -3126,13 +3012,9 @@ async function bootApp() {
   // Has saved credentials but cache was cleared (e.g. browser storage wiped)
   // Do a one-time network login to rebuild the cache, then never again
   document.getElementById('app-loader').style.display = 'flex';
-  document.getElementById('loader-status').textContent = 'Signing you in…';
-  GProgress.reset();
-  GProgress.start(8);
+  document.getElementById('loader-status').textContent = 'Loading…';
   try {
     const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
-    GProgress.set(85);
-    document.getElementById('loader-status').textContent = 'Almost there…';
     Auth.set(res.user);
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
@@ -3166,7 +3048,6 @@ async function bootApp() {
     startPolling();
     startStatusWatcher();
   } catch(e) {
-    GProgress.reset();
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found');
