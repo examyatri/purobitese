@@ -942,14 +942,13 @@ let _lastKhataStr = null;
 let _lastPauseMode = null;
 let _pollTimer   = null;
 let _khataAllEntries = [];
-const _POLL_FAST   = 60000;   // was 30s — now 60s (less server load)
-const _POLL_NORMAL = 180000;  // was 120s — now 3 min (sufficient for food app)
+const _POLL_FAST   = 30000;
+const _POLL_NORMAL = 120000;
 const _MENU_CACHE_KEY = 'tf_menu_cache';
-const _MENU_TTL = 20 * 60 * 1000; // 20 min — menu doesn't change that often
+const _MENU_TTL = 10 * 60 * 1000;
 let _stack = [];
 let _lastSchedule = null;
 let _lastCutoff   = null;
-
 
 /* ═══════════════════════════════════════════
    CORE MODULES
@@ -975,38 +974,9 @@ const Creds = {
   clear()         { Store.remove('tf_creds'); }
 };
 
-// In-flight dedup map: prevents identical concurrent requests
-const _apiInFlight = new Map();
-
 async function api(action, data = {}, _retry = 1) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 22000);
-
-  // Deduplicate read-only requests — if same call already in flight, wait for it
-  const READ_ONLY = new Set(['getMenu','getThalis','getWeeklySchedule','getOrderCutoff',
-    'getKhataEnabled','getSubscriberBalance','getSubscriberPauseStatus','getUserOrders',
-    'getKhata','checkSession']);
-  if (READ_ONLY.has(action)) {
-    const dedupKey = action + ':' + JSON.stringify(data);
-    if (_apiInFlight.has(dedupKey)) {
-      clearTimeout(timer);
-      return _apiInFlight.get(dedupKey);
-    }
-    const promise = _doFetch(action, data, ctrl, _retry)
-      .finally(() => _apiInFlight.delete(dedupKey));
-    _apiInFlight.set(dedupKey, promise);
-    try { return await promise; }
-    finally { clearTimeout(timer); }
-  }
-
-  try {
-    return await _doFetch(action, data, ctrl, _retry);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function _doFetch(action, data, ctrl, _retry) {
   try {
     const res = await fetch(CFG.API, {
       method: 'POST',
@@ -1019,9 +989,11 @@ async function _doFetch(action, data, ctrl, _retry) {
     return json;
   } catch(e) {
     if (_retry > 0 && (e.name === 'AbortError' || e.name === 'TypeError')) {
-      return _doFetch(action, data, ctrl, _retry - 1);
+      return api(action, data, _retry - 1);
     }
     throw e;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -1437,9 +1409,7 @@ function back() {
 // popstate handled at bottom of script
 
 function onEnter(id) {
-  if (id === 'pg-home') {
-    AppInitManager.softRefresh();
-  }
+  if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
   if (id === 'pg-orders')  loadOrders();
   if (id === 'pg-khata')   { loadUserKhata(); startPollingKhata(); }
   if (id === 'pg-cart')    renderCart();
@@ -1514,9 +1484,10 @@ async function doLogin() {
       _pauseMode = res.subscriber.pause_delivery || 'none';
       applyPauseState(_pauseMode);
     }
-    _saveSessionCache(res); // save for instant next load
+    api('getKhataEnabled').then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); }).catch(() => {});
     _transitionToHome();
-    AppInitManager.run();
+    loadMenu();
+    startPolling();
   } catch(e) {
     toast(e.message === 'Session invalid' ? 'Wrong phone or password' : (e.message || 'Login failed'));
   } finally {
@@ -1554,9 +1525,9 @@ async function doSignup() {
     _walletBal = 0;
     _khataEnabled = false;
     applyKhataVisibility();
-    _saveSessionCache(res); // save for instant next load
     _transitionToHome();
-    AppInitManager.run();
+    loadMenu();
+    startPolling();
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     toast(e.message || 'Signup failed. Try again.');
@@ -1578,126 +1549,6 @@ function showMenuSkeletons() {
 function hideMenuSkeletons() {
   // handled by render calls
 }
-
-/* ═══════════════════════════════════════════
-   APP INIT MANAGER
-   Single-responsibility controller for the
-   post-login data bootstrap sequence.
-
-   Design principles:
-   • One entry point: AppInitManager.run()
-   • Strict sequential stages — no parallel chaos
-   • Each stage updates the loader status text
-   • Single abort guard: never runs twice per session
-   • Resets cleanly on logout via AppInitManager.reset()
-   • onEnter('pg-home') calls AppInitManager.softRefresh()
-     instead of re-running the full sequence
-═══════════════════════════════════════════ */
-const AppInitManager = (() => {
-  let _done    = false;
-  let _running = false;
-
-  /* Internal: update the loader status text (only while loader visible) */
-  function _setStatus(msg) {
-    const el = document.getElementById('loader-status');
-    if (el) el.textContent = msg;
-  }
-
-  /* ── PUBLIC ─────────────────────────────── */
-
-  /**
-   * run()
-   * Full bootstrap sequence. Called once after every successful
-   * auth event (doLogin / doSignup / bootApp auto-login).
-   * Home page is already visible when this runs.
-   */
-  async function run() {
-    if (_done || _running) return;
-    _running = true;
-
-    try {
-      /* STAGE 1 — Khata feature flag
-         Must resolve before menu renders wallet UI elements.
-         Non-critical: failure defaults to false (feature hidden). */
-      _setStatus('Setting up your account…');
-      try {
-        const kr    = await api('getKhataEnabled');
-        _khataEnabled = kr.enabled;
-        applyKhataVisibility();
-      } catch { /* defaults to false — UI stays hidden, no rethrow */ }
-
-      /* STAGE 2 — Menu data (primary page content)
-         showMenuSkeletons already called if no cache.
-         await ensures the skeleton hides before we proceed. */
-      _setStatus('Loading menu…');
-      await loadMenu();
-
-      /* STAGE 3 — Subscriber state (pause/delivery config)
-         Only relevant for subscribers. Skip entirely for free users. */
-      if (_session?.is_subscriber) {
-        _setStatus('Loading your plan…');
-        await loadPauseState().catch(() => {});
-      }
-
-      /* STAGE 4 — Wallet balance
-         Depends on Stage 1 (_khataEnabled) + Stage 3 (is_subscriber).
-         Only runs when both gates are true. */
-      if (_session?.is_subscriber && _khataEnabled) {
-        _setStatus('Syncing wallet…');
-        await refreshWalletBalance().catch(() => {});
-      }
-
-    } catch (err) {
-      /* Unexpected error in any stage — log silently, do not block user */
-      console.warn('[AppInitManager] Stage error:', err?.message || err);
-    } finally {
-      /* STAGE 5 — Polling
-         Always starts regardless of partial failures above.
-         Sets _done so subsequent home visits hit softRefresh instead. */
-      _done    = true;
-      _running = false;
-      startPolling();
-    }
-  }
-
-  /**
-   * softRefresh()
-   * Lightweight refresh for returning to home page after init is done.
-   * Avoids re-running the full sequence on every nav back.
-   * Respects the same subscriber gates as the full sequence.
-   */
-  function softRefresh() {
-    if (!_done) { run(); return; } // safety: sequence not yet done
-    // Pause state — subscriber only
-    if (_session?.is_subscriber) {
-      loadPauseState().catch(() => {});
-      loadAutoTiffinState().catch(() => {});
-    }
-    // Wallet — subscriber + khata only
-    if (_session?.is_subscriber && _khataEnabled) {
-      refreshWalletBalance().catch(() => {});
-    }
-    // Menu — only if cache is stale
-    const cache = Store.getJSON(_MENU_CACHE_KEY);
-    if (!cache || Date.now() - cache.ts > _MENU_TTL) {
-      loadMenu().catch(() => {});
-    }
-    // Ensure polling is alive (may have been paused on tab hide)
-    startPolling();
-  }
-
-  /**
-   * reset()
-   * Called on logout. Clears all flags so the next login
-   * re-runs the full sequence from scratch.
-   */
-  function reset() {
-    _done    = false;
-    _running = false;
-  }
-
-  return { run, softRefresh, reset };
-})();
 
 async function loadMenu() {
   if (_menuLoading) return;
@@ -1726,14 +1577,15 @@ async function loadMenu() {
 }
 
 async function _fetchFreshMenu() {
-  // Fetch menu, thalis, schedule and cutoff in parallel
-  // getKhataEnabled is NOT fetched here — AppInitManager Stage 1 already handles it
-  const [menuRes, thaliRes, schedRes, cutoffRes] = await Promise.all([
+  const [menuRes, thaliRes, schedRes, cutoffRes, khataRes] = await Promise.all([
     api('getMenu'),
     api('getThalis'),
     api('getWeeklySchedule').catch(() => ({ schedule: null })),
-    api('getOrderCutoff').catch(() => ({ config: null }))
+    api('getOrderCutoff').catch(() => ({ config: null })),
+    api('getKhataEnabled').catch(() => ({ enabled: false }))
   ]);
+  _khataEnabled = khataRes.enabled;
+  applyKhataVisibility();
   updateCutoffBanner(schedRes.schedule, currentISTHour(), cutoffRes.config);
   const newMenu   = menuRes.items   || [];
   const newThalis = thaliRes.thalis || [];
@@ -2209,7 +2061,8 @@ async function placeOrder() {
         }
       }, 2500);
     }
-    startPolling(); // normal polling — order status updates come within 3 min
+    startPolling(true);
+    setTimeout(() => startPolling(false), 5 * 60000);
   } catch(e) {
     toast(e.message || 'Order failed. Try again.');
   } finally {
@@ -2725,28 +2578,21 @@ function stopPolling() {
 
 async function _runPollTick() {
   if (document.hidden) return;
+  refreshWalletBalance().catch(() => {});
+  refreshPauseStatus().catch(() => {});
   const cur = document.querySelector('.pg.here')?.id;
-  // Only refresh wallet when subscriber AND on relevant pages
-  if (_session?.is_subscriber && _khataEnabled &&
-      (cur === 'pg-home' || cur === 'pg-khata' || cur === 'pg-orders')) {
-    refreshWalletBalance().catch(() => {});
-  }
-  // Pause status only needed on home page
-  if (_session?.is_subscriber && cur === 'pg-home') {
-    refreshPauseStatus().catch(() => {});
-  }
   if (cur === 'pg-orders') loadOrders().catch(() => {});
-  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});
+  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});  // real-time wallet update
   if (cur === 'pg-home') {
     const cache = Store.getJSON(_MENU_CACHE_KEY);
     if (!cache || Date.now() - cache.ts > _MENU_TTL) loadMenu().catch(() => {});
   }
 }
 
-// Faster polling when wallet page is open (45s — was 15s, reduced to save server load)
+// Faster polling when wallet page is open (15s)
 function startPollingKhata() {
   clearInterval(_pollTimer);
-  _pollTimer = setInterval(_runPollTick, 45000);
+  _pollTimer = setInterval(_runPollTick, 15000);
 }
 
 async function refreshWalletBalance() {
@@ -2773,19 +2619,9 @@ async function refreshPauseStatus() {
   } catch {}
 }
 
-let _lastVisiblePollAt = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    stopPolling();
-  } else {
-    // Don't spam API if tab was only hidden briefly (< 60s)
-    const gap = Date.now() - _lastVisiblePollAt;
-    if (gap > 60_000) {
-      _lastVisiblePollAt = Date.now();
-      _runPollTick();
-    }
-    startPolling();
-  }
+  if (document.hidden) { stopPolling(); }
+  else { _runPollTick(); startPolling(); }
 });
 
 /* ═══════════════════════════════════════════
@@ -2822,32 +2658,11 @@ async function bootApp() {
   const creds = Creds.get(); // key: tf_creds
 
   if (!creds) {
+    // No saved credentials -> show signup so user can register
     _transitionToLogin(false);
     return;
   }
 
-  // ── INSTANT LOGIN: restore from cached session ──────────────────────────
-  // If we have a cached user profile, show the home page IMMEDIATELY
-  // without waiting for the network. Session is verified silently in bg.
-  const cachedSession = Store.getJSON('tf_session_cache');
-  if (cachedSession && cachedSession.user && cachedSession.ts &&
-      (Date.now() - cachedSession.ts) < 24 * 60 * 60 * 1000) { // cache valid 24h
-    // Restore session from cache
-    Auth.set(cachedSession.user);
-    _session.is_subscriber = cachedSession.is_subscriber || false;
-    _walletBal = cachedSession.walletBalance || 0;
-    _pauseMode = cachedSession.pauseMode || 'none';
-    updateWalletUI(_walletBal);
-    applyPauseState(_pauseMode);
-    // Show home page INSTANTLY — user sees app in <100ms
-    _transitionToHome();
-    AppInitManager.run();
-    // Verify session in background silently — don't block the user
-    _verifySessionInBackground(creds);
-    return;
-  }
-
-  // ── FIRST TIME / CACHE EXPIRED: network login ───────────────────────────
   document.getElementById('loader-status').textContent = 'Signing you in…';
   try {
     const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
@@ -2857,70 +2672,24 @@ async function bootApp() {
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
-    // Save session to cache for next instant load
-    _saveSessionCache(res);
+    api('getKhataEnabled')
+      .then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); })
+      .catch(() => {});
+    // Credentials valid -> always open home page
     _transitionToHome();
-    AppInitManager.run();
+    loadMenu();
+    startPolling();
   } catch(e) {
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found');
     if (isAuthError) {
-      Store.remove('tf_session_cache'); // clear stale cache on auth failure
-      _transitionToLogin(true, true);
+      // Creds exist but don't match DB -> show login tab prefilled so user can fix manually
+      // Do NOT Creds.clear() - keep phone prefilled so user sees what failed
+      _transitionToLogin(true, true); // true=login tab, true=wrongCreds warning
     } else {
       _showRetryUI('No internet connection. Check and try again.');
     }
-  }
-}
-
-// Save verified session data to localStorage cache
-function _saveSessionCache(res) {
-  try {
-    Store.setJSON('tf_session_cache', {
-      user:          res.user,
-      is_subscriber: !!res.subscriber,
-      walletBalance: res.walletBalance || 0,
-      pauseMode:     res.subscriber?.pause_delivery || 'none',
-      ts:            Date.now()
-    });
-  } catch(_) {}
-}
-
-// Silently verify session in background after instant login
-async function _verifySessionInBackground(creds) {
-  try {
-    const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
-    // Update cache with fresh data
-    _saveSessionCache(res);
-    // If subscriber status or balance changed, update UI quietly
-    const newBal = res.walletBalance || 0;
-    if (newBal !== _walletBal) {
-      _walletBal = newBal;
-      updateWalletUI(_walletBal);
-    }
-    const newPause = res.subscriber?.pause_delivery || 'none';
-    if (newPause !== _pauseMode) {
-      _pauseMode = newPause;
-      applyPauseState(_pauseMode);
-    }
-    // If subscriber status changed, update session
-    const newIsSub = !!res.subscriber;
-    if (newIsSub !== _session?.is_subscriber) {
-      _session.is_subscriber = newIsSub;
-      _applySubscriberUI();
-      applyKhataVisibility();
-    }
-  } catch(e) {
-    const isAuthError = e.message?.includes('Session invalid') ||
-                        e.message?.includes('Unauthorized') ||
-                        e.message?.includes('not found');
-    if (isAuthError) {
-      // Password changed or account deleted — force logout
-      Store.remove('tf_session_cache');
-      doLogout();
-    }
-    // On network error: silently ignore — user already sees the app
   }
 }
 
@@ -2974,7 +2743,6 @@ function doLogout() {
   Auth.clear();
   Creds.clear();
   Store.remove('tf_menu_cache');
-  Store.remove('tf_session_cache'); // clear instant-login cache
   Store.remove('pb_cart');
   Store.remove('pb_order_processing');
   Store.remove('_khata_cache');
@@ -2994,7 +2762,6 @@ function doLogout() {
   _lastSchedule  = null;
   _lastCutoff    = null;
   _khataAllEntries = [];
-  AppInitManager.reset();  // allow full sequence to re-run on next login
   document.getElementById('cart-pill').style.display = 'none';
   updateCartBadge();
   closeAllSheets();

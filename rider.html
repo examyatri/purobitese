@@ -875,7 +875,7 @@ function startPolling() {
   _pollTimer = setInterval(() => {
     if (document.hidden) return;
     loadOrders();
-  }, 90_000); // was 60s — 90s is sufficient, saves server load
+  }, 60_000);
 }
 
 function stopPolling() {
@@ -883,14 +883,9 @@ function stopPolling() {
   _pollTimer = null;
 }
 
-let _lastRiderPollAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopPolling();
-  else {
-    const gap = Date.now() - _lastRiderPollAt;
-    if (gap > 60_000) { _lastRiderPollAt = Date.now(); loadOrders(); }
-    startPolling();
-  }
+  else { loadOrders(); startPolling(); }
 });
 
 /* ─── INIT ───────────────────────────────────────────── */
