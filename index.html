@@ -2190,7 +2190,7 @@ async function placeOrder() {
         if (waBtn) {
           waBtn.style.display = 'flex';
           waBtn.onclick = () => openWA(CFG.TIFFIN,
-            `Hi! I just placed Order #${res.orderId}. Total: ₹${total}. Please confirm.`);
+            `Hi! I just placed Order #${res.orderId}. Total: ₹${total}. Please Provide UPI Detail For Payement.`);
         }
       }, 2500);
     }
@@ -2347,7 +2347,7 @@ function renderOrderList(orders) {
     const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
     const orderId   = o.order_id || o.id;
     const ordAmt    = o.final_amount || o.total_amount || 0;
-    const waMsg     = encodeURIComponent(`Hi! I just placed Order #${orderId}. Total: ₹${ordAmt}. Please confirm.`);
+    const waMsg     = encodeURIComponent(`Hi! I just placed Order #${orderId}. Total: ₹${ordAmt}. Please Provide UPI detail For Payment.`);
     const payBadge = isWallet
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
       : `<span class="ord-pay-badge">💵 Cash / UPI</span>
