@@ -249,7 +249,7 @@ async function _deductMenuStock(items) {
   }
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer', slot = 'morning' }) {
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -317,6 +317,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     discount,
     order_status:    'pending',
     payment_status:  'pending',
+    payment_mode:    paymentMode || (khataEnabled && user.is_subscriber ? 'wallet' : 'upi'),
     user_type:       user.is_subscriber ? 'subscriber' : 'daily',
     rider_id:        null,
     slot:            source === 'admin' ? (slot || 'morning') : null,
@@ -617,7 +618,8 @@ app.post('/api', async (req, res) => {
         }
         const result = await _createSingleOrder({
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
-          khataEnabled, ist, coupon: data.coupon || null, source: 'customer'
+          khataEnabled, ist, coupon: data.coupon || null, source: 'customer',
+          paymentMode: data.paymentMode || null
         });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
       }
@@ -864,6 +866,7 @@ app.post('/api', async (req, res) => {
             final_amount:   priceNum,
             order_status:   'pending',
             payment_status: isUdhar ? 'unpaid' : 'wallet',
+            payment_mode:   isUdhar ? 'unpaid' : 'wallet',
             user_type:      'subscriber',
             slot:           slot || 'morning',
             date:           today,
