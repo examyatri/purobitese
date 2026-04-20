@@ -344,7 +344,7 @@ textarea{resize:vertical;min-height:80px}
 <!-- App Loader -->
 <div id="app-loader">
   <div class="loader-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-  <div class="loader-tag">Ghar ka khana ♥</div>
+  <div class="loader-tag">Ghar Ka Tiffin 😍</div>
   <div class="loader-spinner"></div>
   <div id="loader-status">Loading...</div>
 </div>
@@ -367,7 +367,7 @@ textarea{resize:vertical;min-height:80px}
 <div id="pg-auth" class="pg pg-scroll-full">
   <div class="auth-top">
     <div class="auth-logo">🍱 Tiffo</div>
-    <div class="auth-sub">Ghar ka khana ♥</div>
+    <div class="auth-sub">Ghar Ka Tiffin 😍</div>
   </div>
   <div class="auth-card">
     <div class="tab-bar">
@@ -439,7 +439,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="home-header flex-sb">
     <div>
       <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-      <div class="home-logo-sub">Ghar ka khana ♥</div>
+      <div class="home-logo-sub">Ghar Ka Tiffin 😍</div>
     </div>
     <div class="flex gap8">
       <button style="border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
@@ -479,7 +479,7 @@ textarea{resize:vertical;min-height:80px}
         <div style="width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#x1F371;</div>
         <div style="flex:1;position:relative;z-index:1">
           <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
-          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;200</span> Free Home Delivery</div>
+          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;1200</span> Free Home Delivery</div>
         </div>
         <div style="background:rgba(255,255,255,.25);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px"></i></div>
       </div>
@@ -1057,6 +1057,31 @@ const todayIST = () => PB.todayYMD();
 function currentISTHour() {
   return Math.floor((Date.now() + 5.5 * 3600000) / 3600000) % 24;
 }
+/* Returns delivery label from live schedule end time + 30 min window */
+function _getDeliveryLabel(session) {
+  const day = _getDaySchedule(_lastSchedule, _lastCutoff);
+  if (day && !day.closed) {
+    const endH = session === 'lunch' ? (day.lunchEnd || 11)   : (day.dinnerEnd || 19);
+    const endM = session === 'lunch' ? (day.lunchEndMin || 30) : (day.dinnerEndMin || 30);
+    const startMins = endH * 60 + endM + 30;
+    const endMins   = startMins + 60;
+    const fmt = function(m) {
+      var hh = Math.floor(m/60)%24, mm = m%60, ap = hh>=12?'PM':'AM', h12 = hh%12||12;
+      return h12 + (mm ? ':' + String(mm).padStart(2,'0') : '') + ' ' + ap;
+    };
+    return (session === 'lunch' ? '☀️ Lunch: ' : '🌙 Dinner: ') + fmt(startMins) + '–' + fmt(endMins);
+  }
+  return session === 'lunch' ? '☀️ Lunch: 12–1 PM' : '🌙 Dinner: 8–9 PM';
+}
+/* Returns true if current IST time is in lunch window per live schedule */
+function _isLunchTime() {
+  const day = _getDaySchedule(_lastSchedule, _lastCutoff);
+  const nowMins = Math.floor((Date.now() + 5.5 * 3600000) / 60000) % 1440;
+  if (day && !day.closed) {
+    return nowMins <= (day.lunchEnd || 11) * 60 + (day.lunchEndMin || 30);
+  }
+  return nowMins < (11 * 60 + 31);
+}
 
 /* Format 24h int + minutes → "hh:mm AM/PM" */
 function _fmtH(h24, m) {
@@ -1153,12 +1178,34 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
     : '';
 
   if (state.closed) {
+    /* Smart closed message based on time of day */
+    const _istNow   = new Date(Date.now() + 5.5*3600000);
+    const _nowMins  = _istNow.getUTCHours()*60 + _istNow.getUTCMinutes();
+    let closedMsg   = state.reason;
+    let closedSub   = '';
+    if (d) {
+      const _lsT = d.ls*60+(d.lsm||0), _leT = d.le*60+(d.lem||0);
+      const _dsT = d.ds*60+(d.dsm||0), _deT = d.de*60+(d.dem||0);
+      if (_nowMins < _lsT) {
+        closedMsg = '🌞 Morning menu opens at ' + _fmtH(d.ls, d.lsm);
+        closedSub = 'Come back soon for fresh morning meals!';
+      } else if (_nowMins > _leT && _nowMins < _dsT) {
+        closedMsg = '🌙 Evening menu opens at ' + _fmtH(d.ds, d.dsm);
+        closedSub = 'Morning orders are closed · Dinner coming up!';
+      } else if (_nowMins > _deT) {
+        closedMsg = '🌛 Restaurant closed for today';
+        closedSub = 'Visit tomorrow from ' + _fmtH(d.ls, d.lsm) + ' to order morning meals';
+      }
+    }
     banner.innerHTML = '<div style="width:44px;height:44px;background:rgba(220,38,38,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-regular fa-clock" style="font-size:20px;color:#dc2626"></i></div>'
-      + '<div style="flex:1"><div style="font-size:14px;font-weight:800;color:#b91c1c">' + state.reason + '</div>' + bothTimes + '</div>';
+      + '<div style="flex:1"><div style="font-size:14px;font-weight:800;color:#b91c1c">' + closedMsg + '</div>'
+      + (closedSub ? '<div style="font-size:11px;color:#ef4444;margin-top:3px">' + closedSub + '</div>' : '')
+      + bothTimes + '</div>';
     banner.style.background = 'linear-gradient(135deg,#fff5f5,#fee2e2)';
     banner.style.color = '#b91c1c';
     banner.style.boxShadow = '0 6px 20px rgba(220,38,38,.12)';
     if (btn) btn.disabled = true;
+    filterAndRenderMenu();
   } else {
     const closeT = state.session === 'lunch' ? _fmtH(d.le, d.lem) : _fmtH(d.de, d.dem);
     const label  = state.session === 'lunch' ? 'Lunch' : 'Dinner';
@@ -1176,6 +1223,7 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
     banner.style.color = '#fff';
     banner.style.boxShadow = '0 6px 24px rgba(26,122,110,.35)';
     if (btn) btn.disabled = false;
+    filterAndRenderMenu();
   }
 }
 
@@ -1341,19 +1389,8 @@ function getInitials(name) {
 function setDeliveryTime(elId) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const h = currentISTHour();
-  const state = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, h, _lastCutoff) : null;
-  if (state && !state.closed && state.session && state.day) {
-    const d = state.day;
-    if (state.session === 'lunch') {
-      el.textContent = '☀️ Lunch: ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem) + ' (today)';
-    } else {
-      el.textContent = '🌙 Dinner: ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem) + ' (today)';
-    }
-  } else {
-    /* fallback: use schedule to show next open session */
-    el.textContent = h < 15 ? '☀️ Lunch delivery (today)' : '🌙 Dinner delivery (today)';
-  }
+  const _sess = _isLunchTime() ? 'lunch' : 'dinner';
+  el.textContent = _getDeliveryLabel(_sess) + ' (today)';
 }
 
 /* ═══════════════════════════════════════════
@@ -1632,8 +1669,26 @@ function clearSearch() {
   onMenuSearch('');
 }
 
+function _currentSession() {
+  // Returns 'morning'|'evening'|null based on calcOrderState
+  const state = calcOrderState(_lastSchedule, currentISTHour(), _lastCutoff);
+  if (state.closed) return null;
+  // lunch session → morning items; dinner session → evening items
+  return state.session === 'lunch' ? 'morning' : 'evening';
+}
+
 function filterAndRenderMenu() {
   let items = _fullMenu;
+
+  // Session filter: show only items valid for the current session
+  const sess = _currentSession();
+  if (sess) {
+    items = items.filter(i => {
+      const ms = i.meal_session || 'both';
+      return ms === 'both' || ms === sess;
+    });
+  }
+
   if (_activeCategory && _activeCategory !== 'All') {
     items = items.filter(i => i.category === _activeCategory);
   }
@@ -1641,7 +1696,8 @@ function filterAndRenderMenu() {
     items = items.filter(i =>
       i.name?.toLowerCase().includes(_menuSearch) ||
       i.category?.toLowerCase().includes(_menuSearch) ||
-      i.description?.toLowerCase().includes(_menuSearch)
+      i.description?.toLowerCase().includes(_menuSearch) ||
+      (i.sub_items||'').toLowerCase().includes(_menuSearch)
     );
   }
   renderMenuItems(items);
@@ -1891,21 +1947,11 @@ function renderCart() {
 
   updateBillSummary();
 
-  // Delivery note — use live schedule if available
-  const h = currentISTHour();
-  const _state = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, h, _lastCutoff) : null;
+  // Delivery note — fixed times based on order window
   const _dn = document.getElementById('delivery-note');
   if (_dn) {
-    if (_state && !_state.closed && _state.session && _state.day) {
-      const _d = _state.day;
-      if (_state.session === 'lunch') {
-        _dn.textContent = '☀️ Estimated delivery: Lunch ' + _fmtH(_d.ls, _d.lsm) + '–' + _fmtH(_d.le, _d.lem);
-      } else {
-        _dn.textContent = '🌙 Estimated delivery: Dinner ' + _fmtH(_d.ds, _d.dsm) + '–' + _fmtH(_d.de, _d.dem);
-      }
-    } else {
-      _dn.textContent = h < 15 ? '☀️ Estimated delivery: Lunch session' : '🌙 Estimated delivery: Dinner session';
-    }
+    const _dnSess = _isLunchTime() ? 'lunch' : 'dinner';
+    _dn.textContent = '🚀 Estimated delivery: ' + _getDeliveryLabel(_dnSess).replace(/^[☀️🌙]+ /, '');
   }
 }
 
@@ -2447,7 +2493,7 @@ function generateKhataPDF() {
     '</style></head><body>' +
     '<div class="hdr"><div>' +
       '<div class="brand">&#x1F372; Tiffo</div>' +
-      '<div class="sub">Ghar ka khana &#x2665;<br>&#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'<br>Wallet Statement</div>' +
+      '<div class="sub">Ghar Ka Tiffin 😍<br>&#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'<br>Wallet Statement</div>' +
     '</div><div class="badge">&#x1F4C5; '+rangeLabel+'</div></div>' +
     '<hr>' +
     '<div class="info-box"><div><b>'+(user?.name||'—')+'</b><br>&#x260E; '+(user?.phone||'—')+'<br>&#x1F4CD; '+(user?.address||'—')+'</div>' +

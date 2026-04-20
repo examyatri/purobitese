@@ -366,6 +366,13 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
 /* ── VARIANTS ────────────────────────────────────────────── */
 .variant-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.menu-sess-btn{padding:7px 16px;border-radius:20px;border:1.5px solid #e5e7eb;background:#fff;font-family:var(--ff);font-size:12px;font-weight:700;color:#64748b;cursor:pointer;transition:all .2s}
+.menu-sess-btn.active{background:#e63946;border-color:#e63946;color:#fff}
+.menu-sess-btn:hover:not(.active){background:#f8fafc;border-color:#cbd5e1}
+.meal-sess-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;font-family:var(--ff)}
+.meal-sess-morning{background:#fef9c3;color:#854d0e}
+.meal-sess-evening{background:#ede9fe;color:#5b21b6}
+.meal-sess-both{background:#dcfce7;color:#166534}
 
 /* ── NOTIFICATIONS ───────────────────────────────────────── */
 .notif-card{
@@ -797,15 +804,24 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
       <!-- MENU -->
       <div id="p-menu" class="pg-v">
         <div class="page-header">
-          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Menu Items</h2>
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Menu Management</h2>
           <button class="btn btn-p" onclick="openMenuModal()"><i class="fa fa-plus"></i> Add Item</button>
         </div>
+
+        <!-- Session Tabs -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <button id="msess-all"     class="menu-sess-btn active" onclick="setMenuSession('all')">🍽️ All</button>
+          <button id="msess-morning" class="menu-sess-btn"        onclick="setMenuSession('morning')">🌞 Morning Only</button>
+          <button id="msess-evening" class="menu-sess-btn"        onclick="setMenuSession('evening')">🌙 Evening Only</button>
+          <button id="msess-both"    class="menu-sess-btn"        onclick="setMenuSession('both')">🔄 Both Sessions</button>
+        </div>
+
         <div class="filter-bar">
           <input id="menu-search" type="search" placeholder="Search by name or category…" class="search-input" oninput="renderMenuTable()">
-          <select id="menu-cat-filter" onchange="renderMenuTable()">
-            <option value="">All Categories</option>
-            <option value="morning">Morning</option>
-            <option value="evening">Evening</option>
+          <select id="menu-veg-filter" onchange="renderMenuTable()">
+            <option value="">All Types</option>
+            <option value="veg">🟢 Veg Only</option>
+            <option value="nonveg">🔴 Non-Veg Only</option>
           </select>
           <select id="menu-status-filter" onchange="renderMenuTable()">
             <option value="">All Status</option>
@@ -824,7 +840,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <div class="card">
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Highlight</th><th>Active</th><th>Actions</th></tr></thead>
+              <thead><tr><th>IMG</th><th>Name / Sub-Items</th><th>Category</th><th>Price / Variants</th><th>Session</th><th>Type</th><th>Badge</th><th>Stock</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead>
               <tbody id="menu-tbody"></tbody>
             </table>
           </div>
@@ -2223,6 +2239,27 @@ async function bulkGenerateOrders() {
 
 // ─── MENU ─────────────────────────────────────────────────
 let _menuItems = [];
+let _menuSessionFilter = 'all';
+
+function setMenuSession(sess) {
+  _menuSessionFilter = sess;
+  document.querySelectorAll('.menu-sess-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('msess-' + sess);
+  if (btn) btn.classList.add('active');
+  renderMenuTable();
+}
+
+function _sessLabel(sess) {
+  if (sess === 'morning') return '<span class="meal-sess-badge meal-sess-morning">🌞 Morning</span>';
+  if (sess === 'evening') return '<span class="meal-sess-badge meal-sess-evening">🌙 Evening</span>';
+  return '<span class="meal-sess-badge meal-sess-both">🔄 Both</span>';
+}
+
+function _hlBadge(h) {
+  if (!h || h === 'none') return '<span style="color:#94a3b8;font-size:11px">—</span>';
+  const map = { bestseller:'🏆 Bestseller', chef:"👨‍🍳 Chef's", recommended:'🔥 Recommended', new:'✨ New' };
+  return `<span style="font-size:11px;padding:3px 9px;border-radius:20px;background:#fef3c7;color:#92400e;font-weight:700">${map[h]||h}</span>`;
+}
 
 async function loadMenu() {
   try {
@@ -2240,17 +2277,23 @@ function renderMenuTable() {
   if (!tbody) return;
 
   const search    = (document.getElementById('menu-search')?.value || '').toLowerCase();
-  const catFilter = (document.getElementById('menu-cat-filter')?.value || '').toLowerCase();
+  const vegFilter = document.getElementById('menu-veg-filter')?.value || '';
   const status    = document.getElementById('menu-status-filter')?.value || '';
   const sort      = document.getElementById('menu-sort')?.value || 'default';
 
   let items = [..._menuItems];
 
+  // Session filter
+  if (_menuSessionFilter === 'morning') items = items.filter(m => (m.meal_session||'both') === 'morning' || (m.meal_session||'both') === 'both');
+  else if (_menuSessionFilter === 'evening') items = items.filter(m => (m.meal_session||'both') === 'evening' || (m.meal_session||'both') === 'both');
+  else if (_menuSessionFilter === 'both') items = items.filter(m => (m.meal_session||'both') === 'both');
+
   if (search) items = items.filter(m =>
     (m.name||'').toLowerCase().includes(search) ||
-    (m.category||'').toLowerCase().includes(search)
+    (m.category||'').toLowerCase().includes(search) ||
+    (m.sub_items||'').toLowerCase().includes(search)
   );
-  if (catFilter) items = items.filter(m => (m.category||'').toLowerCase().includes(catFilter));
+  if (vegFilter) items = items.filter(m => (m.veg_type||'veg') === vegFilter);
   if (status === 'active')   items = items.filter(m => m.is_active);
   if (status === 'inactive') items = items.filter(m => !m.is_active);
 
@@ -2264,14 +2307,30 @@ function renderMenuTable() {
     return ha - hb;
   });
 
-  tbody.innerHTML = items.length ? items.map(m => `
+  const vegDot = vt => vt === 'nonveg'
+    ? '<span style="display:inline-block;width:10px;height:10px;border:1.5px solid #dc2626;border-radius:2px;background:#dc2626"></span>'
+    : '<span style="display:inline-block;width:10px;height:10px;border:1.5px solid #16a34a;border-radius:2px;background:#16a34a"></span>';
+
+  tbody.innerHTML = items.length ? items.map(m => {
+    const vars = Array.isArray(m.variants) ? m.variants : [];
+    const varStr = vars.length
+      ? vars.map(v=>`<span style="background:#f1f5f9;border-radius:12px;padding:2px 7px;font-size:10px;font-weight:600;color:#475569">${v.label} ₹${v.price}</span>`).join(' ')
+      : '';
+    const subStr = m.sub_items ? `<div style="font-size:10px;color:#64748b;margin-top:2px">${m.sub_items}</div>` : '';
+    return `
     <tr>
-      <td>${m.image_url ? `<img src="${m.image_url}" style="width:40px;height:40px;border-radius:8px;object-fit:cover">` : '<div style="width:40px;height:40px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8"><i class="fa fa-image"></i></div>'}</td>
-      <td><b>${m.name}</b>${m.variants?.length?`<br><small style="color:#94a3b8">${m.variants.length} variant(s)</small>`:''}</td>
-      <td style="font-size:13px">${m.category||'—'}</td>
-      <td>₹${m.price||0}</td>
-      <td><input type="number" value="${m.stock_grams??''}" placeholder="∞" style="width:80px;padding:4px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateStock('${m.item_id}',this.value)"></td>
-      <td><span style="font-size:12px;padding:3px 10px;border-radius:20px;background:${m.highlight&&m.highlight!=='none'?'#fef3c7':'#f1f5f9'};color:${m.highlight&&m.highlight!=='none'?'#92400e':'#64748b'}">${m.highlight||'none'}</span></td>
+      <td>${m.image_url ? `<img src="${m.image_url}" style="width:42px;height:42px;border-radius:8px;object-fit:cover">` : '<div style="width:42px;height:42px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8"><i class="fa fa-image"></i></div>'}</td>
+      <td style="min-width:120px"><b style="font-size:13px">${m.name}</b>${subStr}</td>
+      <td style="font-size:12px;color:#475569">${m.category||'—'}${m.sub_category?`<br><span style="color:#94a3b8;font-size:10px">${m.sub_category}</span>`:''}</td>
+      <td style="min-width:110px">
+        <div style="font-weight:700;font-size:13px">₹${m.price||0}</div>
+        ${varStr ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px">${varStr}</div>` : ''}
+      </td>
+      <td>${_sessLabel(m.meal_session||'both')}</td>
+      <td>${vegDot(m.veg_type||'veg')} <span style="font-size:11px;font-weight:600;color:${(m.veg_type||'veg')==='nonveg'?'#dc2626':'#16a34a'}">${(m.veg_type||'veg')==='nonveg'?'Non-Veg':'Veg'}</span></td>
+      <td>${_hlBadge(m.highlight)}</td>
+      <td><input type="number" value="${m.stock_grams??''}" placeholder="∞" style="width:72px;padding:4px 7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateStock('${m.item_id}',this.value)"></td>
+      <td><input type="number" value="${m.sort_order??99}" style="width:55px;padding:4px 7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateSortOrder('${m.item_id}',this.value)"></td>
       <td><label class="toggle-sw"><input type="checkbox" ${m.is_active?'checked':''} onchange="toggleMenuActive('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td>
         <div style="display:flex;gap:6px">
@@ -2279,12 +2338,18 @@ function renderMenuTable() {
           <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteMenuItem('${m.item_id}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
-    </tr>`).join('') :
-    '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8">No menu items found</td></tr>';
+    </tr>`;
+  }).join('') :
+    '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8">No menu items found</td></tr>';
 }
 
 async function updateStock(id, val) {
   try { await api('updateMenuItem', { item_id: id, stock_grams: val === '' ? null : parseFloat(val) }); aToast('Stock updated'); }
+  catch(e) { aToast(e.message); }
+}
+
+async function updateSortOrder(id, val) {
+  try { await api('updateMenuItem', { item_id: id, sort_order: parseInt(val)||99 }); aToast('Order updated'); }
   catch(e) { aToast(e.message); }
 }
 
@@ -2297,37 +2362,78 @@ function openMenuModal(editId = null) {
   const m = editId ? _menuItems.find(x => x.item_id === editId) : null;
   const variants = m?.variants?.length ? m.variants : [];
   const variantRows = variants.map((v,i) => buildVariantRow(i, v.label, v.price)).join('');
+  const sess = m?.meal_session || 'both';
   openMo(`
     <div class="mo-title">${m ? 'Edit Item' : 'Add Menu Item'}</div>
-    <div class="field"><label>Name</label><input id="mf-name" value="${m?.name||''}"></div>
-    <div class="field"><label>Category</label><input id="mf-cat" value="${m?.category||''}"></div>
-    <div class="field"><label>Image URL</label><input id="mf-img" value="${m?.image_url||''}"></div>
-    <div class="field"><label>Base Price (₹)</label><input id="mf-price" type="number" value="${m?.price||''}"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Item Name *</label><input id="mf-name" placeholder="e.g. Shahi Paneer" value="${m?.name||''}"></div>
+      <div class="field"><label>Base Price (₹) *</label><input id="mf-price" type="number" placeholder="0" value="${m?.price||''}"></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Category</label>
+        <input id="mf-cat" list="cat-suggestions" placeholder="e.g. Sabzi, Dal, Rice" value="${m?.category||''}">
+        <datalist id="cat-suggestions">
+          <option value="Sabzi"><option value="Dal"><option value="Rice"><option value="Roti"><option value="Snacks">
+          <option value="Dessert"><option value="Drinks"><option value="Salad"><option value="Soup"><option value="Special">
+        </datalist>
+      </div>
+      <div class="field"><label>Sub-Category</label><input id="mf-subcat" placeholder="e.g. Punjabi, South Indian" value="${m?.sub_category||''}"></div>
+    </div>
+
+    <div class="field"><label>Image URL</label><input id="mf-img" placeholder="https://…" value="${m?.image_url||''}"></div>
+
     <div class="field">
-      <label>Variants <button class="btn btn-outline" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="addVariantRow()">+ Add</button></label>
+      <label>Variants (optional) <button class="btn btn-outline" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="addVariantRow()">+ Add Variant</button></label>
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Each variant overrides base price (e.g. Half / Full, Regular / Large)</div>
       <div id="variants-container">${variantRows}</div>
     </div>
-    <div class="field"><label>Highlight</label>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Veg / Non-Veg</label>
+        <select id="mf-veg-type">
+          <option value="veg" ${(m?.veg_type||'veg')==='veg'?'selected':''}>🟢 Veg</option>
+          <option value="nonveg" ${m?.veg_type==='nonveg'?'selected':''}>🔴 Non-Veg</option>
+        </select>
+      </div>
+      <div class="field"><label>Meal Session</label>
+        <select id="mf-meal-session">
+          <option value="morning" ${sess==='morning'?'selected':''}>🌞 Morning Only</option>
+          <option value="evening" ${sess==='evening'?'selected':''}>🌙 Evening Only</option>
+          <option value="both"    ${sess==='both'?'selected':''}>🔄 Both Sessions</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field"><label>Badge / Highlight</label>
       <select id="mf-highlight">
-        ${['none','bestseller','chef','recommended','new'].map(h=>`<option value="${h}" ${(m?.highlight||'none')===h?'selected':''}>${h}</option>`).join('')}
+        <option value="none"        ${(m?.highlight||'none')==='none'?'selected':''}>— None</option>
+        <option value="bestseller"  ${m?.highlight==='bestseller'?'selected':''}>🏆 Bestseller</option>
+        <option value="recommended" ${m?.highlight==='recommended'?'selected':''}>🔥 Recommended</option>
+        <option value="chef"        ${m?.highlight==='chef'?'selected':''}>👨‍🍳 Chef's Special</option>
+        <option value="new"         ${m?.highlight==='new'?'selected':''}>✨ New Item</option>
       </select>
     </div>
-    <div class="field"><label>Veg / Non-Veg</label>
-      <select id="mf-veg-type">
-        <option value="veg" ${(m?.veg_type||'veg')==='veg'?'selected':''}>🟢 Veg</option>
-        <option value="nonveg" ${m?.veg_type==='nonveg'?'selected':''}>🔴 Non-Veg</option>
-      </select>
+
+    <div class="field"><label>Sub-Items / Dishes Included</label>
+      <input id="mf-sub-items" placeholder="e.g. Shahi Paneer, Dal Makhani, Roti" value="${m?.sub_items||''}">
+      <div style="font-size:11px;color:#94a3b8;margin-top:3px">Comma separated — shown below item name on menu</div>
     </div>
-    <div class="field"><label>Sub-Items (e.g. Shahi Paneer, Palak Paneer)</label><input id="mf-sub-items" type="text" placeholder="Comma separated dish names" value="${m?.sub_items||''}"></div>
-    <div class="field"><label>Sort Order</label><input id="mf-sort" type="number" value="${m?.sort_order||0}"></div>
-    <div class="field"><label>Stock Grams (blank = unlimited)</label><input id="mf-stock" type="number" value="${m?.stock_grams??''}"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Sort Order <span style="font-size:10px;color:#94a3b8">(lower = first)</span></label><input id="mf-sort" type="number" value="${m?.sort_order??99}"></div>
+      <div class="field"><label>Stock (g / blank = unlimited)</label><input id="mf-stock" type="number" value="${m?.stock_grams??''}"></div>
+    </div>
+
     <div class="field" style="display:flex;align-items:center;gap:12px">
-      <label style="margin-bottom:0">Active</label>
+      <label style="margin-bottom:0">Active on Menu</label>
       <label class="toggle-sw"><input id="mf-active" type="checkbox" ${m?.is_active!==false?'checked':''}><span class="toggle-sl"></span></label>
     </div>
+
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="saveMenuItem(${!!m},${editId||'null'})">Save</button>
+      <button class="btn btn-p" onclick="saveMenuItem(${!!m},${editId||'null'})">Save Item</button>
     </div>`);
 }
 
@@ -2351,16 +2457,18 @@ function collectMenuForm(id=null) {
     return { label: inputs[0]?.value.trim(), price: parseFloat(inputs[1]?.value)||0 };
   }).filter(v => v.label);
   const data = {
-    name:        document.getElementById('mf-name')?.value.trim(),
-    category:    document.getElementById('mf-cat')?.value.trim(),
-    image_url:   document.getElementById('mf-img')?.value.trim(),
-    price:       parseFloat(document.getElementById('mf-price')?.value)||0,
-    highlight:   document.getElementById('mf-highlight')?.value,
-    veg_type:    document.getElementById('mf-veg-type')?.value || 'veg',
-    sub_items:   document.getElementById('mf-sub-items')?.value.trim() || null,
-    sort_order:  parseInt(document.getElementById('mf-sort')?.value)||0,
-    stock_grams: document.getElementById('mf-stock')?.value ? parseFloat(document.getElementById('mf-stock').value) : null,
-    is_active:   document.getElementById('mf-active')?.checked,
+    name:         document.getElementById('mf-name')?.value.trim(),
+    category:     document.getElementById('mf-cat')?.value.trim(),
+    sub_category: document.getElementById('mf-subcat')?.value.trim() || null,
+    image_url:    document.getElementById('mf-img')?.value.trim(),
+    price:        parseFloat(document.getElementById('mf-price')?.value)||0,
+    highlight:    document.getElementById('mf-highlight')?.value,
+    veg_type:     document.getElementById('mf-veg-type')?.value || 'veg',
+    meal_session: document.getElementById('mf-meal-session')?.value || 'both',
+    sub_items:    document.getElementById('mf-sub-items')?.value.trim() || null,
+    sort_order:   parseInt(document.getElementById('mf-sort')?.value)||99,
+    stock_grams:  document.getElementById('mf-stock')?.value ? parseFloat(document.getElementById('mf-stock').value) : null,
+    is_active:    document.getElementById('mf-active')?.checked,
     variants
   };
   if (id) data.item_id = id;
