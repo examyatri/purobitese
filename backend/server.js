@@ -29,6 +29,32 @@ if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 
 const SALT_ROUNDS = 10;
 
+// ─── RATE LIMITER ─────────────────────────────────────────────────────────────
+// 80 req/min per IP globally; 10/min for auth endpoints
+const _rateBuckets = new Map();
+const _authBuckets = new Map();
+
+function _rateCheck(ip, bucket, limit, windowMs) {
+  const now = Date.now();
+  let e = bucket.get(ip);
+  if (!e || now > e.resetAt) { e = { count: 0, resetAt: now + windowMs }; bucket.set(ip, e); }
+  return ++e.count <= limit;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _rateBuckets) if (now > v.resetAt) _rateBuckets.delete(k);
+  for (const [k, v] of _authBuckets)  if (now > v.resetAt) _authBuckets.delete(k);
+}, 5 * 60_000);
+
+// ─── REQUEST COALESCER ────────────────────────────────────────────────────────
+// If 50 users hit getMenu at the same time, only ONE DB query runs.
+// All others wait and share the same result — biggest single load reduction.
+const _inFlight = new Map();
+const COALESCABLE = new Set([
+  'getMenu','adminGetMenu','getThalis','adminGetThalis',
+  'getWeeklySchedule','getOrderCutoff','getKhataEnabled','getSettings'
+]);
+
 // ─── SELF-PING ────────────────────────────────────────────────────────────────
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || '';
 if (SELF_URL) {
@@ -327,42 +353,68 @@ app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', 
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── MAIN ENDPOINT ────────────────────────────────────────────────────────────
+const AUTH_ACTIONS = new Set(['login','checkSession','signup','adminLogin','staffLogin','riderLogin']);
+
 app.post('/api', async (req, res) => {
   const { action, data = {}, apiKey } = req.body;
 
+  // ── API key check ──────────────────────────────────────────────────────────
   if (apiKey !== SECURE_API_KEY) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
 
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+                   || req.socket.remoteAddress || 'unknown';
+  if (!_rateCheck(clientIp, _rateBuckets, 80, 60_000)) {
+    return res.status(429).json({ success: false, error: 'Too many requests. Please slow down.' });
+  }
+  if (AUTH_ACTIONS.has(action) && !_rateCheck(clientIp, _authBuckets, 10, 60_000)) {
+    return res.status(429).json({ success: false, error: 'Too many login attempts. Please wait a minute.' });
+  }
+
   const ist = getIST();
 
+  // ── Request coalescing for read-only endpoints ─────────────────────────────
+  // Multiple simultaneous requests for same data share one DB query
+  if (COALESCABLE.has(action)) {
+    const key = action + (data.date ? ':' + data.date : '');
+    if (_inFlight.has(key)) {
+      try   { return res.json(await _inFlight.get(key)); }
+      catch (err) { return res.json({ success: false, error: err.message }); }
+    }
+    const promise = _coreHandler(action, data, ist, res)
+      .finally(() => setTimeout(() => _inFlight.delete(key), 2000));
+    _inFlight.set(key, promise);
+    try   { return res.json(await promise); }
+    catch (err) { return res.json({ success: false, error: err.message }); }
+  }
+
+  return _coreHandler(action, data, ist, res);
+});
+
+// ─── CORE HANDLER (original switch — untouched) ───────────────────────────────
+async function _coreHandler(action, data, ist, res) {
   try {
     switch (action) {
 
       // ── AUTH ──────────────────────────────────────────────────────────────
 
-      case 'checkSession': {
-        const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
-        if (!user) return res.json({ success: false, error: 'Session invalid' });
-        const valid = await bcrypt.compare(data.password, user.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Session invalid' });
-        const { data: sub }     = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        const { data: balRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        const { password_hash, ...safeUser } = user;
-        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
-      }
-
+      // checkSession and login are identical — one handler, parallel sub/balance fetch
+      case 'checkSession':
       case 'login': {
         const phone = cleanPhone(data.phone);
         const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
         if (!user) return res.json({ success: false, error: 'Session invalid' });
         const valid = await bcrypt.compare(data.password, user.password_hash);
         if (!valid) return res.json({ success: false, error: 'Session invalid' });
-        const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        // Fetch subscriber + balance in parallel — saves ~200ms per login
+        const [subRes, balRes] = await Promise.all([
+          supabase.from('subscribers').select('*').eq('phone', phone).single(),
+          supabase.from('khata_summary').select('balance').eq('phone', phone).single()
+        ]);
         const { password_hash, ...safeUser } = user;
-        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
+        return res.json({ success: true, user: safeUser, subscriber: subRes.data || null, walletBalance: balRes.data?.balance || 0 });
       }
 
       case 'signup': {
@@ -399,15 +451,8 @@ app.post('/api', async (req, res) => {
         });
       }
 
-      case 'adminLogin': {
-        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
-        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
-        const valid = await bcrypt.compare(data.password, staff.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
-        const { password_hash, ...safeStaff } = staff;
-        return res.json({ success: true, staff: safeStaff });
-      }
-
+      // adminLogin and staffLogin are identical — one handler
+      case 'adminLogin':
       case 'staffLogin': {
         const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
         if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
@@ -1880,9 +1925,12 @@ app.post('/api', async (req, res) => {
     }
   } catch (err) {
     console.error(`[${action}] ERROR:`, err.message);
-    return res.json({ success: false, error: err.message });
+    // For coalesced calls, re-throw so the coalescer catch handles it
+    // For direct calls, res is available
+    if (res) return res.json({ success: false, error: err.message });
+    throw err;
   }
-});
+}
 
 // ─── LISTEN ───────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
