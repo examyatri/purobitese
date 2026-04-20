@@ -974,6 +974,40 @@ const Creds = {
   clear()         { Store.remove('tf_creds'); }
 };
 
+/* ── SessionCache ─────────────────────────────────────────────────
+   Professional persistent session — like GitHub / Notion / Figma.
+   User stays logged in FOREVER until they explicitly log out.
+   No expiry. Background verify runs at most once every 48 hours
+   so the GAS API is never hammered.
+   Key: tf_session_v2
+   Verify key: tf_session_verified_at
+────────────────────────────────────────────────────────────────── */
+const SessionCache = {
+  KEY:        'tf_session_v2',
+  VERIFY_KEY: 'tf_session_verified_at',
+  VERIFY_INTERVAL: 48 * 60 * 60 * 1000, // 48 hours (2 days) in ms
+
+  save(data) {
+    Store.setJSON(this.KEY, { ...data, savedAt: Date.now() });
+  },
+  get() {
+    const d = Store.getJSON(this.KEY);
+    if (!d || !d.user) return null;
+    return d; // No expiry — stays logged in forever
+  },
+  clear() {
+    Store.remove(this.KEY);
+    Store.remove(this.VERIFY_KEY);
+  },
+  shouldVerify() {
+    const last = parseInt(Store.get(this.VERIFY_KEY) || '0', 10);
+    return Date.now() - last > this.VERIFY_INTERVAL;
+  },
+  markVerified() {
+    Store.set(this.VERIFY_KEY, String(Date.now()));
+  }
+};
+
 async function api(action, data = {}, _retry = 1) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 22000);
@@ -1517,12 +1551,17 @@ async function doLogin() {
     if (_hint) { _hint.style.display = 'none'; _hint.style.background = ''; _hint.style.color = ''; }
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
+    _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
-    if (res.subscriber) {
-      _pauseMode = res.subscriber.pause_delivery || 'none';
-      applyPauseState(_pauseMode);
-    }
-    api('getKhataEnabled').then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); }).catch(() => {});
+    if (res.subscriber) { applyPauseState(_pauseMode); }
+    api('getKhataEnabled').then(r => {
+      _khataEnabled = r.enabled;
+      applyKhataVisibility();
+      // Save full session snapshot after khata state is known
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+    }).catch(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+    });
     _transitionToHome();
     loadMenu();
     startPolling();
@@ -1564,6 +1603,7 @@ async function doSignup() {
     _walletBal = 0;
     _khataEnabled = false;
     applyKhataVisibility();
+    SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
     _transitionToHome();
     loadMenu();
     startPolling();
@@ -2306,6 +2346,14 @@ async function changePassword() {
   try {
     await api('changePassword', { phone: Auth.get()?.phone, currentPassword: curPw, newPassword: newPw });
     Creds.save(Auth.get().phone, newPw);
+    // Refresh cache so next boot still has valid session
+    SessionCache.save({
+      user:          Auth.get(),
+      is_subscriber: !!_session?.is_subscriber,
+      walletBalance: _walletBal,
+      pauseMode:     _pauseMode,
+      khataEnabled:  _khataEnabled
+    });
     document.getElementById('pw-cur').value = '';
     document.getElementById('pw-new').value = '';
     toast('Password changed ✓');
@@ -2696,22 +2744,102 @@ function _applySubscriberUI() {
   // Sub plan banner removed — Auto Tiffin card is single source of truth
 }
 async function bootApp() {
-  document.getElementById('app-loader').style.display = 'flex';
-  document.getElementById('loader-status').textContent = 'Loading...';
-
+  // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
-  const creds = Creds.get(); // key: tf_creds
+  /* ══════════════════════════════════════════════════════════════
+     FAST PATH: Cached session exists → restore instantly, no network
+     This is how GitHub / Swiggy / Zomato keep you logged in.
+     User is on their home screen in <50ms.
+  ══════════════════════════════════════════════════════════════ */
+  const cached = SessionCache.get();
+  if (cached && cached.user) {
+    // Restore all in-memory state from localStorage cache
+    Auth.set(cached.user);
+    _session.is_subscriber = !!cached.is_subscriber;
+    _walletBal    = cached.walletBalance || 0;
+    _pauseMode    = cached.pauseMode    || 'none';
+    _khataEnabled = cached.khataEnabled || false;
 
+    updateWalletUI(_walletBal);
+    applyPauseState(_pauseMode);
+    applyKhataVisibility();
+
+    // Show home immediately — no loader, no "signing you in"
+    _transitionToHome();
+    loadMenu();
+    startPolling();
+
+    // BACKGROUND VERIFY — runs at most once every 48 hours (not on every refresh).
+    // Like GitHub: silently checks the account is still valid, updates cache,
+    // never bothers the user. On network error, cached home stays untouched.
+    const creds = Creds.get();
+    if (creds && SessionCache.shouldVerify()) {
+      // Small delay so home screen renders first, then we do the network call
+      setTimeout(() => {
+        api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
+          .then(res => {
+            SessionCache.markVerified(); // Reset 6-hour timer
+            Auth.set(res.user);
+            _session.is_subscriber = !!res.subscriber;
+            _walletBal = res.walletBalance || 0;
+            _pauseMode = res.subscriber?.pause_delivery || 'none';
+            updateWalletUI(_walletBal);
+            applyPauseState(_pauseMode);
+            _applySubscriberUI();
+            api('getKhataEnabled')
+              .then(r => {
+                _khataEnabled = r.enabled;
+                applyKhataVisibility();
+                SessionCache.save({
+                  user:          res.user,
+                  is_subscriber: !!res.subscriber,
+                  walletBalance: _walletBal,
+                  pauseMode:     _pauseMode,
+                  khataEnabled:  _khataEnabled
+                });
+              })
+              .catch(() => {
+                SessionCache.save({
+                  user:          res.user,
+                  is_subscriber: !!res.subscriber,
+                  walletBalance: _walletBal,
+                  pauseMode:     _pauseMode,
+                  khataEnabled:  _khataEnabled
+                });
+              });
+          })
+          .catch(e => {
+            const isAuthError = e.message?.includes('Session invalid') ||
+                                e.message?.includes('Unauthorized') ||
+                                e.message?.includes('not found');
+            if (isAuthError) {
+              // Account deleted or password changed on another device — silent logout
+              doLogout();
+            }
+            // Network/timeout error → keep cached session, try again next time
+          });
+      }, 30000); // 30s delay — home screen + menu fully loaded before verify starts
+    }
+    return; // Fast path done. User is already on home screen.
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     SLOW PATH: No cached session — first ever visit, or after logout
+  ══════════════════════════════════════════════════════════════ */
+  const creds = Creds.get();
   if (!creds) {
-    // No saved credentials -> show signup so user can register
+    // No credentials at all → show signup
     _transitionToLogin(false);
     return;
   }
 
-  document.getElementById('loader-status').textContent = 'Signing you in…';
+  // Has saved credentials but cache was cleared (e.g. browser storage wiped)
+  // Do a one-time network login to rebuild the cache, then never again
+  document.getElementById('app-loader').style.display = 'flex';
+  document.getElementById('loader-status').textContent = 'Loading…';
   try {
     const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
     Auth.set(res.user);
@@ -2720,10 +2848,28 @@ async function bootApp() {
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
+    // Build cache so next load is instant
     api('getKhataEnabled')
-      .then(r => { _khataEnabled = r.enabled; applyKhataVisibility(); })
-      .catch(() => {});
-    // Credentials valid -> always open home page
+      .then(r => {
+        _khataEnabled = r.enabled;
+        applyKhataVisibility();
+        SessionCache.save({
+          user:          res.user,
+          is_subscriber: !!res.subscriber,
+          walletBalance: _walletBal,
+          pauseMode:     _pauseMode,
+          khataEnabled:  _khataEnabled
+        });
+      })
+      .catch(() => {
+        SessionCache.save({
+          user:          res.user,
+          is_subscriber: !!res.subscriber,
+          walletBalance: _walletBal,
+          pauseMode:     _pauseMode,
+          khataEnabled:  false
+        });
+      });
     _transitionToHome();
     loadMenu();
     startPolling();
@@ -2732,9 +2878,7 @@ async function bootApp() {
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found');
     if (isAuthError) {
-      // Creds exist but don't match DB -> show login tab prefilled so user can fix manually
-      // Do NOT Creds.clear() - keep phone prefilled so user sees what failed
-      _transitionToLogin(true, true); // true=login tab, true=wrongCreds warning
+      _transitionToLogin(true, true); // Show login with prefilled phone + warning
     } else {
       _showRetryUI('No internet connection. Check and try again.');
     }
@@ -2790,6 +2934,7 @@ function doLogout() {
   stopPolling();
   Auth.clear();
   Creds.clear();
+  SessionCache.clear();
   Store.remove('tf_menu_cache');
   Store.remove('pb_cart');
   Store.remove('pb_order_processing');

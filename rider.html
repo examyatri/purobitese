@@ -301,6 +301,40 @@ function clearRiderCreds() {
   localStorage.removeItem('tf_rider_creds');
 }
 
+/* ─── RIDER SESSION CACHE (key: tf_rider_session) ────────
+   Stores rider object in localStorage so the app loads
+   instantly on every visit — no API call needed.
+   Background verify runs at most once every 48 hours,
+   30 seconds after home screen loads (server not busy).
+──────────────────────────────────────────────────────── */
+const RiderSession = {
+  KEY:             'tf_rider_session',
+  VERIFY_KEY:      'tf_rider_session_verified_at',
+  VERIFY_INTERVAL: 48 * 60 * 60 * 1000, // 48 hours in ms
+
+  save(rider) {
+    localStorage.setItem(this.KEY, JSON.stringify({ rider, savedAt: Date.now() }));
+  },
+  get() {
+    try {
+      const d = JSON.parse(localStorage.getItem(this.KEY));
+      if (!d || !d.rider) return null;
+      return d.rider;
+    } catch { return null; }
+  },
+  clear() {
+    localStorage.removeItem(this.KEY);
+    localStorage.removeItem(this.VERIFY_KEY);
+  },
+  shouldVerify() {
+    const last = parseInt(localStorage.getItem(this.VERIFY_KEY) || '0', 10);
+    return Date.now() - last > this.VERIFY_INTERVAL;
+  },
+  markVerified() {
+    localStorage.setItem(this.VERIFY_KEY, String(Date.now()));
+  }
+};
+
 /* ─── API WRAPPER ────────────────────────────────────── */
 async function api(action, data = {}, _retry = 1) {
   const ctrl  = new AbortController();
@@ -346,6 +380,7 @@ async function doRiderLogin() {
     const res = await api('riderLogin', { riderId, password: pw });
     _rider = res.rider;
     saveRiderCreds(riderId, pw);
+    RiderSession.save(_rider);
     showApp();
     await loadOrders();
     startPolling();
@@ -368,6 +403,7 @@ function showApp() {
 function doRiderLogout() {
   stopPolling();
   clearRiderCreds();
+  RiderSession.clear();
   _rider = null; _orders = []; _pending = []; _delivered = [];
   document.getElementById('pg-app').style.display  = 'none';
   document.getElementById('pg-auth').style.display = 'flex';
@@ -403,82 +439,6 @@ function updateStats() {
 }
 
 /* ─── RENDER ─────────────────────────────────────────── */
-function renderOrders(searchQuery = '') {
-  const list     = _activeTab === 'pending' ? _pending : _delivered;
-  const q        = (searchQuery || '').toLowerCase();
-  const filtered = q
-    ? list.filter(o =>
-        (o.name  || '').toLowerCase().includes(q) ||
-        (o.phone || '').includes(q) ||
-        (o.address || '').toLowerCase().includes(q) ||
-        (o.order_id || '').toLowerCase().includes(q)
-      )
-    : list;
-
-  const el = document.getElementById('orders-content');
-
-  if (!filtered.length) {
-    el.innerHTML = `
-      <div class="empty-state">
-        <div class="icon">${_activeTab === 'pending' ? '🎉' : '📦'}</div>
-        <p>${_activeTab === 'pending' ? 'No pending orders!' : 'No delivered orders yet'}</p>
-      </div>`;
-    return;
-  }
-
-  // Group by date then session
-  const grouped = {};
-  filtered.forEach(o => {
-    const d = o.date || 'Unknown';
-    if (!grouped[d]) grouped[d] = { morning: [], evening: [] };
-    const raw  = o.time || '00:00';
-    const isPM = raw.toUpperCase().includes('PM');
-    let   h    = parseInt(raw.split(':')[0]);
-    const h24  = isPM && h !== 12 ? h + 12 : (!isPM && h === 12 ? 0 : h);
-    if (h24 < 15) grouped[d].morning.push(o);
-    else          grouped[d].evening.push(o);
-  });
-
-  const today     = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().slice(0, 10);
-
-  const fmtDate  = d => { if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return d || '—'; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
-  const dateLabel= d => d === today ? 'Today' : d === yesterday ? 'Yesterday' : fmtDate(d);
-
-  const sortedDates = Object.keys(grouped).sort().reverse();
-
-  el.innerHTML = sortedDates.map(date => {
-    const grp   = grouped[date];
-    const mJson = JSON.stringify(grp.morning).replace(/"/g, '&quot;');
-    const eJson = JSON.stringify(grp.evening).replace(/"/g, '&quot;');
-    return `
-    <div class="date-section">
-      <div class="date-header" onclick="toggleDateSection('${date}')">
-        <span class="date-label">${dateLabel(date)}</span>
-        <span class="date-toggle" id="dt-toggle-${date}">▼</span>
-      </div>
-      <div id="dt-body-${date}">
-        ${grp.morning.length ? `
-        <div class="session-group">
-          <div class="session-header session-morning">
-            <span>☀️ Morning (${grp.morning.length} orders)</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRouteModal('${mJson}')">🗺 Route</button>
-          </div>
-          ${grp.morning.map(o => renderOrderCard(o)).join('')}
-        </div>` : ''}
-        ${grp.evening.length ? `
-        <div class="session-group">
-          <div class="session-header session-evening">
-            <span>🌙 Evening (${grp.evening.length} orders)</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRouteModal('${eJson}')">🗺 Route</button>
-          </div>
-          ${grp.evening.map(o => renderOrderCard(o)).join('')}
-        </div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-}
-
 function renderOrderCard(o) {
   const status    = (o.order_status || 'pending').toLowerCase();
   const isDone    = status === 'delivered';
@@ -893,12 +853,53 @@ window.addEventListener('DOMContentLoaded', () => {
   // Push initial state so first back press fires popstate
   history.pushState({ riderPg: 'init' }, '', location.href);
   autofillCreds();
+
+  const cachedRider = RiderSession.get();
+  if (cachedRider) {
+    // FAST PATH — restore from cache instantly, zero network call
+    // Same pattern as index.html: no "signing you in…" spinner
+    _rider = cachedRider;
+    showApp();
+    loadOrders();
+    startPolling();
+
+    // BACKGROUND VERIFY — at most once every 48 hours.
+    // Silently re-validates creds when server is quiet.
+    // 30s delay so home screen + orders load first.
+    const creds = getRiderCreds();
+    if (creds && RiderSession.shouldVerify()) {
+      setTimeout(() => {
+        api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0)
+          .then(res => {
+            RiderSession.markVerified();
+            _rider = res.rider;
+            RiderSession.save(_rider);
+            // Refresh display with latest rider data (name etc.)
+            document.getElementById('rider-name').textContent       = _rider.name || 'Rider';
+            document.getElementById('rider-id-display').textContent = _rider.rider_id || '';
+          })
+          .catch(e => {
+            const isAuthError = e.message?.includes('Invalid') ||
+                                e.message?.includes('Unauthorized') ||
+                                e.message?.includes('not found');
+            if (isAuthError) {
+              // Password changed or account deactivated — silent logout
+              doRiderLogout();
+            }
+            // Network/timeout error → keep cached session, try next time
+          });
+      }, 30000); // 30s delay — orders fully loaded before verify starts
+    }
+    return; // Fast path done
+  }
+
+  // SLOW PATH — no cache, has saved creds (e.g. storage was cleared)
   const creds = getRiderCreds();
   if (creds) {
-    // Attempt silent auto-login
     api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0)
       .then(res => {
         _rider = res.rider;
+        RiderSession.save(_rider);
         showApp();
         loadOrders();
         startPolling();
