@@ -2475,15 +2475,20 @@ function renderOrderList(orders) {
     const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
     const orderId   = o.order_id || o.id;
     const ordAmt    = o.final_amount || o.total_amount || 0;
-    const _oItems   = items.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''}${i.qty > 1 ? ` ×${i.qty}` : ''} — ₹${(i.price || 0) * (i.qty || 1)}`).join('\\n');
-    const _oDisc    = o.discount > 0 ? `\\n🎟️ Discount: −₹${o.discount}` : '';
-    const _oDel     = o.delivery_charge > 0 ? `\\n🚴 Delivery: ₹${o.delivery_charge}` : '';
+    const _oItems   = items.map(i => `• ${i.name}${i.size ? ` (${i.size})` : ''}${i.qty > 1 ? ` ×${i.qty}` : ''} — ₹${(i.price || 0) * (i.qty || 1)}`).join('\n');
+    const _oDisc    = o.discount > 0 ? `\n🎟️ Discount: −₹${o.discount}` : '';
+    const _oDel     = o.delivery_charge > 0 ? `\n🚴 Delivery: ₹${o.delivery_charge}` : '';
     const _oCoupon  = o.coupon_code ? ` (${o.coupon_code})` : '';
     const waMsg     = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n*Items:*\n${_oItems}${_oDisc}${_oDel}\n✅ *Total: ₹${ordAmt}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
+    const waMsgSub  = encodeURIComponent(`🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${o.customer_name || 'Customer'} | 📞 ${o.phone || ''}\n📍 ${o.address || 'Address on file'}\n\n*Items:*\n${_oItems}${_oDisc}${_oDel}\n✅ *Total: ₹${ordAmt}*\n\n⚠️ I am a subscriber but due to insufficient wallet balance, I want to pay via UPI. Please provide your UPI details. 🙏`);
+    const _tiffin   = (typeof CFG !== 'undefined' && CFG.TIFFIN) ? CFG.TIFFIN : ((typeof CFG !== 'undefined' && CFG.WA) ? CFG.WA : '919889760350');
     const payBadge = isWallet
-      ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
+      ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>
+         <button onclick="openWA('${_tiffin}', decodeURIComponent('${waMsgSub}'))" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+           <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Pay via UPI
+         </button>`
       : `<span class="ord-pay-badge">💵 Cash / UPI</span>
-         <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsg}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+         <button onclick="openWA('${_tiffin}', decodeURIComponent('${waMsg}'))" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
            <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
          </button>`;
 
