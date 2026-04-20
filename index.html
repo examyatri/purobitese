@@ -1636,6 +1636,7 @@ async function loadMenu() {
     const cache = Store.getJSON(_MENU_CACHE_KEY);
     const age   = cache ? Date.now() - cache.ts : Infinity;
     if (cache && age < _MENU_TTL) {
+      // Show cache instantly — zero network wait
       if (JSON.stringify(cache.data) !== JSON.stringify(_fullMenu)) {
         _fullMenu = cache.data || [];
         filterAndRenderMenu();
@@ -1645,7 +1646,9 @@ async function loadMenu() {
         _fullThalis = cache.thalis || [];
         renderThalis();
       }
-      _fetchFreshMenu().catch(() => {});
+      // Fetch fresh from DB in background — _menuLoading stays true
+      // until fetch completes so no duplicate fetch can fire in parallel
+      await _fetchFreshMenu().catch(() => {});
     } else {
       showMenuSkeletons();
       await _fetchFreshMenu();
@@ -1665,20 +1668,18 @@ async function _fetchFreshMenu() {
   ]);
   _khataEnabled = khataRes.enabled;
   applyKhataVisibility();
+  // Always update open/close banner — it depends on current time so must always refresh
   updateCutoffBanner(schedRes.schedule, currentISTHour(), cutoffRes.config);
   const newMenu   = menuRes.items   || [];
   const newThalis = thaliRes.thalis || [];
-  if (JSON.stringify(newMenu) !== JSON.stringify(_fullMenu)) {
-    _fullMenu = newMenu;
-    filterAndRenderMenu();
-    buildCategoryChips();
-    Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
-  }
-  if (JSON.stringify(newThalis) !== JSON.stringify(_fullThalis)) {
-    _fullThalis = newThalis;
-    renderThalis();
-    Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
-  }
+  // Always render — old equality check caused stale menu when cache matched DB
+  _fullMenu = newMenu;
+  filterAndRenderMenu();
+  buildCategoryChips();
+  _fullThalis = newThalis;
+  renderThalis();
+  // Always write fresh timestamp so polling TTL resets correctly
+  Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
 }
 
 function buildCategoryChips() {
@@ -2679,10 +2680,7 @@ async function _runPollTick() {
   const cur = document.querySelector('.pg.here')?.id;
   if (cur === 'pg-orders') loadOrders().catch(() => {});
   if (cur === 'pg-khata')  loadUserKhata().catch(() => {});  // real-time wallet update
-  if (cur === 'pg-home') {
-    const cache = Store.getJSON(_MENU_CACHE_KEY);
-    if (!cache || Date.now() - cache.ts > _MENU_TTL) loadMenu().catch(() => {});
-  }
+  if (cur === 'pg-home')   loadMenu().catch(() => {});        // always refresh menu + open/close on each tick
 }
 
 // Faster polling when wallet page is open (15s)
