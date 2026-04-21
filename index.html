@@ -1012,6 +1012,44 @@ let _khataAllEntries = [];
 const _POLL_NORMAL = 240000;  // 240s — normal background polling (PTR available for manual refresh)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
 const _MENU_TTL = 10 * 60 * 1000;
+
+/* ── Post-login silent background refresh ─────────────────────────────────
+   Fires ONCE per login session, chained after the initial loadMenu()
+   resolves — so it runs at the earliest possible moment (typically 1-2 s
+   on a normal connection) rather than a fixed hardcoded wait.
+   Logic:
+     • Fast-path (cached session): loadMenu() uses localStorage cache and
+       returns quickly. We chain a bypass-cache full refresh right after so
+       the user sees fresh data as soon as the first render settles.
+     • Slow-path (fresh login / auto-login): loadMenu() already hits the DB,
+       so the chain still fires — it refreshes wallet/pause/subscriber which
+       are NOT fetched by loadMenu() alone.
+   Guard flag: _postLoginRefreshDone prevents double-fire on bfcache restore
+   or any other re-entry while the session is still active.
+─────────────────────────────────────────────────────────────────────────── */
+let _postLoginRefreshDone = false;
+
+function _doPostLoginRefresh(initialMenuPromise) {
+  // Guard: only once per login session
+  if (_postLoginRefreshDone) return;
+  _postLoginRefreshDone = true;
+
+  // Chain onto the initial loadMenu() — fires the instant it completes
+  Promise.resolve(initialMenuPromise).then(async () => {
+    if (!_session) return; // user logged out before this resolved
+    try {
+      await Promise.all([
+        loadMenu(true).catch(() => {}),              // bypass cache → fresh menu
+        refreshPauseStatus(true).catch(() => {}),    // pause state from DB
+        refreshSubscriberStatus(true).catch(() => {}), // subscriber status from DB
+        (_session?.is_subscriber && _khataEnabled)
+          ? refreshWalletBalance(true).catch(() => {})
+          : Promise.resolve()
+      ]);
+    } catch {}
+    startPolling(); // reset 240 s poll timer from this point
+  }).catch(() => {});
+}
 let _stack = [];
 let _lastSchedule = null;
 let _lastCutoff   = null;
@@ -1666,8 +1704,9 @@ async function doLogin() {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
     });
     _transitionToHome();
-    loadMenu();
+    const _initMenuP3 = loadMenu();
     startPolling();
+    _doPostLoginRefresh(_initMenuP3); // chains after loadMenu resolves
   } catch(e) {
     // ❌ Login failed — replace status with clear error, re-enable button
     const isAuthError = e.message?.includes('Session invalid') ||
@@ -1726,8 +1765,9 @@ async function doSignup() {
     applyKhataVisibility();
     SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
     _transitionToHome();
-    loadMenu();
+    const _initMenuP4 = loadMenu();
     startPolling();
+    _doPostLoginRefresh(_initMenuP4); // chains after loadMenu resolves
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     setAuthStatus('signup-status', 'su-btn', '⚠️ ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
@@ -2984,14 +3024,19 @@ function scheduleSlotTransitions() {
     const delay = msUntil(mins);
     if (delay < 0) return; // already past today
     const t = setTimeout(async () => {
-      // Re-schedule for tomorrow if needed — but simply calling scheduleSlotTransitions
-      // after the menu reload will pick up tomorrow's schedule automatically.
-      if (document.querySelector('.pg.here')?.id === 'pg-home') {
-        await loadMenu(true).catch(() => {}); // force fresh fetch, update banner + menu
-      } else {
-        // Even if not on home tab, refresh in background so data is ready
-        await loadMenu(true).catch(() => {});
-      }
+      // Full silent refresh at slot boundary (lunch-start/end, dinner-start/end).
+      // Runs regardless of which tab is visible so data is always ready.
+      // Does NOT touch PTR spinners or any visible loading state.
+      if (!_session) return; // user logged out — nothing to refresh
+      try {
+        await Promise.all([
+          loadMenu(true).catch(() => {}),
+          refreshPauseStatus(true).catch(() => {}),
+          (_session?.is_subscriber && _khataEnabled)
+            ? refreshWalletBalance(true).catch(() => {})
+            : Promise.resolve()
+        ]);
+      } catch {}
       // Re-arm for the next day (in case user keeps app open overnight)
       setTimeout(() => scheduleSlotTransitions(), 2000);
     }, delay);
@@ -3140,8 +3185,9 @@ async function bootApp() {
 
     // Show home immediately — no loader, no "signing you in"
     _transitionToHome();
-    loadMenu();
+    const _initMenuP = loadMenu();
     startPolling();
+    _doPostLoginRefresh(_initMenuP); // chains after loadMenu resolves — earliest possible moment
 
     // BACKGROUND VERIFY — runs at most once every 48 hours (not on every refresh).
     // Like GitHub: silently checks the account is still valid, updates cache,
@@ -3256,8 +3302,9 @@ async function bootApp() {
         });
       });
     _transitionToHome();
-    loadMenu();
+    const _initMenuP2 = loadMenu();
     startPolling();
+    _doPostLoginRefresh(_initMenuP2); // chains after loadMenu resolves
   } catch(e) {
     // ❌ Auto-login failed — user is already on login screen
     const isAuthError = e.message?.includes('Session invalid') ||
@@ -3322,6 +3369,7 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
+  _postLoginRefreshDone = false; // reset so next login triggers a fresh background refresh
   Auth.clear();
   Creds.clear();
   SessionCache.clear();
