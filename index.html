@@ -2769,8 +2769,9 @@ function generateKhataPDF() {
   const fmtT = v => { if(!v) return ''; const d=new Date(v); return d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}); };
   const rangeLabel = from && to ? from + ' → ' + to : from ? 'From ' + from : to ? 'Up to ' + to : 'All Transactions';
   const rows = entries.map(e => {
-    const isC  = e.amount > 0 || (e.type||'').includes('recharge') || (e.type||'').includes('received');
-    const sign = isC ? '+' : '';
+    const typeLC = (e.type||'').toLowerCase();
+    const isC  = typeLC.includes('recharge') || typeLC.includes('received') || typeLC.includes('credit') || typeLC.includes('adjustment') || (typeLC === '' && e.amount > 0);
+    const sign = isC ? '+' : '-';
     const color= isC ? '#2a9d8f' : '#c1121f';
     const rowBg= isC ? '#f0faf8' : '#fff5f5';
     const label= (e.type||'entry').replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
