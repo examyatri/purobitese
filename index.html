@@ -1,4 +1,11 @@
 <!DOCTYPE html>
+<!-- ╔══════════════════════════════════════════════════════╗
+     ║  PuroBite / Tiffo — User App (index.html)           ║
+     ║  Version : v18.0                                    ║
+     ║  Updated : 2026-04-22                               ║
+     ║  Changes : Delivery zone check, signup polish,      ║
+     ║            outside-range hard block, layout fixes   ║
+     ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -99,21 +106,21 @@ textarea{resize:vertical;min-height:80px}
 .auth-sub{font-family:var(--fb);color:rgba(255,255,255,.8);font-size:14px;margin-top:4px}
 .auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:24px var(--pg-pad) calc(80px + env(safe-area-inset-bottom,0px));margin-top:-16px}
 /* Location verify section inside signup */
-.loc-section{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:14px;margin-top:4px;margin-bottom:16px}
-.loc-section-title{font-family:var(--ff);font-size:12px;font-weight:700;color:#334155;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.loc-btn{width:100%;padding:13px 14px;background:#1a1a2e;color:#fff;border:none;border-radius:12px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 200ms;min-height:48px}
-.loc-btn:disabled{opacity:.6;cursor:not-allowed}
+.loc-section{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:16px;padding:16px;margin-top:4px;margin-bottom:18px;overflow:hidden}
+.loc-section-title{font-family:var(--ff);font-size:12.5px;font-weight:700;color:#334155;margin-bottom:12px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.4px}
+.loc-btn{width:100%;padding:14px;background:#1a1a2e;color:#fff;border:none;border-radius:12px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 250ms,opacity 200ms;min-height:50px}
+.loc-btn:disabled{opacity:.55;cursor:not-allowed}
 .loc-btn.verified{background:#166534}
 .loc-btn.rejected{background:#991b1b}
-.loc-status{margin-top:10px;font-size:12.5px;font-family:var(--fb);padding:10px 12px;border-radius:10px;display:none;line-height:1.5;font-weight:500}
-.loc-map-wrap{margin-top:10px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
+.loc-status{margin-top:10px;font-size:12.5px;font-family:var(--fb);padding:11px 13px;border-radius:10px;display:none;line-height:1.55;font-weight:500}
+.loc-map-wrap{margin-top:12px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
 .loc-map-hdr{background:#0f172a;color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;font-family:var(--ff);display:flex;align-items:center;gap:6px}
 .loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
-.loc-finetune-btn{width:100%;padding:11px;background:#f1f5f9;border:none;border-top:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#0369a1;cursor:pointer;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:6px;transition:background 150ms}
+.loc-finetune-btn{width:100%;padding:12px;background:#f1f5f9;border:none;border-top:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#0369a1;cursor:pointer;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:6px;transition:background 150ms}
 .loc-finetune-btn:active{background:#e0f2fe}
-.loc-finetune-box{margin-top:10px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:14px}
-.loc-finetune-box .ft-title{font-size:13px;font-weight:700;color:#0369a1;margin-bottom:4px;font-family:var(--ff)}
-.loc-finetune-box .ft-hint{font-size:11.5px;color:#475569;margin-bottom:10px;font-family:var(--fb);line-height:1.5}
+.loc-finetune-box{margin-top:12px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:14px}
+.loc-finetune-box .ft-title{font-size:13px;font-weight:700;color:#0369a1;margin-bottom:5px;font-family:var(--ff)}
+.loc-finetune-box .ft-hint{font-size:11.5px;color:#475569;margin-bottom:12px;font-family:var(--fb);line-height:1.55;background:#e0f2fe;padding:8px 10px;border-radius:8px}
 .loc-finetune-row{display:flex;gap:8px;margin-bottom:10px}
 .loc-finetune-row input{flex:1;padding:11px 10px;border:1.5px solid #bae6fd;border-radius:10px;font-size:13px;font-family:var(--fb);background:#fff;outline:none;min-width:0}
 .loc-finetune-row input:focus{border-color:#0369a1;background:#fff}
@@ -438,7 +445,7 @@ textarea{resize:vertical;min-height:80px}
 
       <div class="form-group">
         <label>Full Name</label>
-        <input type="text" id="su-name" placeholder="Your name" autocomplete="name">
+        <input type="text" id="su-name" placeholder="Your full name" autocomplete="name">
         <div class="err-msg" id="su-name-err"></div>
       </div>
 
@@ -449,7 +456,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
 
       <div class="form-group">
-        <label>Email</label>
+        <label>Email <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
         <input type="email" id="su-email" placeholder="your@email.com" autocomplete="email" inputmode="email">
         <div class="err-msg" id="su-email-err"></div>
       </div>
@@ -463,32 +470,39 @@ textarea{resize:vertical;min-height:80px}
       <!-- ── Location Verify Card ── -->
       <div class="loc-section">
         <div class="loc-section-title">
-          <i class="fa fa-location-dot" style="color:#e63946;font-size:14px"></i>
-          Verify Your Delivery Location
+          <i class="fa fa-location-dot" style="color:#e63946"></i>
+          Verify Delivery Location
         </div>
+
+        <!-- Step 1: Detect button -->
         <button type="button" id="su-loc-btn" class="loc-btn" onclick="detectSignupLocation()">
           <i class="fa fa-location-crosshairs"></i>
           <span id="su-loc-btn-txt">Detect My Location</span>
         </button>
+
+        <!-- Status message (shown after detection) -->
         <div id="su-loc-status" class="loc-status"></div>
 
+        <!-- Step 2: Map + fine-tune (shown after GPS fires) -->
         <div id="su-map-pin-area" style="display:none">
           <div class="loc-map-wrap">
             <div class="loc-map-hdr">
-              <i class="fa fa-map-pin"></i> Your detected location
+              <i class="fa fa-map-pin"></i>&nbsp;Your detected location
             </div>
-            <iframe id="su-map-iframe" style="width:100%;height:190px;border:none;display:block" loading="lazy"></iframe>
-            <div class="loc-map-hint">📌 Not your exact spot? Tap <b>Adjust Pin</b> to correct it.</div>
+            <iframe id="su-map-iframe" style="width:100%;height:200px;border:none;display:block" loading="lazy"></iframe>
+            <div class="loc-map-hint">📌 Pin not exactly right? Tap <b>Adjust Pin</b> below.</div>
             <button type="button" class="loc-finetune-btn" onclick="_openFineTune()">
-              <i class="fa fa-pen-to-square"></i> Adjust Pin
+              <i class="fa fa-pen-to-square"></i>&nbsp;Adjust Pin
             </button>
           </div>
+
+          <!-- Fine-tune box (hidden until Adjust Pin tapped) -->
           <div id="su-finetune-area" class="loc-finetune-box" style="display:none">
-            <div class="ft-title">🎯 Enter exact coordinates</div>
-            <div class="ft-hint">Open Google Maps → long-press your home → copy the numbers shown at the top (e.g. 26.8467, 80.9462).</div>
+            <div class="ft-title">🎯 Enter Exact Coordinates</div>
+            <div class="ft-hint">Open Google Maps → Long-press your home → Copy the two numbers shown at top (e.g. <b>26.8467, 80.9462</b>)</div>
             <div class="loc-finetune-row">
-              <input type="text" inputmode="decimal" id="ft-lat" placeholder="Latitude (e.g. 26.8467)">
-              <input type="text" inputmode="decimal" id="ft-lng" placeholder="Longitude (e.g. 80.9462)">
+              <input type="text" inputmode="decimal" id="ft-lat" placeholder="Latitude (26.8467)">
+              <input type="text" inputmode="decimal" id="ft-lng" placeholder="Longitude (80.9462)">
             </div>
             <button type="button" class="loc-confirm-btn" onclick="_confirmFineTune()">✅ Confirm This Location</button>
           </div>
@@ -508,7 +522,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="err-msg" id="su-pw-err"></div>
       </div>
 
-      <div style="margin-top:6px;padding-bottom:8px">
+      <div style="margin-top:8px;padding-bottom:12px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
         <button class="btn-primary" id="su-btn" onclick="doSignup()">Create Account</button>
       </div>
@@ -1966,16 +1980,25 @@ async function doSignup() {
 
   setErr('su-name-err',  !name ? 'Name is required' : '');
   setErr('su-phone-err', !phone || phone.length !== 10 ? 'Enter valid 10-digit number' : '');
-  setErr('su-email-err', !email || !/^[^@]+@[^@]+\.[^@]+$/.test(email) ? 'Enter valid email' : '');
+  setErr('su-email-err', email && !/^[^@]+@[^@]+\.[^@]+$/.test(email) ? 'Enter a valid email address' : '');
   setErr('su-addr-err',  !address ? 'Address is required' : '');
   setErr('su-pw-err',    !pw || pw.length < 6 ? 'Password must be 6+ characters' : '');
 
   if (!locOk) {
     const locStatus = document.getElementById('su-loc-status');
     locStatus.style.display = 'block';
-    locStatus.textContent = '⚠️ Please verify your location first using the button above.';
-    locStatus.style.background = '#fef9c3';
-    locStatus.style.color = '#854d0e';
+    // If location was detected but outside range — show hard block message
+    const su_lat = document.getElementById('su-lat').value;
+    const locBtnTxt = document.getElementById('su-loc-btn-txt').textContent;
+    if (su_lat && locBtnTxt.includes('Outside')) {
+      locStatus.textContent = '🚫 Sorry! Your location is outside our delivery area. We are unable to register accounts from this area at this time.';
+      locStatus.style.background = '#fee2e2';
+      locStatus.style.color = '#991b1b';
+    } else {
+      locStatus.textContent = '📍 Please tap "Detect My Location" to verify your delivery area first.';
+      locStatus.style.background = '#fef9c3';
+      locStatus.style.color = '#854d0e';
+    }
     valid = false;
   }
 
@@ -2933,7 +2956,11 @@ function renderUserKhataList(entries) {
   const sorted = [...entries].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   list.innerHTML = sorted.map(e => {
     const typeStr = (e.type||'entry');
-    const isCredit = typeStr.includes('recharge') || typeStr.includes('received') || typeStr.includes('credit') || typeStr.includes('adjustment') || (typeStr === '' && e.amount > 0);
+    // Primary truth: amount sign (positive = money came in = credit)
+    // Secondary: explicit type keywords override when amount is ambiguous
+    const isDebitType   = typeStr === 'debit' || typeStr === 'tiffin_given' || typeStr === 'tiffin_udhar' || typeStr === 'order';
+    const isCreditType  = typeStr === 'recharge' || typeStr === 'adjustment' || typeStr === 'received' || typeStr.startsWith('credit');
+    const isCredit = isCreditType ? true : isDebitType ? false : (e.amount > 0);
     const cls  = isCredit ? 'credit' : 'debit';
     const icon = isCredit ? '&#x1F4B0;' : '&#x1F371;';
     const sign = isCredit ? '+' : '-';
@@ -2999,7 +3026,9 @@ function generateKhataPDF() {
   const rangeLabel = from && to ? from + ' → ' + to : from ? 'From ' + from : to ? 'Up to ' + to : 'All Transactions';
   const rows = entries.map(e => {
     const typeLC = (e.type||'').toLowerCase();
-    const isC  = typeLC.includes('recharge') || typeLC.includes('received') || typeLC.includes('credit') || typeLC.includes('adjustment') || (typeLC === '' && e.amount > 0);
+    const isDebitT  = typeLC === 'debit' || typeLC === 'tiffin_given' || typeLC === 'tiffin_udhar' || typeLC === 'order';
+    const isCreditT = typeLC === 'recharge' || typeLC === 'adjustment' || typeLC === 'received' || typeLC.startsWith('credit');
+    const isC  = isCreditT ? true : isDebitT ? false : (e.amount > 0);
     const sign = isC ? '+' : '-';
     const color= isC ? '#2a9d8f' : '#c1121f';
     const rowBg= isC ? '#f0faf8' : '#fff5f5';
