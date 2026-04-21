@@ -3385,7 +3385,10 @@ async function bootApp() {
       }
     } catch(_) {}
     // 3. Clear all localStorage (session, menu cache, etc.) — fresh start
+    //    Preserve credentials so returning users auto-recover to login, not signup
+    const savedCreds = localStorage.getItem('tf_creds');
     localStorage.clear();
+    if (savedCreds) localStorage.setItem('tf_creds', savedCreds);
     // 4. Write new version before reload so we don't loop
     localStorage.setItem('pb_app_version', APP_VERSION);
     // 5. Hard reload — browser fetches all files fresh from network
