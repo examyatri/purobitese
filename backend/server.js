@@ -1485,6 +1485,22 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
+      case 'getDeliveryZone': {
+        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'delivery_zone').single();
+        let zone = null;
+        if (row?.value) { try { zone = JSON.parse(row.value); } catch { zone = null; } }
+        return res.json({ success: true, zone });
+      }
+
+      case 'setDeliveryZone': {
+        const zone = { lat: parseFloat(data.lat), lng: parseFloat(data.lng), radiusKm: parseFloat(data.radiusKm) };
+        if (isNaN(zone.lat) || isNaN(zone.lng) || isNaN(zone.radiusKm) || zone.radiusKm <= 0) {
+          return res.json({ success: false, error: 'Invalid zone data' });
+        }
+        await supabase.from('admin_settings').upsert({ key: 'delivery_zone', value: JSON.stringify(zone), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        return res.json({ success: true });
+      }
+
       // ── ANALYTICS ─────────────────────────────────────────────────────────
 
       case 'getAnalytics': {
@@ -1840,7 +1856,8 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, settings: {
             cutoff:         map['order_cutoff_config'] || {},
             weeklySchedule: map['weekly_schedule']     || [],
-            khataEnabled:   map['khata_enabled']       !== false
+            khataEnabled:   map['khata_enabled']       !== false,
+            deliveryZone:   map['delivery_zone']       || null
           }}); }
 
       case 'adminResetUserPassword':
