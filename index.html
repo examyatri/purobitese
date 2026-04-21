@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#e63946">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -119,23 +116,10 @@ textarea{resize:vertical;min-height:80px}
 .home-logo-sub{font-family:var(--fb);font-size:11px;color:var(--gr)}
 .avatar-btn{width:38px;height:38px;border-radius:50%;background:var(--grad);border:none;color:#fff;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center}
 .pro-badge{position:absolute;bottom:-3px;right:-3px;background:#ffd166;color:#7c5a00;font-family:var(--ff);font-size:8px;font-weight:700;border-radius:4px;padding:1px 3px}
-/* ── GLOBAL PROGRESS BAR (FB Lite / Twitter style) ── */
-#g-progress-bar{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:540px;height:3px;z-index:10000;pointer-events:none;background:transparent}
-#g-progress-bar .gp-track{position:absolute;top:0;left:0;height:100%;background:transparent;width:100%}
-#g-progress-bar .gp-fill{position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,var(--p),#ff6b35);border-radius:0 3px 3px 0;transition:width 0ms linear;box-shadow:0 0 8px rgba(230,57,70,.5)}
-#g-progress-bar .gp-pct{position:absolute;top:4px;right:8px;font-family:var(--ff);font-size:10px;font-weight:700;color:var(--p);opacity:0;transition:opacity 200ms;background:rgba(255,255,255,.92);border-radius:8px;padding:1px 6px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
 /* Pull to refresh */
-#ptr-zone{text-align:center;padding:0;height:0;overflow:hidden;transition:height 200ms;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--gr);gap:2px}
-.ptr-prog-wrap{width:80%;max-width:260px;display:none;flex-direction:column;align-items:center;gap:3px}
-.ptr-prog-track{width:100%;height:3px;background:#f0f0f0;border-radius:3px;overflow:hidden}
-.ptr-prog-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--p),#ff6b35);border-radius:3px;transition:width 300ms ease}
-.ptr-prog-pct{font-family:var(--ff);font-size:11px;font-weight:700;color:var(--p)}
+#ptr-zone{text-align:center;padding:0;height:0;overflow:hidden;transition:height 200ms;display:flex;align-items:center;justify-content:center;color:var(--gr)}
 #ptr-arrow{transition:transform 300ms;font-size:18px;display:inline-block}
 #ptr-spinner{display:none;width:20px;height:20px;border:2px solid #f0f0f0;border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
-/* Button progress bar */
-.btn-primary{position:relative;overflow:hidden}
-.btn-prog{position:absolute;bottom:0;left:0;height:3px;width:0%;background:rgba(255,255,255,.6);border-radius:0;transition:width 300ms ease;pointer-events:none}
-.btn-prog-pct{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-family:var(--ff);font-size:11px;font-weight:700;color:rgba(255,255,255,.9);pointer-events:none;display:none}
 /* Pause toggle */
 .pause-row{background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:10px;border:2px solid transparent;transition:border-color 250ms,background 250ms}
 .pause-row.paused{border-color:var(--pd);background:#fff8f8}
@@ -204,14 +188,13 @@ textarea{resize:vertical;min-height:80px}
 .veg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#2a9d8f;display:block}
 .nonveg-dot{width:16px;height:16px;border:1.5px solid #c1121f;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .nonveg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#c1121f;display:block}
+.slot-badge{display:inline-block;font-family:var(--fb);font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;margin-top:4px;letter-spacing:.2px}
+.slot-badge-morning{background:#fff8e7;color:#b45309;border:1px solid #fde68a}
+.slot-badge-evening{background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe}
+.slot-badge-both{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
 /* Highlight badge – Zomato style top-left */
 .highlight-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--ff);font-size:10px;font-weight:700;color:#f4591d;letter-spacing:.3px;margin-bottom:2px}
 .highlight-badge i{font-size:9px}
-/* Session badge on menu cards */
-.session-badge{display:inline-flex;align-items:center;gap:3px;font-family:var(--fb);font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;margin-bottom:4px;letter-spacing:.2px}
-.session-badge.morning{background:#fff3cd;color:#8a6200}
-.session-badge.evening{background:#e8f0fe;color:#1a56db}
-.session-badge.both{background:#f0fdf4;color:#166534}
 /* Add-btn below image */
 .img-add-btn{border:none;background:#fff;color:var(--g);border-radius:8px;padding:5px 14px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;border:2px solid var(--g);width:96px;white-space:nowrap}
 .img-add-btn:hover{background:var(--g);color:#fff}
@@ -387,8 +370,6 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <div id="toast"></div>
-<!-- Global Progress Bar — PTR + button actions -->
-<div id="g-progress-bar"><div class="gp-track"></div><div class="gp-fill" id="gp-fill"></div><div class="gp-pct" id="gp-pct"></div></div>
 <div id="coupon-celebrate"></div>
 <div id="cart-pill"></div>
 <div id="sheet-backdrop" class="backdrop" onclick="closeAllSheets()"></div>
@@ -423,7 +404,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
       <button class="forgot-link" onclick="forgotPw()">Forgot Password?</button>
       <div class="mt16">
-        <button class="btn-primary" id="login-btn" onclick="doLogin()">Login<div class="btn-prog" id="bp-login"></div><span class="btn-prog-pct" id="bpp-login"></span></button>
+        <button class="btn-primary" id="login-btn" onclick="doLogin()">Login</button>
       </div>
     </div>
 
@@ -458,7 +439,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="err-msg" id="su-pw-err"></div>
       </div>
       <div class="mt4">
-        <button class="btn-primary" id="su-btn" onclick="doSignup()">Create Account<div class="btn-prog" id="bp-signup"></div><span class="btn-prog-pct" id="bpp-signup"></span></button>
+        <button class="btn-primary" id="su-btn" onclick="doSignup()">Create Account</button>
       </div>
     </div>
   </div>
@@ -488,11 +469,9 @@ textarea{resize:vertical;min-height:80px}
   <div class="pg-scroll" id="home-scroll">
     <!-- Pull to refresh -->
     <div id="ptr-zone">
-      <div id="ptr-arrow">↓</div>
-      <div id="ptr-spinner"></div>
-      <div class="ptr-prog-wrap" id="ptr-prog-wrap-home">
-        <div class="ptr-prog-track"><div class="ptr-prog-fill" id="ptr-prog-fill-home"></div></div>
-        <div class="ptr-prog-pct" id="ptr-prog-pct-home">0%</div>
+      <div>
+        <div id="ptr-arrow">↓</div>
+        <div id="ptr-spinner"></div>
       </div>
     </div>
 
@@ -596,7 +575,7 @@ textarea{resize:vertical;min-height:80px}
         </div>
 
         <div class="mt4">
-          <button class="btn-primary" id="place-order-btn" onclick="placeOrder()">Place Order 🚀<div class="btn-prog" id="bp-order"></div><span class="btn-prog-pct" id="bpp-order"></span></button>
+          <button class="btn-primary" id="place-order-btn" onclick="placeOrder()">Place Order 🚀</button>
         </div>
         <div style="height:20px"></div>
       </div>
@@ -667,10 +646,10 @@ textarea{resize:vertical;min-height:80px}
       <div style="font-family:var(--ff);font-weight:600;font-size:13px;color:var(--g);margin-bottom:4px">🚀 Estimated Delivery</div>
       <div id="si-delivery-time" style="font-family:var(--fb);font-size:14px;color:var(--dk)"></div>
     </div>
-    <div style="background:#fff3cd;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:13px;color:#856404">
-      ⚠️ Wallet balance was insufficient. Please pay via UPI and send your payment screenshot on WhatsApp to confirm delivery.
+    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:13px;color:#856404">
+      ⚠️ Your wallet balance was insufficient. Please pay via UPI and send the screenshot on WhatsApp to confirm your order.
     </div>
-    <button class="wa-btn" id="si-wa-btn" style="display:none">
+    <button class="wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
       <i class="fa-brands fa-whatsapp"></i> Click Here To Pay &amp; Send Screenshot
     </button>
     <div class="flex gap8 w100">
@@ -689,16 +668,10 @@ textarea{resize:vertical;min-height:80px}
     <div class="pg-title">My Orders</div>
   </div>
   <div class="pg-scroll" id="orders-scroll">
-    <div id="ptr-zone-orders" style="height:0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:height 200ms;color:var(--gr);font-size:13px;font-family:var(--fb);gap:2px">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span id="ptr-arrow-orders" style="display:inline-block;transition:transform 200ms">↓</span>
-        <span id="ptr-spinner-orders" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i></span>
-        <span id="ptr-txt-orders">Pull to refresh</span>
-      </div>
-      <div class="ptr-prog-wrap" id="ptr-prog-wrap-orders">
-        <div class="ptr-prog-track"><div class="ptr-prog-fill" id="ptr-prog-fill-orders"></div></div>
-        <div class="ptr-prog-pct" id="ptr-prog-pct-orders">0%</div>
-      </div>
+    <div id="ptr-zone-orders" style="height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:height 200ms;color:var(--gr);font-size:13px;font-family:var(--fb)">
+      <span id="ptr-arrow-orders" style="display:inline-block;transition:transform 200ms">↓</span>
+      <span id="ptr-spinner-orders" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i></span>
+      <span style="margin-left:6px">Pull to refresh</span>
     </div>
     <div style="padding:0 var(--pg-pad)">
       <div id="orders-loading" class="mt16" style="display:none">
@@ -806,16 +779,10 @@ textarea{resize:vertical;min-height:80px}
     <button id="khata-refresh-btn" onclick="loadUserKhata()" style="border:none;background:#f5f5f5;width:34px;height:34px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gr);font-size:15px"><i class="fa-solid fa-rotate-right"></i></button>
   </div>
   <div class="pg-scroll" id="khata-scroll">
-    <div id="ptr-zone-khata" style="height:0;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:height 200ms;color:var(--gr);font-size:13px;font-family:var(--fb);gap:2px">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span id="ptr-arrow-khata" style="display:inline-block;transition:transform 200ms">↓</span>
-        <span id="ptr-spinner-khata" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i></span>
-        <span id="ptr-txt-khata">Pull to refresh</span>
-      </div>
-      <div class="ptr-prog-wrap" id="ptr-prog-wrap-khata">
-        <div class="ptr-prog-track"><div class="ptr-prog-fill" id="ptr-prog-fill-khata"></div></div>
-        <div class="ptr-prog-pct" id="ptr-prog-pct-khata">0%</div>
-      </div>
+    <div id="ptr-zone-khata" style="height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:height 200ms;color:var(--gr);font-size:13px;font-family:var(--fb)">
+      <span id="ptr-arrow-khata" style="display:inline-block;transition:transform 200ms">↓</span>
+      <span id="ptr-spinner-khata" style="display:none"><i class="fa-solid fa-spinner fa-spin"></i></span>
+      <span style="margin-left:6px">Pull to refresh</span>
     </div>
     <div style="padding:var(--pg-pad)">
       <!-- Balance card -->
@@ -1004,14 +971,6 @@ const CFG = {
   TIFFIN: '919889760350'
 };
 
-/* ─── APP VERSION ─────────────────────────────────────────────────────────
-   Bump this string (e.g. 'v18', 'v18.1') every time you push a breaking
-   change to GitHub. On the next open, the app detects the mismatch, wipes
-   the SW cache + localStorage, and reloads fresh — zero user action needed.
-   Only bump when you need cache cleared; routine pushes don't require it.
-──────────────────────────────────────────────────────────────────────────── */
-const APP_VERSION = 'v18';
-
 /* ═══════════════════════════════════════════
    GLOBAL STATE
 ═══════════════════════════════════════════ */
@@ -1045,9 +1004,9 @@ let _lastKhataStr = null;
 let _lastPauseMode = null;
 let _pollTimer   = null;
 let _khataAllEntries = [];
-const _POLL_NORMAL = 300000;  // 300s — background safety-net poll (PTR = instant fresh data anytime)
+const _POLL_NORMAL = 240000;  // 240s — normal background polling (PTR available for manual refresh)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
-const _MENU_TTL = 0; // No stale wait — cache shown instantly, DB always fetched fresh in background
+const _MENU_TTL = 10 * 60 * 1000;
 let _stack = [];
 let _lastSchedule = null;
 let _lastCutoff   = null;
@@ -1110,7 +1069,7 @@ const SessionCache = {
   }
 };
 
-async function api(action, data = {}, _retry = 1, _onRetry = null) {
+async function api(action, data = {}, _retry = 1) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 22000);
   try {
@@ -1125,8 +1084,7 @@ async function api(action, data = {}, _retry = 1, _onRetry = null) {
     return json;
   } catch(e) {
     if (_retry > 0 && (e.name === 'AbortError' || e.name === 'TypeError')) {
-      if (_onRetry) _onRetry();   // notify progress bar of retry
-      return api(action, data, _retry - 1, _onRetry);
+      return api(action, data, _retry - 1);
     }
     throw e;
   } finally {
@@ -1299,6 +1257,7 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
   if (!useSchedule && !useCutoff) return;
   _lastSchedule = useSchedule;
   _lastCutoff   = rawCutoff || null;
+  scheduleSlotTransitions(); // arm auto-refresh timers for slot transitions
   const state  = calcOrderState(useSchedule, currentH, useCutoff);
   const banner = document.getElementById('cutoff-banner');
   const btn    = document.getElementById('place-order-btn');
@@ -1386,192 +1345,16 @@ function toast(msg, duration = 3000) {
   t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
-/* ═══════════════════════════════════════════
-   PROGRESS BAR ENGINE (FB Lite / Twitter style)
-═══════════════════════════════════════════ */
-const PB = (() => {
-  let _gpTimer = null, _gpPct = 0, _gpDone = false;
-  let _bpTimers = {};
-
-  /* GLOBAL TOP BAR — used by PTR */
-  function gpShow() {
-    const fill = document.getElementById('gp-fill');
-    const pctEl = document.getElementById('gp-pct');
-    if (!fill) return;
-    _gpDone = false; _gpPct = 0;
-    clearInterval(_gpTimer);
-    fill.style.transition = 'none';
-    fill.style.width = '0%';
-    fill.style.opacity = '1';
-    fill.style.background = 'linear-gradient(90deg,var(--p),#ff6b35)';
-    if (pctEl) { pctEl.style.opacity = '1'; pctEl.textContent = '0%'; }
-    requestAnimationFrame(() => {
-      fill.style.transition = 'width 400ms ease';
-      fill.style.width = '15%'; _gpPct = 15;
-      _gpTimer = setInterval(() => {
-        if (_gpDone) return;
-        const step = Math.max(0.4, (88 - _gpPct) * 0.04);
-        _gpPct = Math.min(88, _gpPct + step);
-        fill.style.transition = 'width 600ms ease';
-        fill.style.width = _gpPct + '%';
-        if (pctEl) pctEl.textContent = Math.round(_gpPct) + '%';
-      }, 600);
-    });
-  }
-  function gpDone() {
-    _gpDone = true; clearInterval(_gpTimer);
-    const fill = document.getElementById('gp-fill');
-    const pctEl = document.getElementById('gp-pct');
-    if (!fill) return;
-    fill.style.transition = 'width 280ms ease';
-    fill.style.width = '100%';
-    if (pctEl) pctEl.textContent = '100%';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 350ms ease';
-      fill.style.opacity = '0';
-      if (pctEl) pctEl.style.opacity = '0';
-      setTimeout(() => {
-        fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1';
-        if (pctEl) { pctEl.style.opacity = '0'; }
-      }, 450);
-    }, 320);
-  }
-  function gpError() {
-    clearInterval(_gpTimer);
-    const fill = document.getElementById('gp-fill');
-    if (!fill) return;
-    fill.style.background = '#ef4444';
-    setTimeout(() => { fill.style.transition = 'opacity 400ms ease'; fill.style.opacity = '0';
-      setTimeout(() => { fill.style.transition = 'none'; fill.style.width = '0%';
-        fill.style.opacity = '1'; fill.style.background = 'linear-gradient(90deg,var(--p),#ff6b35)';
-        const pctEl = document.getElementById('gp-pct'); if (pctEl) pctEl.style.opacity = '0';
-      }, 450); }, 550);
-  }
-
-  /* PTR ZONE BAR — inside pull-to-refresh zone */
-  function ptrStart(fillId, pctId, wrapId) {
-    const fill = document.getElementById(fillId);
-    const pctEl = document.getElementById(pctId);
-    const wrap = document.getElementById(wrapId);
-    if (!fill) return;
-    if (wrap) wrap.style.display = 'flex';
-    clearInterval(fill._ptrTimer);
-    fill.style.transition = 'none'; fill.style.width = '0%';
-    if (pctEl) pctEl.textContent = '0%';
-    let pct = 0;
-    fill._ptrTimer = setInterval(() => {
-      const step = Math.max(0.5, (88 - pct) * 0.045);
-      pct = Math.min(88, pct + step);
-      fill.style.transition = 'width 500ms ease'; fill.style.width = pct + '%';
-      if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-    }, 500);
-  }
-  function ptrDone(fillId, pctId, wrapId) {
-    const fill = document.getElementById(fillId);
-    const pctEl = document.getElementById(pctId);
-    const wrap = document.getElementById(wrapId);
-    if (!fill) return;
-    clearInterval(fill._ptrTimer);
-    fill.style.transition = 'width 220ms ease'; fill.style.width = '100%';
-    if (pctEl) pctEl.textContent = '100%';
-    setTimeout(() => {
-      if (wrap) wrap.style.display = 'none';
-      fill.style.transition = 'none'; fill.style.width = '0%';
-      if (pctEl) pctEl.textContent = '0%';
-    }, 480);
-  }
-
-  /* BUTTON BAR — inside buttons (login, signup, place order) */
-  function btnStart(fillId, pctId) {
-    const fill = document.getElementById(fillId);
-    const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.transition = 'none'; fill.style.width = '0%';
-    fill.style.background = 'rgba(255,255,255,.55)'; fill.style.opacity = '1';
-    if (pctEl) { pctEl.style.display = 'inline'; pctEl.textContent = '0%'; }
-    let pct = 0;
-    _bpTimers[fillId] = setInterval(() => {
-      if (pct >= 48) { clearInterval(_bpTimers[fillId]); return; }
-      const step = Math.max(0.8, (48 - pct) * 0.07);
-      pct = Math.min(48, pct + step);
-      fill.style.transition = 'width 380ms ease'; fill.style.width = pct + '%';
-      if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-      fill._bpPct = pct;
-    }, 350);
-    fill._bpPct = 0;
-  }
-  function btnRetry(fillId, pctId) {
-    const fill = document.getElementById(fillId);
-    const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.background = 'rgba(255,170,0,.65)';
-    setTimeout(() => {
-      fill.style.background = 'rgba(255,255,255,.55)';
-      let pct = fill._bpPct || 48;
-      _bpTimers[fillId] = setInterval(() => {
-        if (pct >= 80) { clearInterval(_bpTimers[fillId]); return; }
-        const step = Math.max(0.3, (80 - pct) * 0.03);
-        pct = Math.min(80, pct + step);
-        fill.style.transition = 'width 500ms ease'; fill.style.width = pct + '%';
-        if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-        fill._bpPct = pct;
-      }, 600);
-    }, 400);
-  }
-  function btnDone(fillId, pctId) {
-    const fill = document.getElementById(fillId);
-    const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.transition = 'width 180ms ease'; fill.style.width = '100%';
-    if (pctEl) pctEl.textContent = '100%';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 300ms ease'; fill.style.opacity = '0';
-      setTimeout(() => {
-        fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1';
-        if (pctEl) { pctEl.style.display = 'none'; pctEl.textContent = ''; }
-      }, 400);
-    }, 280);
-  }
-  function btnError(fillId, pctId) {
-    const fill = document.getElementById(fillId);
-    const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.background = 'rgba(239,68,68,.65)';
-    fill.style.transition = 'width 120ms ease'; fill.style.width = '100%';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 400ms ease'; fill.style.opacity = '0';
-      setTimeout(() => {
-        fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1';
-        fill.style.background = 'rgba(255,255,255,.55)';
-        if (pctEl) { pctEl.style.display = 'none'; pctEl.textContent = ''; }
-      }, 500);
-    }, 480);
-  }
-
-  return { gpShow, gpDone, gpError, ptrStart, ptrDone, btnStart, btnRetry, btnDone, btnError };
-})();
-
 function setLoading(btnId, on) {
   const btn = document.getElementById(btnId);
   if (!btn) return;
-  const progMap = {
-    'login-btn':       ['bp-login',  'bpp-login'],
-    'su-btn':          ['bp-signup', 'bpp-signup'],
-    'place-order-btn': ['bp-order',  'bpp-order'],
-  };
-  const [fillId, pctId] = progMap[btnId] || [null, null];
   if (on) {
+    btn.dataset.orig = btn.innerHTML;
+    btn.innerHTML = '<svg style="display:inline-block;vertical-align:middle;animation:spin 0.7s linear infinite" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-opacity="0.3" stroke-width="2.5"/><path d="M10 2a8 8 0 0 1 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
     btn.disabled = true;
-    btn.style.opacity = '0.88';
-    if (fillId) PB.btnStart(fillId, pctId);
   } else {
+    btn.innerHTML = btn.dataset.orig || btn.innerHTML;
     btn.disabled = false;
-    btn.style.opacity = '';
-    if (fillId) PB.btnDone(fillId, pctId);
   }
 }
 
@@ -1586,6 +1369,11 @@ function openWA(phone, msg) {
 
 /* Order-tab WA messages stored by orderId to avoid embedding encoded URLs in onclick attributes */
 const _orderWAMap = {};
+let _insufWAData = null; // holds { phone, msg } for the pg-success-insuf WA button
+function sendInsufWA() {
+  if (!_insufWAData) return;
+  openWA(_insufWAData.phone, _insufWAData.msg);
+}
 function sendOrderWA(orderId) {
   const entry = _orderWAMap[orderId];
   if (!entry) return;
@@ -1767,7 +1555,7 @@ function back() {
 // popstate handled at bottom of script
 
 function onEnter(id) {
-  if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); startSlotRefresh(); }
+  if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
   if (id === 'pg-orders')  loadOrders(true);   // always force fresh render when tab opened
   if (id === 'pg-khata')   loadUserKhata(true); // always force fresh render when tab opened
   if (id === 'pg-cart')    renderCart();
@@ -1830,12 +1618,10 @@ async function doLogin() {
   setLoading('login-btn', true);
   toast('⚙️ Setting up your diet preferences… just a moment!', 4000);
   try {
-    const res = await api('login', { phone, password: pw }, 1,
-      () => PB.btnRetry('bp-login', 'bpp-login')   // on retry → orange flash + crawl
-    );
-    PB.btnDone('bp-login', 'bpp-login');
+    const res = await api('login', { phone, password: pw });
     Creds.save(phone, pw);
     Auth.set(res.user);
+    // Reset wrong-creds hint styling if it was shown
     const _hint = document.getElementById('login-creds-hint');
     if (_hint) { _hint.style.display = 'none'; _hint.style.background = ''; _hint.style.color = ''; }
     _session.is_subscriber = !!res.subscriber;
@@ -1846,6 +1632,7 @@ async function doLogin() {
     api('getKhataEnabled').then(r => {
       _khataEnabled = r.enabled;
       applyKhataVisibility();
+      // Save full session snapshot after khata state is known
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
     }).catch(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
@@ -1853,9 +1640,6 @@ async function doLogin() {
     _transitionToHome();
     loadMenu();
     startPolling();
-  } catch(e) {
-    PB.btnError('bp-login', 'bpp-login');
-    toast(e.message || 'Login failed. Try again.');
   } finally {
     setLoading('login-btn', false);
   }
@@ -1885,10 +1669,7 @@ async function doSignup() {
   setLoading('su-btn', true);
   toast('⚙️ Setting up your diet preferences… just a moment!', 5000);
   try {
-    const res = await api('signup', { name, phone, email, address, password: pw }, 1,
-      () => PB.btnRetry('bp-signup', 'bpp-signup')
-    );
-    PB.btnDone('bp-signup', 'bpp-signup');
+    const res = await api('signup', { name, phone, email, address, password: pw });
     Creds.save(phone, pw);
     Auth.set(res.user);
     _session.is_subscriber = false;
@@ -1901,7 +1682,6 @@ async function doSignup() {
     startPolling();
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
-    PB.btnError('bp-signup', 'bpp-signup');
     toast(e.message || 'Signup failed. Try again.');
   } finally {
     setLoading('su-btn', false);
@@ -1927,14 +1707,15 @@ async function loadMenu(bypassCache = false) {
   _menuLoading = true;
   try {
     if (bypassCache) {
-      // PTR: clear cache, show skeletons, fetch fresh from DB, then update local
+      // PTR: always fetch fresh from DB, never show cache
       showMenuSkeletons();
-      Store.remove(_MENU_CACHE_KEY);
-      await _fetchFreshMenu(); // _fetchFreshMenu always saves to localStorage after fetch
+      Store.remove(_MENU_CACHE_KEY); // clear cache so next normal load also gets fresh
+      await _fetchFreshMenu();
     } else {
       const cache = Store.getJSON(_MENU_CACHE_KEY);
-      if (cache) {
-        // Show local cache instantly — zero network wait
+      const age   = cache ? Date.now() - cache.ts : Infinity;
+      if (cache && age < _MENU_TTL) {
+        // Show cache instantly — zero network wait
         if (JSON.stringify(cache.data) !== JSON.stringify(_fullMenu)) {
           _fullMenu = cache.data || [];
           filterAndRenderMenu();
@@ -1944,10 +1725,9 @@ async function loadMenu(bypassCache = false) {
           _fullThalis = cache.thalis || [];
           renderThalis();
         }
-        // Always fetch fresh from DB in background and update local — no 10-min wait
-        _fetchFreshMenu().catch(() => {});
+        // Fetch fresh from DB in background
+        await _fetchFreshMenu().catch(() => {});
       } else {
-        // No local data — show skeleton and wait for DB
         showMenuSkeletons();
         await _fetchFreshMenu();
       }
@@ -1979,9 +1759,6 @@ async function _fetchFreshMenu() {
   renderThalis();
   // Always write fresh timestamp so polling TTL resets correctly
   Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
-  // Re-arm slot refresh — schedule data is now fresh, recalculate next boundary
-  const curPage = document.querySelector('.pg.here')?.id;
-  if (curPage === 'pg-home') { stopSlotRefresh(); startSlotRefresh(); }
 }
 
 function buildCategoryChips() {
@@ -2064,17 +1841,16 @@ function getHighlightBadge(item) {
   return '';
 }
 
-function getSessionBadge(item) {
-  const ms = item.meal_session || 'both';
-  if (ms === 'morning') return '<div class="session-badge morning">☀️ Morning</div>';
-  if (ms === 'evening') return '<div class="session-badge evening">🌙 Evening</div>';
-  if (ms === 'both')    return '<div class="session-badge both">☀️🌙 Both</div>';
-  return '';
-}
-
 function getVegDot(item) {
   if (!item.veg_type || item.veg_type === 'veg') return '<div class="veg-dot"></div>';
   return '<div class="nonveg-dot"></div>';
+}
+
+function getSlotBadge(item) {
+  const ms = item.meal_session || 'both';
+  if (ms === 'morning') return '<span class="slot-badge slot-badge-morning">☀️ Morning</span>';
+  if (ms === 'evening') return '<span class="slot-badge slot-badge-evening">🌙 Evening</span>';
+  return '<span class="slot-badge slot-badge-both">☀️🌙 Both</span>';
 }
 
 function renderMenuItems(items) {
@@ -2108,7 +1884,6 @@ function renderMenuItems(items) {
       <div class="m-item-inner">
         <div class="m-item-info">
           ${getHighlightBadge(item)}
-          ${getSessionBadge(item)}
           <div style="display:flex;align-items:flex-start;gap:6px;margin-top:2px">
             ${getVegDot(item)}
             <div style="flex:1;min-width:0">
@@ -2118,6 +1893,7 @@ function renderMenuItems(items) {
           </div>
           ${item.description ? `<div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:4px;line-height:1.4">${item.description}</div>` : ''}
           ${varRow}
+          <div style="margin-top:5px">${getSlotBadge(item)}</div>
           <div class="m-item-foot">
             <span class="m-item-price" id="price-${item.item_id}">₹${hasVariants ? variants[(_variantState[String(item.item_id)]??0)]?.price : item.price}</span>
           </div>
@@ -2219,56 +1995,36 @@ function addThaliToCart(thali) {
 let _ptrStartY = 0, _ptrPulling = false, _ptrTriggered = false;
 const PTR_THRESHOLD = 60;
 
-// Map each PTR zone to its progress bar element IDs
-const _PTR_PROG = {
-  'ptr-zone':        ['ptr-prog-fill-home',   'ptr-prog-pct-home',   'ptr-prog-wrap-home'],
-  'ptr-zone-orders': ['ptr-prog-fill-orders', 'ptr-prog-pct-orders', 'ptr-prog-wrap-orders'],
-  'ptr-zone-khata':  ['ptr-prog-fill-khata',  'ptr-prog-pct-khata',  'ptr-prog-wrap-khata'],
-};
-
 function _makePTR(scrollId, zoneId, arrowId, spinnerId, refreshFn) {
   const scroll = document.getElementById(scrollId);
   if (!scroll) return;
   let startY = 0, pulling = false;
-  const [fillId, pctId, wrapId] = _PTR_PROG[zoneId] || [];
-
   scroll.addEventListener('touchstart', e => {
     if (scroll.scrollTop === 0) { startY = e.touches[0].clientY; pulling = true; }
   }, { passive: true });
-
   scroll.addEventListener('touchmove', e => {
     if (!pulling) return;
     const dy = e.touches[0].clientY - startY;
     if (dy < 0) { pulling = false; return; }
-    const zone  = document.getElementById(zoneId);
+    const zone = document.getElementById(zoneId);
     const arrow = document.getElementById(arrowId);
-    if (dy > 10) zone.style.height = Math.min(dy * 0.5, 56) + 'px';
+    if (dy > 10) zone.style.height = Math.min(dy * 0.5, 50) + 'px';
     if (arrow) arrow.style.transform = dy > PTR_THRESHOLD ? 'rotate(180deg)' : 'rotate(0deg)';
   }, { passive: true });
-
   scroll.addEventListener('touchend', async e => {
     if (!pulling) return;
     pulling = false;
-    const dy   = e.changedTouches[0].clientY - startY;
+    const dy = e.changedTouches[0].clientY - startY;
     const zone = document.getElementById(zoneId);
-    const arrow   = document.getElementById(arrowId);
+    const arrow = document.getElementById(arrowId);
     const spinner = document.getElementById(spinnerId);
     if (dy > PTR_THRESHOLD) {
-      // Hide arrow, show progress bar in zone + global top bar
-      if (arrow)   { arrow.style.display = 'none'; }
-      if (spinner) { spinner.style.display = 'none'; }  // spinner replaced by progress bar
-      zone.style.height = '56px';
-      if (fillId) PB.ptrStart(fillId, pctId, wrapId);   // start PTR zone bar
-      PB.gpShow();                                        // start global top bar
-      try {
-        await refreshFn();
-        PB.gpDone();
-        if (fillId) PB.ptrDone(fillId, pctId, wrapId);
-      } catch(err) {
-        PB.gpError();
-        if (fillId) PB.ptrDone(fillId, pctId, wrapId);  // still hide gracefully on error
-      }
-      if (arrow) { arrow.style.display = 'inline-block'; }
+      if (arrow) arrow.style.display = 'none';
+      if (spinner) spinner.style.display = 'inline-block';
+      zone.style.height = '50px';
+      try { await refreshFn(); } catch(e) {}
+      if (spinner) spinner.style.display = 'none';
+      if (arrow) arrow.style.display = 'inline-block';
     }
     zone.style.height = '0';
     if (arrow) arrow.style.transform = 'rotate(0deg)';
@@ -2280,11 +2036,11 @@ function initPullToRefresh() {
   _makePTR('home-scroll', 'ptr-zone', 'ptr-arrow', 'ptr-spinner', manualIndexRefresh);
   // Orders PTR — always force DB fetch, never show stale orders
   _makePTR('orders-scroll', 'ptr-zone-orders', 'ptr-arrow-orders', 'ptr-spinner-orders', async () => {
-    await loadOrders(true);
+    await loadOrders(true);   // forceRender=true → hits DB, re-renders even if data same
   });
   // Khata PTR — always force DB fetch for balance + full transaction history
   _makePTR('khata-scroll', 'ptr-zone-khata', 'ptr-arrow-khata', 'ptr-spinner-khata', async () => {
-    await loadUserKhata(true);
+    await loadUserKhata(true); // forceRender=true → hits DB, re-renders even if data same
   });
 }
 
@@ -2477,8 +2233,7 @@ async function placeOrder() {
   try {
     const res = await api('createOrder', {
       phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null
-    }, 1, () => PB.btnRetry('bp-order', 'bpp-order'));
-    PB.btnDone('bp-order', 'bpp-order');
+    });
     Cart.clear();
     _appliedCoupon = null;
     updateCartBadge();
@@ -2513,7 +2268,6 @@ async function placeOrder() {
     // Prefetch orders + khata in background so tabs are ready instantly when user opens them
     _prefetchAfterOrder();
   } catch(e) {
-    PB.btnError('bp-order', 'bpp-order');
     toast(e.message || 'Order failed. Try again.');
   } finally {
     _placingOrder = false;
@@ -2543,7 +2297,7 @@ async function confirmInsufOrder() {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = calcCouponDiscount(_appliedCoupon, subtotal);
-  // Treat as non-subscriber for this order (pay via UPI, delivery charge applies)
+  // upi_insuf orders always carry delivery charge (no wallet deduction on server)
   const deliveryCharge = 20;
   const total = subtotal + deliveryCharge - discount;
 
@@ -2556,35 +2310,30 @@ async function confirmInsufOrder() {
     const res = await api('createOrder', {
       phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null,
       paymentMode: 'upi_insuf'
-    }, 1, () => PB.btnRetry('bp-order', 'bpp-order'));
-    PB.btnDone('bp-order', 'bpp-order');
+    });
     Cart.clear();
     _appliedCoupon = null;
     updateCartBadge();
-    // Navigate to dedicated UPI-insuf success page
+
+    // Build WA message for the insuf success page button
+    const _u = Auth.get();
+    const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
+    const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
+    const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
+    _insufWAData = {
+      phone: CFG.TIFFIN,
+      msg: `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${_u?.name || 'Customer'} | 📞 ${_u?.phone || ''}\n📍 ${_u?.address || 'Address not set'}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
+    };
+
+    // Populate and show the dedicated insuf success page
     document.getElementById('si-order-id').textContent = res.orderId;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
     launchConfetti();
-    // Show WA button after 2.5 s so confetti / animation plays first
-    setTimeout(() => {
-      const waBtn = document.getElementById('si-wa-btn');
-      if (waBtn) {
-        waBtn.style.display = 'flex';
-        waBtn.onclick = () => {
-            const _u = Auth.get();
-            const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-            const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
-            const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
-            openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${_u?.name || 'Customer'} | 📞 ${_u?.phone || ''}\n📍 ${_u?.address || 'Address not set'}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`);
-          };
-      }
-    }, 2500);
-    // Prefetch orders + khata in background so tabs are ready instantly when user opens them
+
+    // Prefetch orders in background so My Orders tab is ready
     _prefetchAfterOrder();
   } catch(e) {
-    PB.btnError('bp-order', 'bpp-order');
     toast(e.message || 'Order failed. Try again.');
   } finally {
     _placingOrder = false;
@@ -2605,7 +2354,6 @@ async function loadOrders(forceRender = false) {
     const newStr = JSON.stringify(res.orders);
     if (!forceRender && newStr === _lastOrders) { document.getElementById('orders-loading').style.display = 'none'; return; }
     _lastOrders = newStr;
-    Store.setJSON('_orders_cache', res.orders); // always update local after DB fetch
     renderOrderList(res.orders);
   } catch {} finally {
     document.getElementById('orders-loading').style.display = 'none';
@@ -3135,88 +2883,79 @@ function closeAllSheets() {
 ═══════════════════════════════════════════ */
 function startPolling(fast = false) {
   clearInterval(_pollTimer);
-  _pollTimer = setInterval(_runPollTick, _POLL_NORMAL); // 300s background safety-net
-}
-function stopPolling() {
-  clearInterval(_pollTimer);
-  _pollTimer = null;
+  _pollTimer = setInterval(_runPollTick, _POLL_NORMAL); // always 240s, fast param ignored
 }
 
-/* ═══════════════════════════════════════════
-   SLOT-BASED MENU AUTO-REFRESH
-   Fires exactly at lunchStart, lunchEnd, dinnerStart, dinnerEnd (IST).
-   • Instant re-filter → user sees correct session menu without any PTR
-   • Background DB fetch → ensures menu items are fresh too
-   • Reschedules itself for next boundary automatically
-   • Pauses when tab is hidden, resumes on visibility
-═══════════════════════════════════════════ */
-let _slotRefreshTimer = null;
+/* ── Slot-transition auto-refresh ─────────────────────────────────────────
+   Schedules a one-shot setTimeout to fire at the exact IST millisecond of
+   each slot boundary: lunch-start, lunch-end, dinner-start, dinner-end.
+   When triggered it does a silent menu refresh so the visible items flip
+   from morning→evening (or vice versa) without the user needing to PTR.
+   Called every time schedule/cutoff data is received so timers stay fresh.
+─────────────────────────────────────────────────────────────────────────── */
+let _slotTimers = [];
 
-function _getNextSlotBoundaryMs() {
-  /* Returns [msUntilBoundary, boundaryLabel] for the nearest upcoming slot change.
-     Uses _lastSchedule / _lastCutoff which are always populated after first loadMenu. */
-  if (!_lastSchedule && !_lastCutoff) return null;
+function scheduleSlotTransitions() {
+  // Clear any previously scheduled timers
+  _slotTimers.forEach(t => clearTimeout(t));
+  _slotTimers = [];
+
+  if (!_lastSchedule && !_lastCutoff) return;
+
   const day = _getDaySchedule(_lastSchedule, _lastCutoff);
-  if (!day || day.closed) return null;
-
-  const ist    = new Date(Date.now() + 5.5 * 3600000);
-  const nowMs  = ist.getUTCHours() * 3600000 + ist.getUTCMinutes() * 60000 + ist.getUTCSeconds() * 1000 + ist.getUTCMilliseconds();
+  if (!day || day.closed) return;
 
   const ls = day.lunchStart,  lsm = day.lunchStartMin  || 0;
   const le = day.lunchEnd,    lem = day.lunchEndMin     || 0;
   const ds = day.dinnerStart, dsm = day.dinnerStartMin  || 0;
   const de = day.dinnerEnd,   dem = day.dinnerEndMin    || 0;
 
-  const boundaries = [
-    { label: 'lunchStart',  ms: (ls * 60 + lsm) * 60000 },
-    { label: 'lunchEnd',    ms: (le * 60 + lem) * 60000 + 60000 }, // fire 1 min after end (slot just closed)
-    { label: 'dinnerStart', ms: (ds * 60 + dsm) * 60000 },
-    { label: 'dinnerEnd',   ms: (de * 60 + dem) * 60000 + 60000 },
+  // Current IST time in minutes since midnight
+  const ist     = new Date(Date.now() + 5.5 * 3600000);
+  const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const nowSecs = ist.getUTCSeconds();
+  const nowMs   = ist.getUTCMilliseconds();
+
+  // Remaining ms in the current minute
+  const msIntoMin = nowSecs * 1000 + nowMs;
+  const msToNextMin = 60000 - msIntoMin;
+
+  // Helper: returns ms from now until target minute-mark (0 if already past)
+  function msUntil(targetMins) {
+    const diffMins = targetMins - nowMins;
+    if (diffMins <= 0) return -1; // already past
+    return (diffMins - 1) * 60000 + msToNextMin; // land exactly at the start of that minute
+  }
+
+  const transitions = [
+    { label: 'Lunch Start',  mins: ls  * 60 + lsm  },
+    { label: 'Lunch End',    mins: le  * 60 + lem + 1 }, // +1 so it fires right after the last open minute
+    { label: 'Dinner Start', mins: ds  * 60 + dsm  },
+    { label: 'Dinner End',   mins: de  * 60 + dem + 1 },
   ];
 
-  // Find the soonest future boundary today
-  const next = boundaries
-    .map(b => ({ ...b, diff: b.ms - nowMs }))
-    .filter(b => b.diff > 0)
-    .sort((a, b) => a.diff - b.diff)[0];
-
-  return next || null; // null = all boundaries passed for today
+  transitions.forEach(({ label, mins }) => {
+    const delay = msUntil(mins);
+    if (delay < 0) return; // already past today
+    const t = setTimeout(async () => {
+      // Re-schedule for tomorrow if needed — but simply calling scheduleSlotTransitions
+      // after the menu reload will pick up tomorrow's schedule automatically.
+      if (document.querySelector('.pg.here')?.id === 'pg-home') {
+        await loadMenu(true).catch(() => {}); // force fresh fetch, update banner + menu
+      } else {
+        // Even if not on home tab, refresh in background so data is ready
+        await loadMenu(true).catch(() => {});
+      }
+      // Re-arm for the next day (in case user keeps app open overnight)
+      setTimeout(() => scheduleSlotTransitions(), 2000);
+    }, delay);
+    _slotTimers.push(t);
+  });
 }
 
-function _scheduleSlotRefresh() {
-  clearTimeout(_slotRefreshTimer);
-  _slotRefreshTimer = null;
-
-  const next = _getNextSlotBoundaryMs();
-  if (!next) return; // no more boundaries today — nothing to schedule
-
-  // Add a small 2-second buffer so the clock boundary is fully crossed
-  const delay = next.diff + 2000;
-
-  _slotRefreshTimer = setTimeout(() => {
-    _slotRefreshTimer = null;
-    // 1. Instant re-filter with current data (user sees new session menu immediately)
-    filterAndRenderMenu();
-    // 2. Re-render banner (open/close state may have changed)
-    if (_lastSchedule || _lastCutoff) {
-      updateCutoffBanner(_lastSchedule, currentISTHour(), _lastCutoff);
-    }
-    // 3. Background fresh fetch from DB (no skeletons, silent)
-    if (!document.hidden) {
-      loadMenu(false).catch(() => {}); // non-bypass so it shows cache instantly + refreshes bg
-    }
-    // 4. Schedule the next boundary
-    _scheduleSlotRefresh();
-  }, delay);
-}
-
-function startSlotRefresh() {
-  _scheduleSlotRefresh();
-}
-
-function stopSlotRefresh() {
-  clearTimeout(_slotRefreshTimer);
-  _slotRefreshTimer = null;
+function stopPolling() {
+  clearInterval(_pollTimer);
+  _pollTimer = null;
 }
 
 // Called right after order is placed — fetches orders + khata in parallel, silently.
@@ -3234,7 +2973,7 @@ async function _prefetchAfterOrder() {
 
 // Khata tab — no separate timer, shared _pollTimer handles it
 function startPollingKhata() {
-  // Shared 300s timer already running. No override needed.
+  // Shared 240s timer already running. No override needed.
   // For fresh data: user opens tab (onEnter does forceRender=true) or does PTR.
 }
 
@@ -3276,17 +3015,10 @@ async function refreshWalletBalance(force = false) {
   if (!_session?.is_subscriber || !_khataEnabled) return;
   try {
     const res = await api('getSubscriberBalance', { phone: _session.phone });
-    // Always persist fresh balance to local — PTR or background, both update cache
+    // On PTR (force=true): always update UI even if balance unchanged
     if (force || res.balance !== _lastBalance) {
       _lastBalance = res.balance;
       updateWalletUI(res.balance);
-      SessionCache.save({
-        user:          _session,
-        is_subscriber: !!_session.is_subscriber,
-        walletBalance: res.balance,
-        pauseMode:     _pauseMode,
-        khataEnabled:  _khataEnabled
-      });
     }
   } catch {
     setTimeout(() => refreshWalletBalance().catch(() => {}), 3000);
@@ -3297,32 +3029,19 @@ async function refreshPauseStatus(force = false) {
   if (!_session?.is_subscriber) return;
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
-    // Always persist fresh pause state to local
+    // On PTR (force=true): always re-apply UI even if pause mode unchanged
     if (force || res.pauseMode !== _lastPauseMode) {
       _lastPauseMode = res.pauseMode;
       applyPauseState(res.pauseMode);
-      SessionCache.save({
-        user:          _session,
-        is_subscriber: !!_session.is_subscriber,
-        walletBalance: _walletBal,
-        pauseMode:     res.pauseMode,
-        khataEnabled:  _khataEnabled
-      });
     }
   } catch {}
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopPolling(); stopSlotRefresh(); }
+  if (document.hidden) { stopPolling(); }
   else {
     _runPollTick(); startPolling();
-    // Re-schedule slot refresh — when tab comes back foreground, immediately
-    // re-filter menu in case a slot boundary was crossed while hidden
-    const cur = document.querySelector('.pg.here')?.id;
-    if (cur === 'pg-home') {
-      filterAndRenderMenu(); // instant re-filter with current data
-      startSlotRefresh();    // re-arm timer for next boundary
-    }
+    scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
   }
 });
 
@@ -3352,52 +3071,7 @@ function _applySubscriberUI() {
 async function bootApp() {
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
-    // controllerchange fires when a new SW takes over mid-session.
-    // Auto-reload so the page runs the fresh JS, not the stale in-memory copy.
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.location.reload();
-    });
-  }
-
-  /* ══════════════════════════════════════════════════════════════
-     APP VERSION CHECK — runs before everything else.
-     Industry method (used by Swiggy, Zomato, GitHub PWAs):
-     - Each release embeds APP_VERSION in the JS bundle.
-     - On boot, compare stored version vs current version.
-     - Mismatch → wipe SW cache + clear localStorage → fresh reload.
-     - User sees a brief "Updating…" flash, then the new app loads.
-     - No manual "delete browsing data" needed, ever.
-  ══════════════════════════════════════════════════════════════ */
-  const storedVer = localStorage.getItem('pb_app_version');
-  if (storedVer && storedVer !== APP_VERSION) {
-    // Version mismatch detected — wipe stale caches silently
-    try {
-      // 1. Tell SW to delete all caches
-      const swReg = await navigator.serviceWorker.ready.catch(() => null);
-      if (swReg && swReg.active) {
-        swReg.active.postMessage({ type: 'WIPE_CACHE' });
-      }
-      // 2. Also wipe all caches directly from the page (belt-and-suspenders)
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
-    } catch(_) {}
-    // 3. Clear all localStorage (session, menu cache, etc.) — fresh start
-    //    Preserve credentials so returning users auto-recover to login, not signup
-    const savedCreds = localStorage.getItem('tf_creds');
-    localStorage.clear();
-    if (savedCreds) localStorage.setItem('tf_creds', savedCreds);
-    // 4. Write new version before reload so we don't loop
-    localStorage.setItem('pb_app_version', APP_VERSION);
-    // 5. Hard reload — browser fetches all files fresh from network
-    location.reload(true);
-    return; // stop here; page will reload
-  }
-  // First ever load — just stamp the version, no wipe needed
-  if (!storedVer) {
-    localStorage.setItem('pb_app_version', APP_VERSION);
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
   /* ══════════════════════════════════════════════════════════════
@@ -3583,7 +3257,6 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
-  stopSlotRefresh();
   Auth.clear();
   Creds.clear();
   SessionCache.clear();
@@ -3591,7 +3264,6 @@ function doLogout() {
   Store.remove('pb_cart');
   Store.remove('pb_order_processing');
   Store.remove('_khata_cache');
-  Store.remove('_orders_cache');
   _fullMenu      = [];
   _fullThalis    = [];
   _walletBal     = 0;

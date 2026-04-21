@@ -1,7 +1,6 @@
-/* ─── Tiffo Service Worker — tiffo-v7 ──────────────────────────────────── */
-/* ─── Version-aware: bumping CACHE auto-wipes old caches on activate ────── */
+/* ─── Tiffo Service Worker — tiffo-v5 ──────────────────────────────────── */
 
-const CACHE = 'tiffo-v7';
+const CACHE = 'tiffo-v5';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 const OFFLINE_HTML = `<!DOCTYPE html>
@@ -32,23 +31,6 @@ self.addEventListener('activate', e => {
     )
   );
   self.clients.claim();
-});
-
-/* ─── MESSAGE — handle wipe-and-reload requests from the page ───────────── */
-/* When the app detects an APP_VERSION mismatch in localStorage it posts      */
-/* { type: 'WIPE_CACHE' } here. SW deletes ALL caches so the next navigation  */
-/* fetches fresh HTML/JS from the network instead of stale cached files.      */
-self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'WIPE_CACHE') {
-    e.waitUntil(
-      caches.keys()
-        .then(keys => Promise.all(keys.map(k => caches.delete(k))))
-        .then(() => {
-          // Notify the requesting client that wipe is done
-          if (e.source) e.source.postMessage({ type: 'CACHE_WIPED' });
-        })
-    );
-  }
 });
 
 /* ─── FETCH ──────────────────────────────────────────────────────────────── */
@@ -84,19 +66,21 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* Strategy 3 — All other assets: network-first (always fresh), cache fallback */
-  /* Changed from stale-while-revalidate so users always get the latest JS/CSS  */
+  /* Strategy 3 — All other assets: stale-while-revalidate */
   e.respondWith(
-    fetch(request)
-      .then(res => {
-        if (res && res.status === 200 && res.type !== 'opaque') {
-          caches.open(CACHE).then(cache => cache.put(request, res.clone()));
-        }
-        return res;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request);
-        return cached || new Response('', { status: 503 });
-      })
+    caches.open(CACHE).then(async cache => {
+      const cached = await cache.match(request);
+
+      const fetchPromise = fetch(request)
+        .then(res => {
+          if (res && res.status === 200 && res.type !== 'opaque') {
+            cache.put(request, res.clone());
+          }
+          return res;
+        })
+        .catch(() => null);
+
+      return cached || fetchPromise;
+    })
   );
 });
