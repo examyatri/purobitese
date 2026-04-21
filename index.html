@@ -97,7 +97,28 @@ textarea{resize:vertical;min-height:80px}
 .auth-top{background:var(--grad);width:100%;padding:48px 24px 32px;text-align:center}
 .auth-logo{font-family:var(--ff);font-weight:800;font-size:32px;color:#fff}
 .auth-sub{font-family:var(--fb);color:rgba(255,255,255,.8);font-size:14px;margin-top:4px}
-.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:24px var(--pg-pad) calc(60px + env(safe-area-inset-bottom,0px));margin-top:-16px}
+.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:24px var(--pg-pad) calc(80px + env(safe-area-inset-bottom,0px));margin-top:-16px}
+/* Location verify section inside signup */
+.loc-section{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;padding:14px;margin-top:4px;margin-bottom:16px}
+.loc-section-title{font-family:var(--ff);font-size:12px;font-weight:700;color:#334155;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.loc-btn{width:100%;padding:13px 14px;background:#1a1a2e;color:#fff;border:none;border-radius:12px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 200ms;min-height:48px}
+.loc-btn:disabled{opacity:.6;cursor:not-allowed}
+.loc-btn.verified{background:#166534}
+.loc-btn.rejected{background:#991b1b}
+.loc-status{margin-top:10px;font-size:12.5px;font-family:var(--fb);padding:10px 12px;border-radius:10px;display:none;line-height:1.5;font-weight:500}
+.loc-map-wrap{margin-top:10px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
+.loc-map-hdr{background:#0f172a;color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;font-family:var(--ff);display:flex;align-items:center;gap:6px}
+.loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
+.loc-finetune-btn{width:100%;padding:11px;background:#f1f5f9;border:none;border-top:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#0369a1;cursor:pointer;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:6px;transition:background 150ms}
+.loc-finetune-btn:active{background:#e0f2fe}
+.loc-finetune-box{margin-top:10px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:14px}
+.loc-finetune-box .ft-title{font-size:13px;font-weight:700;color:#0369a1;margin-bottom:4px;font-family:var(--ff)}
+.loc-finetune-box .ft-hint{font-size:11.5px;color:#475569;margin-bottom:10px;font-family:var(--fb);line-height:1.5}
+.loc-finetune-row{display:flex;gap:8px;margin-bottom:10px}
+.loc-finetune-row input{flex:1;padding:11px 10px;border:1.5px solid #bae6fd;border-radius:10px;font-size:13px;font-family:var(--fb);background:#fff;outline:none;min-width:0}
+.loc-finetune-row input:focus{border-color:#0369a1;background:#fff}
+.loc-confirm-btn{width:100%;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--ff);transition:opacity 150ms}
+.loc-confirm-btn:active{opacity:.85}
 .tab-bar{display:flex;background:#f5f5f5;border-radius:12px;padding:4px;margin-bottom:20px}
 .tab-btn{flex:1;border:none;background:none;padding:10px;font-family:var(--ff);font-weight:600;font-size:14px;border-radius:9px;cursor:pointer;color:var(--gr);transition:all 200ms}
 .tab-btn.active{background:#fff;color:var(--p);box-shadow:var(--sh)}
@@ -414,38 +435,84 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Signup tab -->
     <div id="signup-tab" style="display:none">
+
       <div class="form-group">
         <label>Full Name</label>
-        <input type="text" id="su-name" placeholder="Your name">
+        <input type="text" id="su-name" placeholder="Your name" autocomplete="name">
         <div class="err-msg" id="su-name-err"></div>
       </div>
+
       <div class="form-group">
         <label>Mobile Number</label>
-        <input type="tel" id="su-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
+        <input type="tel" id="su-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel">
         <div class="err-msg" id="su-phone-err"></div>
       </div>
+
       <div class="form-group">
         <label>Email</label>
-        <input type="email" id="su-email" placeholder="your@email.com">
+        <input type="email" id="su-email" placeholder="your@email.com" autocomplete="email" inputmode="email">
         <div class="err-msg" id="su-email-err"></div>
       </div>
+
       <div class="form-group">
         <label>Delivery Address</label>
-        <textarea id="su-addr" placeholder="Full delivery address"></textarea>
+        <textarea id="su-addr" placeholder="House No., Street, Landmark, Area…" style="min-height:76px;resize:none" autocomplete="street-address"></textarea>
         <div class="err-msg" id="su-addr-err"></div>
       </div>
+
+      <!-- ── Location Verify Card ── -->
+      <div class="loc-section">
+        <div class="loc-section-title">
+          <i class="fa fa-location-dot" style="color:#e63946;font-size:14px"></i>
+          Verify Your Delivery Location
+        </div>
+        <button type="button" id="su-loc-btn" class="loc-btn" onclick="detectSignupLocation()">
+          <i class="fa fa-location-crosshairs"></i>
+          <span id="su-loc-btn-txt">Detect My Location</span>
+        </button>
+        <div id="su-loc-status" class="loc-status"></div>
+
+        <div id="su-map-pin-area" style="display:none">
+          <div class="loc-map-wrap">
+            <div class="loc-map-hdr">
+              <i class="fa fa-map-pin"></i> Your detected location
+            </div>
+            <iframe id="su-map-iframe" style="width:100%;height:190px;border:none;display:block" loading="lazy"></iframe>
+            <div class="loc-map-hint">📌 Not your exact spot? Tap <b>Adjust Pin</b> to correct it.</div>
+            <button type="button" class="loc-finetune-btn" onclick="_openFineTune()">
+              <i class="fa fa-pen-to-square"></i> Adjust Pin
+            </button>
+          </div>
+          <div id="su-finetune-area" class="loc-finetune-box" style="display:none">
+            <div class="ft-title">🎯 Enter exact coordinates</div>
+            <div class="ft-hint">Open Google Maps → long-press your home → copy the numbers shown at the top (e.g. 26.8467, 80.9462).</div>
+            <div class="loc-finetune-row">
+              <input type="text" inputmode="decimal" id="ft-lat" placeholder="Latitude (e.g. 26.8467)">
+              <input type="text" inputmode="decimal" id="ft-lng" placeholder="Longitude (e.g. 80.9462)">
+            </div>
+            <button type="button" class="loc-confirm-btn" onclick="_confirmFineTune()">✅ Confirm This Location</button>
+          </div>
+        </div>
+
+        <input type="hidden" id="su-lat" value="">
+        <input type="hidden" id="su-lng" value="">
+        <input type="hidden" id="su-loc-ok" value="0">
+      </div>
+
       <div class="form-group">
         <label>Password</label>
         <div class="pw-wrap">
-          <input type="password" id="su-pw" placeholder="Create a password">
+          <input type="password" id="su-pw" placeholder="Create a password (min 6 chars)" autocomplete="new-password">
           <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
         </div>
         <div class="err-msg" id="su-pw-err"></div>
       </div>
-      <div class="mt4">
+
+      <div style="margin-top:6px;padding-bottom:8px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
         <button class="btn-primary" id="su-btn" onclick="doSignup()">Create Account</button>
       </div>
+
     </div>
   </div>
 </div>
@@ -1730,6 +1797,157 @@ async function doLogin() {
   }
 }
 
+/* ═══════════════════════════════════════════
+   DELIVERY AREA CHECK — Dynamic (Admin-controlled)
+   Zone config is fetched live from admin_settings.
+   No hardcoded coords — all managed via Admin → Settings → Delivery Zone.
+═══════════════════════════════════════════ */
+let _deliveryZone = null; // { lat, lng, radiusKm } — loaded on demand
+
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+async function _loadDeliveryZone() {
+  if (_deliveryZone) return _deliveryZone;
+  try {
+    const r = await api('getSettings');
+    _deliveryZone = r.settings?.deliveryZone || null;
+  } catch(e) { _deliveryZone = null; }
+  return _deliveryZone;
+}
+
+/* Called after GPS detects a position — evaluates distance against zone */
+function _evaluateLocation(lat, lng) {
+  const zone    = _deliveryZone;
+  const status  = document.getElementById('su-loc-status');
+  const btnTxt  = document.getElementById('su-loc-btn-txt');
+  const btn     = document.getElementById('su-loc-btn');
+  const showStatus = (msg, ok, warn) => {
+    status.style.display = 'block';
+    status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
+    status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
+    status.textContent = msg;
+  };
+
+  document.getElementById('su-lat').value = lat;
+  document.getElementById('su-lng').value = lng;
+
+  // Reset btn classes
+  btn.classList.remove('verified','rejected');
+
+  if (!zone || !zone.lat || !zone.lng || !zone.radiusKm) {
+    document.getElementById('su-loc-ok').value = '1';
+    btnTxt.textContent = '✅ Location Captured';
+    btn.classList.add('verified');
+    showStatus('✅ Location captured. Delivery zone not configured by admin yet — proceeding.', false, true);
+    _showMapPin(lat, lng);
+    return;
+  }
+
+  const dist    = _haversineKm(zone.lat, zone.lng, lat, lng);
+  const distStr = dist.toFixed(2);
+
+  if (dist <= zone.radiusKm) {
+    document.getElementById('su-loc-ok').value = '1';
+    btnTxt.textContent = '✅ Within Delivery Area';
+    btn.classList.add('verified');
+    showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
+  } else {
+    document.getElementById('su-loc-ok').value = '0';
+    btnTxt.textContent = '❌ Outside Delivery Area';
+    btn.classList.add('rejected');
+    showStatus(`❌ You're ${distStr} km away. We only deliver within ${zone.radiusKm} km. Sorry, we can't serve your area.`, false, false);
+  }
+  _showMapPin(lat, lng);
+}
+
+/* Renders an OSM iframe + "adjust pin" note so user can fine-tune */
+function _showMapPin(lat, lng) {
+  const wrap   = document.getElementById('su-map-pin-area');
+  const iframe = document.getElementById('su-map-iframe');
+  if (!wrap || !iframe) return;
+  // Update iframe src with current coords
+  iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${(lng-0.008).toFixed(6)},${(lat-0.008).toFixed(6)},${(lng+0.008).toFixed(6)},${(lat+0.008).toFixed(6)}&layer=mapnik&marker=${lat},${lng}`;
+  wrap.style.display = 'block';
+  // Pre-fill fine-tune inputs with detected coords
+  const ftLat = document.getElementById('ft-lat');
+  const ftLng = document.getElementById('ft-lng');
+  if (ftLat) ftLat.value = lat.toFixed(6);
+  if (ftLng) ftLng.value = lng.toFixed(6);
+  // Hide fine-tune box when a new location is detected
+  const ft = document.getElementById('su-finetune-area');
+  if (ft) ft.style.display = 'none';
+}
+
+/* Toggle fine-tune box open/close */
+function _openFineTune() {
+  const ft = document.getElementById('su-finetune-area');
+  if (!ft) return;
+  ft.style.display = ft.style.display === 'none' ? 'block' : 'none';
+}
+
+function _confirmFineTune() {
+  const lat = parseFloat(document.getElementById('ft-lat').value);
+  const lng = parseFloat(document.getElementById('ft-lng').value);
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    toast('Enter valid coordinates');
+    return;
+  }
+  const btn = document.getElementById('su-loc-btn');
+  btn.classList.remove('verified','rejected');
+  document.getElementById('su-loc-btn-txt').textContent = 'Re-verifying…';
+  document.getElementById('su-loc-ok').value = '0';
+  const ft = document.getElementById('su-finetune-area');
+  if (ft) ft.style.display = 'none';
+  _evaluateLocation(lat, lng);
+}
+
+async function detectSignupLocation() {
+  const btn    = document.getElementById('su-loc-btn');
+  const btnTxt = document.getElementById('su-loc-btn-txt');
+  const status = document.getElementById('su-loc-status');
+  const showStatus = (msg, ok, warn) => {
+    status.style.display = 'block';
+    status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
+    status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
+    status.textContent = msg;
+  };
+  if (!navigator.geolocation) {
+    showStatus('❌ GPS not supported on this device. Please use a modern browser.', false, false);
+    return;
+  }
+  // Reset state
+  btn.classList.remove('verified','rejected');
+  btnTxt.textContent = 'Detecting location…';
+  btn.disabled = true;
+
+  // Pre-load zone in parallel while GPS warms up
+  await _loadDeliveryZone();
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      btn.disabled = false;
+      _evaluateLocation(pos.coords.latitude, pos.coords.longitude);
+    },
+    err => {
+      btn.disabled = false;
+      btn.classList.remove('verified','rejected');
+      btnTxt.textContent = 'Detect My Location';
+      const msg = err.code === 1 ? '📵 Location permission denied. Please allow location access in your browser settings and try again.'
+                : err.code === 2 ? '📡 Location unavailable. Please try in an open area.'
+                : '⏱️ Location timed out. Please try again.';
+      showStatus(msg, false, false);
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
+}
+
 async function doSignup() {
   let valid = true;
   const name    = document.getElementById('su-name').value.trim();
@@ -1744,11 +1962,22 @@ async function doSignup() {
     else { el.textContent = ''; el.style.display = 'none'; }
   };
 
+  const locOk = document.getElementById('su-loc-ok').value === '1';
+
   setErr('su-name-err',  !name ? 'Name is required' : '');
   setErr('su-phone-err', !phone || phone.length !== 10 ? 'Enter valid 10-digit number' : '');
   setErr('su-email-err', !email || !/^[^@]+@[^@]+\.[^@]+$/.test(email) ? 'Enter valid email' : '');
   setErr('su-addr-err',  !address ? 'Address is required' : '');
   setErr('su-pw-err',    !pw || pw.length < 6 ? 'Password must be 6+ characters' : '');
+
+  if (!locOk) {
+    const locStatus = document.getElementById('su-loc-status');
+    locStatus.style.display = 'block';
+    locStatus.textContent = '⚠️ Please verify your location first using the button above.';
+    locStatus.style.background = '#fef9c3';
+    locStatus.style.color = '#854d0e';
+    valid = false;
+  }
 
   if (!valid) return;
 
@@ -2704,10 +2933,10 @@ function renderUserKhataList(entries) {
   const sorted = [...entries].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   list.innerHTML = sorted.map(e => {
     const typeStr = (e.type||'entry');
-    const isCredit = e.amount > 0 || typeStr.includes('recharge') || typeStr.includes('adjustment') || typeStr.includes('received');
+    const isCredit = typeStr.includes('recharge') || typeStr.includes('received') || typeStr.includes('credit') || typeStr.includes('adjustment') || (typeStr === '' && e.amount > 0);
     const cls  = isCredit ? 'credit' : 'debit';
     const icon = isCredit ? '&#x1F4B0;' : '&#x1F371;';
-    const sign = isCredit ? '+' : '';
+    const sign = isCredit ? '+' : '-';
     const label = typeStr.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
     const note  = e.note || (e.order_id ? 'ORD-' + e.order_id : '');
     const srcNote = e.order_source === 'admin' ? '🤖 Auto order by admin' : (e.order_id ? '👤 Order created by you' : '');

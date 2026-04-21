@@ -1157,6 +1157,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <div class="si-icon" style="background:#fee2e2"><i class="fa fa-skull-crossbones" style="color:#be123c"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Master Delete</span>
             </div>
+            <div class="settings-item" onclick="showSettingPanel('delivery-zone',this)">
+              <div class="si-icon" style="background:#e0f2fe"><i class="fa fa-map-location-dot" style="color:#0369a1"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Delivery Zone</span>
+            </div>
           </div>
           <div id="settings-panel-area"></div>
         </div>
@@ -3661,7 +3665,8 @@ function showSettingPanel(type, el) {
     'reset-pw':   renderResetPwPanel,
     'reset-user-pw': renderResetUserPwPanel,
     cleanup:      renderCleanupPanel,
-    'master-del': renderMasterDelPanel
+    'master-del': renderMasterDelPanel,
+    'delivery-zone': renderDeliveryZonePanel
   };
   if (panels[type]) panels[type](area);
 }
@@ -4001,6 +4006,115 @@ async function doMasterDelete() {
       } catch(e) { aToast(e.message); }
     }
   );
+}
+
+// ─── DELIVERY ZONE SETTINGS ───────────────────────────────
+function renderDeliveryZonePanel(area) {
+  area.innerHTML = `
+    <div class="settings-panel" style="border:2px solid #bae6fd">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div style="width:44px;height:44px;border-radius:12px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📍</div>
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:16px;color:#0369a1">Delivery Zone</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.4">Set your kitchen location and max delivery radius.<br>Users outside this area <b>cannot register</b>.</div>
+        </div>
+      </div>
+
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;margin-bottom:18px">
+        <div style="font-size:12px;font-weight:700;color:#0c4a6e;margin-bottom:4px">📌 How to get your coordinates</div>
+        <div style="font-size:12px;color:#0c4a6e;line-height:1.6">1. Open <b>Google Maps</b> on your phone<br>2. Long-press on your kitchen/home<br>3. Copy the two numbers shown at the top (e.g. <b>26.8467, 80.9462</b>)</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div class="field">
+          <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">Kitchen Latitude</label>
+          <input id="dz-lat" type="text" inputmode="decimal" placeholder="e.g. 26.84670" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:13px;font-family:var(--fb);outline:none" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
+        </div>
+        <div class="field">
+          <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:5px">Kitchen Longitude</label>
+          <input id="dz-lng" type="text" inputmode="decimal" placeholder="e.g. 80.94620" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:13px;font-family:var(--fb);outline:none" onfocus="this.style.borderColor='#0369a1'" onblur="this.style.borderColor='#e5e7eb'">
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:12px;font-weight:600;color:#374151">Max Delivery Radius</label>
+          <span id="dz-radius-val" style="font-family:var(--ff);font-weight:800;font-size:16px;color:#0369a1">4 km</span>
+        </div>
+        <input id="dz-radius" type="range" min="1" max="20" step="0.5" value="4"
+          oninput="document.getElementById('dz-radius-val').textContent=this.value+' km'"
+          style="width:100%;accent-color:#0369a1;height:6px;cursor:pointer">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-top:4px"><span>1 km</span><span>20 km</span></div>
+      </div>
+
+      <div id="dz-map-wrap" style="border-radius:12px;overflow:hidden;border:1.5px solid #bae6fd;margin-bottom:16px;display:none">
+        <div style="background:#0369a1;color:#fff;padding:9px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px">
+          <i class="fa fa-map-pin"></i> Kitchen location preview
+        </div>
+        <iframe id="dz-map-iframe" style="width:100%;height:280px;border:none;display:block" loading="lazy"></iframe>
+        <div style="padding:8px 14px;background:#f0f9ff;font-size:11.5px;color:#0c4a6e;font-family:var(--fb)">
+          🔵 Marker = your kitchen. The delivery circle is calculated mathematically based on the radius set above.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn" style="background:#f1f5f9;color:#0369a1;border:1.5px solid #bae6fd;flex:1" onclick="previewDeliveryZone()">
+          <i class="fa fa-eye"></i> Preview Map
+        </button>
+        <button class="btn btn-p" style="flex:2" onclick="saveDeliveryZone()">
+          <i class="fa fa-save"></i> Save Delivery Zone
+        </button>
+      </div>
+      <div id="dz-status" style="margin-top:12px;font-size:13px;display:none;padding:10px 14px;border-radius:9px;font-family:var(--fb);line-height:1.4"></div>
+    </div>`;
+
+  api('getSettings').then(r => {
+    const z = r.settings?.deliveryZone;
+    if (z) {
+      document.getElementById('dz-lat').value = z.lat;
+      document.getElementById('dz-lng').value = z.lng;
+      document.getElementById('dz-radius').value = z.radiusKm;
+      document.getElementById('dz-radius-val').textContent = z.radiusKm + ' km';
+    }
+  }).catch(()=>{});
+}
+
+function previewDeliveryZone() {
+  const lat = parseFloat(document.getElementById('dz-lat').value);
+  const lng = parseFloat(document.getElementById('dz-lng').value);
+  if (isNaN(lat) || isNaN(lng)) { aToast('Enter valid lat/lng first'); return; }
+  const wrap  = document.getElementById('dz-map-wrap');
+  const iframe = document.getElementById('dz-map-iframe');
+  wrap.style.display = 'block';
+  // 100% free OpenStreetMap embed — no API key needed
+  iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${lng-0.05},${lat-0.05},${lng+0.05},${lat+0.05}&layer=mapnik&marker=${lat},${lng}`;
+}
+
+async function saveDeliveryZone() {
+  const lat      = parseFloat(document.getElementById('dz-lat').value);
+  const lng      = parseFloat(document.getElementById('dz-lng').value);
+  const radiusKm = parseFloat(document.getElementById('dz-radius').value);
+  const status   = document.getElementById('dz-status');
+  const showSt = (msg, ok) => {
+    status.style.display = 'block';
+    status.textContent   = msg;
+    status.style.background = ok ? '#dcfce7' : '#fee2e2';
+    status.style.color      = ok ? '#166534' : '#991b1b';
+    status.style.border     = ok ? '1px solid #86efac' : '1px solid #fca5a5';
+  };
+  if (isNaN(lat) || isNaN(lng)) { showSt('❌ Enter valid latitude and longitude', false); return; }
+  if (lat < -90 || lat > 90)   { showSt('❌ Latitude must be between -90 and 90', false); return; }
+  if (lng < -180 || lng > 180) { showSt('❌ Longitude must be between -180 and 180', false); return; }
+  if (isNaN(radiusKm) || radiusKm <= 0) { showSt('❌ Radius must be greater than 0', false); return; }
+  try {
+    await api('setDeliveryZone', { lat, lng, radiusKm });
+    showSt(`✅ Saved — ${radiusKm} km radius around (${lat.toFixed(5)}, ${lng.toFixed(5)})`, true);
+    aToast('Delivery zone saved ✅');
+    // Auto-show map preview after save
+    previewDeliveryZone();
+  } catch(e) {
+    showSt('❌ ' + (e.message || 'Save failed'), false);
+  }
 }
 
 // ─── NOTIFICATIONS ────────────────────────────────────────
