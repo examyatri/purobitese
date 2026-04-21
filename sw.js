@@ -1,6 +1,6 @@
 /* ─── Tiffo Service Worker — tiffo-v5 ──────────────────────────────────── */
 
-const CACHE = 'tiffo-v5';
+const CACHE = 'tiffo-v6';
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
 
 const OFFLINE_HTML = `<!DOCTYPE html>
