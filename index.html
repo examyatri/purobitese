@@ -24,9 +24,9 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;height:100dvh}
 /* Pages */
-.pg{position:fixed;top:0;bottom:0;overflow:hidden;transition:transform 300ms ease;background:var(--lt);width:100%;max-width:540px;left:50%;transform:translateX(calc(-50% + 100vw))}
+.pg{position:fixed;top:0;bottom:0;overflow:hidden;transition:transform 300ms ease;background:var(--lt);width:100%;max-width:540px;left:50%;transform:translateX(calc(-50% + 100vw));display:flex;flex-direction:column}
 .pg.here{transform:translateX(-50%)!important}
-.pg-scroll{height:calc(100% - var(--bnav-h) - var(--safe-b));overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--safe-b) + 28px);scroll-padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);overscroll-behavior-y:contain}
+.pg-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 28px);scroll-padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);overscroll-behavior-y:contain}
 .pg-scroll-full{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 /* Bottom Nav */
 #bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:540px;height:var(--bnav-h);background:#fff;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-around;padding-bottom:var(--safe-b);z-index:900}
@@ -762,7 +762,7 @@ textarea{resize:vertical;min-height:80px}
         <div id="wallet-bal-status" style="font-family:var(--fb);font-size:12px;opacity:.8;margin-top:4px">&#x2705; Balance looks good</div>
       </div>
       <!-- Recharge Wallet -->
-      <button onclick="openWA('9889760350','I Want To Recharge My Wallet, Please Provide Your UPI Details.')" style="width:100%;background:#25d366;color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;box-shadow:0 4px 12px rgba(37,211,102,.35)"><i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Recharge Wallet</button>
+      <button onclick="openWA('9889760350','💰 *Wallet Recharge Request*\n\nHi Tiffo Team! 🙏\nMujhe apna Tiffo wallet recharge karna hai.\n\nKripaya apni UPI ID / QR share karein taaki main payment karke screenshot bhej sakun.\n\nThank you! 😊')" style="width:100%;background:#25d366;color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;box-shadow:0 4px 12px rgba(37,211,102,.35)"><i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Recharge Wallet</button>
       <!-- Date filter -->
       <div style="background:#fff;border-radius:14px;padding:14px;box-shadow:var(--sh);margin-bottom:12px">
         <div style="font-family:var(--ff);font-weight:600;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
@@ -799,7 +799,7 @@ textarea{resize:vertical;min-height:80px}
     <i class="fa-solid fa-wallet"></i>
     <span id="bnav-bal">₹0</span>
   </button>
-  <button onclick="openWA(CFG.WA,'Hi Tiffo! I need help.')" style="color:#25d366">
+  <button onclick="openWA(CFG.WA,'🆘 *Help Required*\n\nHi Tiffo Team! 🙏\nMujhe kuch help chahiye.\n\nKripaya jald se jald respond karein.\nThank you!')" style="color:#25d366">
     <i class="fa-brands fa-whatsapp"></i><span>Help</span>
   </button>
 </nav>
@@ -973,11 +973,8 @@ let _lastBalance  = null;
 let _lastKhataStr = null;
 let _lastPauseMode = null;
 let _pollTimer   = null;
-let _statusWatcher = null;          // Fast-poll only for subscriber status
 let _khataAllEntries = [];
-const _POLL_FAST   = 30000;
-const _POLL_NORMAL = 120000;
-const _STATUS_WATCH_INTERVAL = 5000; // Check subscriber status every 5s
+const _POLL_NORMAL = 240000;  // 240s — normal background polling (PTR available for manual refresh)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
 const _MENU_TTL = 10 * 60 * 1000;
 let _stack = [];
@@ -1339,6 +1336,14 @@ function openWA(phone, msg) {
   document.body.removeChild(a);
 }
 
+/* Order-tab WA messages stored by orderId to avoid embedding encoded URLs in onclick attributes */
+const _orderWAMap = {};
+function sendOrderWA(orderId) {
+  const entry = _orderWAMap[orderId];
+  if (!entry) return;
+  openWA(entry.phone, entry.msg);
+}
+
 function launchConfetti() {
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999';
@@ -1466,7 +1471,7 @@ function setDeliveryTime(elId) {
    WHATSAPP PLAN
 ═══════════════════════════════════════════ */
 function openWhatsAppPlan() {
-  var msg = encodeURIComponent("Mujhe monthly tiffin join karna hai, please information dijiye.");
+  var msg = encodeURIComponent("🍱 *Monthly Tiffin Plan Enquiry*\n\nNamaste! 🙏\nMujhe *Tiffo Monthly Tiffin Plan* join karna hai.\nKripaya plan details, pricing aur subscription process batayein.\n\nThank you!");
   window.open("https://wa.me/" + (CFG.WA || '919889760350') + "?text=" + msg, "_blank");
 }
 
@@ -1515,8 +1520,8 @@ function back() {
 
 function onEnter(id) {
   if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
-  if (id === 'pg-orders')  loadOrders();
-  if (id === 'pg-khata')   { loadUserKhata(); startPollingKhata(); }
+  if (id === 'pg-orders')  loadOrders(true);   // always force fresh render when tab opened
+  if (id === 'pg-khata')   loadUserKhata(true); // always force fresh render when tab opened
   if (id === 'pg-cart')    renderCart();
   if (id === 'pg-account') populateAccountPage();
 }
@@ -1566,7 +1571,7 @@ function prefillLoginForm(wrongCreds) {
 
 function forgotPw() {
   const phone = document.getElementById('login-phone').value.replace(/\D/g, '');
-  openWA(CFG.WA, 'Hi, I forgot my password. Phone: ' + (phone || 'not entered'));
+  openWA(CFG.WA, `🔐 *Password Reset Request*\n\nHi Tiffo Team! 🙏\nMujhe apna password reset karna hai.\n\n📞 Registered Phone: ${phone || 'not entered'}\n\nKripaya help karein. Thank you!`);
 }
 
 async function doLogin() {
@@ -1599,9 +1604,6 @@ async function doLogin() {
     _transitionToHome();
     loadMenu();
     startPolling();
-    startStatusWatcher();
-  } catch(e) {
-    toast(e.message === 'Session invalid' ? 'Wrong phone or password' : (e.message || 'Login failed'));
   } finally {
     setLoading('login-btn', false);
   }
@@ -1642,7 +1644,6 @@ async function doSignup() {
     _transitionToHome();
     loadMenu();
     startPolling();
-    startStatusWatcher();
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     toast(e.message || 'Signup failed. Try again.');
@@ -1665,29 +1666,35 @@ function hideMenuSkeletons() {
   // handled by render calls
 }
 
-async function loadMenu() {
+async function loadMenu(bypassCache = false) {
   if (_menuLoading) return;
   _menuLoading = true;
   try {
-    const cache = Store.getJSON(_MENU_CACHE_KEY);
-    const age   = cache ? Date.now() - cache.ts : Infinity;
-    if (cache && age < _MENU_TTL) {
-      // Show cache instantly — zero network wait
-      if (JSON.stringify(cache.data) !== JSON.stringify(_fullMenu)) {
-        _fullMenu = cache.data || [];
-        filterAndRenderMenu();
-        buildCategoryChips();
-      }
-      if (JSON.stringify(cache.thalis) !== JSON.stringify(_fullThalis)) {
-        _fullThalis = cache.thalis || [];
-        renderThalis();
-      }
-      // Fetch fresh from DB in background — _menuLoading stays true
-      // until fetch completes so no duplicate fetch can fire in parallel
-      await _fetchFreshMenu().catch(() => {});
-    } else {
+    if (bypassCache) {
+      // PTR: always fetch fresh from DB, never show cache
       showMenuSkeletons();
+      Store.remove(_MENU_CACHE_KEY); // clear cache so next normal load also gets fresh
       await _fetchFreshMenu();
+    } else {
+      const cache = Store.getJSON(_MENU_CACHE_KEY);
+      const age   = cache ? Date.now() - cache.ts : Infinity;
+      if (cache && age < _MENU_TTL) {
+        // Show cache instantly — zero network wait
+        if (JSON.stringify(cache.data) !== JSON.stringify(_fullMenu)) {
+          _fullMenu = cache.data || [];
+          filterAndRenderMenu();
+          buildCategoryChips();
+        }
+        if (JSON.stringify(cache.thalis) !== JSON.stringify(_fullThalis)) {
+          _fullThalis = cache.thalis || [];
+          renderThalis();
+        }
+        // Fetch fresh from DB in background
+        await _fetchFreshMenu().catch(() => {});
+      } else {
+        showMenuSkeletons();
+        await _fetchFreshMenu();
+      }
     }
   } finally {
     _menuLoading = false;
@@ -1981,9 +1988,16 @@ function _makePTR(scrollId, zoneId, arrowId, spinnerId, refreshFn) {
 }
 
 function initPullToRefresh() {
+  // Home PTR — bypass all cache, force fresh DB fetch for menu + status + wallet + subscriber
   _makePTR('home-scroll', 'ptr-zone', 'ptr-arrow', 'ptr-spinner', manualIndexRefresh);
-  _makePTR('orders-scroll', 'ptr-zone-orders', 'ptr-arrow-orders', 'ptr-spinner-orders', async () => { await loadOrders(); });
-  _makePTR('khata-scroll', 'ptr-zone-khata', 'ptr-arrow-khata', 'ptr-spinner-khata', async () => { await loadUserKhata(); });
+  // Orders PTR — always force DB fetch, never show stale orders
+  _makePTR('orders-scroll', 'ptr-zone-orders', 'ptr-arrow-orders', 'ptr-spinner-orders', async () => {
+    await loadOrders(true);   // forceRender=true → hits DB, re-renders even if data same
+  });
+  // Khata PTR — always force DB fetch for balance + full transaction history
+  _makePTR('khata-scroll', 'ptr-zone-khata', 'ptr-arrow-khata', 'ptr-spinner-khata', async () => {
+    await loadUserKhata(true); // forceRender=true → hits DB, re-renders even if data same
+  });
 }
 
 function showRefreshIndicator() {}
@@ -1991,11 +2005,19 @@ function hideRefreshIndicator() {}
 
 async function manualIndexRefresh() {
   try {
-    await loadMenu();
-    await loadOrders();
-    if (_session?.is_subscriber) await refreshWalletBalance();
+    // Home PTR — bypass ALL cache, force fresh DB fetch for everything
+    // menu, pause status, subscriber status, wallet balance — all hit DB directly
+    _menuLoading = false; // unlock in case a background fetch was in progress
+    await Promise.all([
+      loadMenu(true),                                           // bypassCache=true → clears localStorage, hits DB
+      refreshPauseStatus(true).catch(() => {}),                // force=true → re-applies UI even if same value
+      refreshSubscriberStatus(true).catch(() => {}),           // force=true → re-applies subscriber UI from DB
+      _session?.is_subscriber && _khataEnabled
+        ? refreshWalletBalance(true).catch(() => {})           // force=true → re-draws wallet even if balance same
+        : Promise.resolve()
+    ]);
   } finally {
-    startPolling();
+    startPolling(); // reset background poll timer after PTR
   }
 }
 
@@ -2189,13 +2211,18 @@ async function placeOrder() {
         const waBtn = document.getElementById('s-wa-btn');
         if (waBtn) {
           waBtn.style.display = 'flex';
-          waBtn.onclick = () => openWA(CFG.TIFFIN,
-            `Hi! I just placed Order #${res.orderId}. Total: ₹${total}. Please Provide UPI Detail For Payement.`);
+          waBtn.onclick = () => {
+            const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
+            const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
+            const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
+            openWA(CFG.TIFFIN,
+              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address not set'}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
+          };
         }
       }, 2500);
     }
-    startPolling(true);
-    setTimeout(() => startPolling(false), 5 * 60000);
+    // Prefetch orders + khata in background so tabs are ready instantly when user opens them
+    _prefetchAfterOrder();
   } catch(e) {
     toast(e.message || 'Order failed. Try again.');
   } finally {
@@ -2251,12 +2278,18 @@ async function confirmInsufOrder() {
       const waBtn = document.getElementById('s-wa-btn');
       if (waBtn) {
         waBtn.style.display = 'flex';
-        waBtn.onclick = () => openWA(CFG.TIFFIN,
-          `Hi! I just placed Order #${res.orderId}. Total: ₹${total}.\nI am paying via UPI. Please share your UPI ID so I can pay and send the screenshot.`);
+        waBtn.onclick = () => {
+            const _u = Auth.get();
+            const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
+            const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
+            const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
+            openWA(CFG.TIFFIN,
+              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${_u?.name || 'Customer'} | 📞 ${_u?.phone || ''}\n📍 ${_u?.address || 'Address not set'}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`);
+          };
       }
     }, 2500);
-    startPolling(true);
-    setTimeout(() => startPolling(false), 5 * 60000);
+    // Prefetch orders + khata in background so tabs are ready instantly when user opens them
+    _prefetchAfterOrder();
   } catch(e) {
     toast(e.message || 'Order failed. Try again.');
   } finally {
@@ -2269,14 +2302,14 @@ async function confirmInsufOrder() {
 /* ═══════════════════════════════════════════
    ORDERS
 ═══════════════════════════════════════════ */
-async function loadOrders() {
+async function loadOrders(forceRender = false) {
   const phone = Auth.get()?.phone;
   if (!phone) return;
   document.getElementById('orders-loading').style.display = 'block';
   try {
     const res = await api('getUserOrders', { phone });
     const newStr = JSON.stringify(res.orders);
-    if (newStr === _lastOrders) { document.getElementById('orders-loading').style.display = 'none'; return; }
+    if (!forceRender && newStr === _lastOrders) { document.getElementById('orders-loading').style.display = 'none'; return; }
     _lastOrders = newStr;
     renderOrderList(res.orders);
   } catch {} finally {
@@ -2344,16 +2377,47 @@ function renderOrderList(orders) {
       ? `<div style="color:var(--gr);font-size:11px;margin-top:2px;font-style:italic">+${items.length-3} more items</div>`
       : '';
 
-    const isWallet = (o.user_type === 'subscriber') || (o.payment_status === 'wallet');
+    // 3-way payment classification using payment_mode (stored in DB)
+    // 'wallet'    → subscriber paid from wallet (no WA button needed)
+    // 'upi'       → normal daily user paying via UPI/cash
+    // 'upi_insuf' → subscriber had insufficient wallet balance, paid via UPI
+    const payMode   = (o.payment_mode || '').toLowerCase();
+    const isWallet  = payMode === 'wallet' || o.payment_status === 'wallet';
+    const isInsuf   = payMode === 'upi_insuf';
+    // isUPI covers 'upi' and any untagged legacy orders
+
     const orderId   = o.order_id || o.id;
     const ordAmt    = o.final_amount || o.total_amount || 0;
-    const waMsg     = encodeURIComponent(`Hi! I just placed Order #${orderId}. Total: ₹${ordAmt}. Please Provide UPI detail For Payment.`);
+    const _user     = Auth.get();
+
+    // Build WA message strings safely and store in _orderWAMap (keyed by orderId)
+    // This avoids embedding encoded URLs in onclick HTML attributes (single-quote bug)
+    const _ordItemLines = items.map(i => `• ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\n');
+    const _discLine  = o.discount > 0 ? `\n🎟️ Discount: −₹${o.discount}` : '';
+    const _delLine   = o.delivery_charge > 0 ? `\n🚴 Delivery: ₹${o.delivery_charge}` : '';
+    const _baseBlock = `🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${_user?.name || 'Customer'} | 📞 ${_user?.phone || ''}\n📍 ${_user?.address || 'Address not set'}\n\n*Items:*\n${_ordItemLines}${_discLine}${_delLine}\n✅ *Total: ₹${ordAmt}*`;
+
+    if (!isWallet) {
+      // Store the correct message for this order in the map so sendOrderWA() can use it
+      _orderWAMap[orderId] = {
+        phone: CFG.TIFFIN,
+        msg: isInsuf
+          ? `${_baseBlock}\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
+          : `${_baseBlock}\n\n💳 Please share your UPI/QR for payment. I will send the screenshot once paid. 🙏`
+      };
+    }
+
     const payBadge = isWallet
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
-      : `<span class="ord-pay-badge">💵 Cash / UPI</span>
-         <button onclick="window.open('https://wa.me/${CFG.TIFFIN}?text=${waMsg}','_blank')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-           <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
-         </button>`;
+      : isInsuf
+        ? `<span class="ord-pay-badge" style="background:#fff3cd;color:#856404">⚠️ Wallet (Insuf)</span>
+           <button onclick="sendOrderWA('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+           </button>`
+        : `<span class="ord-pay-badge">💵 Cash / UPI</span>
+           <button onclick="sendOrderWA('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+           </button>`;
 
     // Slot indicator
     const slotBadge = o.slot
@@ -2396,7 +2460,7 @@ function renderOrderList(orders) {
           <span class="ord-total">₹${o.final_amount || o.total_amount || 0}</span>
           ${payBadge}
         </div>
-        <button class="ord-help-btn" onclick="openWA(CFG.WA,'Hi! Help with order #${o.order_id||o.id}')">
+        <button class="ord-help-btn" onclick="openWA(CFG.WA,'🆘 *Help Required*\n\n📋 Order ID: *#${o.order_id||o.id}*\n\nHi Tiffo Team! Mujhe is order mein kuch problem hai.\nKripaya help karein. 🙏')">
           Help 💬
         </button>
       </div>
@@ -2470,7 +2534,7 @@ async function changePassword() {
 /* ═══════════════════════════════════════════
    KHATA
 ═══════════════════════════════════════════ */
-async function loadUserKhata() {
+async function loadUserKhata(forceRender = false) {
   const phone = Auth.get()?.phone;
   if (!phone) return;
   // Prefill date range if empty: today and 7 days ago
@@ -2492,7 +2556,7 @@ async function loadUserKhata() {
     const statusEl = document.getElementById('wallet-bal-status');
     if (statusEl) statusEl.textContent = (res.balance || 0) < 200 ? '\u26A0\uFE0F Balance low' : '\u2705 Balance looks good';
     const newStr = JSON.stringify(res.entries);
-    if (newStr !== _lastKhataStr) {
+    if (forceRender || newStr !== _lastKhataStr) {
       _lastKhataStr = newStr;
       _khataAllEntries = (res.entries || []).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
       Store.setJSON('_khata_cache', _khataAllEntries);
@@ -2768,10 +2832,15 @@ function closeAllSheets() {
 
 /* ═══════════════════════════════════════════
    POLLING
+   Strategy:
+   • Normal background = 240s (low server load)
+   • No fast polling — order/khata data prefetched immediately after order
+   • PTR = always bypasses cache, always hits DB fresh (super powerful)
+   • Subscriber status = PTR only (no auto watcher)
 ═══════════════════════════════════════════ */
 function startPolling(fast = false) {
   clearInterval(_pollTimer);
-  _pollTimer = setInterval(_runPollTick, fast ? _POLL_FAST : _POLL_NORMAL);
+  _pollTimer = setInterval(_runPollTick, _POLL_NORMAL); // always 240s, fast param ignored
 }
 
 function stopPolling() {
@@ -2779,18 +2848,23 @@ function stopPolling() {
   _pollTimer = null;
 }
 
-// ── Subscriber Status Watcher (5-second fast poll) ──────────
-// Dedicated interval so admin promote/demote reflects instantly in user panel.
-function startStatusWatcher() {
-  if (!_session?.phone) return;
-  clearInterval(_statusWatcher);
-  _statusWatcher = setInterval(() => {
-    if (!document.hidden) refreshSubscriberStatus().catch(() => {});
-  }, _STATUS_WATCH_INTERVAL);
+// Called right after order is placed — fetches orders + khata in parallel, silently.
+// When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
+async function _prefetchAfterOrder() {
+  try {
+    await Promise.all([
+      loadOrders(true).catch(() => {}),          // prefetch order list into memory
+      _session?.is_subscriber && _khataEnabled
+        ? loadUserKhata(true).catch(() => {})    // prefetch khata + wallet balance
+        : Promise.resolve()
+    ]);
+  } catch {}
 }
-function stopStatusWatcher() {
-  clearInterval(_statusWatcher);
-  _statusWatcher = null;
+
+// Khata tab — no separate timer, shared _pollTimer handles it
+function startPollingKhata() {
+  // Shared 240s timer already running. No override needed.
+  // For fresh data: user opens tab (onEnter does forceRender=true) or does PTR.
 }
 
 async function _runPollTick() {
@@ -2799,30 +2873,24 @@ async function _runPollTick() {
   refreshPauseStatus().catch(() => {});
   const cur = document.querySelector('.pg.here')?.id;
   if (cur === 'pg-orders') loadOrders().catch(() => {});
-  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});  // real-time wallet update
-  if (cur === 'pg-home')   loadMenu().catch(() => {});        // always refresh menu + open/close on each tick
+  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});
+  if (cur === 'pg-home')   loadMenu().catch(() => {});
 }
 
-// Auto-detect subscription status changes made by admin — no logout required
-async function refreshSubscriberStatus() {
+// refreshSubscriberStatus is PTR-only — no auto watcher (saves Supabase calls)
+async function refreshSubscriberStatus(force = false) {
   if (!_session?.phone) return;
   try {
     const res = await api('checkSubscriber', { phone: _session.phone });
     const nowSubscriber = !!res.isSubscriber;
-    if (nowSubscriber === !!_session.is_subscriber) return; // No change
-
-    // Status changed — update in-memory session
+    if (!force && nowSubscriber === !!_session.is_subscriber) return;
     _session.is_subscriber = nowSubscriber;
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     _walletBal = nowSubscriber ? (_walletBal || 0) : 0;
-
-    // Re-apply all subscriber UI immediately
     applyPauseState(_pauseMode);
     updateWalletUI(_walletBal);
     _applySubscriberUI();
     applyKhataVisibility();
-
-    // Persist updated status to cache
     SessionCache.save({
       user:          _session,
       is_subscriber: nowSubscriber,
@@ -2833,17 +2901,12 @@ async function refreshSubscriberStatus() {
   } catch {}
 }
 
-// Faster polling when wallet page is open (15s)
-function startPollingKhata() {
-  clearInterval(_pollTimer);
-  _pollTimer = setInterval(_runPollTick, 15000);
-}
-
-async function refreshWalletBalance() {
+async function refreshWalletBalance(force = false) {
   if (!_session?.is_subscriber || !_khataEnabled) return;
   try {
     const res = await api('getSubscriberBalance', { phone: _session.phone });
-    if (res.balance !== _lastBalance) {
+    // On PTR (force=true): always update UI even if balance unchanged
+    if (force || res.balance !== _lastBalance) {
       _lastBalance = res.balance;
       updateWalletUI(res.balance);
     }
@@ -2852,11 +2915,12 @@ async function refreshWalletBalance() {
   }
 }
 
-async function refreshPauseStatus() {
+async function refreshPauseStatus(force = false) {
   if (!_session?.is_subscriber) return;
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
-    if (res.pauseMode !== _lastPauseMode) {
+    // On PTR (force=true): always re-apply UI even if pause mode unchanged
+    if (force || res.pauseMode !== _lastPauseMode) {
       _lastPauseMode = res.pauseMode;
       applyPauseState(res.pauseMode);
     }
@@ -2864,8 +2928,8 @@ async function refreshPauseStatus() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopPolling(); stopStatusWatcher(); }
-  else { _runPollTick(); startPolling(); startStatusWatcher(); }
+  if (document.hidden) { stopPolling(); }
+  else { _runPollTick(); startPolling(); }
 });
 
 /* ═══════════════════════════════════════════
@@ -2919,7 +2983,6 @@ async function bootApp() {
     _transitionToHome();
     loadMenu();
     startPolling();
-    startStatusWatcher();
 
     // BACKGROUND VERIFY — runs at most once every 48 hours (not on every refresh).
     // Like GitHub: silently checks the account is still valid, updates cache,
@@ -3022,7 +3085,6 @@ async function bootApp() {
     _transitionToHome();
     loadMenu();
     startPolling();
-    startStatusWatcher();
   } catch(e) {
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
@@ -3082,7 +3144,6 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
-  stopStatusWatcher();
   Auth.clear();
   Creds.clear();
   SessionCache.clear();
