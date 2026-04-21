@@ -750,7 +750,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           </div>
           <div class="field">
             <label>SESSION <span style="font-weight:400;color:#9ca3af;font-size:11px">(PAUSED USERS AUTO-EXCLUDED)</span></label>
-            <select id="bulk-slot-select">
+            <select id="bulk-slot-select" onchange="loadBulkSubscribers()">
               <option value="morning">&#127749; Morning Only</option>
               <option value="evening">&#127750; Evening Only</option>
               <option value="both">&#9728;&#65039; Both Sessions</option>
@@ -1560,14 +1560,16 @@ function _toMins(t) {
   return m24 ? +m24[1]*60 + +m24[2] : null;
 }
 function _isMorning(o) {
-  if ((o.order_source||'') === 'admin') return (o.slot||'morning') === 'morning';
+  const src = (o.order_source||'');
+  if (src === 'admin' || src === 'admin_bulk') return (o.slot||'morning') === 'morning';
   const cut = _toMins(_getMorningCutoff(o.date));
   if (cut === null) return true;
   const om = _toMins(o.time||'00:00');
   return om === null || om <= cut;
 }
 function _isEvening(o) {
-  if ((o.order_source||'') === 'admin') return (o.slot||'morning') === 'evening';
+  const src = (o.order_source||'');
+  if (src === 'admin' || src === 'admin_bulk') return (o.slot||'morning') === 'evening';
   const mc = _toMins(_getMorningCutoff(o.date)), ec = _toMins(_getEveningCutoff(o.date));
   if (mc===null||ec===null) return false;
   const om = _toMins(o.time||'00:00');
@@ -1691,8 +1693,10 @@ function renderOrdersTable(orders) {
 
     // ── Source ──
     const src = (o.order_source||'user').toLowerCase();
-    const srcHtml = src==='admin'
+    const srcHtml = src==='admin_bulk'
       ? `<span class="src-badge src-bulk"><i class="fa fa-boxes-stacked"></i> Bulk</span>`
+      : src==='admin'
+      ? `<span class="src-badge src-bulk"><i class="fa fa-user-shield"></i> Admin</span>`
       : `<span class="src-badge src-user"><i class="fa fa-user"></i> User</span>`;
 
     // ── Payment ──
@@ -2071,7 +2075,7 @@ function renderBulkSubsList() {
   }
   // add manual phones not already in list
   for (const ph of _bulkManualPhones) {
-    if (!list.find(s => s.phone === ph)) list.push({ phone: ph, name: ph, balance: 0, address: '', plan_end: null, pause: 'none', auto_tiffin: true, already_ordered: false, eligible: true, _manual: true });
+    if (!list.find(s => s.phone === ph)) list.push({ phone: ph, name: ph, balance: 0, address: '', plan_end: null, pause: 'none', already_ordered: false, eligible: true, _manual: true });
   }
   // sort
   list.sort((a,b) => {
@@ -2145,7 +2149,7 @@ function bulkAutoSelect() {
   }
   list.forEach(s => {
     const balOk  = price <= 0 || s.balance >= price;
-    const eligible = s.auto_tiffin && !s.already_ordered && s.pause === 'none' && balOk;
+    const eligible = s.eligible && balOk;
     if (eligible) _bulkSelected.add(s.phone);
   });
   // always add manual phones
@@ -2186,7 +2190,7 @@ async function bulkAddManual() {
     _bulkSelected.add(ph);
     // Add/update in cache
     const idx = _bulkSubsCache.findIndex(s => s.phone === ph);
-    const entry = { phone: ph, name: u.name||ph, address: u.address||'', balance: u.balance||0, plan_end: null, pause: 'none', auto_tiffin: true, already_ordered: false, eligible: true, _manual: true };
+    const entry = { phone: ph, name: u.name||ph, address: u.address||'', balance: u.balance||0, plan_end: null, pause: 'none', already_ordered: false, eligible: true, _manual: true };
     if (idx >= 0) _bulkSubsCache[idx] = entry; else _bulkSubsCache.unshift(entry);
     renderBulkSubsList();
     if (infoEl) infoEl.innerHTML = `<span style="color:#166534;font-weight:600">✓ Added: ${u.name||ph}</span>`;
