@@ -287,9 +287,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
   const timeStr  = istTimeStr(ist);
   let newBal = null;
 
-  // upi_insuf = subscriber confirmed to pay via UPI due to low wallet — skip wallet deduction
-  const isUpiInsuf = (paymentMode || '').toLowerCase() === 'upi_insuf';
-  if (khataEnabled && user.is_subscriber && !isUpiInsuf) {
+  if (khataEnabled && user.is_subscriber && paymentMode !== 'upi_insuf') {
     newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
     const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
     await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
@@ -300,26 +298,6 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
       title:    'New Order',
       body:     user.name + ' placed order ' + orderId,
       meta:     { orderId, phone: user.phone, is_subscriber: true }
-    });
-  } else if (isUpiInsuf) {
-    // Notify admin — subscriber paying via UPI (insufficient balance)
-    await _createNotification({
-      type:     'order',
-      priority: 'high',
-      group_id: orderId,
-      title:    'New Order (UPI – Insuf.)',
-      body:     user.name + ' placed order ' + orderId + ' — wallet insufficient, paying via UPI',
-      meta:     { orderId, phone: user.phone, is_subscriber: true, upi_insuf: true }
-    });
-  } else {
-    // Notify admin — regular daily user order (non-subscriber, pays via UPI)
-    await _createNotification({
-      type:     'order',
-      priority: 'normal',
-      group_id: orderId,
-      title:    'New Order',
-      body:     user.name + ' placed order ' + orderId,
-      meta:     { orderId, phone: user.phone, is_subscriber: false }
     });
   }
 
@@ -620,10 +598,8 @@ app.post('/api', async (req, res) => {
         if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
           return res.json({ success: false, error: 'Order items required' });
         }
-        // For upi_insuf orders the user has already confirmed they want to pay via UPI
-        // — skip the wallet balance guard so the order can be placed
-        const isUpiInsuf = (data.paymentMode || '').toLowerCase() === 'upi_insuf';
-        if (user.is_subscriber && khataEnabled && !isUpiInsuf) {
+        // Skip balance check for upi_insuf orders — subscriber chose to pay via UPI instead
+        if (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') {
           const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
           const currentBal = balRow?.balance || 0;
           const subtotal   = data.items.reduce((s, i) => s + i.price * i.qty, 0);
