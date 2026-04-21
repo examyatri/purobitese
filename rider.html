@@ -139,7 +139,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 #ptr-zone-rider{
   position:fixed;top:0;left:0;right:0;z-index:999;
   height:0;overflow:hidden;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
   background:#fff;border-bottom:1px solid #f0f0f0;
   transition:height 200ms ease;
   font-size:13px;color:#94a3b8;font-family:var(--ff);
@@ -148,15 +148,6 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 .ptr-spinner-r{display:none;width:16px;height:16px;border:2px solid #f0f0f0;
   border-top-color:var(--p);border-radius:50%;animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
-/* Global Progress Bar */
-#g-progress-bar-r{position:fixed;top:0;left:0;right:0;height:3px;z-index:10000;pointer-events:none}
-#gp-fill-r{position:absolute;top:0;left:0;height:100%;width:0%;background:linear-gradient(90deg,var(--p),#ff6b35);border-radius:0 3px 3px 0;transition:width 0ms linear;box-shadow:0 0 8px rgba(230,57,70,.5)}
-#gp-pct-r{position:absolute;top:4px;right:8px;font-family:var(--ff);font-size:10px;font-weight:700;color:var(--p);opacity:0;background:rgba(255,255,255,.92);border-radius:8px;padding:1px 6px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
-/* PTR progress in zone */
-.ptr-prog-wrap-r{width:80%;max-width:240px;display:none;flex-direction:column;align-items:center;gap:3px}
-.ptr-prog-track-r{width:100%;height:3px;background:#f0f0f0;border-radius:3px;overflow:hidden}
-.ptr-prog-fill-r{height:100%;width:0%;background:linear-gradient(90deg,var(--p),#ff6b35);border-radius:3px;transition:width 300ms ease}
-.ptr-prog-pct-r{font-family:var(--ff);font-size:11px;font-weight:700;color:var(--p)}
 </style>
 </head>
 <body>
@@ -181,26 +172,18 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
       <input id="r-pw" type="password" placeholder="••••••••" autocomplete="current-password" style="padding-right:44px">
       <button onclick="togglePw('r-pw',this)" style="position:absolute;right:12px;bottom:12px;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px">👁</button>
     </div>
-    <button id="r-login-btn" class="r-btn-p" onclick="doRiderLogin()" style="position:relative;overflow:hidden">Login<div id="bp-rlogin" style="position:absolute;bottom:0;left:0;height:3px;width:0%;background:rgba(255,255,255,.55);border-radius:0;transition:width 380ms ease;pointer-events:none"></div><span id="bpp-rlogin" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:rgba(255,255,255,.9);display:none;pointer-events:none"></span></button>
+    <button id="r-login-btn" class="r-btn-p" onclick="doRiderLogin()">Login</button>
   </div>
 </div>
 
 <!-- App -->
 <div id="pg-app">
 
-  <!-- Global Progress Bar -->
-  <div id="g-progress-bar-r"><div id="gp-fill-r"></div><div id="gp-pct-r"></div></div>
-
   <!-- Pull-to-Refresh indicator -->
   <div id="ptr-zone-rider">
-    <div style="display:flex;align-items:center;gap:6px">
-      <span class="ptr-arrow-r" id="ptr-arrow-rider">↓</span>
-      <span id="ptr-txt-rider">Pull to refresh</span>
-    </div>
-    <div class="ptr-prog-wrap-r" id="ptr-prog-wrap-r">
-      <div class="ptr-prog-track-r"><div class="ptr-prog-fill-r" id="ptr-prog-fill-r"></div></div>
-      <div class="ptr-prog-pct-r" id="ptr-prog-pct-r">0%</div>
-    </div>
+    <span class="ptr-arrow-r" id="ptr-arrow-rider">↓</span>
+    <span class="ptr-spinner-r" id="ptr-spinner-rider"></span>
+    <span>Pull to refresh</span>
   </div>
 
   <!-- Top Nav -->
@@ -374,137 +357,7 @@ const RiderSession = {
 };
 
 /* ─── API WRAPPER ────────────────────────────────────── */
-/* ── Rider Progress Bar Engine ── */
-const RPB = (() => {
-  let _gpTimer = null, _gpPct = 0, _gpDone = false;
-  let _bpTimers = {};
-
-  function gpShow() {
-    const fill = document.getElementById('gp-fill-r');
-    const pctEl = document.getElementById('gp-pct-r');
-    if (!fill) return;
-    _gpDone = false; _gpPct = 0; clearInterval(_gpTimer);
-    fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1';
-    fill.style.background = 'linear-gradient(90deg,var(--p),#ff6b35)';
-    if (pctEl) { pctEl.style.opacity = '1'; pctEl.textContent = '0%'; }
-    requestAnimationFrame(() => {
-      fill.style.transition = 'width 400ms ease'; fill.style.width = '15%'; _gpPct = 15;
-      _gpTimer = setInterval(() => {
-        if (_gpDone) return;
-        const step = Math.max(0.4, (88 - _gpPct) * 0.04);
-        _gpPct = Math.min(88, _gpPct + step);
-        fill.style.transition = 'width 600ms ease'; fill.style.width = _gpPct + '%';
-        if (pctEl) pctEl.textContent = Math.round(_gpPct) + '%';
-      }, 600);
-    });
-  }
-  function gpDone() {
-    _gpDone = true; clearInterval(_gpTimer);
-    const fill = document.getElementById('gp-fill-r');
-    const pctEl = document.getElementById('gp-pct-r');
-    if (!fill) return;
-    fill.style.transition = 'width 280ms ease'; fill.style.width = '100%';
-    if (pctEl) pctEl.textContent = '100%';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 350ms ease'; fill.style.opacity = '0';
-      if (pctEl) pctEl.style.opacity = '0';
-      setTimeout(() => { fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1'; }, 450);
-    }, 320);
-  }
-  function gpError() {
-    clearInterval(_gpTimer);
-    const fill = document.getElementById('gp-fill-r');
-    if (!fill) return;
-    fill.style.background = '#ef4444';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 400ms ease'; fill.style.opacity = '0';
-      setTimeout(() => { fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1'; fill.style.background = 'linear-gradient(90deg,var(--p),#ff6b35)'; const p = document.getElementById('gp-pct-r'); if(p) p.style.opacity='0'; }, 450);
-    }, 550);
-  }
-  function ptrStart() {
-    const fill = document.getElementById('ptr-prog-fill-r');
-    const pctEl = document.getElementById('ptr-prog-pct-r');
-    const wrap  = document.getElementById('ptr-prog-wrap-r');
-    if (!fill) return;
-    if (wrap) wrap.style.display = 'flex';
-    clearInterval(fill._t); fill.style.transition = 'none'; fill.style.width = '0%';
-    if (pctEl) pctEl.textContent = '0%';
-    let pct = 0;
-    fill._t = setInterval(() => {
-      const step = Math.max(0.5, (88 - pct) * 0.045);
-      pct = Math.min(88, pct + step);
-      fill.style.transition = 'width 500ms ease'; fill.style.width = pct + '%';
-      if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-    }, 500);
-  }
-  function ptrDone() {
-    const fill = document.getElementById('ptr-prog-fill-r');
-    const pctEl = document.getElementById('ptr-prog-pct-r');
-    const wrap  = document.getElementById('ptr-prog-wrap-r');
-    if (!fill) return;
-    clearInterval(fill._t);
-    fill.style.transition = 'width 220ms ease'; fill.style.width = '100%';
-    if (pctEl) pctEl.textContent = '100%';
-    setTimeout(() => { if (wrap) wrap.style.display = 'none'; fill.style.transition = 'none'; fill.style.width = '0%'; if (pctEl) pctEl.textContent = '0%'; }, 480);
-  }
-  function btnStart(fillId, pctId) {
-    const fill = document.getElementById(fillId); const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.background = 'rgba(255,255,255,.55)'; fill.style.opacity = '1';
-    if (pctEl) { pctEl.style.display = 'inline'; pctEl.textContent = '0%'; }
-    let pct = 0;
-    _bpTimers[fillId] = setInterval(() => {
-      if (pct >= 48) { clearInterval(_bpTimers[fillId]); return; }
-      const step = Math.max(0.8, (48 - pct) * 0.07);
-      pct = Math.min(48, pct + step);
-      fill.style.transition = 'width 380ms ease'; fill.style.width = pct + '%';
-      if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-      fill._bpPct = pct;
-    }, 350);
-    fill._bpPct = 0;
-  }
-  function btnRetry(fillId, pctId) {
-    const fill = document.getElementById(fillId); const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.background = 'rgba(255,170,0,.65)';
-    setTimeout(() => {
-      fill.style.background = 'rgba(255,255,255,.55)';
-      let pct = fill._bpPct || 48;
-      _bpTimers[fillId] = setInterval(() => {
-        if (pct >= 80) { clearInterval(_bpTimers[fillId]); return; }
-        const step = Math.max(0.3, (80 - pct) * 0.03);
-        pct = Math.min(80, pct + step); fill.style.transition = 'width 500ms ease'; fill.style.width = pct + '%';
-        if (pctEl) pctEl.textContent = Math.round(pct) + '%'; fill._bpPct = pct;
-      }, 600);
-    }, 400);
-  }
-  function btnDone(fillId, pctId) {
-    const fill = document.getElementById(fillId); const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.transition = 'width 180ms ease'; fill.style.width = '100%';
-    if (pctEl) pctEl.textContent = '100%';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 300ms ease'; fill.style.opacity = '0';
-      setTimeout(() => { fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1'; if (pctEl) { pctEl.style.display = 'none'; pctEl.textContent = ''; } }, 400);
-    }, 280);
-  }
-  function btnError(fillId, pctId) {
-    const fill = document.getElementById(fillId); const pctEl = document.getElementById(pctId);
-    if (!fill) return;
-    clearInterval(_bpTimers[fillId]);
-    fill.style.background = 'rgba(239,68,68,.65)'; fill.style.transition = 'width 120ms ease'; fill.style.width = '100%';
-    setTimeout(() => {
-      fill.style.transition = 'opacity 400ms ease'; fill.style.opacity = '0';
-      setTimeout(() => { fill.style.transition = 'none'; fill.style.width = '0%'; fill.style.opacity = '1'; fill.style.background = 'rgba(255,255,255,.55)'; if (pctEl) { pctEl.style.display = 'none'; pctEl.textContent = ''; } }, 500);
-    }, 480);
-  }
-  return { gpShow, gpDone, gpError, ptrStart, ptrDone, btnStart, btnRetry, btnDone, btnError };
-})();
-
-async function api(action, data = {}, _retry = 1, _onRetry = null) {
+async function api(action, data = {}, _retry = 1) {
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 22000);
   try {
@@ -517,10 +370,8 @@ async function api(action, data = {}, _retry = 1, _onRetry = null) {
     if (!json.success) throw new Error(json.error || 'Request failed');
     return json;
   } catch(e) {
-    if (_retry > 0 && (e.name === 'AbortError' || e.name === 'TypeError')) {
-      if (_onRetry) _onRetry();
-      return api(action, data, _retry - 1, _onRetry);
-    }
+    if (_retry > 0 && (e.name === 'AbortError' || e.name === 'TypeError'))
+      return api(action, data, _retry - 1);
     throw e;
   } finally {
     clearTimeout(timer);
@@ -544,14 +395,10 @@ async function doRiderLogin() {
   if (!pw)      { rToast('Enter password'); return; }
 
   const btn = document.getElementById('r-login-btn');
-  btn.disabled = true; btn.style.opacity = '0.88';
-  RPB.btnStart('bp-rlogin', 'bpp-rlogin');
+  btn.textContent = '…'; btn.disabled = true;
 
   try {
-    const res = await api('riderLogin', { riderId, password: pw }, 1,
-      () => RPB.btnRetry('bp-rlogin', 'bpp-rlogin')
-    );
-    RPB.btnDone('bp-rlogin', 'bpp-rlogin');
+    const res = await api('riderLogin', { riderId, password: pw });
     _rider = res.rider;
     saveRiderCreds(riderId, pw);
     RiderSession.save(_rider);
@@ -559,9 +406,8 @@ async function doRiderLogin() {
     await loadOrders();
     startPolling();
   } catch(e) {
-    RPB.btnError('bp-rlogin', 'bpp-rlogin');
     rToast(e.message || 'Login failed. Check Rider ID and password.');
-    btn.disabled = false; btn.style.opacity = '';
+    btn.textContent = 'Login'; btn.disabled = false;
   }
 }
 
@@ -1005,13 +851,12 @@ function togglePw(id, btn) {
 }
 
 /* ─── POLLING ────────────────────────────────────────── */
-// 300s background safety-net — rider does PTR for instant fresh data anytime
 function startPolling() {
   clearInterval(_pollTimer);
   _pollTimer = setInterval(() => {
     if (document.hidden) return;
     loadOrders();
-  }, 300_000);
+  }, 60_000);
 }
 
 function stopPolling() {
@@ -1155,28 +1000,27 @@ window.addEventListener('popstate', () => {
   document.addEventListener('touchend', async e => {
     if (!pulling) return;
     pulling = false;
-    const dy    = e.changedTouches[0].clientY - startY;
-    const zone  = document.getElementById('ptr-zone-rider');
-    const arrow = document.getElementById('ptr-arrow-rider');
+    const dy      = e.changedTouches[0].clientY - startY;
+    const zone    = document.getElementById('ptr-zone-rider');
+    const arrow   = document.getElementById('ptr-arrow-rider');
+    const spinner = document.getElementById('ptr-spinner-rider');
 
     if (dy > THRESHOLD) {
-      if (arrow) { arrow.style.display = 'none'; }
-      zone.style.height = '60px';
-      RPB.ptrStart();   // PTR zone progress bar
-      RPB.gpShow();     // global top bar
+      if (arrow)   { arrow.style.display   = 'none'; }
+      if (spinner) { spinner.style.display = 'inline-block'; }
+      zone.style.height = '52px';
 
       try {
+        // loadOrders always hits DB fresh — no equality guard in rider
         await loadOrders();
-        RPB.gpDone();
-        RPB.ptrDone();
-        startPolling();  // reset poll timer after PTR
-      } catch (_) {
-        RPB.gpError();
-        RPB.ptrDone();
-      }
-      if (arrow) { arrow.style.display = 'inline-block'; }
+        // Reset background poll timer so it doesn't fire right after PTR
+        startPolling();
+      } catch (_) {}
+
+      if (spinner) { spinner.style.display = 'none'; }
+      if (arrow)   { arrow.style.display   = 'inline-block'; }
     }
-    zone.style.height = '0';
+    zone.style.height       = '0';
     if (arrow) arrow.style.transform = 'rotate(0deg)';
   }, { passive: true });
 })();
