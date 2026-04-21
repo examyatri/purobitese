@@ -108,6 +108,9 @@ textarea{resize:vertical;min-height:80px}
 .pw-wrap input{padding-right:44px}
 .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--gr);cursor:pointer;font-size:16px}
 .creds-hint{background:var(--gl);color:var(--g);border-radius:8px;padding:8px 12px;font-family:var(--fb);font-size:12px;margin-bottom:12px}
+.auth-status{font-family:var(--fb);font-size:13px;text-align:center;padding:7px 12px;border-radius:8px;margin-bottom:10px;transition:opacity 0.2s}
+.auth-status.info{color:var(--p);background:none}
+.auth-status.error{color:#d32f2f;background:#fff3f3;border:1px solid #ffd0d0}
 .forgot-link{font-family:var(--fb);font-size:13px;color:var(--p);text-align:right;background:none;border:none;cursor:pointer;width:100%;text-decoration:none;margin-top:6px}
 /* Home page header */
 .home-header{background:#fff;padding:14px var(--pg-pad) 10px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 #f0f0f0}
@@ -403,6 +406,7 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
       <button class="forgot-link" onclick="forgotPw()">Forgot Password?</button>
+      <div id="login-status" class="auth-status" style="display:none"></div>
       <div class="mt16">
         <button class="btn-primary" id="login-btn" onclick="doLogin()">Login</button>
       </div>
@@ -439,6 +443,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="err-msg" id="su-pw-err"></div>
       </div>
       <div class="mt4">
+        <div id="signup-status" class="auth-status" style="display:none"></div>
         <button class="btn-primary" id="su-btn" onclick="doSignup()">Create Account</button>
       </div>
     </div>
@@ -1610,20 +1615,44 @@ function forgotPw() {
   openWA(CFG.WA, `🔐 *Password Reset Request*\n\nHi Tiffo Team! 🙏\nMujhe apna password reset karna hai.\n\n📞 Registered Phone: ${phone || 'not entered'}\n\nKripaya help karein. Thank you!`);
 }
 
+/* ─── Auth status text (no spinner) ─── */
+function setAuthStatus(statusId, btnId, msg, type /* 'info'|'error'|'' */, disableMs) {
+  const el  = document.getElementById(statusId);
+  const btn = document.getElementById(btnId);
+  if (!el) return;
+  if (!msg) {
+    el.style.display = 'none';
+    el.textContent = '';
+    el.className = 'auth-status';
+    if (btn) btn.disabled = false;
+    return;
+  }
+  el.textContent = msg;
+  el.className = 'auth-status ' + (type || 'info');
+  el.style.display = 'block';
+  if (btn && disableMs) {
+    btn.disabled = true;
+    setTimeout(() => { btn.disabled = false; }, disableMs);
+  }
+}
+
 async function doLogin() {
   const phone = document.getElementById('login-phone').value.replace(/\D/g, '');
   const pw    = document.getElementById('login-pw').value;
   if (!phone || phone.length !== 10) { toast('Enter 10-digit phone number'); return; }
   if (!pw) { toast('Enter password'); return; }
-  setLoading('login-btn', true);
-  toast('⚙️ Setting up your diet preferences… just a moment!', 4000);
+
+  // ── Show status text instantly, disable button for 3s to prevent double-tap ──
+  setAuthStatus('login-status', 'login-btn', 'Signing you in...', 'info', 3000);
+
   try {
     const res = await api('login', { phone, password: pw });
+    // ✅ Login success — status disappears as screen changes
     Creds.save(phone, pw);
     Auth.set(res.user);
-    // Reset wrong-creds hint styling if it was shown
     const _hint = document.getElementById('login-creds-hint');
     if (_hint) { _hint.style.display = 'none'; _hint.style.background = ''; _hint.style.color = ''; }
+    setAuthStatus('login-status', 'login-btn', '', '', 0); // clear status
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
     _pauseMode = res.subscriber?.pause_delivery || 'none';
@@ -1632,7 +1661,6 @@ async function doLogin() {
     api('getKhataEnabled').then(r => {
       _khataEnabled = r.enabled;
       applyKhataVisibility();
-      // Save full session snapshot after khata state is known
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
     }).catch(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
@@ -1640,8 +1668,26 @@ async function doLogin() {
     _transitionToHome();
     loadMenu();
     startPolling();
-  } finally {
-    setLoading('login-btn', false);
+  } catch(e) {
+    // ❌ Login failed — replace status with clear error, re-enable button
+    const isAuthError = e.message?.includes('Session invalid') ||
+                        e.message?.includes('Unauthorized') ||
+                        e.message?.includes('not found') ||
+                        e.message?.includes('Invalid');
+    if (isAuthError) {
+      // Wrong credentials — clear stale saved creds, show error in status area
+      Creds.clear();
+      SessionCache.clear();
+      setAuthStatus('login-status', 'login-btn', '⚠️ Incorrect details — please try again', 'error', 0);
+      // Also hide the prefill hint since creds are now cleared
+      const hint = document.getElementById('login-creds-hint');
+      if (hint) { hint.style.display = 'none'; }
+      document.getElementById('login-pw').value = '';
+      document.getElementById('login-pw').focus();
+    } else {
+      // Network/timeout error
+      setAuthStatus('login-status', 'login-btn', '⚠️ No internet connection. Check and retry.', 'error', 0);
+    }
   }
 }
 
@@ -1666,8 +1712,10 @@ async function doSignup() {
   setErr('su-pw-err',    !pw || pw.length < 6 ? 'Password must be 6+ characters' : '');
 
   if (!valid) return;
-  setLoading('su-btn', true);
-  toast('⚙️ Setting up your diet preferences… just a moment!', 5000);
+
+  // ── Show status text instantly, disable button for 4s to prevent double-tap ──
+  setAuthStatus('signup-status', 'su-btn', 'Setting up your account...', 'info', 4000);
+
   try {
     const res = await api('signup', { name, phone, email, address, password: pw });
     Creds.save(phone, pw);
@@ -1682,9 +1730,7 @@ async function doSignup() {
     startPolling();
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
-    toast(e.message || 'Signup failed. Try again.');
-  } finally {
-    setLoading('su-btn', false);
+    setAuthStatus('signup-status', 'su-btn', '⚠️ ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
   }
 }
 
@@ -3153,27 +3199,41 @@ async function bootApp() {
 
   /* ══════════════════════════════════════════════════════════════
      SLOW PATH: No cached session — first ever visit, or after logout
+     Rules:
+       Case 2 — credentials saved → instantly show prefilled login screen,
+                 silently attempt auto-login in background.
+       Case 3 — no credentials at all → instantly show signup screen.
+       Case 4 — anything unexpected → show login screen (safe fallback).
   ══════════════════════════════════════════════════════════════ */
   const creds = Creds.get();
-  if (!creds) {
-    // No credentials at all → show signup
+
+  if (!creds || !creds.phone || !creds.pw) {
+    // Case 3: No saved credentials at all → signup screen instantly
     _transitionToLogin(false);
     return;
   }
 
-  // Has saved credentials but cache was cleared (e.g. browser storage wiped)
-  // Do a one-time network login to rebuild the cache, then never again
-  document.getElementById('app-loader').style.display = 'flex';
-  document.getElementById('loader-status').textContent = 'Loading…';
+  // Case 2: Credentials exist but no session cache
+  // Show prefilled login screen instantly — zero loading, zero wait
+  _transitionToLogin(true, false);
+
+  // Show non-intrusive status while auto-login runs in background
+  setTimeout(() => {
+    setAuthStatus('login-status', 'login-btn', 'Signing you in...', 'info', 0);
+  }, 150); // small delay so screen transition completes first
+
+  // Background silent auto-login attempt — if it succeeds, take user home
+  // If it fails (wrong creds / network), user is already on login screen & can retry
   try {
     const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
+    // ✅ Auto-login succeeded — status disappears as screen changes
+    setAuthStatus('login-status', 'login-btn', '', '', 0);
     Auth.set(res.user);
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
-    // Build cache so next load is instant
     api('getKhataEnabled')
       .then(r => {
         _khataEnabled = r.enabled;
@@ -3199,13 +3259,18 @@ async function bootApp() {
     loadMenu();
     startPolling();
   } catch(e) {
+    // ❌ Auto-login failed — user is already on login screen
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found');
     if (isAuthError) {
-      _transitionToLogin(true, true); // Show login with prefilled phone + warning
+      // Wrong credentials — clear bad creds, show error in status area
+      Creds.clear();
+      prefillLoginForm(false); // prefill form (without wrong-creds hint, we handle via status)
+      setAuthStatus('login-status', 'login-btn', '⚠️ Session expired — please login again', 'error', 0);
     } else {
-      _showRetryUI('No internet connection. Check and try again.');
+      // Network/timeout: clear the "Signing you in..." text, let user tap Login manually
+      setAuthStatus('login-status', 'login-btn', '', '', 0);
     }
   }
 }
