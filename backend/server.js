@@ -137,9 +137,10 @@ function normOrderTime(v) {
 function formatOrder(o) {
   return {
     ...o,
-    date:  normOrderDate(o.date),
-    time:  normOrderTime(o.time),
-    items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
+    date:         normOrderDate(o.date),
+    time:         normOrderTime(o.time),
+    items:        typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
+    order_source: o.order_source || o.source || 'user'  // normalise DB column name → frontend key
   };
 }
 
@@ -291,14 +292,6 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
     const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
     await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
-    await _createNotification({
-      type:     'order',
-      priority: 'high',
-      group_id: orderId,
-      title:    'New Order',
-      body:     user.name + ' placed order ' + orderId,
-      meta:     { orderId, phone: user.phone, is_subscriber: true }
-    });
   }
 
   await _deductMenuStock(items);
@@ -325,6 +318,18 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     time:            timeStr,
     created_at:      new Date().toISOString()
   });
+
+  // ── Fire notification for every order type (subscriber + daily + upi_insuf) ──
+  try {
+    await _createNotification({
+      type:     'order',
+      priority: 'high',
+      group_id: orderId,
+      title:    'New Order',
+      body:     user.name + ' placed order ' + orderId,
+      meta:     { orderId, phone: user.phone, is_subscriber: !!user.is_subscriber }
+    });
+  } catch (_) {}
 
   return { orderId, finalAmount, walletBalance: newBal };
 }
@@ -842,57 +847,86 @@ app.post('/api', async (req, res) => {
         const today    = istDateStr(ist);
         const created  = [], skipped = [], udhar = [];
         const priceNum = parseFloat(price) || 0;
+        const bulkSlot = slot || 'morning';
+
+        // Server-side: fetch already-ordered phones for this slot today (duplicate guard)
+        const { data: existingOrders } = await supabase
+          .from('orders')
+          .select('phone')
+          .eq('date', today)
+          .eq('slot', bulkSlot)
+          .not('order_status', 'eq', 'cancelled');
+        const alreadyOrderedSet = new Set((existingOrders || []).map(o => o.phone));
 
         for (const phone of phones) {
           const cleanPh = cleanPhone(phone);
+
+          // Server-side duplicate guard: skip if already has order for this slot today
+          if (alreadyOrderedSet.has(cleanPh)) {
+            skipped.push({ phone: cleanPh, reason: 'already ordered today' });
+            continue;
+          }
+
           const { data: user } = await supabase.from('users').select('*').eq('phone', cleanPh).single();
           if (!user) { skipped.push({ phone: cleanPh, reason: 'user not found' }); continue; }
 
-          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', cleanPh).single();
-          const balance   = balRow?.balance || 0;
-          const isUdhar   = balance < priceNum;
-          const orderId   = generateOrderId(ist);
-          const items     = [{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }];
-          const timeStr   = `${String(ist.getUTCHours()).padStart(2,'0')}:${String(ist.getUTCMinutes()).padStart(2,'0')}`;
+          const orderId  = generateOrderId(ist);
+          const items    = [{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }];
+
+          // Atomic wallet update — returns new balance (can go negative for udhar)
+          const newBal  = await _atomicWalletUpdate(cleanPh, -priceNum);
+          const isUdhar = newBal < 0;
 
           const orderRow = {
-            order_id:       orderId,
-            user_id:        user.user_id || cleanPh,
-            name:           user.name,
-            phone:          cleanPh,
-            address:        user.address || '',
-            items:          JSON.stringify(items),
-            total_amount:   priceNum,
+            order_id:        orderId,
+            user_id:         user.user_id || cleanPh,
+            name:            user.name,
+            phone:           cleanPh,
+            address:         user.address || '',
+            items:           JSON.stringify(items),
+            total_amount:    priceNum,
             delivery_charge: 0,
-            final_amount:   priceNum,
-            order_status:   'pending',
-            payment_status: isUdhar ? 'unpaid' : 'wallet',
-            payment_mode:   isUdhar ? 'unpaid' : 'wallet',
-            user_type:      'subscriber',
-            slot:           slot || 'morning',
-            date:           today,
-            time:           timeStr,
-            created_at:     new Date().toISOString()
+            final_amount:    priceNum,
+            order_status:    'pending',
+            payment_status:  isUdhar ? 'unpaid' : 'wallet',
+            payment_mode:    isUdhar ? 'unpaid' : 'wallet',
+            user_type:       'subscriber',
+            source:          'admin_bulk',
+            slot:            bulkSlot,
+            date:            today,
+            time:            istTimeStr(ist),
+            created_at:      new Date().toISOString()
           };
 
           const { error: insErr } = await supabase.from('orders').insert(orderRow);
-          if (insErr) { skipped.push({ phone: cleanPh, reason: insErr.message }); continue; }
-
-          // Deduct wallet only if sufficient balance
-          if (!isUdhar) {
-            const newBal = balance - priceNum;
-            await supabase.from('khata_summary').upsert({ phone: cleanPh, balance: newBal, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
-            await supabase.from('khata_entries').insert({
-              id: generateTxnId(ist), phone: cleanPh, type: 'debit',
-              amount: priceNum, running_balance: newBal,
-              note: reason || `Bulk order: ${itemName}`,
-              date: today, time: timeStr, order_id: orderId, order_status: 'pending',
-              order_source: 'admin_bulk', created_at: new Date().toISOString()
-            });
-            created.push({ phone: cleanPh, orderId });
-          } else {
-            udhar.push({ phone: cleanPh, orderId, balance });
+          if (insErr) {
+            // Rollback wallet deduction if order insert failed
+            await _atomicWalletUpdate(cleanPh, priceNum);
+            skipped.push({ phone: cleanPh, reason: insErr.message });
+            continue;
           }
+
+          // Record transaction via shared helper (consistent with all other order flows)
+          const txnNote = isUdhar
+            ? (reason ? `[UDHAR] ${reason}` : `[UDHAR] Bulk order: ${itemName}`)
+            : (reason || `Bulk order: ${itemName}`);
+          await supabase.from('khata_entries').insert({
+            id:              generateTxnId(ist),
+            phone:           cleanPh,
+            type:            'debit',
+            amount:          priceNum,
+            running_balance: newBal,
+            note:            txnNote,
+            date:            today,
+            time:            istTimeStr(ist),
+            order_id:        orderId,
+            order_status:    'pending',
+            order_source:    'admin_bulk',
+            created_at:      new Date().toISOString()
+          });
+
+          if (isUdhar) udhar.push({ phone: cleanPh, orderId, balance: newBal });
+          else created.push({ phone: cleanPh, orderId });
         }
 
         return res.json({
@@ -1126,6 +1160,9 @@ app.post('/api', async (req, res) => {
         }
         if (!user) return res.json({ success: false, error: 'User not found' });
         const { password_hash, ...safe } = user;
+        // Also fetch wallet balance for bulkAddManual udhar display
+        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', safe.phone).single();
+        safe.balance = balRow?.balance || 0;
         return res.json({ success: true, user: safe });
       }
 
