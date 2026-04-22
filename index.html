@@ -499,9 +499,9 @@ textarea{resize:vertical;min-height:80px}
       <div class="su-section-hd">Delivery Address</div>
 
       <div class="form-group">
-        <label>Room / Flat / House Number <span style="color:#dc2626;font-size:11px">*</span></label>
+        <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
         <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
-        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:3px">📌 This is needed to find you for delivery</div>
+        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:3px">📌 Helps the rider find you — if you don't have a room number, enter <b>0</b></div>
         <div class="field-error" id="su-room-err"></div>
       </div>
 
@@ -540,13 +540,9 @@ textarea{resize:vertical;min-height:80px}
             <div id="su-leaflet-map" style="width:100%;height:250px;display:block"></div>
             <!-- Drag hint + live address preview -->
             <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
-              <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55;margin-bottom:8px">
-                📌 Drag the red pin or tap the map to set your exact location.
+              <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
+                📌 Drag the red pin or tap the map to fine-tune your exact location.
               </div>
-              <!-- Save Location button -->
-              <button type="button" id="su-confirm-pin-btn" class="loc-confirm-btn" onclick="_confirmLeafletPin()" style="margin:0">
-                <i class="fa fa-check"></i>&nbsp;Save Location
-              </button>
             </div>
           </div>
         </div>
@@ -2123,14 +2119,16 @@ async function _updateAddressFromPin(lat, lng) {
           `${geo.state ? geo.state + (geo.pincode ? ' – ' + geo.pincode : '') + ' &nbsp;|&nbsp; ' : ''}` +
           `🌐 ${lat.toFixed(5)}, ${lng.toFixed(5)}` +
         `</span><br>` +
-        `<span style="color:#475569">Drag pin to fine-tune, then tap <b>Save Location</b></span>`;
+        `<span style="color:#166534;font-weight:600">✅ Location set — drag pin to fine-tune</span>`;
     } else {
       hint.innerHTML =
         `⚠️ Address not detected — drag pin to refine.<br>` +
-        `<span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span><br>` +
-        `<span style="color:#475569">Then tap <b>Save Location</b></span>`;
+        `<span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>`;
     }
   }
+
+  // Auto-confirm the pin silently (no button click needed in signup flow)
+  _autoConfirmSignupPin(lat, lng);
 }
 
 /* Init or move the Leaflet map to given coords */
@@ -2191,9 +2189,6 @@ function _showMapPin(lat, lng) {
         _pendingLng = pos.lng;
         _pinConfirmed = false;
         document.getElementById('su-loc-ok').value = '0';
-        // Reset confirm button state
-        const btn = document.getElementById('su-confirm-pin-btn');
-        if (btn) { btn.style.background = '#0369a1'; btn.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; btn.disabled = false; }
         await _updateAddressFromPin(pos.lat, pos.lng);
       });
 
@@ -2204,8 +2199,6 @@ function _showMapPin(lat, lng) {
         _pendingLng = e.latlng.lng;
         _pinConfirmed = false;
         document.getElementById('su-loc-ok').value = '0';
-        const btn = document.getElementById('su-confirm-pin-btn');
-        if (btn) { btn.style.background = '#0369a1'; btn.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; btn.disabled = false; }
         await _updateAddressFromPin(e.latlng.lat, e.latlng.lng);
       });
 
@@ -2237,8 +2230,6 @@ function _recenterToGPS() {
         _pendingLat = lat; _pendingLng = lng;
         _pinConfirmed = false;
         document.getElementById('su-loc-ok').value = '0';
-        const btn = document.getElementById('su-confirm-pin-btn');
-        if (btn) { btn.style.background = '#0369a1'; btn.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; btn.disabled = false; }
         _updateAddressFromPin(lat, lng);
       }
     },
@@ -2314,6 +2305,55 @@ async function _confirmLeafletPin() {
       ? '<i class="fa fa-check-circle"></i>&nbsp;Location Saved!'
       : '<i class="fa fa-xmark-circle"></i>&nbsp;Outside Delivery Area';
     btn.disabled = false;
+  }
+}
+
+/* Auto-confirm location for signup flow — called silently after geocode.
+   Validates zone, sets hidden inputs, updates detect button, no UI modal. */
+async function _autoConfirmSignupPin(lat, lng) {
+  if (lat === null || lng === null) return;
+
+  await _loadDeliveryZone();
+
+  const zone      = _deliveryZone;
+  const status    = document.getElementById('su-loc-status');
+  const btnTxt    = document.getElementById('su-loc-btn-txt');
+  const detectBtn = document.getElementById('su-loc-btn');
+
+  document.getElementById('su-lat').value = lat;
+  document.getElementById('su-lng').value = lng;
+  if (detectBtn) detectBtn.classList.remove('verified','rejected');
+
+  const showStatus = (msg, ok, warn) => {
+    if (!status) return;
+    status.style.display = 'block';
+    status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
+    status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
+    status.textContent = msg;
+  };
+
+  if (zone && zone.lat && zone.lng && zone.radiusKm) {
+    const dist = _haversineKm(zone.lat, zone.lng, lat, lng);
+    const distStr = dist.toFixed(2);
+    if (dist <= zone.radiusKm) {
+      document.getElementById('su-loc-ok').value = '1';
+      if (btnTxt) btnTxt.textContent = '✅ Within Delivery Area';
+      if (detectBtn) detectBtn.classList.add('verified');
+      showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
+      _pinConfirmed = true;
+    } else {
+      document.getElementById('su-loc-ok').value = '0';
+      if (btnTxt) btnTxt.textContent = '❌ Outside Delivery Area';
+      if (detectBtn) detectBtn.classList.add('rejected');
+      showStatus(`❌ You're ${distStr} km away. We only deliver within ${zone.radiusKm} km.`, false, false);
+      _pinConfirmed = false;
+    }
+  } else {
+    document.getElementById('su-loc-ok').value = '1';
+    if (btnTxt) btnTxt.textContent = '✅ Location Set';
+    if (detectBtn) detectBtn.classList.add('verified');
+    showStatus('✅ Location saved. Proceed to create your account.', false, true);
+    _pinConfirmed = true;
   }
 }
 
@@ -2441,13 +2481,12 @@ async function doSignup() {
   const locOk = document.getElementById('su-loc-ok').value === '1';
 
   // Clear all errors first
-  ['su-name-err','su-phone-err','su-email-err','su-room-err','su-addr-err','su-pw-err'].forEach(id => setErr(id, ''));
+  ['su-name-err','su-phone-err','su-email-err','su-addr-err','su-pw-err'].forEach(id => setErr(id, ''));
 
   // Validate each field with clear human-readable messages
   if (!name) setErr('su-name-err', '👤 Please enter your full name');
   if (!phone || phone.length !== 10) setErr('su-phone-err', '📱 Enter a valid 10-digit WhatsApp number');
   if (email && !/^[^@]+@[^@]+\.[^@]+$/.test(email)) setErr('su-email-err', '✉️ Enter a valid email address (or leave empty)');
-  if (!room) setErr('su-room-err', '🏠 Room / Flat number is required — rider needs this to find you!');
   if (!address) setErr('su-addr-err', '📍 Address is required — please detect your location first');
   if (!pw || pw.length < 6) setErr('su-pw-err', '🔒 Password must be at least 6 characters');
 
