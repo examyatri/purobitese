@@ -26,6 +26,9 @@
 <!-- ── Font Awesome: non-blocking ── -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+<!-- Leaflet — free, no API key, unlimited usage -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
 <style>
 :root{
   --p:#e63946;--pd:#c1121f;--pl:#fde8ea;
@@ -125,16 +128,13 @@ textarea{resize:vertical;min-height:80px}
 .loc-map-wrap{margin-top:12px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
 .loc-map-hdr{background:#0f172a;color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;font-family:var(--ff);display:flex;align-items:center;gap:6px}
 .loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
-.loc-finetune-btn{width:100%;padding:12px;background:#f1f5f9;border:none;border-top:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#0369a1;cursor:pointer;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:6px;transition:background 150ms}
-.loc-finetune-btn:active{background:#e0f2fe}
-.loc-finetune-box{margin-top:12px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:12px;padding:14px}
-.loc-finetune-box .ft-title{font-size:13px;font-weight:700;color:#0369a1;margin-bottom:5px;font-family:var(--ff)}
-.loc-finetune-box .ft-hint{font-size:11.5px;color:#475569;margin-bottom:12px;font-family:var(--fb);line-height:1.55;background:#e0f2fe;padding:8px 10px;border-radius:8px}
-.loc-finetune-row{display:flex;gap:8px;margin-bottom:10px}
-.loc-finetune-row input{flex:1;padding:11px 10px;border:1.5px solid #bae6fd;border-radius:10px;font-size:13px;font-family:var(--fb);background:#fff;outline:none;min-width:0}
-.loc-finetune-row input:focus{border-color:#0369a1;background:#fff}
+/* (loc-finetune styles removed — replaced by Leaflet interactive map) */
 .loc-confirm-btn{width:100%;padding:12px;background:#0369a1;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--ff);transition:opacity 150ms}
 .loc-confirm-btn:active{opacity:.85}
+/* Leaflet map overrides for in-app look */
+#su-leaflet-map .leaflet-control-zoom{border:none;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+#su-leaflet-map .leaflet-control-zoom a{color:#1a1a2e;font-weight:700;background:#fff}
+.leaflet-container{font-family:var(--fb)!important}
 .tab-bar{display:flex;background:#f5f5f5;border-radius:12px;padding:4px;margin-bottom:20px}
 .tab-btn{flex:1;border:none;background:none;padding:10px;font-family:var(--ff);font-weight:600;font-size:14px;border-radius:9px;cursor:pointer;color:var(--gr);transition:all 200ms}
 .tab-btn.active{background:#fff;color:var(--p);box-shadow:var(--sh)}
@@ -471,8 +471,14 @@ textarea{resize:vertical;min-height:80px}
       </div>
 
       <div class="form-group">
-        <label>Delivery Address</label>
-        <textarea id="su-addr" placeholder="House No., Street, Landmark, Area…" style="min-height:76px;resize:none" autocomplete="street-address"></textarea>
+        <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(e.g. Room 12, Flat B-4)</span></label>
+        <input type="text" id="su-room" placeholder="Room 12 / Flat B-4 / House 5A…" autocomplete="off">
+        <div class="err-msg" id="su-room-err"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Delivery Address <span style="font-size:11px;color:#22c55e;font-weight:500">✦ Auto-fills when you pin location</span></label>
+        <textarea id="su-addr" placeholder="Tap 'Detect My Location' below — address will auto-fill from your pin 📍" style="min-height:76px;resize:none" autocomplete="street-address" readonly onfocus="this.removeAttribute('readonly')"></textarea>
         <div class="err-msg" id="su-addr-err"></div>
       </div>
 
@@ -492,28 +498,27 @@ textarea{resize:vertical;min-height:80px}
         <!-- Status message (shown after detection) -->
         <div id="su-loc-status" class="loc-status"></div>
 
-        <!-- Step 2: Map + fine-tune (shown after GPS fires) -->
+        <!-- Step 2: Interactive Leaflet map with draggable pin (shown after GPS fires) -->
         <div id="su-map-pin-area" style="display:none">
           <div class="loc-map-wrap">
-            <div class="loc-map-hdr">
-              <i class="fa fa-map-pin"></i>&nbsp;Your detected location
+            <div class="loc-map-hdr" style="justify-content:space-between">
+              <span><i class="fa fa-map-pin"></i>&nbsp;Pin your exact location</span>
+              <button type="button" onclick="_recenterToGPS()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                <i class="fa fa-location-crosshairs"></i> Recenter
+              </button>
             </div>
-            <iframe id="su-map-iframe" style="width:100%;height:200px;border:none;display:block" loading="lazy"></iframe>
-            <div class="loc-map-hint">📌 Pin not exactly right? Tap <b>Adjust Pin</b> below.</div>
-            <button type="button" class="loc-finetune-btn" onclick="_openFineTune()">
-              <i class="fa fa-pen-to-square"></i>&nbsp;Adjust Pin
-            </button>
-          </div>
-
-          <!-- Fine-tune box (hidden until Adjust Pin tapped) -->
-          <div id="su-finetune-area" class="loc-finetune-box" style="display:none">
-            <div class="ft-title">🎯 Enter Exact Coordinates</div>
-            <div class="ft-hint">Open Google Maps → Long-press your home → Copy the two numbers shown at top (e.g. <b>26.8467, 80.9462</b>)</div>
-            <div class="loc-finetune-row">
-              <input type="text" inputmode="decimal" id="ft-lat" placeholder="Latitude (26.8467)">
-              <input type="text" inputmode="decimal" id="ft-lng" placeholder="Longitude (80.9462)">
+            <!-- Leaflet renders here -->
+            <div id="su-leaflet-map" style="width:100%;height:250px;display:block"></div>
+            <!-- Drag hint + live address preview -->
+            <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
+              <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55;margin-bottom:8px">
+                📌 Drag the red pin or tap the map to set your exact location.
+              </div>
+              <!-- Save Location button -->
+              <button type="button" id="su-confirm-pin-btn" class="loc-confirm-btn" onclick="_confirmLeafletPin()" style="margin:0">
+                <i class="fa fa-check"></i>&nbsp;Save Location
+              </button>
             </div>
-            <button type="button" class="loc-confirm-btn" onclick="_confirmFineTune()">✅ Confirm This Location</button>
           </div>
         </div>
 
@@ -1041,16 +1046,38 @@ textarea{resize:vertical;min-height:80px}
 <div id="insuf-bal-popup" class="modal-overlay" style="display:none">
   <div class="insuf-card">
     <div class="insuf-emoji">💳</div>
-    <div class="insuf-title">Insufficient Wallet Balance</div>
-    <div class="insuf-bal-row">
-      Your wallet has <strong id="insuf-avail">₹0</strong> but this order needs <strong id="insuf-need">₹0</strong>.
+    <div class="insuf-title">Low Wallet Balance</div>
+
+    <!-- Bill breakdown -->
+    <div style="width:100%;background:#f8f8f8;border-radius:12px;padding:12px 14px;margin-bottom:12px;text-align:left">
+      <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
+        <span>Items</span><span id="insuf-subtotal">₹0</span>
+      </div>
+      <div id="insuf-discount-row" style="display:none;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#16a34a;margin-bottom:6px">
+        <span>Coupon Discount</span><span id="insuf-discount">-₹0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
+        <span>Delivery Charge <span style="font-size:11px;color:#b45309">(UPI pay)</span></span><span>₹20</span>
+      </div>
+      <div style="height:1px;background:#e5e5e5;margin:6px 0"></div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--ff);font-weight:700;font-size:14px;color:#1a1a1a">
+        <span>Total to Pay</span><span id="insuf-need">₹0</span>
+      </div>
     </div>
-    <div class="insuf-note">
-      Would you like to place this order and pay via UPI? After placing, you'll get a button to send your payment screenshot on WhatsApp.
+
+    <!-- Wallet status -->
+    <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;margin-bottom:12px;padding:0 2px">
+      <span style="color:#555">Your Wallet</span>
+      <span style="color:#dc2626;font-weight:700" id="insuf-avail">₹0</span>
     </div>
+
+    <div class="insuf-note" style="margin-bottom:16px">
+      🚀 Order will be placed now. You'll get a WhatsApp button to send your UPI payment screenshot.
+    </div>
+
     <div class="insuf-btn-row">
       <button class="btn-cancel" onclick="closeInsufPopup()">Cancel</button>
-      <button class="btn-yes" id="insuf-yes-btn" onclick="confirmInsufOrder()">Yes, Place Order</button>
+      <button class="btn-yes" id="insuf-yes-btn" onclick="confirmInsufOrder()">Pay via UPI</button>
     </div>
   </div>
 </div>
@@ -1892,46 +1919,259 @@ function _evaluateLocation(lat, lng) {
   _showMapPin(lat, lng);
 }
 
-/* Renders an OSM iframe + "adjust pin" note so user can fine-tune */
+/* ── Leaflet map state ── */
+let _leafletMap    = null;
+let _leafletMarker = null;
+let _pendingLat    = null;
+let _pendingLng    = null;
+let _pinConfirmed  = false;  // true once user clicks Save Location
+
+/* Reverse-geocode via Nominatim (free, no key) — returns human address string */
+async function _nominatimReverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
+    );
+    const data = await res.json();
+    if (!data || data.error) return null;
+    const a = data.address || {};
+    // Build a clean short address: road + suburb/neighbourhood + city
+    const parts = [
+      a.road || a.pedestrian || a.footway || '',
+      a.suburb || a.neighbourhood || a.village || a.hamlet || '',
+      a.city || a.town || a.county || ''
+    ].map(p => p.trim()).filter(Boolean);
+    return parts.length ? parts.join(', ') : (data.display_name?.split(',').slice(0,3).join(', ') || null);
+  } catch(e) { return null; }
+}
+
+/* Build the final address string: Room prefix + detected location */
+function _buildAddress(roomVal, detectedAddr) {
+  const room = (roomVal || '').trim();
+  const loc  = (detectedAddr || '').trim();
+  if (room && loc)  return `${room}, ${loc}`;
+  if (room)         return room;
+  return loc;
+}
+
+/* Update the su-addr textarea from current pin position */
+async function _updateAddressFromPin(lat, lng) {
+  const hint = document.getElementById('su-geocode-hint');
+  if (hint) hint.textContent = '⏳ Fetching address from map…';
+  const detectedAddr = await _nominatimReverseGeocode(lat, lng);
+  const room = document.getElementById('su-room')?.value || '';
+  const fullAddr = _buildAddress(room, detectedAddr || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  const addrBox = document.getElementById('su-addr');
+  if (addrBox) { addrBox.removeAttribute('readonly'); addrBox.value = fullAddr; }
+  if (hint) hint.innerHTML = detectedAddr
+    ? `📍 <b>${detectedAddr}</b> — drag pin to adjust, then tap <b>Save Location</b>`
+    : '📍 Address not found — drag pin to refine, then tap Save Location';
+}
+
+/* Init or move the Leaflet map to given coords */
 function _showMapPin(lat, lng) {
-  const wrap   = document.getElementById('su-map-pin-area');
-  const iframe = document.getElementById('su-map-iframe');
-  if (!wrap || !iframe) return;
-  // Update iframe src with current coords
-  iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${(lng-0.008).toFixed(6)},${(lat-0.008).toFixed(6)},${(lng+0.008).toFixed(6)},${(lat+0.008).toFixed(6)}&layer=mapnik&marker=${lat},${lng}`;
+  const wrap = document.getElementById('su-map-pin-area');
+  if (!wrap) return;
   wrap.style.display = 'block';
-  // Pre-fill fine-tune inputs with detected coords
-  const ftLat = document.getElementById('ft-lat');
-  const ftLng = document.getElementById('ft-lng');
-  if (ftLat) ftLat.value = lat.toFixed(6);
-  if (ftLng) ftLng.value = lng.toFixed(6);
-  // Hide fine-tune box when a new location is detected
-  const ft = document.getElementById('su-finetune-area');
-  if (ft) ft.style.display = 'none';
-}
+  _pendingLat = lat;
+  _pendingLng = lng;
+  _pinConfirmed = false;
 
-/* Toggle fine-tune box open/close */
-function _openFineTune() {
-  const ft = document.getElementById('su-finetune-area');
-  if (!ft) return;
-  ft.style.display = ft.style.display === 'none' ? 'block' : 'none';
-}
+  // Show confirm row
+  const confirmRow = document.getElementById('su-confirm-pin-row');
+  if (confirmRow) confirmRow.style.display = 'block';
 
-function _confirmFineTune() {
-  const lat = parseFloat(document.getElementById('ft-lat').value);
-  const lng = parseFloat(document.getElementById('ft-lng').value);
-  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    toast('Enter valid coordinates');
-    return;
+  // Leaflet must be loaded (deferred script) — wait if needed
+  function _initLeaflet() {
+    if (typeof L === 'undefined') { setTimeout(_initLeaflet, 150); return; }
+
+    if (!_leafletMap) {
+      // First-time init
+      _leafletMap = L.map('su-leaflet-map', {
+        center: [lat, lng],
+        zoom: 17,
+        zoomControl: true,
+        attributionControl: false
+      });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+      }).addTo(_leafletMap);
+
+      // Custom red draggable marker
+      const redIcon = L.divIcon({
+        className: '',
+        html: `<div style="
+          width:32px;height:42px;position:relative;cursor:grab
+        ">
+          <svg viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 26 16 26S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.5"/>
+            <circle cx="16" cy="16" r="6" fill="white"/>
+          </svg>
+        </div>`,
+        iconSize: [32, 42],
+        iconAnchor: [16, 42],
+        popupAnchor: [0, -42]
+      });
+
+      _leafletMarker = L.marker([lat, lng], {
+        draggable: true,
+        icon: redIcon,
+        autoPan: true
+      }).addTo(_leafletMap);
+
+      // On drag end → re-evaluate + geocode
+      _leafletMarker.on('dragend', async function(e) {
+        const pos = e.target.getLatLng();
+        _pendingLat = pos.lat;
+        _pendingLng = pos.lng;
+        _pinConfirmed = false;
+        document.getElementById('su-loc-ok').value = '0';
+        // Reset confirm button state
+        const btn = document.getElementById('su-confirm-pin-btn');
+        if (btn) { btn.style.background = '#0369a1'; btn.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; btn.disabled = false; }
+        await _updateAddressFromPin(pos.lat, pos.lng);
+      });
+
+      // Tap on map → move pin there
+      _leafletMap.on('click', async function(e) {
+        _leafletMarker.setLatLng(e.latlng);
+        _pendingLat = e.latlng.lat;
+        _pendingLng = e.latlng.lng;
+        _pinConfirmed = false;
+        document.getElementById('su-loc-ok').value = '0';
+        const btn = document.getElementById('su-confirm-pin-btn');
+        if (btn) { btn.style.background = '#0369a1'; btn.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; btn.disabled = false; }
+        await _updateAddressFromPin(e.latlng.lat, e.latlng.lng);
+      });
+
+    } else {
+      // Map already exists — just move to new position
+      _leafletMap.setView([lat, lng], 17);
+      _leafletMarker.setLatLng([lat, lng]);
+      setTimeout(() => _leafletMap.invalidateSize(), 100);
+    }
+
+    // Trigger initial geocode
+    _updateAddressFromPin(lat, lng);
   }
-  const btn = document.getElementById('su-loc-btn');
-  btn.classList.remove('verified','rejected');
-  document.getElementById('su-loc-btn-txt').textContent = 'Re-verifying…';
-  document.getElementById('su-loc-ok').value = '0';
-  const ft = document.getElementById('su-finetune-area');
-  if (ft) ft.style.display = 'none';
-  _evaluateLocation(lat, lng);
+
+  _initLeaflet();
 }
+
+/* Recenter map to GPS position */
+function _recenterToGPS() {
+  if (!navigator.geolocation) { toast('GPS not supported'); return; }
+  const hint = document.getElementById('su-geocode-hint');
+  if (hint) hint.textContent = '⏳ Getting your GPS position…';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      if (_leafletMap && _leafletMarker) {
+        _leafletMap.setView([lat, lng], 17);
+        _leafletMarker.setLatLng([lat, lng]);
+        _pendingLat = lat; _pendingLng = lng;
+        _pinConfirmed = false;
+        document.getElementById('su-loc-ok').value = '0';
+        const btn = document.getElementById('su-confirm-pin-btn');
+        if (btn) { btn.style.background = '#0369a1'; btn.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; btn.disabled = false; }
+        _updateAddressFromPin(lat, lng);
+      }
+    },
+    () => toast('Could not get GPS. Try again.'),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+/* Called when user clicks "Save Location" — validates zone + saves pin */
+async function _confirmLeafletPin() {
+  if (_pendingLat === null || _pendingLng === null) { toast('No pin placed yet'); return; }
+  const btn = document.getElementById('su-confirm-pin-btn');
+  if (btn) { btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>&nbsp;Verifying…'; btn.disabled = true; }
+
+  await _loadDeliveryZone();
+
+  // Evaluate zone with current pin coords (updates su-loc-ok, su-lat, su-lng, detect button state)
+  // Temporarily suppress _showMapPin re-init by setting a flag
+  const zone    = _deliveryZone;
+  const status  = document.getElementById('su-loc-status');
+  const btnTxt  = document.getElementById('su-loc-btn-txt');
+  const detectBtn = document.getElementById('su-loc-btn');
+  const showStatus = (msg, ok, warn) => {
+    status.style.display = 'block';
+    status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
+    status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
+    status.textContent = msg;
+  };
+
+  document.getElementById('su-lat').value = _pendingLat;
+  document.getElementById('su-lng').value = _pendingLng;
+  detectBtn.classList.remove('verified','rejected');
+
+  let withinZone = true;
+  if (zone && zone.lat && zone.lng && zone.radiusKm) {
+    const dist = _haversineKm(zone.lat, zone.lng, _pendingLat, _pendingLng);
+    const distStr = dist.toFixed(2);
+    if (dist <= zone.radiusKm) {
+      document.getElementById('su-loc-ok').value = '1';
+      btnTxt.textContent = '✅ Within Delivery Area';
+      detectBtn.classList.add('verified');
+      showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
+    } else {
+      document.getElementById('su-loc-ok').value = '0';
+      btnTxt.textContent = '❌ Outside Delivery Area';
+      detectBtn.classList.add('rejected');
+      showStatus(`❌ You're ${distStr} km away. We only deliver within ${zone.radiusKm} km. Sorry, we can't serve your area.`, false, false);
+      withinZone = false;
+    }
+  } else {
+    document.getElementById('su-loc-ok').value = '1';
+    btnTxt.textContent = '✅ Location Saved';
+    detectBtn.classList.add('verified');
+    showStatus('✅ Location saved. Delivery zone not configured yet — proceeding.', false, true);
+  }
+
+  // Update address with room number prefix (final composition)
+  const room = document.getElementById('su-room')?.value.trim() || '';
+  const addrBox = document.getElementById('su-addr');
+  if (addrBox && room && !addrBox.value.startsWith(room)) {
+    addrBox.value = _buildAddress(room, addrBox.value);
+  }
+
+  _pinConfirmed = true;
+  if (btn) {
+    btn.style.background = withinZone ? '#166534' : '#991b1b';
+    btn.innerHTML = withinZone
+      ? '<i class="fa fa-check-circle"></i>&nbsp;Location Saved!'
+      : '<i class="fa fa-xmark-circle"></i>&nbsp;Outside Delivery Area';
+    btn.disabled = false;
+  }
+}
+
+/* Watch room number field — live-update address preview */
+document.addEventListener('DOMContentLoaded', () => {
+  const roomInput = document.getElementById('su-room');
+  if (roomInput) {
+    roomInput.addEventListener('input', () => {
+      if (_pendingLat === null) return; // map not shown yet
+      const addrBox = document.getElementById('su-addr');
+      if (!addrBox) return;
+      const currentVal = addrBox.value;
+      // Extract the location part (everything after first comma if room was prepended)
+      const locPart = _pendingLat !== null
+        ? (() => {
+            // Re-derive from current address minus any previous room prefix
+            const prevRoom = roomInput.dataset.prevRoom || '';
+            let loc = currentVal;
+            if (prevRoom && loc.startsWith(prevRoom + ', ')) loc = loc.slice(prevRoom.length + 2);
+            return loc;
+          })()
+        : currentVal;
+      roomInput.dataset.prevRoom = roomInput.value.trim();
+      addrBox.value = _buildAddress(roomInput.value, locPart);
+    });
+  }
+});
 
 async function detectSignupLocation() {
   const btn    = document.getElementById('su-loc-btn');
@@ -1978,8 +2218,12 @@ async function doSignup() {
   const name    = document.getElementById('su-name').value.trim();
   const phone   = document.getElementById('su-phone').value.replace(/\D/g,'');
   const email   = document.getElementById('su-email').value.trim();
-  const address = document.getElementById('su-addr').value.trim();
+  const room    = document.getElementById('su-room')?.value.trim() || '';
+  const addrRaw = document.getElementById('su-addr').value.trim();
   const pw      = document.getElementById('su-pw').value;
+
+  // Compose final address: ensure room is prefixed
+  const address = room && !addrRaw.startsWith(room) ? _buildAddress(room, addrRaw) : addrRaw;
 
   const setErr = (id, msg) => {
     const el = document.getElementById(id);
@@ -1992,7 +2236,8 @@ async function doSignup() {
   setErr('su-name-err',  !name ? 'Name is required' : '');
   setErr('su-phone-err', !phone || phone.length !== 10 ? 'Enter valid 10-digit number' : '');
   setErr('su-email-err', email && !/^[^@]+@[^@]+\.[^@]+$/.test(email) ? 'Enter a valid email address' : '');
-  setErr('su-addr-err',  !address ? 'Address is required' : '');
+  setErr('su-room-err',  !room ? 'Room / Flat / House number is required' : '');
+  setErr('su-addr-err',  !address ? 'Address is required — please detect your location first' : '');
   setErr('su-pw-err',    !pw || pw.length < 6 ? 'Password must be 6+ characters' : '');
 
   if (!locOk) {
@@ -2574,7 +2819,7 @@ async function placeOrder() {
 
   if (user.is_subscriber && _khataEnabled) {
     if (_walletBal < total) {
-      showInsufPopup(_walletBal, total); return;
+      showInsufPopup(_walletBal, total, subtotal, discount); return;
     }
   }
 
@@ -2632,9 +2877,19 @@ function showClosedPopup(reason) {
   document.getElementById('closed-popup').style.display = 'flex';
 }
 
-function showInsufPopup(avail, need) {
-  document.getElementById('insuf-avail').textContent = '₹' + Math.round(avail);
-  document.getElementById('insuf-need').textContent  = '₹' + need;
+function showInsufPopup(avail, need, subtotal, discount) {
+  // Breakdown fields
+  document.getElementById('insuf-subtotal').textContent = '₹' + Math.round(subtotal || (need - 20));
+  document.getElementById('insuf-avail').textContent    = '₹' + Math.round(avail);
+  document.getElementById('insuf-need').textContent     = '₹' + need;
+  // Show discount row only if a coupon was applied
+  const discRow = document.getElementById('insuf-discount-row');
+  if (discount && discount > 0) {
+    document.getElementById('insuf-discount').textContent = '-₹' + Math.round(discount);
+    discRow.style.display = 'flex';
+  } else {
+    discRow.style.display = 'none';
+  }
   document.getElementById('insuf-bal-popup').style.display = 'flex';
 }
 function closeInsufPopup() {
