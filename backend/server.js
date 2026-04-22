@@ -210,8 +210,9 @@ async function _atomicWalletUpdate(phone, delta) {
 }
 
 async function _createTxnEntry(phone, orderId, amount, newBalance, type, source, ist) {
+  const txnId = generateTxnId(ist);
   await supabase.from('khata_entries').insert({
-    id:              generateTxnId(ist),
+    id:              txnId,
     phone,
     type,
     amount,
@@ -224,6 +225,7 @@ async function _createTxnEntry(phone, orderId, amount, newBalance, type, source,
     source:          source,
     created_at:      new Date().toISOString()
   });
+  return txnId;
 }
 
 async function _createNotification(fields) {
@@ -312,11 +314,12 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
   const dateStr  = istDateStr(ist);
   const timeStr  = istTimeStr(ist);
   let newBal = null;
+  let txnId  = null;
 
   if (khataEnabled && user.is_subscriber && paymentMode !== 'upi_insuf') {
     newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
     const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
-    await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
+    txnId = await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
   }
 
   await _deductMenuStock(items);
@@ -348,13 +351,22 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
 
   // ── Fire notification for every order type (subscriber + daily + upi_insuf) ──
   try {
+    const effectivePayMode = paymentMode || (khataEnabled && user.is_subscriber ? 'wallet' : 'upi');
     await _createNotification({
       type:     'order',
       priority: 'high',
       group_id: orderId,
       title:    'New Order',
       body:     user.name + ' placed order ' + orderId,
-      meta:     { orderId, phone: user.phone, is_subscriber: !!user.is_subscriber }
+      meta:     {
+        orderId,
+        phone:         user.phone,
+        userName:      user.name,
+        finalAmount,
+        paymentMode:   effectivePayMode,
+        txnId:         txnId || null,
+        is_subscriber: !!user.is_subscriber
+      }
     });
   } catch (_) {}
 
