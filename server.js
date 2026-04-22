@@ -1,4 +1,11 @@
 'use strict';
+// ╔══════════════════════════════════════════════════════╗
+// ║  PuroBite / Tiffo — Backend API (server.js)         ║
+// ║  Version : v18.0                                    ║
+// ║  Updated : 2026-04-22                               ║
+// ║  Stack   : Node.js + Express → Render (free tier)  ║
+// ║  DB      : Supabase (PostgreSQL)                    ║
+// ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
 const express = require('express');
@@ -30,13 +37,9 @@ if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 const SALT_ROUNDS = 10;
 
 // ─── SELF-PING ────────────────────────────────────────────────────────────────
-const SELF_URL = process.env.RENDER_EXTERNAL_URL || '';
-if (SELF_URL) {
-  setInterval(() => {
-    https.get(SELF_URL + '/ping', r => console.log('[keep-alive]', r.statusCode))
-         .on('error', e => console.error('[keep-alive error]', e.message));
-  }, 10 * 60 * 1000);
-}
+// ✅ SELF-PING REMOVED — UptimeRobot already pings /ping every 5 min externally.
+// Self-ping was redundant and wasted free-tier CPU + memory.
+// On $7 paid plan, server is always-on anyway — no ping needed at all.
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function getIST() {
@@ -569,6 +572,12 @@ app.post('/api', async (req, res) => {
         await supabase.from('thali_items').delete().eq('thali_id', tid);
         await supabase.from('thalis').delete().eq('thali_id', tid);
         return res.json({ success: true });
+      }
+
+      case 'getThaliItems': {
+        const { data: thaliItems } = await supabase
+          .from('thali_items').select('*').eq('thali_id', data.thaliId);
+        return res.json({ success: true, items: thaliItems || [] });
       }
 
       case 'addThaliItem': {
