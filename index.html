@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — User App (index.html)           ║
-     ║  Version : v29.0                                    ║
+     ║  Version : v39.0                                    ║
      ║  Updated : 2026-04-22                               ║
-     ║  Changes : _wipeAndShowLogin() — single wipe fn,    ║
-     ║            6s hard timeout on auto-login,           ║
-     ║            no stuck loader ever, clean session boot ║
+     ║  Changes : Fix double DB hit on login (removed      ║
+     ║            duplicate loadMenu in _doPostLoginRefresh)║
+     ║            _menuFreshTs=0 on logout/wipe            ║
+     ║            Stale blocker auto-retries placeOrder    ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1204,6 +1205,7 @@ function calcCouponDiscount(coupon, subtotal) {
 }
 
 let _menuLoading  = false;
+let _menuFreshTs  = 0;   // epoch ms of last successful DB fetch — used by placeOrder stale-data guard
 let _placingOrder = false;
 let _lastOrders   = null;
 let _lastBalance  = null;
@@ -1238,20 +1240,24 @@ function _doPostLoginRefresh(initialMenuPromise) {
   if (_postLoginRefreshDone) return;
   _postLoginRefreshDone = true;
 
-  // Chain onto the initial loadMenu() — fires the instant it completes
+  // Kick off non-menu refreshes immediately — don't wait for menu first.
+  // Subscriber/pause/wallet data arrives sooner → faster perceived load.
+  const sideRefreshes = [
+    refreshPauseStatus(true).catch(() => {}),
+    refreshSubscriberStatus(true).catch(() => {}),
+    (_session?.is_subscriber && _khataEnabled)
+      ? refreshWalletBalance(true).catch(() => {})
+      : Promise.resolve()
+  ];
+
+  // Wait for initial loadMenu to finish, then run side refreshes and start polling.
+  // No second loadMenu here — initial call already does bypassCache=true, no double DB hit.
   Promise.resolve(initialMenuPromise).then(async () => {
     if (!_session) return; // user logged out before this resolved
     try {
-      await Promise.all([
-        loadMenu(true, true).catch(() => {}),        // bypass cache → fresh menu, silent (already rendered)
-        refreshPauseStatus(true).catch(() => {}),    // pause state from DB
-        refreshSubscriberStatus(true).catch(() => {}), // subscriber status from DB
-        (_session?.is_subscriber && _khataEnabled)
-          ? refreshWalletBalance(true).catch(() => {})
-          : Promise.resolve()
-      ]);
+      await Promise.all(sideRefreshes);
     } catch {}
-    startPolling(); // reset 240 s poll timer from this point
+    startPolling(); // reset 240s poll timer from this point
   }).catch(() => {});
 }
 let _stack = [];
@@ -1884,12 +1890,14 @@ async function doLogin() {
   if (!phone || phone.length !== 10) { toast('Enter 10-digit phone number'); return; }
   if (!pw) { toast('Enter password'); return; }
 
-  // ── Show status text instantly, disable button for 3s to prevent double-tap ──
-  setAuthStatus('login-status', 'login-btn', 'Signing you in...', 'info', 3000);
+  // ── Disable button immediately, keep disabled until API returns (no fixed timer) ──
+  const _loginBtn = document.getElementById('login-btn');
+  if (_loginBtn) _loginBtn.disabled = true;
+  setAuthStatus('login-status', 'login-btn', 'Signing you in...', 'info', 0);
 
   try {
     const res = await api('login', { phone, password: pw });
-    // ✅ Login success
+    // ✅ Login success — button stays disabled (navigating away)
     Creds.save(phone, pw);
     Auth.set(res.user);
     const _hint = document.getElementById('login-creds-hint');
@@ -1908,7 +1916,7 @@ async function doLogin() {
     _transitionToHome();
 
     // ── loadMenu sets _khataEnabled via _fetchFreshMenu, then we persist session ──
-    const _initMenuP3 = loadMenu();
+    const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
     _initMenuP3.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
@@ -1919,7 +1927,9 @@ async function doLogin() {
     startPolling();
     _doPostLoginRefresh(_initMenuP3);
   } catch(e) {
-    // ❌ Login failed
+    // ❌ Login failed — always re-enable button so user can retry
+    const _lb = document.getElementById('login-btn');
+    if (_lb) _lb.disabled = false;
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found') ||
@@ -2467,10 +2477,13 @@ async function doSignup() {
     return;
   }
 
-  setAuthStatus('signup-status', 'su-btn', 'Setting up your account...', 'info', 4000);
+  const _suBtn = document.getElementById('su-btn');
+  if (_suBtn) _suBtn.disabled = true;
+  setAuthStatus('signup-status', 'su-btn', 'Setting up your account...', 'info', 0);
 
   try {
     const res = await api('signup', { name, phone, email, address, password: pw });
+    // ✅ Success — stays disabled (navigating away)
     Creds.save(phone, pw);
     Auth.set(res.user);
     _session.is_subscriber = false;
@@ -2478,7 +2491,6 @@ async function doSignup() {
     _khataEnabled = false;
     applyKhataVisibility();
     SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
-    // ── Show skeletons before transition so home never flashes empty ──
     showMenuSkeletons();
     _transitionToHome();
     const _initMenuP4 = loadMenu();
@@ -2486,6 +2498,8 @@ async function doSignup() {
     _doPostLoginRefresh(_initMenuP4);
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
+    // ❌ Failed — re-enable button so user can retry
+    if (_suBtn) _suBtn.disabled = false;
     setAuthStatus('signup-status', 'su-btn', '⚠️ ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
   }
 }
@@ -2563,6 +2577,7 @@ async function _fetchFreshMenu() {
   renderThalis();
   // Always write fresh timestamp so polling TTL resets correctly
   Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, thalis: _fullThalis, ts: Date.now() });
+  _menuFreshTs = Date.now(); // mark exact moment this DB fetch completed
 }
 
 function buildCategoryChips() {
@@ -2609,17 +2624,41 @@ function _currentSession() {
   return state.session === 'lunch' ? 'morning' : 'evening';
 }
 
+/* _visibleSession — returns which meal items should be SHOWN regardless of open/closed.
+   Rules:
+     • Before lunch start           → morning  (pre-lunch browsing)
+     • During lunch window          → morning
+     • Between lunch end & dinner start → morning  (gap period)
+     • During dinner window         → evening
+     • After dinner end             → morning  (next-day preview)
+   This prevents evening items leaking into morning and vice versa.
+*/
+function _visibleSession() {
+  const state = calcOrderState(_lastSchedule, currentISTHour(), _lastCutoff);
+  // If open, map directly
+  if (!state.closed) return state.session === 'lunch' ? 'morning' : 'evening';
+  // Closed — figure out which slot by time position
+  const d = state.day;
+  if (!d) return 'morning'; // default fallback
+  const ist = new Date(Date.now() + 5.5 * 3600000);
+  const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const dsTotal = (d.ds || d.dinnerStart || 18) * 60 + ((d.dsm !== undefined ? d.dsm : d.dinnerStartMin) || 0);
+  const deTotal = (d.de || d.dinnerEnd   || 21) * 60 + ((d.dem !== undefined ? d.dem : d.dinnerEndMin)   || 0);
+  // Only during active dinner window show evening; everything else → morning
+  if (nowMins >= dsTotal && nowMins <= deTotal) return 'evening';
+  return 'morning';
+}
+
 function filterAndRenderMenu() {
   let items = _fullMenu;
 
-  // Session filter: show only items valid for the current session
-  const sess = _currentSession();
-  if (sess) {
-    items = items.filter(i => {
-      const ms = i.meal_session || 'both';
-      return ms === 'both' || ms === sess;
-    });
-  }
+  // Always filter by the currently visible session — never show both morning+evening at once.
+  // _visibleSession() returns 'morning' or 'evening' based on time even when store is closed.
+  const sess = _visibleSession();
+  items = items.filter(i => {
+    const ms = i.meal_session || 'both';
+    return ms === 'both' || ms === sess;
+  });
 
   if (_activeCategory && _activeCategory !== 'All') {
     items = items.filter(i => i.category === _activeCategory);
@@ -3040,6 +3079,19 @@ async function placeOrder() {
   const user = Auth.get();
   if (!user) { toast('Please login first'); return; }
   if (!user.address) { toast('Add delivery address in Account → Edit Address'); return; }
+
+  // ── Stale-data guard: block order if menu data is older than 15 minutes ──
+  // Prevents morning items being ordered in the evening when menu hasn't refreshed.
+  const _MENU_STALE_MS = 15 * 60 * 1000; // 15 minutes
+  const menuAge = _menuFreshTs > 0 ? Date.now() - _menuFreshTs : Infinity;
+  if (menuAge > _MENU_STALE_MS) {
+    // Menu is stale — refresh silently, then auto-retry order placement
+    toast('Refreshing menu… your order will be placed automatically.');
+    loadMenu(true, true)
+      .then(() => { if (_session) placeOrder(); })
+      .catch(() => toast('Menu refresh failed. Please try again.'));
+    return;
+  }
 
   const hour = currentISTHour();
   const stateObj = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, hour, _lastCutoff) : null;
@@ -4116,12 +4168,20 @@ document.addEventListener('visibilitychange', () => {
     scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
     const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
     _hiddenAt = 0;
+
+    // Immediately re-run slot filter so correct morning/evening items show right away
+    // (time may have crossed a slot boundary while app was in background)
+    if (_session && _fullMenu.length) filterAndRenderMenu();
+
     if (_session && awayMs >= _REVISIT_THRESHOLD) {
-      // User was away >= 60s — silently refresh everything like a PTR
-      // but without any spinner/skeleton so UX feels instant
+      // User was away >= 60s — silently refresh everything like a PTR.
+      // Reset _postLoginRefreshDone so a fresh post-login refresh can run if needed.
       _menuLoading = false; // unlock in case a stale lock is held
+      _postLoginRefreshDone = false;
+      // Clear menu cache so loadMenu always hits DB, not stale localStorage
+      Store.remove(_MENU_CACHE_KEY);
       Promise.all([
-        loadMenu(true, true).catch(() => {}),
+        loadMenu(true, true).catch(() => {}),      // bypassCache=true, silent=true → fresh DB hit, no skeleton
         refreshPauseStatus(true).catch(() => {}),
         refreshSubscriberStatus(true).catch(() => {}),
         (_session?.is_subscriber && _khataEnabled)
@@ -4191,6 +4251,7 @@ function _wipeAndShowLogin() {
   _placingOrder    = false;
   _khataAllEntries = [];
   _postLoginRefreshDone = false;
+  _menuFreshTs     = 0;   // reset so stale guard recalculates fresh on next login
   // Go to login (signup tab = fresh start, no prefill)
   _transitionToLogin(false);
 }
@@ -4236,7 +4297,7 @@ async function bootApp() {
     applyKhataVisibility();
     _transitionToHome();
 
-    const _initMenuP = loadMenu();
+    const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
     startPolling();
     _doPostLoginRefresh(_initMenuP);
 
@@ -4324,7 +4385,7 @@ async function bootApp() {
     // ── Show skeletons before transition so home never flashes empty ──
     showMenuSkeletons();
     _transitionToHome();
-    const _initMenuP2 = loadMenu();
+    const _initMenuP2 = loadMenu(true, false); // bypassCache=true — fresh login always hits DB, never stale cache
     // loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
     _initMenuP2.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
