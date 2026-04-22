@@ -1582,7 +1582,12 @@ app.post('/api', async (req, res) => {
 
       case 'getNotifications': {
         const { data: rows } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
-        const list       = rows || [];
+        const list = (rows || []).map(n => {
+          if (n.meta && typeof n.meta === 'string') {
+            try { n.meta = JSON.parse(n.meta); } catch (_) { n.meta = {}; }
+          }
+          return n;
+        });
         const unreadCount = list.filter(n => !n.is_read).length;
         return res.json({ success: true, notifications: list, unreadCount });
       }
