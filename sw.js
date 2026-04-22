@@ -1,14 +1,51 @@
 /* ─────────────────────────────────────────────────────────
    PuroBite / Tiffo — Service Worker (sw.js)
-   Version : v19.0  |  Updated : 2026-04-22
-   Changes : v6 cache, CDN font/icon caching, cleanup
+   Version : v21.0  |  Updated : 2026-04-22
+
+   ARCHITECTURE:
+   ┌──────────────────────────────────────────────────────────┐
+   │  Single GitHub repo — two consumers                      │
+   │                                                          │
+   │  examyatri/purobitese (GitHub repo)                      │
+   │   ├── index.html  ─┐                                     │
+   │   ├── admin.html   ├── GitHub Pages (auto on push)       │
+   │   ├── rider.html   │   https://examyatri.github.io/      │
+   │   ├── sw.js      ──┘         purobitese/                 │
+   │   │                                                      │
+   │   └── server.js ────── Render (auto-deploy backend)      │
+   │                        Node.js + Express + Supabase      │
+   └──────────────────────────────────────────────────────────┘
+
+   IMPORTANT — GitHub Pages subfolder scope:
+   All paths in PRECACHE and SW registration MUST be relative
+   ('./sw.js', './index.html') NOT absolute ('/sw.js', '/index.html')
+   because the site lives at /purobitese/, not at root /.
+
+   DEPLOY FLOW (frontend — GitHub Pages):
+   1. git push → GitHub Pages serves new files within ~1 min
+   2. Browser always re-fetches sw.js (browser spec: SW bypasses cache)
+   3. New byte in sw.js → new SW installs in background
+   4. install: precaches ./index.html, ./admin.html, ./rider.html
+   5. SKIP_WAITING message → new SW activates immediately
+   6. activate: deletes old tiffo-* caches
+   7. clients.claim() → takes control of all open pages
+   8. All 3 panels fire controllerchange → location.reload()
+   9. Users get fresh code — no manual cache clear needed ✅
+
+   DEPLOY FLOW (backend — Render):
+   1. git push → Render detects server.js change, redeploys
+   2. All API calls (purobitese-api.onrender.com) are network-only
+      — SW never caches them — clients always hit live backend ✅
+   3. No frontend change needed for backend-only deploys
+
+   NOTE: /ping endpoint kept alive by UptimeRobot every 5 min.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v6';
+const CACHE      = 'tiffo-v8';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install */
-const PRECACHE = ['/', '/index.html', '/manifest.json'];
+const PRECACHE = ['./', './index.html', './admin.html', './rider.html', './manifest.json'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
@@ -29,12 +66,21 @@ h1{color:#e63946;font-size:24px}p{color:#6b7280}button{background:#e63946;color:
 <button onclick="location.reload()">Try Again</button>
 </body></html>`;
 
+/* ─── MESSAGE (SKIP_WAITING for hot deploy) ─────────────────────────────── */
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 /* ─── INSTALL ────────────────────────────────────────────────────────────── */
 self.addEventListener('install', e => {
+  // waitUntil keeps the SW in 'installing' state until precache is complete.
+  // skipWaiting is intentionally NOT called here — activation is triggered by
+  // the SKIP_WAITING message above, which the app sends only after the new
+  // worker reaches 'installed' state (precache done). Calling skipWaiting()
+  // here races with the cache.addAll() and can activate before assets are ready.
   e.waitUntil(
     caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
   );
-  self.skipWaiting();
 });
 
 /* ─── ACTIVATE ───────────────────────────────────────────────────────────── */
@@ -91,7 +137,7 @@ self.addEventListener('fetch', e => {
           return res;
         })
         .catch(async () => {
-          const cached = await caches.match('/index.html');
+          const cached = await caches.match('./index.html');
           if (cached) return cached;
           return new Response(OFFLINE_HTML, {
             headers: { 'Content-Type': 'text/html; charset=utf-8' }

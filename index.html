@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — User App (index.html)           ║
-     ║  Version : v18.0                                    ║
+     ║  Version : v29.0                                    ║
      ║  Updated : 2026-04-22                               ║
-     ║  Changes : Delivery zone check, signup polish,      ║
-     ║            outside-range hard block, layout fixes   ║
+     ║  Changes : _wipeAndShowLogin() — single wipe fn,    ║
+     ║            6s hard timeout on auto-login,           ║
+     ║            no stuck loader ever, clean session boot ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -111,12 +112,30 @@ textarea{resize:vertical;min-height:80px}
 #retry-screen i{font-size:48px;color:var(--gr)}
 .retry-msg{font-family:var(--fb);color:var(--gr);text-align:center;font-size:15px;max-width:280px}
 .retry-btn{max-width:200px}
-/* Auth page */
+/* ── Hide bottom-nav & floating elements on auth page ── */
+.auth-mode #bottom-nav,
+.auth-mode #cart-pill,
+.auth-mode #cart-fab { display:none!important; }
+/* toast stays visible on auth page for error feedback */
 #pg-auth{background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;overscroll-behavior-y:contain}
-.auth-top{background:var(--grad);width:100%;padding:48px 24px 32px;text-align:center}
-.auth-logo{font-family:var(--ff);font-weight:800;font-size:32px;color:#fff}
-.auth-sub{font-family:var(--fb);color:rgba(255,255,255,.8);font-size:14px;margin-top:4px}
-.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:24px var(--pg-pad) calc(80px + env(safe-area-inset-bottom,0px));margin-top:-16px}
+.auth-top{background:var(--grad);width:100%;padding:clamp(36px,8vw,56px) 24px clamp(28px,6vw,40px);text-align:center;position:relative;overflow:hidden}
+.auth-top::before{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:rgba(255,255,255,.1);border-radius:50%;pointer-events:none}
+.auth-top::after{content:'';position:absolute;bottom:-20px;left:-20px;width:80px;height:80px;background:rgba(255,255,255,.07);border-radius:50%;pointer-events:none}
+.auth-logo{font-family:var(--ff);font-weight:800;font-size:clamp(28px,7vw,36px);color:#fff;position:relative;z-index:1}
+.auth-sub{font-family:var(--fb);color:rgba(255,255,255,.85);font-size:clamp(13px,3.5vw,15px);margin-top:5px;position:relative;z-index:1}
+.auth-tagline{font-family:var(--fb);font-size:clamp(11px,3vw,13px);color:rgba(255,255,255,.65);margin-top:3px;position:relative;z-index:1}
+.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:20px var(--pg-pad) calc(40px + env(safe-area-inset-bottom,0px));margin-top:-16px;flex:1}
+/* Inline field error — shown under each field */
+.field-error{font-family:var(--fb);font-size:11.5px;color:#dc2626;margin-top:4px;display:none;padding:5px 10px;background:#fef2f2;border-radius:7px;border-left:3px solid #dc2626;line-height:1.4}
+.field-error.show{display:block}
+/* Signup section divider */
+.su-section-hd{font-family:var(--ff);font-size:10px;font-weight:700;color:var(--gr);text-transform:uppercase;letter-spacing:.7px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+.su-section-hd::before,.su-section-hd::after{content:'';flex:1;height:1px;background:#f0f0f0}
+/* Phone WhatsApp note */
+.wa-hint{font-family:var(--fb);font-size:11px;color:#25d366;margin-top:3px;display:flex;align-items:center;gap:4px}
+/* Inline success on signup */
+.field-ok{font-family:var(--fb);font-size:11px;color:#16a34a;margin-top:3px;display:none}
+.field-ok.show{display:block}
 /* Location verify section inside signup */
 .loc-section{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:16px;padding:16px;margin-top:4px;margin-bottom:18px;overflow:hidden}
 .loc-section-title{font-family:var(--ff);font-size:12.5px;font-weight:700;color:#334155;margin-bottom:12px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.4px}
@@ -157,8 +176,8 @@ textarea{resize:vertical;min-height:80px}
 .avatar-btn{width:38px;height:38px;border-radius:50%;background:var(--grad);border:none;color:#fff;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center}
 .pro-badge{position:absolute;bottom:-3px;right:-3px;background:#ffd166;color:#7c5a00;font-family:var(--ff);font-size:8px;font-weight:700;border-radius:4px;padding:1px 3px}
 /* Pull to refresh */
-#ptr-zone{text-align:center;padding:0;height:0;overflow:hidden;transition:height 200ms;display:flex;align-items:center;justify-content:center;color:var(--gr)}
-#ptr-arrow{transition:transform 300ms;font-size:18px;display:inline-block}
+#ptr-zone{text-align:center;padding:0;height:0;overflow:hidden;transition:height 300ms cubic-bezier(0.4,0,0.2,1);display:flex;align-items:center;justify-content:center;color:var(--gr);will-change:height}
+#ptr-arrow{transition:transform 200ms ease,color 200ms ease;font-size:18px;display:inline-block;color:var(--gr)}
 #ptr-spinner{display:none;width:20px;height:20px;border:2px solid #f0f0f0;border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
 /* Pause toggle */
 .pause-row{background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:10px;border:2px solid transparent;transition:border-color 250ms,background 250ms}
@@ -392,7 +411,7 @@ textarea{resize:vertical;min-height:80px}
 /* ── END RESPONSIVE ── */
 </style>
 </head>
-<body>
+<body class="auth-mode">
 
 <!-- App Loader -->
 <div id="app-loader">
@@ -421,6 +440,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="auth-top">
     <div class="auth-logo">🍱 Tiffo</div>
     <div class="auth-sub">Ghar Ka Tiffin 😍</div>
+    <div class="auth-tagline">Fresh, homestyle meals delivered to your door</div>
   </div>
   <div class="auth-card">
     <div class="tab-bar">
@@ -432,7 +452,7 @@ textarea{resize:vertical;min-height:80px}
     <div id="login-tab">
       <div id="login-creds-hint" class="creds-hint" style="display:none">✅ Credentials loaded — tap Login</div>
       <div class="form-group">
-        <label>Mobile Number</label>
+        <label>Mobile Number (WhatsApp)</label>
         <input type="tel" id="login-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
       </div>
       <div class="form-group">
@@ -452,34 +472,42 @@ textarea{resize:vertical;min-height:80px}
     <!-- Signup tab -->
     <div id="signup-tab" style="display:none">
 
+      <!-- Section: Basic Info -->
+      <div class="su-section-hd">Basic Info</div>
+
       <div class="form-group">
-        <label>Full Name</label>
+        <label>Full Name <span style="color:#dc2626;font-size:11px">*</span></label>
         <input type="text" id="su-name" placeholder="Your full name" autocomplete="name">
-        <div class="err-msg" id="su-name-err"></div>
+        <div class="field-error" id="su-name-err"></div>
       </div>
 
       <div class="form-group">
-        <label>Mobile Number</label>
+        <label>WhatsApp Number <span style="color:#dc2626;font-size:11px">*</span></label>
         <input type="tel" id="su-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel">
-        <div class="err-msg" id="su-phone-err"></div>
+        <div class="wa-hint"><i class="fa-brands fa-whatsapp"></i> We'll send your order updates here</div>
+        <div class="field-error" id="su-phone-err"></div>
       </div>
 
       <div class="form-group">
         <label>Email <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
         <input type="email" id="su-email" placeholder="your@email.com" autocomplete="email" inputmode="email">
-        <div class="err-msg" id="su-email-err"></div>
+        <div class="field-error" id="su-email-err"></div>
+      </div>
+
+      <!-- Section: Address -->
+      <div class="su-section-hd">Delivery Address</div>
+
+      <div class="form-group">
+        <label>Room / Flat / House Number <span style="color:#dc2626;font-size:11px">*</span></label>
+        <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
+        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:3px">📌 This is needed to find you for delivery</div>
+        <div class="field-error" id="su-room-err"></div>
       </div>
 
       <div class="form-group">
-        <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(e.g. Room 12, Flat B-4)</span></label>
-        <input type="text" id="su-room" placeholder="Room 12 / Flat B-4 / House 5A…" autocomplete="off">
-        <div class="err-msg" id="su-room-err"></div>
-      </div>
-
-      <div class="form-group">
-        <label>Delivery Address <span style="font-size:11px;color:#22c55e;font-weight:500">✦ Auto-fills when you pin location</span></label>
-        <textarea id="su-addr" placeholder="Tap 'Detect My Location' below — address will auto-fill from your pin 📍" style="min-height:76px;resize:none" autocomplete="street-address" readonly onfocus="this.removeAttribute('readonly')"></textarea>
-        <div class="err-msg" id="su-addr-err"></div>
+        <label>Full Delivery Address <span style="font-size:11px;color:#22c55e;font-weight:500">✦ Auto-fills from your location pin</span></label>
+        <textarea id="su-addr" placeholder="Tap 'Detect My Location' below — address auto-fills 📍" style="min-height:76px;resize:none" autocomplete="street-address" readonly onfocus="this.removeAttribute('readonly')"></textarea>
+        <div class="field-error" id="su-addr-err"></div>
       </div>
 
       <!-- ── Location Verify Card ── -->
@@ -527,18 +555,26 @@ textarea{resize:vertical;min-height:80px}
         <input type="hidden" id="su-loc-ok" value="0">
       </div>
 
+      <!-- Section: Security -->
+      <div class="su-section-hd">Security</div>
+
       <div class="form-group">
-        <label>Password</label>
+        <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
         <div class="pw-wrap">
-          <input type="password" id="su-pw" placeholder="Create a password (min 6 chars)" autocomplete="new-password">
+          <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password">
           <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
         </div>
-        <div class="err-msg" id="su-pw-err"></div>
+        <div class="field-error" id="su-pw-err"></div>
       </div>
 
-      <div style="margin-top:8px;padding-bottom:12px">
+      <div style="margin-top:12px;padding-bottom:16px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
-        <button class="btn-primary" id="su-btn" onclick="doSignup()">Create Account</button>
+        <button class="btn-primary" id="su-btn" onclick="doSignup()">
+          <i class="fa-solid fa-user-plus" style="margin-right:6px"></i>Create Account
+        </button>
+        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);text-align:center;margin-top:10px;line-height:1.5">
+          By creating an account you agree to receive order updates on WhatsApp
+        </div>
       </div>
 
     </div>
@@ -1853,46 +1889,50 @@ async function doLogin() {
 
   try {
     const res = await api('login', { phone, password: pw });
-    // ✅ Login success — status disappears as screen changes
+    // ✅ Login success
     Creds.save(phone, pw);
     Auth.set(res.user);
     const _hint = document.getElementById('login-creds-hint');
     if (_hint) { _hint.style.display = 'none'; _hint.style.background = ''; _hint.style.color = ''; }
-    setAuthStatus('login-status', 'login-btn', '', '', 0); // clear status
+    setAuthStatus('login-status', 'login-btn', '', '', 0);
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
     if (res.subscriber) { applyPauseState(_pauseMode); }
-    api('getKhataEnabled').then(r => {
-      _khataEnabled = r.enabled;
-      applyKhataVisibility();
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
-    }).catch(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
-    });
+
+    // ── Show menu skeletons BEFORE the page transition so home never flashes empty ──
+    showMenuSkeletons();
+
+    // ── Transition immediately — user sees skeleton, not blank screen ──
     _transitionToHome();
+
+    // ── loadMenu sets _khataEnabled via _fetchFreshMenu, then we persist session ──
     const _initMenuP3 = loadMenu();
+    _initMenuP3.then(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+    }).catch(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+    });
     startPolling();
-    _doPostLoginRefresh(_initMenuP3); // chains after loadMenu resolves
+    _doPostLoginRefresh(_initMenuP3);
   } catch(e) {
-    // ❌ Login failed — replace status with clear error, re-enable button
+    // ❌ Login failed
     const isAuthError = e.message?.includes('Session invalid') ||
                         e.message?.includes('Unauthorized') ||
                         e.message?.includes('not found') ||
                         e.message?.includes('Invalid');
     if (isAuthError) {
-      // Wrong credentials — clear stale saved creds, show error in status area
       Creds.clear();
       SessionCache.clear();
       setAuthStatus('login-status', 'login-btn', '⚠️ Incorrect details — please try again', 'error', 0);
-      // Also hide the prefill hint since creds are now cleared
       const hint = document.getElementById('login-creds-hint');
       if (hint) { hint.style.display = 'none'; }
       document.getElementById('login-pw').value = '';
       document.getElementById('login-pw').focus();
     } else {
-      // Network/timeout error
       setAuthStatus('login-status', 'login-btn', '⚠️ No internet connection. Check and retry.', 'error', 0);
     }
   }
@@ -2267,15 +2307,19 @@ async function _confirmLeafletPin() {
   }
 }
 
-/* Watch room number field — live-update address preview */
+/* Watch room number field — live-update address preview + clear error */
 document.addEventListener('DOMContentLoaded', () => {
   const roomInput = document.getElementById('su-room');
   if (roomInput) {
     roomInput.addEventListener('input', () => {
+      // Clear room error as user types
+      const err = document.getElementById('su-room-err');
+      if (err) { err.classList.remove('show'); err.textContent = ''; }
+      roomInput.style.borderColor = '';
+
       if (_pendingLat === null) return; // map not shown yet — nothing to rebuild
       const addrBox = document.getElementById('su-addr');
       if (!addrBox) return;
-      // Always rebuild from the cached geo object + current lat/lng — clean, no string-slicing fragility
       addrBox.value = _buildAddress(
         roomInput.value,
         _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`,
@@ -2284,6 +2328,26 @@ document.addEventListener('DOMContentLoaded', () => {
       );
     });
   }
+
+  // Live-clear errors on all signup fields as user types/changes
+  const fieldErrMap = {
+    'su-name':  'su-name-err',
+    'su-phone': 'su-phone-err',
+    'su-email': 'su-email-err',
+    'su-addr':  'su-addr-err',
+    'su-pw':    'su-pw-err',
+  };
+  Object.entries(fieldErrMap).forEach(([inputId, errId]) => {
+    const input = document.getElementById(inputId);
+    const errEl = document.getElementById(errId);
+    if (input && errEl) {
+      input.addEventListener('input', () => {
+        errEl.classList.remove('show');
+        errEl.textContent = '';
+        input.style.borderColor = '';
+      });
+    }
+  });
 });
 
 async function detectSignupLocation() {
@@ -2336,40 +2400,54 @@ async function doSignup() {
   const pw      = document.getElementById('su-pw').value;
 
   // Final address: always rebuild from cache so lat/lng is always embedded.
-  // Even if Nominatim failed (_lastGeoResult===null), we still embed the raw coords.
-  // This guarantees the rider always gets GPS coordinates in the address.
   let address;
   if (_pendingLat !== null && _pendingLng !== null) {
-    // Rebuild cleanly — ensures coords suffix is always present and fresh
     address = _buildAddress(room, _lastGeoResult || addrRaw, _pendingLat, _pendingLng);
   } else {
-    // Fallback: user somehow submitted without a GPS fix (locOk guard below will usually catch this)
     address = addrRaw;
   }
 
   const setErr = (id, msg) => {
     const el = document.getElementById(id);
-    if (msg) { el.textContent = msg; el.style.display = 'block'; valid = false; }
-    else { el.textContent = ''; el.style.display = 'none'; }
+    if (!el) return;
+    if (msg) {
+      el.textContent = msg;
+      el.classList.add('show');
+      valid = false;
+      // Shake the parent input for tactile feedback
+      const inp = el.previousElementSibling || el.parentElement?.querySelector('input,textarea');
+      if (inp) { inp.style.borderColor = '#dc2626'; setTimeout(() => { inp.style.borderColor = ''; }, 2000); }
+    } else {
+      el.textContent = '';
+      el.classList.remove('show');
+    }
+  };
+  // Also clear old err-msg style (backwards compat)
+  const clearErrMsg = (id) => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = ''; el.style.display = 'none'; }
   };
 
   const locOk = document.getElementById('su-loc-ok').value === '1';
 
-  setErr('su-name-err',  !name ? 'Name is required' : '');
-  setErr('su-phone-err', !phone || phone.length !== 10 ? 'Enter valid 10-digit number' : '');
-  setErr('su-email-err', email && !/^[^@]+@[^@]+\.[^@]+$/.test(email) ? 'Enter a valid email address' : '');
-  setErr('su-room-err',  !room ? 'Room / Flat / House number is required' : '');
-  setErr('su-addr-err',  !address ? 'Address is required — please detect your location first' : '');
-  setErr('su-pw-err',    !pw || pw.length < 6 ? 'Password must be 6+ characters' : '');
+  // Clear all errors first
+  ['su-name-err','su-phone-err','su-email-err','su-room-err','su-addr-err','su-pw-err'].forEach(id => setErr(id, ''));
+
+  // Validate each field with clear human-readable messages
+  if (!name) setErr('su-name-err', '👤 Please enter your full name');
+  if (!phone || phone.length !== 10) setErr('su-phone-err', '📱 Enter a valid 10-digit WhatsApp number');
+  if (email && !/^[^@]+@[^@]+\.[^@]+$/.test(email)) setErr('su-email-err', '✉️ Enter a valid email address (or leave empty)');
+  if (!room) setErr('su-room-err', '🏠 Room / Flat number is required — rider needs this to find you!');
+  if (!address) setErr('su-addr-err', '📍 Address is required — please detect your location first');
+  if (!pw || pw.length < 6) setErr('su-pw-err', '🔒 Password must be at least 6 characters');
 
   if (!locOk) {
     const locStatus = document.getElementById('su-loc-status');
     locStatus.style.display = 'block';
-    // If location was detected but outside range — show hard block message
     const su_lat = document.getElementById('su-lat').value;
     const locBtnTxt = document.getElementById('su-loc-btn-txt').textContent;
     if (su_lat && locBtnTxt.includes('Outside')) {
-      locStatus.textContent = '🚫 Sorry! Your location is outside our delivery area. We are unable to register accounts from this area at this time.';
+      locStatus.textContent = '🚫 Sorry! Your location is outside our delivery area. We cannot register accounts from this location.';
       locStatus.style.background = '#fee2e2';
       locStatus.style.color = '#991b1b';
     } else {
@@ -2378,11 +2456,17 @@ async function doSignup() {
       locStatus.style.color = '#854d0e';
     }
     valid = false;
+    // Scroll the location section into view
+    setTimeout(() => document.getElementById('su-loc-btn')?.scrollIntoView({behavior:'smooth',block:'center'}), 100);
   }
 
-  if (!valid) return;
+  if (!valid) {
+    // Scroll to first visible error
+    const firstErr = document.querySelector('#signup-tab .field-error.show, #su-loc-status[style*="block"]');
+    if (firstErr) setTimeout(() => firstErr.scrollIntoView({behavior:'smooth',block:'center'}), 80);
+    return;
+  }
 
-  // ── Show status text instantly, disable button for 4s to prevent double-tap ──
   setAuthStatus('signup-status', 'su-btn', 'Setting up your account...', 'info', 4000);
 
   try {
@@ -2394,10 +2478,12 @@ async function doSignup() {
     _khataEnabled = false;
     applyKhataVisibility();
     SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
+    // ── Show skeletons before transition so home never flashes empty ──
+    showMenuSkeletons();
     _transitionToHome();
     const _initMenuP4 = loadMenu();
     startPolling();
-    _doPostLoginRefresh(_initMenuP4); // chains after loadMenu resolves
+    _doPostLoginRefresh(_initMenuP4);
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     setAuthStatus('signup-status', 'su-btn', '⚠️ ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
@@ -2710,42 +2796,74 @@ function addThaliToCart(thali) {
 /* ═══════════════════════════════════════════
    PULL TO REFRESH
 ═══════════════════════════════════════════ */
-let _ptrStartY = 0, _ptrPulling = false, _ptrTriggered = false;
+// PTR_THRESHOLD: how far (px) user must pull before release triggers refresh
 const PTR_THRESHOLD = 60;
 
 function _makePTR(scrollId, zoneId, arrowId, spinnerId, refreshFn) {
   const scroll = document.getElementById(scrollId);
   if (!scroll) return;
-  let startY = 0, pulling = false;
+
+  let startY = 0, pulling = false, _ptrActive = false;
+
+  // GPU compositing hint — eliminates paint cost during drag
+  const zone = document.getElementById(zoneId);
+  if (zone) zone.style.willChange = 'height';
+
   scroll.addEventListener('touchstart', e => {
+    if (_ptrActive) return; // already refreshing — ignore new touch
     if (scroll.scrollTop === 0) { startY = e.touches[0].clientY; pulling = true; }
   }, { passive: true });
+
   scroll.addEventListener('touchmove', e => {
-    if (!pulling) return;
+    if (!pulling || _ptrActive) return;
     const dy = e.touches[0].clientY - startY;
     if (dy < 0) { pulling = false; return; }
-    const zone = document.getElementById(zoneId);
-    const arrow = document.getElementById(arrowId);
-    if (dy > 10) zone.style.height = Math.min(dy * 0.5, 50) + 'px';
-    if (arrow) arrow.style.transform = dy > PTR_THRESHOLD ? 'rotate(180deg)' : 'rotate(0deg)';
-  }, { passive: true });
-  scroll.addEventListener('touchend', async e => {
-    if (!pulling) return;
-    pulling = false;
-    const dy = e.changedTouches[0].clientY - startY;
-    const zone = document.getElementById(zoneId);
-    const arrow = document.getElementById(arrowId);
-    const spinner = document.getElementById(spinnerId);
-    if (dy > PTR_THRESHOLD) {
-      if (arrow) arrow.style.display = 'none';
-      if (spinner) spinner.style.display = 'inline-block';
-      zone.style.height = '50px';
-      try { await refreshFn(); } catch(e) {}
-      if (spinner) spinner.style.display = 'none';
-      if (arrow) arrow.style.display = 'inline-block';
+    const zone   = document.getElementById(zoneId);
+    const arrow  = document.getElementById(arrowId);
+    if (!zone) return;
+    // Rubber-band: sqrt damping so it feels elastic, caps at 56px
+    const drag = Math.min(Math.sqrt(dy) * 3.5, 56);
+    zone.style.transition = 'none'; // disable transition while dragging — must feel instant
+    zone.style.height = drag + 'px';
+    if (arrow) {
+      // Arrow rotates and turns red at threshold — clear visual cue to release
+      arrow.style.transform  = dy > PTR_THRESHOLD ? 'rotate(180deg)' : 'rotate(0deg)';
+      arrow.style.color      = dy > PTR_THRESHOLD ? 'var(--p)' : 'var(--gr)';
+      arrow.style.transition = 'transform 200ms, color 200ms';
     }
-    zone.style.height = '0';
-    if (arrow) arrow.style.transform = 'rotate(0deg)';
+  }, { passive: true });
+
+  scroll.addEventListener('touchend', async e => {
+    if (!pulling || _ptrActive) return;
+    pulling  = false;
+    const dy = e.changedTouches[0].clientY - startY;
+    const zone    = document.getElementById(zoneId);
+    const arrow   = document.getElementById(arrowId);
+    const spinner = document.getElementById(spinnerId);
+    if (!zone) return;
+
+    if (dy > PTR_THRESHOLD) {
+      _ptrActive = true;
+      // Haptic pulse on supported devices — confirms the pull was registered
+      if (navigator.vibrate) navigator.vibrate(10);
+      // Spring snap: re-enable transition for the settle animation
+      zone.style.transition = 'height 250ms cubic-bezier(0.34,1.56,0.64,1)';
+      zone.style.height = '50px';
+      if (arrow)   { arrow.style.display = 'none'; arrow.style.color = 'var(--gr)'; }
+      if (spinner) spinner.style.display = 'inline-block';
+      try { await refreshFn(); } catch(_) {}
+      if (spinner) spinner.style.display = 'none';
+      if (arrow)   { arrow.style.display = 'inline-block'; arrow.style.transform = 'rotate(0deg)'; }
+      // Smooth collapse after refresh
+      zone.style.transition = 'height 300ms cubic-bezier(0.4,0,0.2,1)';
+      zone.style.height = '0';
+      _ptrActive = false;
+    } else {
+      // Didn't reach threshold — snap back with spring
+      zone.style.transition = 'height 300ms cubic-bezier(0.34,1.56,0.64,1)';
+      zone.style.height = '0';
+      if (arrow) { arrow.style.transform = 'rotate(0deg)'; arrow.style.color = 'var(--gr)'; }
+    }
   }, { passive: true });
 }
 
@@ -4032,22 +4150,72 @@ function _applySubscriberUI() {
   if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
   // Sub plan banner removed — Auto Tiffin card is single source of truth
 }
+/* ── _wipeAndShowLogin ────────────────────────────────────────────
+   Single source of truth for "something went wrong → clean slate".
+   Called whenever ANY mismatch, timeout, or auth error is detected.
+   Wipes ALL local data so the user always starts completely fresh.
+   No stale state, no confusion. Like a top-class app.
+─────────────────────────────────────────────────────────────────── */
+function _wipeAndShowLogin() {
+  // Wipe every piece of local data
+  Auth.clear();
+  Creds.clear();
+  SessionCache.clear();
+  Store.remove('tf_menu_cache');
+  Store.remove('pb_cart');
+  Store.remove('pb_order_processing');
+  Store.remove('_khata_cache');
+  Store.remove('tf_creds');
+  // Reset all in-memory state
+  _session         = null;
+  _fullMenu        = [];
+  _fullThalis      = [];
+  _walletBal       = 0;
+  _pauseMode       = 'none';
+  _khataEnabled    = false;
+  _appliedCoupon   = null;
+  _lastOrders      = null;
+  _lastBalance     = null;
+  _lastKhataStr    = null;
+  _lastPauseMode   = null;
+  _menuLoading     = false;
+  _placingOrder    = false;
+  _khataAllEntries = [];
+  _postLoginRefreshDone = false;
+  // Go to login (signup tab = fresh start, no prefill)
+  _transitionToLogin(false);
+}
+
 async function bootApp() {
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version ready — reload silently to activate it
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+    }).catch(() => {});
+    // Reload page once the new SW takes control
+    let swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!swRefreshing) { swRefreshing = true; location.reload(); }
+    });
   }
 
   /* ══════════════════════════════════════════════════════════════
-     FAST PATH: Cached session exists → restore instantly, no network
-     This is how GitHub / Swiggy / Zomato keep you logged in.
-     User is on their home screen in <50ms.
+     FAST PATH: Valid cached session → restore instantly, no network.
+     User is on home screen in <50ms. Background verify runs later.
   ══════════════════════════════════════════════════════════════ */
   const cached = SessionCache.get();
   if (cached && cached.user) {
-    // Reset flag so _doPostLoginRefresh fires on every app-open (not just first login)
     _postLoginRefreshDone = false;
-    // Restore all in-memory state from localStorage cache
     Auth.set(cached.user);
     _session.is_subscriber = !!cached.is_subscriber;
     _walletBal    = cached.walletBalance || 0;
@@ -4057,23 +4225,20 @@ async function bootApp() {
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
     applyKhataVisibility();
-
-    // Show home immediately — no loader, no "signing you in"
     _transitionToHome();
+
     const _initMenuP = loadMenu();
     startPolling();
-    _doPostLoginRefresh(_initMenuP); // chains after loadMenu resolves — earliest possible moment
+    _doPostLoginRefresh(_initMenuP);
 
-    // BACKGROUND VERIFY — runs at most once every 48 hours (not on every refresh).
-    // Like GitHub: silently checks the account is still valid, updates cache,
-    // never bothers the user. On network error, cached home stays untouched.
+    // BACKGROUND VERIFY — at most once every 48h.
+    // On auth error → wipe + login. On network error → stay on home (offline tolerance).
     const creds = Creds.get();
     if (creds && SessionCache.shouldVerify()) {
-      // Small delay so home screen renders first, then we do the network call
       setTimeout(() => {
         api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
           .then(res => {
-            SessionCache.markVerified(); // Reset 6-hour timer
+            SessionCache.markVerified();
             Auth.set(res.user);
             _session.is_subscriber = !!res.subscriber;
             _walletBal = res.walletBalance || 0;
@@ -4081,123 +4246,99 @@ async function bootApp() {
             updateWalletUI(_walletBal);
             applyPauseState(_pauseMode);
             _applySubscriberUI();
-            api('getKhataEnabled')
-              .then(r => {
-                _khataEnabled = r.enabled;
-                applyKhataVisibility();
-                SessionCache.save({
-                  user:          res.user,
-                  is_subscriber: !!res.subscriber,
-                  walletBalance: _walletBal,
-                  pauseMode:     _pauseMode,
-                  khataEnabled:  _khataEnabled
-                });
-              })
-              .catch(() => {
-                SessionCache.save({
-                  user:          res.user,
-                  is_subscriber: !!res.subscriber,
-                  walletBalance: _walletBal,
-                  pauseMode:     _pauseMode,
-                  khataEnabled:  _khataEnabled
-                });
-              });
+            // _khataEnabled is already current from the live session's loadMenu/_fetchFreshMenu.
+            // Re-using it here avoids a redundant getKhataEnabled API call on every 48h verify.
+            SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+              walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
           })
           .catch(e => {
             const isAuthError = e.message?.includes('Session invalid') ||
                                 e.message?.includes('Unauthorized') ||
-                                e.message?.includes('not found');
+                                e.message?.includes('not found') ||
+                                e.message?.includes('Invalid');
             if (isAuthError) {
-              // Account deleted or password changed on another device — silent logout
-              doLogout();
+              // Account deleted / password changed → wipe everything, force fresh login
+              stopPolling();
+              _wipeAndShowLogin();
             }
-            // Network/timeout error → keep cached session, try again next time
+            // Pure network error → silently keep cached home. Retry next app-open.
           });
-      }, 3000); // 3s delay — home renders first, then verify fires promptly
+      }, 3000);
     }
-    return; // Fast path done. User is already on home screen.
-  }
-
-  /* ══════════════════════════════════════════════════════════════
-     SLOW PATH: No cached session — first ever visit, or after logout
-     Rules:
-       Case 2 — credentials saved → instantly show prefilled login screen,
-                 silently attempt auto-login in background.
-       Case 3 — no credentials at all → instantly show signup screen.
-       Case 4 — anything unexpected → show login screen (safe fallback).
-  ══════════════════════════════════════════════════════════════ */
-  const creds = Creds.get();
-
-  if (!creds || !creds.phone || !creds.pw) {
-    // Case 3: No saved credentials at all → signup screen instantly
-    _transitionToLogin(false);
     return;
   }
 
-  // Case 2: Credentials exist but no session cache
-  // Show prefilled login screen instantly — zero loading, zero wait
-  _transitionToLogin(true, false);
+  /* ══════════════════════════════════════════════════════════════
+     SLOW PATH: No cached session.
+     ─ No creds at all       → signup screen instantly (new user)
+     ─ Creds exist           → show branded loader, attempt silent
+                               auto-login with hard 6s timeout.
+                               SUCCESS → home screen.
+                               ANY FAILURE → wipe all + clean login.
+                               No ambiguous states. No stuck screens.
+  ══════════════════════════════════════════════════════════════ */
+  const creds = Creds.get();
 
-  // Show non-intrusive status while auto-login runs in background
-  setTimeout(() => {
-    setAuthStatus('login-status', 'login-btn', 'Signing you in...', 'info', 0);
-  }, 150); // small delay so screen transition completes first
+  // Case: No credentials at all → new user, show signup instantly
+  if (!creds || !creds.phone || !creds.pw) {
+    _wipeAndShowLogin(); // ensures clean state even on first visit
+    return;
+  }
 
-  // Background silent auto-login attempt — if it succeeds, take user home
-  // If it fails (wrong creds / network), user is already on login screen & can retry
+  // Case: Credentials saved but no session cache → try silent auto-login
+  // Show loader (already visible from page load) with branded message
+  const loaderStatus = document.getElementById('loader-status');
+  if (loaderStatus) loaderStatus.textContent = 'Signing you in…';
+
+  // Hard 6-second timeout — if server doesn't respond (Render cold start etc.)
+  // we WIPE everything and show clean login. No stuck loader ever.
+  let _autoLoginDone = false;
+  const _timeoutHandle = setTimeout(() => {
+    if (_autoLoginDone) return;
+    _autoLoginDone = true;
+    _wipeAndShowLogin();
+  }, 6000);
+
   try {
     const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
-    // ✅ Auto-login succeeded — status disappears as screen changes
-    setAuthStatus('login-status', 'login-btn', '', '', 0);
+    if (_autoLoginDone) return; // timeout already fired — don't fight it
+    _autoLoginDone = true;
+    clearTimeout(_timeoutHandle);
+
+    // ✅ Auto-login succeeded → go straight home, no login screen shown at all
     Auth.set(res.user);
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
-    api('getKhataEnabled')
-      .then(r => {
-        _khataEnabled = r.enabled;
-        applyKhataVisibility();
-        SessionCache.save({
-          user:          res.user,
-          is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal,
-          pauseMode:     _pauseMode,
-          khataEnabled:  _khataEnabled
-        });
-      })
-      .catch(() => {
-        SessionCache.save({
-          user:          res.user,
-          is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal,
-          pauseMode:     _pauseMode,
-          khataEnabled:  false
-        });
-      });
+    // ── Show skeletons before transition so home never flashes empty ──
+    showMenuSkeletons();
     _transitionToHome();
     const _initMenuP2 = loadMenu();
+    // loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
+    _initMenuP2.then(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+    }).catch(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+    });
     startPolling();
-    _doPostLoginRefresh(_initMenuP2); // chains after loadMenu resolves
+    _doPostLoginRefresh(_initMenuP2);
+
   } catch(e) {
-    // ❌ Auto-login failed — user is already on login screen
-    const isAuthError = e.message?.includes('Session invalid') ||
-                        e.message?.includes('Unauthorized') ||
-                        e.message?.includes('not found');
-    if (isAuthError) {
-      // Wrong credentials — clear bad creds, show error in status area
-      Creds.clear();
-      prefillLoginForm(false); // prefill form (without wrong-creds hint, we handle via status)
-      setAuthStatus('login-status', 'login-btn', '⚠️ Session expired — please login again', 'error', 0);
-    } else {
-      // Network/timeout: clear the "Signing you in..." text, let user tap Login manually
-      setAuthStatus('login-status', 'login-btn', '', '', 0);
-    }
+    if (_autoLoginDone) return; // timeout already fired
+    _autoLoginDone = true;
+    clearTimeout(_timeoutHandle);
+    // ❌ Any failure (auth error, network, server down) → wipe + clean login
+    // No ambiguity. User fills in details fresh. New session starts clean.
+    _wipeAndShowLogin();
   }
 }
 
 function _transitionToHome() {
+  document.body.classList.remove('auth-mode');
   document.getElementById('app-loader').style.display = 'none';
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
   const home = document.getElementById('pg-home');
@@ -4212,6 +4353,7 @@ function _transitionToHome() {
 }
 
 function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
+  document.body.classList.add('auth-mode');
   document.getElementById('app-loader').style.display = 'none';
   document.getElementById('retry-screen').style.display = 'none';
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
@@ -4244,7 +4386,7 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
-  _postLoginRefreshDone = false; // reset so next login triggers a fresh background refresh
+  _postLoginRefreshDone = false;
   Auth.clear();
   Creds.clear();
   SessionCache.clear();
@@ -4252,36 +4394,72 @@ function doLogout() {
   Store.remove('pb_cart');
   Store.remove('pb_order_processing');
   Store.remove('_khata_cache');
-  _fullMenu      = [];
-  _fullThalis    = [];
-  _walletBal     = 0;
-  _pauseMode     = 'none';
-  _khataEnabled  = false;
-  _appliedCoupon = null;
-  _lastOrders    = null;
-  _lastBalance   = null;
-  _lastKhataStr  = null;
-  _lastPauseMode = null;
-  _menuLoading   = false;
-  _placingOrder  = false;
-  _hiddenAt      = 0;
-  _stack         = [];
-  _lastSchedule  = null;
-  _lastCutoff    = null;
+  _fullMenu        = [];
+  _fullThalis      = [];
+  _walletBal       = 0;
+  _pauseMode       = 'none';
+  _khataEnabled    = false;
+  _appliedCoupon   = null;
+  _lastOrders      = null;
+  _lastBalance     = null;
+  _lastKhataStr    = null;
+  _lastPauseMode   = null;
+  _menuLoading     = false;
+  _placingOrder    = false;
+  _hiddenAt        = 0;
+  _stack           = [];
+  _lastSchedule    = null;
+  _lastCutoff      = null;
   _khataAllEntries = [];
-  document.getElementById('cart-pill').style.display = 'none';
+
+  // ── Reset all visible UI to a clean state ──
+  // Cart
+  const cartPill = document.getElementById('cart-pill');
+  if (cartPill) cartPill.style.display = 'none';
   updateCartBadge();
+
+  // Wallet nav button
+  const bnavWallet = document.getElementById('bnav-wallet');
+  if (bnavWallet) bnavWallet.style.display = 'none';
+  const bnavBal = document.getElementById('bnav-bal');
+  if (bnavBal) bnavBal.textContent = '₹0';
+
+  // Home avatar
+  const avatarInitials = document.getElementById('home-avatar-initials');
+  if (avatarInitials) avatarInitials.textContent = '?';
+  const proBadge = document.getElementById('home-pro-badge');
+  if (proBadge) proBadge.classList.add('hidden');
+
+  // Clear menu list so stale content isn't visible on re-login
+  const menuList = document.getElementById('menu-list');
+  if (menuList) menuList.innerHTML = '';
+
+  // Clear orders list
+  const ordersList = document.getElementById('orders-list');
+  if (ordersList) ordersList.innerHTML = '';
+
+  // Reset all form fields to clean state
+  ['login-status','signup-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'none'; el.textContent = ''; }
+  });
+  const loginCreds = document.getElementById('login-creds-hint');
+  if (loginCreds) loginCreds.style.display = 'none';
+
   closeAllSheets();
-  _transitionToLogin(false);
+  _transitionToLogin(false);  // goes to signup tab (fresh start)
 }
 
 /* ═══════════════════════════════════════════
    GUARDS & LIFECYCLE
 ═══════════════════════════════════════════ */
-// Blank screen guard
+// Absolute safety net — if nothing is showing after 8s, wipe all and go to login.
+// Covers any edge case: JS crash, render failure, unexpected state.
 setTimeout(() => {
-  if (!document.querySelector('.pg.here')) _transitionToLogin(false);
-}, 10000);
+  if (!document.querySelector('.pg.here')) {
+    _wipeAndShowLogin();
+  }
+}, 8000);
 
 // bfcache restore
 window.addEventListener('pageshow', e => { if (e.persisted) bootApp(); });

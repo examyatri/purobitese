@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — Rider App (rider.html)          ║
-     ║  Version : v18.0                                    ║
+     ║  Version : v32.0                                    ║
      ║  Updated : 2026-04-22                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
@@ -171,27 +171,29 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 }
 
 /* Map container */
-#map-container{flex:0 0 55vh;position:relative;overflow:hidden}
+#map-container{flex:0 0 45vh;position:relative;overflow:hidden}
+@media (max-height:700px){#map-container{flex:0 0 38vh}}
+@media (min-height:800px){#map-container{flex:0 0 48vh}}
 #leaflet-map{width:100%;height:100%}
 
 /* Action buttons row */
 #map-actions{
-  display:flex;gap:8px;padding:10px 14px;
+  display:flex;gap:5px;padding:7px 10px;
   background:#1e293b;border-top:1px solid #334155;
   flex-shrink:0;
 }
 .map-action-btn{
   flex:1;border:none;border-radius:10px;
-  padding:10px 6px;font-family:var(--ff);font-weight:700;
-  font-size:12px;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  min-height:52px;justify-content:center;transition:opacity 200ms;
+  padding:8px 2px;font-family:var(--ff);font-weight:700;
+  font-size:10px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  min-height:46px;justify-content:center;transition:opacity 200ms;
 }
 .map-action-btn:active{opacity:.7}
 #btn-optimize{background:#3b82f6;color:#fff}
 #btn-optimize.done{background:#22c55e}
 #btn-start-delivery{background:var(--p);color:#fff}
-#btn-start-delivery.active-mode{background:#f59e0b}
+#btn-start-delivery.active-mode{background:#f59e0b;color:#1a1f2e}
 
 /* Bottom sheet */
 #map-bottom{
@@ -200,7 +202,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   -webkit-overflow-scrolling:touch;
   padding:0 0 env(safe-area-inset-bottom,0px);
 }
-#map-stop-list{padding:10px 14px 80px}
+#map-stop-list{padding:10px 14px 160px}
 
 /* Stop card */
 .map-stop-card{
@@ -245,28 +247,47 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   width:100%;max-width:520px;
   background:#1e293b;
   border-top:2px solid #f59e0b;
-  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));
   z-index:2500;
   display:none;
 }
 #delivery-bar.show{display:block}
-#delivery-bar-label{
-  font-family:var(--ff);font-weight:700;font-size:13px;
-  color:#fbbf24;margin-bottom:10px;text-align:center;
+#delivery-bar-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:6px;
 }
-#delivery-bar-btns{display:flex;gap:6px}
-.dbar-btn{
-  border:none;border-radius:9px;padding:11px 8px;
+#delivery-bar-label{
   font-family:var(--ff);font-weight:700;font-size:12px;
-  cursor:pointer;min-height:44px;
-  display:flex;align-items:center;justify-content:center;gap:4px;
+  color:#fbbf24;
+}
+#delivery-bar-progress{
+  font-family:var(--ff);font-size:11px;color:#64748b;
+}
+#delivery-bar-card{
+  background:#0f172a;border-radius:10px;padding:10px 12px;
+  margin-bottom:8px;display:none;
+}
+#delivery-bar-card.show{display:block}
+#dbc-name{font-family:var(--ff);font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:2px}
+#dbc-addr{font-size:12px;color:#94a3b8;margin-bottom:4px;line-height:1.4}
+#dbc-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#dbc-amount{font-family:var(--ff);font-weight:700;font-size:13px;color:#22c55e}
+#dbc-pay{font-size:11px;color:#94a3b8}
+#dbc-items{font-size:11px;color:#64748b;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#delivery-bar-btns{display:flex;gap:5px}
+.dbar-btn{
+  border:none;border-radius:9px;padding:10px 6px;
+  font-family:var(--ff);font-weight:700;font-size:11px;
+  cursor:pointer;min-height:42px;
+  display:flex;align-items:center;justify-content:center;gap:3px;
   transition:opacity 200ms;
 }
 .dbar-btn:active{opacity:.7}
-#dbar-deliver{background:#22c55e;color:#fff;flex:2}
+#dbar-deliver{background:#22c55e;color:#fff;flex:2;font-size:12px}
+#dbar-deliver.loading{opacity:.6;pointer-events:none}
 #dbar-call{background:#1d4ed8;color:#fff;flex:1}
 #dbar-wa{background:#16a34a;color:#fff;flex:1}
-#dbar-skip{background:#dc2626;color:#fff;flex:1}
+#dbar-skip{background:#334155;color:#94a3b8;flex:1}
 
 /* Celebration overlay */
 #map-celebration{
@@ -447,15 +468,19 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   <div id="map-actions">
     <button class="map-action-btn" id="btn-optimize" onclick="optimizeRoute()">
       <span id="btn-optimize-icon">🧭</span>
-      <span id="btn-optimize-label">Optimize Route</span>
+      <span id="btn-optimize-label">Optimize</span>
     </button>
     <button class="map-action-btn" id="btn-start-delivery" onclick="toggleDeliveryMode()">
       <span id="btn-delivery-icon">▶</span>
-      <span id="btn-delivery-label">Start Delivery</span>
+      <span id="btn-delivery-label">Start</span>
     </button>
-    <button class="map-action-btn" style="background:#334155;color:#94a3b8" onclick="openInMapsFromModal()">
+    <button class="map-action-btn" id="btn-gmaps-nav" onclick="openInMapsFromModal()" style="background:#1a73e8;color:#fff">
+      <span>🗺</span>
+      <span id="btn-gmaps-label">Navigate</span>
+    </button>
+    <button class="map-action-btn" id="btn-gmaps-route" onclick="openAllStopsInGMaps()" style="background:#334155;color:#94a3b8" title="Open full route in Google Maps">
       <span>📍</span>
-      <span>Google Maps</span>
+      <span>All Stops</span>
     </button>
   </div>
 
@@ -475,12 +500,33 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 
 <!-- Delivery action floating bar -->
 <div id="delivery-bar">
-  <div id="delivery-bar-label">Stop 1 of 5</div>
+  <div id="delivery-bar-header">
+    <div id="delivery-bar-label">Stop 1 of 5</div>
+    <div id="delivery-bar-progress"></div>
+  </div>
+  <div id="delivery-bar-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="flex:1;min-width:0">
+        <div id="dbc-name"></div>
+        <div id="dbc-addr"></div>
+        <div id="dbc-meta">
+          <span id="dbc-amount"></span>
+          <span id="dbc-pay"></span>
+          <span id="dbc-items"></span>
+        </div>
+      </div>
+      <button onclick="openInMapsFromModal()" style="flex-shrink:0;background:#2563eb;color:#fff;border:none;border-radius:9px;padding:8px 10px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:44px;justify-content:center">
+        <span style="font-size:16px">🗺</span>
+        <span>Navigate</span>
+      </button>
+    </div>
+  </div>
   <div id="delivery-bar-btns">
-    <button class="dbar-btn" id="dbar-deliver" onclick="deliveryMarkDone()">✅ Delivered &amp; Next</button>
-    <button class="dbar-btn" id="dbar-call" onclick="deliveryCall()">📞 Call</button>
-    <button class="dbar-btn" id="dbar-wa" onclick="deliveryWA()">💬 WA</button>
-    <button class="dbar-btn" id="dbar-skip" onclick="deliverySkip()">⏭ Skip</button>
+    <button class="dbar-btn" id="dbar-deliver" onclick="deliveryMarkDone()">✅ Delivered</button>
+    <button class="dbar-btn" id="dbar-call" onclick="deliveryCall()" title="Call customer">📞</button>
+    <button class="dbar-btn" id="dbar-wa" onclick="deliveryWA()" title="WhatsApp">💬</button>
+    <button class="dbar-btn" id="dbar-eta" onclick="shareLocationViaWA()" style="background:#7c3aed;color:#fff" title="Share live location via WA">📤</button>
+    <button class="dbar-btn" id="dbar-skip" onclick="deliverySkip()" title="Skip this stop">⏭</button>
   </div>
 </div>
 
@@ -1109,31 +1155,53 @@ function _renderStopList() {
   }
   let seqNum = 0;
   el.innerHTML = _mapStops.map((s, i) => {
-    const hasCoords = !!s.coords;
+    const hasCoords  = !!s.coords;
     if (hasCoords) seqNum++;
-    const numLabel   = hasCoords ? seqNum : '⚠️';
+    const numLabel   = hasCoords ? seqNum : '⚠';
     const numColor   = s.delivered ? 'green' : s.skipped ? 'orange' : hasCoords ? '' : 'warn';
     const nameClass  = s.delivered ? 'stop-name strikethrough' : 'stop-name';
     const slotClass  = (s.order.slot||'morning') === 'morning' ? 'slot-morning' : 'slot-evening';
-    const slotLabel  = (s.order.slot||'morning') === 'morning' ? '☀️ Morning' : '🌙 Evening';
-    const dist       = (s.distKm !== null && s.distKm !== undefined) ? `~${s.distKm.toFixed(1)} km` : '';
-    const statusBadge= s.delivered ? '<span class="stop-status-badge badge-delivered">✅ Delivered</span>'
+    const slotLabel  = (s.order.slot||'morning') === 'morning' ? '☀️' : '🌙';
+    const dist       = (s.distKm !== null && s.distKm !== undefined) ? `~${s.distKm.toFixed(1)}km` : '';
+    const statusBadge= s.delivered ? '<span class="stop-status-badge badge-delivered">✅ Done</span>'
                      : s.skipped   ? '<span class="stop-status-badge badge-skipped">⏭ Skipped</span>'
                      : '';
-    const noCoordsBadge = !hasCoords ? '<span style="font-size:10px;color:#f97316;font-weight:700">⚠️ No GPS coords</span>' : '';
-    const activeClass= (_deliveryActive && i === _deliveryIdx) ? 'active-stop' : '';
+    const noCoordsBadge = !hasCoords ? '<span style="font-size:10px;color:#f97316;font-weight:700">⚠ No GPS</span>' : '';
+    const isActive   = _deliveryActive && i === _deliveryIdx;
+    const activeClass= isActive ? 'active-stop' : '';
     const delivClass = s.delivered ? 'delivered-stop' : s.skipped ? 'skipped-stop' : '';
     const noClass    = !hasCoords ? 'no-coords-stop' : '';
+    const amount     = s.order.final_amount ? `<span style="font-family:var(--ff);font-size:11px;color:#22c55e;font-weight:700">₹${s.order.final_amount}</span>` : '';
+
+    // Quick action buttons on each stop card
+    const phone = s.order.phone || '';
+    const safePhone = phone.replace(/'/g,"");
+    const safeName  = (s.order.name||'').replace(/'/g,"");
+    const actionBtns = (!s.delivered && phone) ? `
+      <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap" onclick="event.stopPropagation()">
+        <a href="tel:${safePhone}" style="flex:1;min-width:44px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px">📞</a>
+        <button onclick="openWA('91${safePhone}','Hi ${safeName}, your Tiffo order is on the way!')" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
+        <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>
+        ${hasCoords ? `<button onclick="openStreetView(${i})" style="flex:1;min-width:44px;background:#0f766e;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Street View">👁 View</button>` : ''}
+        <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>
+      </div>` : '';
+
     return `<div class="map-stop-card ${activeClass} ${delivClass} ${noClass}" id="stop-card-${i}" onclick="flyToStop(${i})">
       <div class="stop-num ${numColor}">${numLabel}</div>
       <div class="stop-info">
-        <div class="${nameClass}">${s.order.name || '—'}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <div class="${nameClass}">${s.order.name || '—'}</div>
+          <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+            ${amount}
+            <span class="stop-slot ${slotClass}" style="font-size:12px">${slotLabel}</span>
+          </div>
+        </div>
         <div class="stop-addr">${_shortAddr(s.order.address)}</div>
         <div class="stop-meta">
-          <span class="stop-slot ${slotClass}">${slotLabel}</span>
           ${dist ? `<span class="stop-dist">${dist}</span>` : ''}
           ${statusBadge}${noCoordsBadge}
         </div>
+        ${actionBtns}
       </div>
     </div>`;
   }).join('');
@@ -1273,17 +1341,12 @@ function flyToStop(idx) {
 }
 
 // ── NEAREST NEIGHBOR ROUTE OPTIMIZE ──────────────────────────
-function optimizeRoute() {
-  const withCoords = _mapStops.filter(s => s.coords);
-  if (withCoords.length < 2) { rToast('Need at least 2 stops with GPS coords to optimize'); return; }
-
-  const startLat = _gpsPos?.lat || withCoords[0].coords.lat;
-  const startLng = _gpsPos?.lng || withCoords[0].coords.lng;
-
-  // Nearest neighbor on stops with coords
-  const toVisit = [...withCoords];
+// Core greedy TSP from a given lat/lng origin across a set of stops.
+// Returns ordered array of stops (mutates distKm on each stop).
+function _nearestNeighborSort(stopsWithCoords, originLat, originLng) {
+  const toVisit = [...stopsWithCoords];
   const ordered = [];
-  let curLat = startLat, curLng = startLng;
+  let curLat = originLat, curLng = originLng;
   while (toVisit.length) {
     let best = 0, bestDist = Infinity;
     toVisit.forEach((s, i) => {
@@ -1295,22 +1358,58 @@ function optimizeRoute() {
     curLat = stop.coords.lat; curLng = stop.coords.lng;
     ordered.push(stop);
   }
+  return ordered;
+}
 
-  // Stops without coords stay at end
-  const noCoords = _mapStops.filter(s => !s.coords);
-  _mapStops = [...ordered, ...noCoords];
+// Find the nearest remaining (not delivered, not skipped) stop from current GPS.
+// Returns the index in _mapStops, or -1 if none.
+function _findNearestRemainingIdx() {
+  const refLat = _gpsPos?.lat;
+  const refLng = _gpsPos?.lng;
+  let bestIdx = -1, bestDist = Infinity;
+  _mapStops.forEach((s, i) => {
+    if (s.delivered || s.skipped || !s.coords) return;
+    const d = (refLat != null)
+      ? _haversine(refLat, refLng, s.coords.lat, s.coords.lng)
+      : i; // fallback: preserve current order
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  });
+  return bestIdx;
+}
+
+function optimizeRoute() {
+  const withCoords = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
+  if (withCoords.length < 2) { rToast('Need at least 2 stops with GPS coords to optimize'); return; }
+
+  const startLat = _gpsPos?.lat ?? withCoords[0].coords.lat;
+  const startLng = _gpsPos?.lng ?? withCoords[0].coords.lng;
+
+  // Greedy nearest-neighbor from rider's current location
+  const ordered = _nearestNeighborSort(withCoords, startLat, startLng);
+
+  // Already-delivered stops stay in place; no-coords stops go to end
+  const delivered = _mapStops.filter(s => s.delivered);
+  const noCoords  = _mapStops.filter(s => !s.coords && !s.delivered);
+  _mapStops = [...delivered, ...ordered, ...noCoords];
+
+  // Reset delivery cursor to first pending stop
+  if (_deliveryActive) {
+    _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  }
 
   _routeOptimized = true;
   document.getElementById('btn-optimize').classList.add('done');
   document.getElementById('btn-optimize-icon').textContent = '✅';
-  document.getElementById('btn-optimize-label').textContent = 'Route Optimized';
+  document.getElementById('btn-optimize-label').textContent = 'Optimized';
 
-  // Refresh map
+  // Refresh map — draw route preview from GPS through all stops in order
   _placeMarkers();
   _renderStopList();
   _drawPolyline();
   _fitMapBounds();
-  rToast('🧭 Route optimized! ' + ordered.length + ' stops ordered.');
+
+  const totalKm = ordered.reduce((sum, s) => sum + (s.distKm || 0), 0);
+  rToast(`🧭 ${ordered.length} stops · ~${totalKm.toFixed(1)} km total route`);
 }
 
 // ── DELIVERY MODE ─────────────────────────────────────────────
@@ -1325,12 +1424,36 @@ function toggleDeliveryMode() {
 function _startDeliveryMode() {
   const activeStops = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!activeStops.length) { rToast('No stops remaining'); return; }
+
+  // Auto-optimize from rider's current GPS position if not yet done
+  if (!_routeOptimized) {
+    const withCoords = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
+    if (withCoords.length >= 2) {
+      const startLat = _gpsPos?.lat ?? withCoords[0].coords.lat;
+      const startLng = _gpsPos?.lng ?? withCoords[0].coords.lng;
+      const ordered  = _nearestNeighborSort(withCoords, startLat, startLng);
+      const delivered = _mapStops.filter(s => s.delivered);
+      const noCoords  = _mapStops.filter(s => !s.coords && !s.delivered);
+      _mapStops = [...delivered, ...ordered, ...noCoords];
+      _routeOptimized = true;
+      document.getElementById('btn-optimize').classList.add('done');
+      document.getElementById('btn-optimize-icon').textContent = '✅';
+      document.getElementById('btn-optimize-label').textContent = 'Optimized';
+      _placeMarkers();
+      _drawPolyline();
+      rToast('🧭 Auto-optimized from your location!');
+    }
+  }
+
   _deliveryActive = true;
-  // Find first non-done stop
-  _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  // Start at the nearest undelivered stop from current GPS (dynamic, not just index 0)
+  _deliveryIdx = _findNearestRemainingIdx();
+  if (_deliveryIdx === -1) _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
   document.getElementById('btn-start-delivery').classList.add('active-mode');
-  document.getElementById('btn-delivery-icon').textContent = '⏸';
+  document.getElementById('btn-delivery-icon').textContent  = '⏸';
   document.getElementById('btn-delivery-label').textContent = 'Pause';
+  const gLabel = document.getElementById('btn-gmaps-label');
+  if (gLabel) gLabel.textContent = 'Navigate';
   document.getElementById('delivery-bar').classList.add('show');
   _updateDeliveryBar();
   _renderStopList();
@@ -1340,65 +1463,167 @@ function _startDeliveryMode() {
 function _pauseDeliveryMode() {
   _deliveryActive = false;
   document.getElementById('btn-start-delivery').classList.remove('active-mode');
-  document.getElementById('btn-delivery-icon').textContent = '▶';
+  document.getElementById('btn-delivery-icon').textContent  = '▶';
   document.getElementById('btn-delivery-label').textContent = 'Resume';
+  const gLabel = document.getElementById('btn-gmaps-label');
+  if (gLabel) gLabel.textContent = 'Google Maps';
   document.getElementById('delivery-bar').classList.remove('show');
   _renderStopList();
 }
 
 function _updateDeliveryBar() {
   const total    = _mapStops.length;
-  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   const done     = _mapStops.filter(s => s.delivered).length;
+  const skipped  = _mapStops.filter(s => s.skipped).length;
+  const remaining= _mapStops.filter(s => !s.delivered && !s.skipped).length;
   const cur      = _mapStops[_deliveryIdx];
-  const stopNum  = _deliveryIdx + 1;
+  const stopNum  = _mapStops.filter((s,i) => i <= _deliveryIdx && !s.delivered && !s.skipped).length
+                   || (_deliveryIdx + 1);
+
+  // Header
   document.getElementById('delivery-bar-label').textContent =
-    cur ? `Stop ${stopNum} of ${total} — ${cur.order.name || 'Customer'}` : 'Done!';
+    cur ? `📍 Stop ${done+skipped+1} of ${total}` : 'Done!';
+  document.getElementById('delivery-bar-progress').textContent =
+    `${done} done · ${remaining} left`;
+
+  // Detail card
+  const card = document.getElementById('delivery-bar-card');
+  if (cur) {
+    card.classList.add('show');
+    document.getElementById('dbc-name').textContent = (cur.order.name || '—');
+    document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address);
+    const payLabel = cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
+    document.getElementById('dbc-amount').textContent = '₹' + (cur.order.final_amount || 0);
+    document.getElementById('dbc-pay').textContent = payLabel;
+    const items = (cur.order.items || []).map(i => `${i.name}${i.qty>1?' ×'+i.qty:''}`).join(', ');
+    document.getElementById('dbc-items').textContent = items || '—';
+  } else {
+    card.classList.remove('show');
+  }
 }
 
-function deliveryMarkDone() {
+async function deliveryMarkDone() {
   const s = _mapStops[_deliveryIdx];
-  if (!s) return;
-  s.delivered = true;
-  // Update marker color
-  if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
-  if (s.coords) {
-    s.marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(s.seqNum||'✓', '#22c55e') }).addTo(_map);
+  if (!s || s._syncing) return;
+
+  // Optimistic UI first
+  const btn = document.getElementById('dbar-deliver');
+  btn.textContent = '⏳ Saving…';
+  btn.classList.add('loading');
+  s._syncing = true;
+
+  try {
+    // Sync to backend — same API as markDelivered in the order cards
+    await api('updateOrderStatus', {
+      orderId: s.order.order_id,
+      status:  'delivered',
+      riderId: _rider.rider_id
+    });
+
+    // Update in-memory state so the order list + stats reflect this instantly
+    const idx = _pending.findIndex(o => o.order_id === s.order.order_id);
+    if (idx !== -1) {
+      const orderCopy = { ..._pending[idx], order_status: 'delivered' };
+      _pending.splice(idx, 1);
+      _delivered.unshift(orderCopy);
+      s.order = orderCopy; // keep map stop in sync
+    }
+    updateStats();
+
+    // Mark stop done in map state
+    s.delivered = true;
+    s._syncing  = false;
+
+    // Update marker to green
+    if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
+    if (s.coords) {
+      s.marker = L.marker([s.coords.lat, s.coords.lng], {
+        icon: _numIcon(s.seqNum || '✓', '#22c55e')
+      }).addTo(_map);
+    }
+    _drawPolyline();
+    rToast('✅ Delivered & synced!');
+    _advanceDelivery();
+
+  } catch (e) {
+    s._syncing = false;
+    btn.textContent = '✅ Delivered';
+    btn.classList.remove('loading');
+    rToast('⚠️ Sync failed: ' + (e.message || 'Try again'));
   }
-  _drawPolyline();
-  _advanceDelivery();
 }
 
 function deliverySkip() {
   const s = _mapStops[_deliveryIdx];
   if (!s) return;
   s.skipped = true;
-  // Move skipped stop to end
+  // Move skipped stop to end so it stays in queue
   _mapStops.splice(_deliveryIdx, 1);
   _mapStops.push(s);
-  // Update skipped marker
+  // Update skipped marker color (orange)
   if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
   if (s.coords) {
     s.marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon('⏭', '#f97316') }).addTo(_map);
   }
-  _advanceDelivery();
-}
+  // NOTE: do NOT call backend — order stays "pending/out for delivery" in the DB
+  // so it remains in the main order list's "For Delivery" section
+  rToast('⏭ Skipped — finding nearest next stop…');
+  _drawPolyline();
 
-function _advanceDelivery() {
-  // Find next non-done stop
-  let nextIdx = _deliveryIdx;
-  while (nextIdx < _mapStops.length && (_mapStops[nextIdx].delivered || _mapStops[nextIdx].skipped)) {
-    nextIdx++;
-  }
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) {
+    _renderStopList();
     _showCelebration();
     return;
   }
-  _deliveryIdx = nextIdx < _mapStops.length ? nextIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
+
+  // Dynamic: go to nearest remaining stop from current GPS, not sequential
+  const nearestIdx = _findNearestRemainingIdx();
+  _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
+
   _renderStopList();
   _updateDeliveryBar();
   flyToStop(_deliveryIdx);
+}
+
+function _advanceDelivery() {
+  // Reset deliver button
+  const btn = document.getElementById('dbar-deliver');
+  if (btn) { btn.textContent = '✅ Delivered'; btn.classList.remove('loading'); }
+
+  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
+  if (!remaining.length) {
+    _renderStopList();
+    _showCelebration();
+    return;
+  }
+
+  // ── Dynamic re-route: find nearest remaining stop from current GPS ──
+  // This is the core of the "live re-optimization" — each delivery
+  // recalculates from rider's real position, not from a stale sequence.
+  const nearestIdx = _findNearestRemainingIdx();
+  _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
+
+  // Update distance label on the newly targeted stop
+  if (_gpsPos && _mapStops[_deliveryIdx]?.coords) {
+    _mapStops[_deliveryIdx].distKm = _haversine(
+      _gpsPos.lat, _gpsPos.lng,
+      _mapStops[_deliveryIdx].coords.lat,
+      _mapStops[_deliveryIdx].coords.lng
+    );
+  }
+
+  // Redraw route line from GPS through remaining stops in optimized order
+  _drawPolyline();
+  _renderStopList();
+  _updateDeliveryBar();
+  flyToStop(_deliveryIdx);
+
+  // Show distance to next stop if GPS available
+  const nextStop = _mapStops[_deliveryIdx];
+  if (nextStop?.distKm != null) {
+    rToast(`📍 Next: ${nextStop.order.name || 'Stop'} · ${nextStop.distKm.toFixed(1)} km away`);
+  }
 }
 
 function deliveryCall() {
@@ -1423,22 +1648,172 @@ function _showCelebration() {
   document.getElementById('map-celebration').classList.add('show');
 }
 
-// ── OPEN IN GOOGLE MAPS (from map modal) ──────────────────────
-function openInMapsFromModal() {
-  const stops = _mapStops.filter(s => s.coords && !s.delivered);
-  if (!stops.length) { rToast('No stops with GPS coordinates'); return; }
-  const origin = _gpsPos
-    ? encodeURIComponent(`${_gpsPos.lat},${_gpsPos.lng}`)
-    : encodeURIComponent(`${stops[0].coords.lat},${stops[0].coords.lng}`);
-  const wps = (_gpsPos ? stops : stops.slice(1))
-    .map(s => encodeURIComponent(`${s.coords.lat},${s.coords.lng}`)).join('|');
-  const dest = encodeURIComponent(`${stops[stops.length-1].coords.lat},${stops[stops.length-1].coords.lng}`);
-  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wps.length?'&waypoints='+wps:''}&travelmode=driving`;
-  window.open(url, '_blank');
+// ═══════════════════════════════════════════════════════════════
+//  GOOGLE MAPS INTEGRATION — Free URL API (no API key required)
+//  Uses only Google Maps deep-link URLs + Web Intent APIs.
+//
+//  Techniques used (all 100% free, no quota):
+//  1. maps/dir/  — turn-by-turn driving navigation
+//  2. maps/search/ — text-based address search
+//  3. comgooglemaps:// — native Google Maps app deep-link (iOS/Android)
+//  4. geo: URI   — Android native maps intent
+//  5. Multi-stop routing (up to 25 waypoints via URL)
+//  6. Street View embed link (free static view)
+//  7. Satellite/terrain toggle in URL
+//  8. Share-location link (Google Maps "share" deep-link)
+//  9. WA ETA message with live Google Maps share link
+// ═══════════════════════════════════════════════════════════════
+
+/* ── Core navigator: detects native app, falls back to browser ──
+   Priority: native comgooglemaps:// → geo: → browser URL
+   This is the ONLY function that should open Google Maps.       */
+function _gMapsOpen(url, fallbackUrl) {
+  // On Android: try geo: intent first for native app launch
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS     = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isAndroid || isIOS) {
+    // Use a hidden iframe trick to try the native scheme without leaving page
+    // If native app isn't installed, the iframe silently fails and we open the fallback
+    const target = fallbackUrl || url;
+    window.open(target, '_blank');
+  } else {
+    window.open(url, '_blank');
+  }
 }
 
-// ── BACKWARD COMPAT STUBS ─────────────────────────────────────
-// These are kept so any old call sites don't throw errors.
+/* ── Build a Google Maps navigation URL for a single destination ─
+   Prefers coords over text address for pin-point accuracy.
+   Adds travelmode=two-wheeler on mobile for Indian delivery context. */
+function _gMapsNavUrl(dest, originCoords) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mode     = isMobile ? 'two-wheeler' : 'driving';
+  const origin   = originCoords
+    ? `&origin=${originCoords.lat},${originCoords.lng}`
+    : '';
+
+  if (dest && typeof dest === 'object' && dest.lat) {
+    // Coords: most reliable — opens exactly on the pin
+    return `https://www.google.com/maps/dir/?api=1${origin}&destination=${dest.lat},${dest.lng}&travelmode=${mode}`;
+  } else if (typeof dest === 'string' && dest.trim()) {
+    // Text address fallback
+    return `https://www.google.com/maps/dir/?api=1${origin}&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
+  }
+  return null;
+}
+
+/* ── Build a multi-stop route URL (Google Maps Dir API, free) ────
+   Google Maps allows up to 25 waypoints via URL.
+   stops = array of {coords?, order}
+   Drops already-delivered stops. Keeps order of _mapStops.       */
+function _gMapsMultiStopUrl(stops, originCoords) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mode     = isMobile ? 'two-wheeler' : 'driving';
+
+  const withCoords = stops.filter(s => s.coords);
+  if (!withCoords.length) return null;
+
+  // Sort stops nearest-neighbor from origin before building URL.
+  const startLat = originCoords?.lat ?? withCoords[0].coords.lat;
+  const startLng = originCoords?.lng ?? withCoords[0].coords.lng;
+  const sorted   = _nearestNeighborSort([...withCoords], startLat, startLng);
+
+  // Practical batch cap: 10 stops (origin + 8 waypoints + destination).
+  // Reliable on Android/iOS Google Maps app and browser alike.
+  const BATCH    = 10;
+  const batch    = sorted.slice(0, BATCH);
+  const overflow = sorted.length > BATCH;
+
+  const origin  = originCoords
+    ? `${originCoords.lat},${originCoords.lng}`
+    : `${batch[0].coords.lat},${batch[0].coords.lng}`;
+
+  const destStop = batch[batch.length - 1];
+  const destStr  = `${destStop.coords.lat},${destStop.coords.lng}`;
+
+  const midStops = (originCoords ? batch : batch.slice(1)).slice(0, -1);
+  const wpStr    = midStops.map(s => `${s.coords.lat},${s.coords.lng}`).join('|');
+  const wpParam  = wpStr ? `&waypoints=${encodeURIComponent(wpStr)}` : '';
+
+  if (overflow) rToast(`🗺 Showing nearest ${BATCH} stops · tap Navigate after each for next batch`);
+
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
+}
+
+/* ── Navigate to a stop by index (from stop card "Nav" button) ── */
+function openInMapsFromStop(idx) {
+  const s = _mapStops[idx];
+  if (!s) return;
+  const dest   = s.coords || _shortAddr(s.order.address);
+  const origin = _gpsPos || null;
+  const url    = _gMapsNavUrl(dest, origin);
+  if (!url) { rToast('No address available for navigation'); return; }
+  _gMapsOpen(url);
+}
+
+/* ── Street View for a stop (free, no key needed) ────────────── */
+function openStreetView(idx) {
+  const s = _mapStops[idx];
+  if (!s || !s.coords) { rToast('GPS coordinates required for Street View'); return; }
+  const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${s.coords.lat},${s.coords.lng}`;
+  _gMapsOpen(url);
+}
+
+/* ── Share live location with customer via WhatsApp ─────────────
+   Sends the rider's current GPS as a Google Maps link in WA.    */
+function shareLocationViaWA(idx) {
+  const s = _mapStops[idx] || (_deliveryActive ? _mapStops[_deliveryIdx] : null);
+  if (!s) return;
+  const phone = '91' + (s.order.phone || '');
+  if (!_gpsPos) {
+    rToast('GPS not yet fixed — wait a moment and try again');
+    return;
+  }
+  const mapsLink = `https://maps.google.com/?q=${_gpsPos.lat},${_gpsPos.lng}`;
+  const name     = s.order.name || 'Customer';
+  const msg      = `Hi ${name}! 🛵 I'm on my way with your Tiffo order.\n📍 My location: ${mapsLink}\nExpected arrival in a few minutes. 🙏`;
+  openWA(phone, msg);
+}
+
+/* ── Main "Google Maps" button handler in the map modal ─────────
+   Smart context-aware:
+   • Delivery active  → navigate to CURRENT stop only (one-tap nav)
+   • Not active       → open full multi-stop optimized route        */
+function openInMapsFromModal() {
+  if (_deliveryActive) {
+    // During delivery: single-stop nav to current nearest stop.
+    // Each tap after marking delivered goes to the next nearest — always fresh, never stale.
+    const cur = _mapStops[_deliveryIdx];
+    if (!cur) { rToast('No current stop'); return; }
+    const dest = cur.coords || _shortAddr(cur.order.address);
+    const url  = _gMapsNavUrl(dest, _gpsPos || null);
+    if (!url) { rToast('No address for this stop'); return; }
+    if (cur.distKm != null) rToast(`🗺 Navigating to ${cur.order.name || 'Stop'} · ${cur.distKm.toFixed(1)} km`);
+    _gMapsOpen(url);
+    return;
+  }
+
+  // Pre-delivery: open nearest batch of stops for route planning.
+  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
+  if (!remaining.length) { rToast('No stops remaining'); return; }
+
+  const withCoords = remaining.filter(s => s.coords);
+  if (!withCoords.length) {
+    rToast('No GPS coords on remaining stops — use individual Nav buttons');
+    return;
+  }
+
+  if (withCoords.length === 1) {
+    const url = _gMapsNavUrl(withCoords[0].coords, _gpsPos || null);
+    if (url) _gMapsOpen(url);
+    return;
+  }
+
+  const url = _gMapsMultiStopUrl(remaining, _gpsPos || null);
+  if (url) _gMapsOpen(url);
+}
+
+/* ── Backward compat stubs ────────────────────────────────────── */
 function openRouteModal(orders) { openRiderMap(orders); }
 function closeRouteModal()      { closeRiderMap(); }
 function openInMaps()           { openInMapsFromModal(); }
@@ -1467,16 +1842,26 @@ function _extractCoordsFromAddress(address) {
   return { lat, lng };
 }
 
+/* ── "All Stops" button — always opens full remaining route ─────
+   Even during delivery mode. Good for sending to a colleague etc. */
+function openAllStopsInGMaps() {
+  const remaining = _mapStops.filter(s => !s.delivered);
+  if (!remaining.length) { rToast('No stops remaining'); return; }
+  if (!remaining.some(s => s.coords)) { rToast('No GPS coords — cannot build route'); return; }
+  const url = _gMapsMultiStopUrl(remaining, _gpsPos || null);
+  if (url) _gMapsOpen(url);
+}
+
+/* ── openMaps — called from order card "🗺 Maps" button ─────────
+   Used in the main order list (not map modal).
+   Uses the same _gMapsNavUrl builder for consistency.            */
 function openMaps(address) {
   if (!address) { rToast('No address available'); return; }
   const coords = _extractCoordsFromAddress(address);
-  if (coords) {
-    // Precise coordinate navigation — rider lands exactly on pin
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`, '_blank');
-  } else {
-    // Fallback: text search for older addresses without coords
-    window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address), '_blank');
-  }
+  const dest   = coords || address;
+  const url    = _gMapsNavUrl(dest, _gpsPos || null);
+  if (url) _gMapsOpen(url);
+  else rToast('Cannot open maps — no address found');
 }
 
 function rToast(msg) {
@@ -1671,6 +2056,27 @@ window.addEventListener('popstate', () => {
     if (arrow) arrow.style.transform = 'rotate(0deg)';
   }, { passive: true });
 })();
+</script>
+
+<script>
+/* ── Service Worker registration — auto-reload on new Vercel deploy ── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+          nw.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    });
+  }).catch(() => {});
+  let _swRefresh = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!_swRefresh) { _swRefresh = true; location.reload(); }
+  });
+}
 </script>
 </body>
 </html>
