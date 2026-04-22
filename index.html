@@ -15,8 +15,17 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Tiffo – Ghar ka Khana</title>
 <link rel="manifest" href="./manifest.json">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- ── Preconnect: browser early-connects before render reaches these links ── -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://purobitese-api.onrender.com">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<!-- ── Fonts: non-blocking via media trick, swap to system font instantly ── -->
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<!-- ── Font Awesome: non-blocking ── -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
 <style>
 :root{
   --p:#e63946;--pd:#c1121f;--pl:#fde8ea;
@@ -25,7 +34,7 @@
   --dk:#111827;--gr:#6b7280;--lt:#f8f5f2;--wh:#fff;
   --sh:0 2px 12px rgba(0,0,0,.07);--shl:0 8px 32px rgba(0,0,0,.14);
   --r:clamp(10px,2.5vw,14px);--rl:clamp(14px,3.5vw,20px);
-  --ff:'Sora',sans-serif;--fb:'DM Sans',sans-serif;
+  --ff:'Sora',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--fb:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --bnav-h:64px;--safe-b:env(safe-area-inset-bottom,0px);--pg-pad:clamp(12px,4vw,24px);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -1197,7 +1206,7 @@ const SessionCache = {
 
 async function api(action, data = {}, _retry = 1) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 22000);
+  const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
     const res = await fetch(CFG.API, {
       method: 'POST',

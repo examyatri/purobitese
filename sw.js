@@ -1,12 +1,21 @@
 /* ─────────────────────────────────────────────────────────
    PuroBite / Tiffo — Service Worker (sw.js)
-   Version : v18.0  |  Updated : 2026-04-22
+   Version : v19.0  |  Updated : 2026-04-22
+   Changes : v6 cache, CDN font/icon caching, cleanup
    ───────────────────────────────────────────────────────── */
 
-/* ─── Tiffo Service Worker — tiffo-v5 ──────────────────────────────────── */
+const CACHE      = 'tiffo-v6';
+const FONT_CACHE = 'tiffo-fonts-v1';
 
-const CACHE = 'tiffo-v5';
+/* Core app shell — cached on install */
 const PRECACHE = ['/', '/index.html', '/manifest.json'];
+
+/* CDN origins — fonts & icons cached with long TTL */
+const CDN_ORIGINS = [
+  'https://fonts.googleapis.com',
+  'https://fonts.gstatic.com',
+  'https://cdnjs.cloudflare.com'
+];
 
 const OFFLINE_HTML = `<!DOCTYPE html>
 <html><head><title>Tiffo Offline</title>
@@ -32,7 +41,11 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter(k => k !== CACHE && k !== FONT_CACHE)
+          .map(k => caches.delete(k))
+      )
     )
   );
   self.clients.claim();
@@ -48,10 +61,27 @@ self.addEventListener('fetch', e => {
     url.hostname === 'purobitese-api.onrender.com' ||
     url.pathname.startsWith('/api/')
   ) {
-    return; /* let browser handle it normally */
+    return; /* let browser handle normally */
   }
 
-  /* Strategy 2 — HTML navigation: network-first with offline fallback */
+  /* Strategy 2 — CDN fonts & icons: cache-first with long TTL
+     First visit fetches from CDN and caches. Every visit after = instant. */
+  if (CDN_ORIGINS.some(o => url.href.startsWith(o))) {
+    e.respondWith(
+      caches.open(FONT_CACHE).then(async cache => {
+        const cached = await cache.match(request);
+        if (cached) return cached; /* instant from cache */
+        const res = await fetch(request);
+        if (res && res.status === 200) {
+          cache.put(request, res.clone());
+        }
+        return res;
+      })
+    );
+    return;
+  }
+
+  /* Strategy 3 — HTML navigation: network-first with offline fallback */
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request)
@@ -71,11 +101,10 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* Strategy 3 — All other assets: stale-while-revalidate */
+  /* Strategy 4 — All other assets: stale-while-revalidate */
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(request);
-
       const fetchPromise = fetch(request)
         .then(res => {
           if (res && res.status === 200 && res.type !== 'opaque') {
@@ -84,7 +113,6 @@ self.addEventListener('fetch', e => {
           return res;
         })
         .catch(() => null);
-
       return cached || fetchPromise;
     })
   );
