@@ -4279,6 +4279,12 @@ function renderNotifs(notifs) {
 }
 
 function renderNotifCard(n) {
+  // ── Defensive meta parse (handle JSON-string meta from older rows) ─────────
+  if (n.meta && typeof n.meta === 'string') {
+    try { n.meta = JSON.parse(n.meta); } catch (_) { n.meta = {}; }
+  }
+  if (!n.meta) n.meta = {};
+
   // ── Type resolution ───────────────────────────────────────────────────────
   const typeKey  = n.type || n.category || '';
   const titleLow = (n.title || '').toLowerCase();
@@ -4525,7 +4531,7 @@ async function gotoOrderById(searchTerm) {
   const inp = document.getElementById('order-search');
   if (inp) {
     inp.value = searchTerm;
-    inp.dispatchEvent(new Event('input'));
+    renderOrdersTable(_allOrders);
   }
   document.getElementById('p-orders')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   aToast('🔍 Showing order ' + searchTerm);
@@ -4582,7 +4588,7 @@ async function gotoKhataForPhone(phone) {
   const inp = document.getElementById('khata-search');
   if (inp) {
     inp.value = phone;
-    inp.dispatchEvent(new Event('input'));
+    renderKhataTable();
   }
   document.getElementById('p-khata')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   aToast('🔍 Showing wallet for ' + phone);
