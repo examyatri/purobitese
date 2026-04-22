@@ -1570,7 +1570,7 @@ function _toMins(t) {
   return m24 ? +m24[1]*60 + +m24[2] : null;
 }
 function _isMorning(o) {
-  const src = (o.order_source||'');
+  const src = (o.source||'');
   if (src === 'admin' || src === 'admin_bulk') return (o.slot||'morning') === 'morning';
   const cut = _toMins(_getMorningCutoff(o.date));
   if (cut === null) return true;
@@ -1578,7 +1578,7 @@ function _isMorning(o) {
   return om === null || om <= cut;
 }
 function _isEvening(o) {
-  const src = (o.order_source||'');
+  const src = (o.source||'');
   if (src === 'admin' || src === 'admin_bulk') return (o.slot||'morning') === 'evening';
   const mc = _toMins(_getMorningCutoff(o.date)), ec = _toMins(_getEveningCutoff(o.date));
   if (mc===null||ec===null) return false;
@@ -1702,7 +1702,7 @@ function renderOrdersTable(orders) {
     priceHtml+=`<div class="price-total">Net: ₹${final}</div></div>`;
 
     // ── Source ──
-    const src = (o.order_source||'user').toLowerCase();
+    const src = (o.source||'user').toLowerCase();
     const srcHtml = src==='admin_bulk'
       ? `<span class="src-badge src-bulk"><i class="fa fa-boxes-stacked"></i> Bulk</span>`
       : src==='admin'

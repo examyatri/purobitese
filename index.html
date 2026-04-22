@@ -2950,7 +2950,8 @@ async function placeOrder() {
   setLoading('place-order-btn', true);
   try {
     const res = await api('createOrder', {
-      phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null
+      phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null,
+      address: user.address || null
     });
     Cart.clear();
     _appliedCoupon = null;
@@ -3037,7 +3038,7 @@ async function confirmInsufOrder() {
   try {
     const res = await api('createOrder', {
       phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null,
-      paymentMode: 'upi_insuf'
+      address: user.address || null, paymentMode: 'upi_insuf'
     });
     Cart.clear();
     _appliedCoupon = null;
@@ -3558,7 +3559,7 @@ function renderUserKhataList(entries) {
     const sign = isCredit ? '+' : '-';
     const label = typeStr.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
     const note  = e.note || (e.order_id ? 'ORD-' + e.order_id : '');
-    const srcNote = e.order_source === 'admin' ? '🤖 Auto order by admin' : (e.order_id ? '👤 Order created by you' : '');
+    const srcNote = e.source === 'admin' || e.source === 'admin_bulk' ? '🤖 Auto order by admin' : (e.order_id ? '👤 Order created by you' : '');
     const dateStr = fmtDate(e.created_at) + (e.time ? ' \u00B7 ' + fmtTime(e.time) : '');
     const runBal  = e.running_balance !== undefined && e.running_balance !== null ? 'Bal: \u20B9' + e.running_balance : '';
     return '<div class="khata-entry ' + cls + '">' +
@@ -3626,7 +3627,7 @@ function generateKhataPDF() {
     const rowBg= isC ? '#f0faf8' : '#fff5f5';
     const label= (e.type||'entry').replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
     const note = e.note || (e.order_id ? 'ORD-'+e.order_id : '—');
-    const srcNote = e.order_source === 'admin' ? 'Auto order by admin' : (e.order_id ? 'Order created by you' : '—');
+    const srcNote = e.source === 'admin' || e.source === 'admin_bulk' ? 'Auto order by admin' : (e.order_id ? 'Order created by you' : '—');
     const dateStr = fmtD(e.created_at);
     const timeStr = e.time ? e.time : fmtT(e.created_at);
     const runBal  = e.running_balance!==undefined&&e.running_balance!==null?'\u20B9'+e.running_balance:'—';
