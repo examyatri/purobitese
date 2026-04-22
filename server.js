@@ -140,10 +140,10 @@ function normOrderTime(v) {
 function formatOrder(o) {
   return {
     ...o,
-    date:         normOrderDate(o.date),
-    time:         normOrderTime(o.time),
-    items:        typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
-    order_source: o.order_source || o.source || 'user'  // normalise DB column name → frontend key
+    date:  normOrderDate(o.date),
+    time:  normOrderTime(o.time),
+    items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
+    source: o.source || 'user'  // consistent with khata_entries.source
   };
 }
 
@@ -174,6 +174,28 @@ function formatThali(t, items = []) {
 
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
+// Shared user auth — used by both 'login' and 'checkSession' (were 100% identical)
+async function _authenticateUser(phone, password) {
+  const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+  if (!user) return { success: false, error: 'Session invalid' };
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) return { success: false, error: 'Session invalid' };
+  const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
+  const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+  const { password_hash, ...safeUser } = user;
+  return { success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 };
+}
+
+// Shared staff auth — used by both 'adminLogin' and 'staffLogin' (were 100% identical)
+async function _authenticateStaff(username, password) {
+  const { data: staff } = await supabase.from('staff').select('*').eq('username', username).single();
+  if (!staff) return { success: false, error: 'Invalid credentials' };
+  const valid = await bcrypt.compare(password, staff.password_hash);
+  if (!valid) return { success: false, error: 'Invalid credentials' };
+  const { password_hash, ...safeStaff } = staff;
+  return { success: true, staff: safeStaff };
+}
+
 async function _atomicWalletUpdate(phone, delta) {
   const { data: rows } = await supabase
     .from('khata_summary')
@@ -188,8 +210,9 @@ async function _atomicWalletUpdate(phone, delta) {
 }
 
 async function _createTxnEntry(phone, orderId, amount, newBalance, type, source, ist) {
+  const txnId = generateTxnId(ist);
   await supabase.from('khata_entries').insert({
-    id:              generateTxnId(ist),
+    id:              txnId,
     phone,
     type,
     amount,
@@ -199,9 +222,10 @@ async function _createTxnEntry(phone, orderId, amount, newBalance, type, source,
     time:            istTimeStr(ist),
     order_id:        orderId,
     order_status:    'pending',
-    order_source:    source,
+    source:          source,
     created_at:      new Date().toISOString()
   });
+  return txnId;
 }
 
 async function _createNotification(fields) {
@@ -253,7 +277,7 @@ async function _deductMenuStock(items) {
   }
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer', slot = 'morning', paymentMode = null }) {
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -290,16 +314,17 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
   const dateStr  = istDateStr(ist);
   const timeStr  = istTimeStr(ist);
   let newBal = null;
+  let txnId  = null;
 
   if (khataEnabled && user.is_subscriber && paymentMode !== 'upi_insuf') {
     newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
     const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
-    await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
+    txnId = await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
   }
 
   await _deductMenuStock(items);
 
-  await supabase.from('orders').insert({
+  const { error: ordErr } = await supabase.from('orders').insert({
     order_id:        orderId,
     user_id:         user.phone,
     name:            user.name,
@@ -317,20 +342,31 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     user_type:       user.is_subscriber ? 'subscriber' : 'daily',
     rider_id:        null,
     slot:            source === 'admin' ? (slot || 'morning') : null,
+    source:          source === 'admin' ? 'admin' : source === 'admin_bulk' ? 'admin_bulk' : 'user',
     date:            dateStr,
     time:            timeStr,
     created_at:      new Date().toISOString()
   });
+  if (ordErr) throw new Error('Order save failed: ' + ordErr.message);
 
   // ── Fire notification for every order type (subscriber + daily + upi_insuf) ──
   try {
+    const effectivePayMode = paymentMode || (khataEnabled && user.is_subscriber ? 'wallet' : 'upi');
     await _createNotification({
       type:     'order',
       priority: 'high',
       group_id: orderId,
       title:    'New Order',
       body:     user.name + ' placed order ' + orderId,
-      meta:     { orderId, phone: user.phone, is_subscriber: !!user.is_subscriber }
+      meta:     {
+        orderId,
+        phone:         user.phone,
+        userName:      user.name,
+        finalAmount,
+        paymentMode:   effectivePayMode,
+        txnId:         txnId || null,
+        is_subscriber: !!user.is_subscriber
+      }
     });
   } catch (_) {}
 
@@ -356,28 +392,10 @@ app.post('/api', async (req, res) => {
 
       // ── AUTH ──────────────────────────────────────────────────────────────
 
-      case 'checkSession': {
-        const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
-        if (!user) return res.json({ success: false, error: 'Session invalid' });
-        const valid = await bcrypt.compare(data.password, user.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Session invalid' });
-        const { data: sub }     = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        const { data: balRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        const { password_hash, ...safeUser } = user;
-        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
-      }
-
+      case 'checkSession':
       case 'login': {
-        const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
-        if (!user) return res.json({ success: false, error: 'Session invalid' });
-        const valid = await bcrypt.compare(data.password, user.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Session invalid' });
-        const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        const { password_hash, ...safeUser } = user;
-        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
+        const result = await _authenticateUser(cleanPhone(data.phone), data.password);
+        return res.json(result);
       }
 
       case 'signup': {
@@ -406,6 +424,11 @@ app.post('/api', async (req, res) => {
             meta:     { phone, name: data.name, address: data.address || '', email: data.email || '' }
           });
         } catch(_) {}
+        // ── Initialise wallet row so balance reads 0 immediately (not null) ──
+        try {
+          await supabase.from('khata_summary')
+            .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+        } catch(_) {}
         return res.json({
           success: true,
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
@@ -414,22 +437,10 @@ app.post('/api', async (req, res) => {
         });
       }
 
-      case 'adminLogin': {
-        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
-        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
-        const valid = await bcrypt.compare(data.password, staff.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
-        const { password_hash, ...safeStaff } = staff;
-        return res.json({ success: true, staff: safeStaff });
-      }
-
+      case 'adminLogin':
       case 'staffLogin': {
-        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
-        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
-        const valid = await bcrypt.compare(data.password, staff.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
-        const { password_hash, ...safeStaff } = staff;
-        return res.json({ success: true, staff: safeStaff });
+        const result = await _authenticateStaff(data.username, data.password);
+        return res.json(result);
       }
 
       case 'updateProfile': {
@@ -633,7 +644,7 @@ app.post('/api', async (req, res) => {
         }
         const result = await _createSingleOrder({
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
-          khataEnabled, ist, coupon: data.coupon || null, source: 'customer',
+          khataEnabled, ist, coupon: data.coupon || null, source: 'user',
           paymentMode: data.paymentMode || null
         });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
@@ -725,7 +736,7 @@ app.post('/api', async (req, res) => {
             time:            istTimeStr(ist),
             order_id:        data.orderId,
             order_status:    'rejected',
-            order_source:    'admin',
+            source:          'admin',
             created_at:      new Date().toISOString()
           });
           await _createNotification({
@@ -930,7 +941,7 @@ app.post('/api', async (req, res) => {
             time:            istTimeStr(ist),
             order_id:        orderId,
             order_status:    'pending',
-            order_source:    'admin_bulk',
+            source:          'admin_bulk',
             created_at:      new Date().toISOString()
           });
 
@@ -1091,6 +1102,21 @@ app.post('/api', async (req, res) => {
       case 'deleteCoupon': {
         await supabase.from('coupons').delete().eq('id', data.id);
         return res.json({ success: true });
+      }
+
+      // Auto-delete all expired coupons (called silently when admin opens coupon tab)
+      case 'deleteExpiredCoupons': {
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: expired, error: fetchErr } = await supabase
+          .from('coupons')
+          .select('id')
+          .not('expiry_date', 'is', null)
+          .lt('expiry_date', today);
+        if (fetchErr) return res.json({ success: false, error: fetchErr.message });
+        const ids = (expired || []).map(r => r.id);
+        if (ids.length === 0) return res.json({ success: true, deleted: 0 });
+        await supabase.from('coupons').delete().in('id', ids);
+        return res.json({ success: true, deleted: ids.length });
       }
 
       // ── SUBSCRIBERS ──────────────────────────────────────────────────────
@@ -1278,8 +1304,9 @@ app.post('/api', async (req, res) => {
           .gte('date', twoDaysAgo)
           .order('created_at', { ascending: false });
         const formatted = (rows || []).map(formatOrder);
-        const resolved = await resolveRiderNames(formatted);
-        return res.json({ success: true, orders: resolved });
+        // No resolveRiderNames here — rider panel only shows the logged-in rider's own orders,
+        // so the DB roundtrip to fetch all riders is wasteful.
+        return res.json({ success: true, orders: formatted });
       }
 
       case 'getRiders': {
@@ -1388,7 +1415,7 @@ app.post('/api', async (req, res) => {
           time:            istTimeStr(ist),
           order_id:        null,
           order_status:    null,
-          order_source:    'admin',
+          source:          'admin',
           created_at:      new Date().toISOString()
         });
         await _createNotification({
@@ -1415,7 +1442,7 @@ app.post('/api', async (req, res) => {
           time:            istTimeStr(ist),
           order_id:        data.order_id || null,
           order_status:    null,
-          order_source:    'admin',
+          source:          'admin',
           created_at:      new Date().toISOString()
         });
         await _createNotification({
@@ -1451,7 +1478,7 @@ app.post('/api', async (req, res) => {
           time:            data.time || istTimeStr(ist),
           order_id:        data.order_id || null,
           order_status:    data.order_status || null,
-          order_source:    data.order_source || 'admin',
+          source:          data.source || 'admin',
           created_at:      new Date().toISOString()
         });
         await _atomicWalletUpdate(phone, amount);
@@ -1555,7 +1582,12 @@ app.post('/api', async (req, res) => {
 
       case 'getNotifications': {
         const { data: rows } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
-        const list       = rows || [];
+        const list = (rows || []).map(n => {
+          if (n.meta && typeof n.meta === 'string') {
+            try { n.meta = JSON.parse(n.meta); } catch (_) { n.meta = {}; }
+          }
+          return n;
+        });
         const unreadCount = list.filter(n => !n.is_read).length;
         return res.json({ success: true, notifications: list, unreadCount });
       }
@@ -1759,11 +1791,11 @@ app.post('/api', async (req, res) => {
           const { data: subs } = await supabase.from('subscribers').select('phone, plan, plan_end');
           const subMap = {};
           for (const s of (subs || [])) subMap[s.phone] = s;
-          const { data: orderAgg } = await supabase.from('orders').select('user_phone, date').order('date', { ascending: false });
+          const { data: orderAgg } = await supabase.from('orders').select('phone, date').order('date', { ascending: false });
           const orderMap = {};
           for (const o of (orderAgg || [])) {
-            if (!orderMap[o.user_phone]) orderMap[o.user_phone] = { count: 0, last: o.date };
-            orderMap[o.user_phone].count++;
+            if (!orderMap[o.phone]) orderMap[o.phone] = { count: 0, last: o.date };
+            orderMap[o.phone].count++;
           }
           const safe = (rows || []).map(u => {
             const { password_hash, ...s } = u;
@@ -1780,7 +1812,8 @@ app.post('/api', async (req, res) => {
       case 'getCoupons':
         { const { data: rows, error: cErr } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
           if (cErr) throw new Error('DB error: ' + cErr.message);
-          return res.json({ success: true, coupons: rows || [] }); }
+          const coupons = (rows || []).map(c => ({ ...c, used_by: (() => { try { return JSON.parse(c.used_by || '[]'); } catch { return []; } })() }));
+          return res.json({ success: true, coupons }); }
 
       case 'addCoupon':
         { if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
@@ -1855,8 +1888,6 @@ app.post('/api', async (req, res) => {
             result.push(formatThali(t, items || []));
           }
           return res.json({ success: true, thalis: result }); }
-        { const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', data.thaliId);
-          return res.json({ success: true, items: items || [] }); }
 
       case 'getSettings':
         { const { data: rows } = await supabase.from('admin_settings').select('*');
@@ -1865,7 +1896,7 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, settings: {
             cutoff:         map['order_cutoff_config'] || {},
             weeklySchedule: map['weekly_schedule']     || [],
-            khataEnabled:   map['khata_enabled']       !== false,
+            khataEnabled:   map['khata_enabled']       === true,
             deliveryZone:   map['delivery_zone']       || null
           }}); }
 
@@ -1880,11 +1911,12 @@ app.post('/api', async (req, res) => {
         const todayStart = new Date(); todayStart.setHours(0,0,0,0);
         const safeEnd = data.to + 'T23:59:59.999Z';
         // Ensure the range end never reaches today
+        let rangeEnd;
         if (new Date(safeEnd) >= todayStart) {
           const dayBefore = new Date(todayStart.getTime() - 1);
-          var rangeEnd = dayBefore.toISOString();
+          rangeEnd = dayBefore.toISOString();
         } else {
-          var rangeEnd = safeEnd;
+          rangeEnd = safeEnd;
         }
         let query = supabase.from('notifications').delete()
           .gte('created_at', data.from)
