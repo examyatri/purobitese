@@ -15,6 +15,8 @@
 <title>Tiffo Rider</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --p:#e63946;--pd:#c1121f;--pl:#fde8ea;
@@ -140,6 +142,160 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 /* Loading */
 .loading-wrap{text-align:center;padding:48px 20px;color:var(--mu);font-size:14px}
 
+/* ─── MAP MODAL ───────────────────────────────────────── */
+#map-modal{
+  position:fixed;inset:0;z-index:2000;
+  background:#0f172a;
+  display:flex;flex-direction:column;
+  transform:translateY(100%);
+  transition:transform 350ms cubic-bezier(.4,0,.2,1);
+  max-width:520px;left:50%;transform:translateX(-50%) translateY(100%);
+  width:100%;
+}
+#map-modal.open{transform:translateX(-50%) translateY(0)}
+
+/* Top bar */
+#map-topbar{
+  background:#1e293b;
+  padding:12px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;flex-shrink:0;
+  border-bottom:1px solid #334155;
+}
+#map-title{font-family:var(--ff);font-weight:700;font-size:14px;color:#f1f5f9;flex:1;line-height:1.3}
+#map-close-btn{
+  background:#334155;color:#94a3b8;border:none;
+  border-radius:8px;padding:7px 11px;font-size:16px;
+  cursor:pointer;flex-shrink:0;min-width:36px;min-height:36px;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* Map container */
+#map-container{flex:0 0 55vh;position:relative;overflow:hidden}
+#leaflet-map{width:100%;height:100%}
+
+/* Action buttons row */
+#map-actions{
+  display:flex;gap:8px;padding:10px 14px;
+  background:#1e293b;border-top:1px solid #334155;
+  flex-shrink:0;
+}
+.map-action-btn{
+  flex:1;border:none;border-radius:10px;
+  padding:10px 6px;font-family:var(--ff);font-weight:700;
+  font-size:12px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-height:52px;justify-content:center;transition:opacity 200ms;
+}
+.map-action-btn:active{opacity:.7}
+#btn-optimize{background:#3b82f6;color:#fff}
+#btn-optimize.done{background:#22c55e}
+#btn-start-delivery{background:var(--p);color:#fff}
+#btn-start-delivery.active-mode{background:#f59e0b}
+
+/* Bottom sheet */
+#map-bottom{
+  flex:1;overflow-y:auto;
+  background:#0f172a;
+  -webkit-overflow-scrolling:touch;
+  padding:0 0 env(safe-area-inset-bottom,0px);
+}
+#map-stop-list{padding:10px 14px 80px}
+
+/* Stop card */
+.map-stop-card{
+  background:#1e293b;border-radius:12px;padding:12px 14px;
+  margin-bottom:8px;cursor:pointer;
+  border:2px solid transparent;
+  transition:border-color 200ms,background 200ms;
+  display:flex;align-items:flex-start;gap:10px;
+  position:relative;
+}
+.map-stop-card.active-stop{border-color:#f59e0b;background:#1c1a0d}
+.map-stop-card.delivered-stop{opacity:.55}
+.map-stop-card.skipped-stop{border-color:#f97316}
+.map-stop-card.no-coords-stop{opacity:.7}
+.stop-num{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--p);color:#fff;
+  font-family:var(--ff);font-weight:700;font-size:12px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-top:1px;
+}
+.stop-num.green{background:#22c55e}
+.stop-num.orange{background:#f97316}
+.stop-num.warn{background:#64748b;font-size:16px}
+.stop-info{flex:1;min-width:0}
+.stop-name{font-family:var(--ff);font-weight:600;font-size:14px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-name.strikethrough{text-decoration:line-through;color:#94a3b8}
+.stop-addr{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.stop-meta{display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap}
+.stop-slot{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.slot-morning{background:#fffbeb;color:#d97706}
+.slot-evening{background:#eef2ff;color:#4f46e5}
+.stop-dist{font-size:11px;color:#64748b;font-family:monospace}
+.stop-status-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700}
+.badge-delivered{background:#dcfce7;color:#166534}
+.badge-skipped{background:#ffedd5;color:#c2410c}
+
+/* Floating delivery action bar */
+#delivery-bar{
+  position:fixed;
+  bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:520px;
+  background:#1e293b;
+  border-top:2px solid #f59e0b;
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+  z-index:2500;
+  display:none;
+}
+#delivery-bar.show{display:block}
+#delivery-bar-label{
+  font-family:var(--ff);font-weight:700;font-size:13px;
+  color:#fbbf24;margin-bottom:10px;text-align:center;
+}
+#delivery-bar-btns{display:flex;gap:6px}
+.dbar-btn{
+  border:none;border-radius:9px;padding:11px 8px;
+  font-family:var(--ff);font-weight:700;font-size:12px;
+  cursor:pointer;min-height:44px;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  transition:opacity 200ms;
+}
+.dbar-btn:active{opacity:.7}
+#dbar-deliver{background:#22c55e;color:#fff;flex:2}
+#dbar-call{background:#1d4ed8;color:#fff;flex:1}
+#dbar-wa{background:#16a34a;color:#fff;flex:1}
+#dbar-skip{background:#dc2626;color:#fff;flex:1}
+
+/* Celebration overlay */
+#map-celebration{
+  position:absolute;inset:0;
+  background:#0f172a;z-index:100;
+  display:none;
+  flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:32px;
+}
+#map-celebration.show{display:flex}
+.celeb-emoji{font-size:72px;animation:bounceIn .6s cubic-bezier(.36,0,.66,-.56) forwards}
+@keyframes bounceIn{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+.celeb-title{font-family:var(--ff);font-weight:800;font-size:26px;color:#f1f5f9;margin:16px 0 8px}
+.celeb-sub{color:#94a3b8;font-size:15px;line-height:1.6}
+.celeb-close{margin-top:28px;background:var(--p);color:#fff;border:none;border-radius:12px;padding:14px 32px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer}
+
+/* Blue pulsing GPS dot */
+.gps-pulse-ring{
+  width:16px;height:16px;border-radius:50%;
+  background:#3b82f6;border:2px solid #fff;
+  box-shadow:0 0 0 0 rgba(59,130,246,.6);
+  animation:gps-pulse 1.8s infinite;
+}
+@keyframes gps-pulse{
+  0%{box-shadow:0 0 0 0 rgba(59,130,246,.6)}
+  70%{box-shadow:0 0 0 12px rgba(59,130,246,0)}
+  100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}
+}
+
 /* Pull-to-Refresh */
 #ptr-zone-rider{
   position:fixed;top:0;left:0;right:0;z-index:999;
@@ -208,7 +364,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   </div>
 
   <!-- Route Planner -->
-  <button class="route-btn" onclick="openRouteModal(_pending.filter(o=>_isSlotMatch(o,_appliedSlot)))">🗺 Plan Route for All Pending</button>
+  <button class="route-btn" onclick="openRiderMap()">🗺 Plan Route for Filtered Orders</button>
 
   <!-- Main Tabs -->
   <div class="tabs">
@@ -272,19 +428,60 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 
 </div><!-- /pg-app -->
 
-<!-- Route Modal Overlay -->
-<div id="route-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:none" onclick="closeRouteModal()"></div>
-
-<!-- Route Modal -->
-<div id="route-modal">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-    <div style="font-family:var(--ff);font-weight:700;font-size:17px">🗺 Route Plan</div>
-    <button onclick="closeRouteModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">✕</button>
+<!-- ═══════════════════════════════════════════════════════
+     IN-APP ROUTE MAP MODAL
+═══════════════════════════════════════════════════════ -->
+<div id="map-modal">
+  <!-- Top bar -->
+  <div id="map-topbar">
+    <div id="map-title">🗺 Route Planner</div>
+    <button id="map-close-btn" onclick="closeRiderMap()">✕</button>
   </div>
-  <div class="route-addr-list" id="route-list"></div>
-  <button onclick="openInMaps()" style="width:100%;margin-top:16px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:white;border:none;border-radius:12px;padding:13px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer">
-    📍 Open in Google Maps
-  </button>
+
+  <!-- Leaflet Map -->
+  <div id="map-container">
+    <div id="leaflet-map"></div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div id="map-actions">
+    <button class="map-action-btn" id="btn-optimize" onclick="optimizeRoute()">
+      <span id="btn-optimize-icon">🧭</span>
+      <span id="btn-optimize-label">Optimize Route</span>
+    </button>
+    <button class="map-action-btn" id="btn-start-delivery" onclick="toggleDeliveryMode()">
+      <span id="btn-delivery-icon">▶</span>
+      <span id="btn-delivery-label">Start Delivery</span>
+    </button>
+    <button class="map-action-btn" style="background:#334155;color:#94a3b8" onclick="openInMapsFromModal()">
+      <span>📍</span>
+      <span>Google Maps</span>
+    </button>
+  </div>
+
+  <!-- Stop List -->
+  <div id="map-bottom">
+    <div id="map-stop-list"></div>
+  </div>
+
+  <!-- Celebration -->
+  <div id="map-celebration">
+    <div class="celeb-emoji">🎉</div>
+    <div class="celeb-title">All Delivered!</div>
+    <div class="celeb-sub" id="celeb-sub">Great work today, rider!</div>
+    <button class="celeb-close" onclick="closeRiderMap()">Close Map</button>
+  </div>
+</div>
+
+<!-- Delivery action floating bar -->
+<div id="delivery-bar">
+  <div id="delivery-bar-label">Stop 1 of 5</div>
+  <div id="delivery-bar-btns">
+    <button class="dbar-btn" id="dbar-deliver" onclick="deliveryMarkDone()">✅ Delivered &amp; Next</button>
+    <button class="dbar-btn" id="dbar-call" onclick="deliveryCall()">📞 Call</button>
+    <button class="dbar-btn" id="dbar-wa" onclick="deliveryWA()">💬 WA</button>
+    <button class="dbar-btn" id="dbar-skip" onclick="deliverySkip()">⏭ Skip</button>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -692,14 +889,14 @@ function renderOrders() {
         ${showMorning ? `<div class="session-group">
           <div class="session-header session-morning">
             <span>☀️ Morning (${grp.morning.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRouteModal('${mJson}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${mJson}')">🗺 Route</button>
           </div>
           ${grp.morning.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
         ${showEvening ? `<div class="session-group">
           <div class="session-header session-evening">
             <span>🌙 Evening (${grp.evening.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRouteModal('${eJson}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${eJson}')">🗺 Route</button>
           </div>
           ${grp.evening.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
@@ -791,43 +988,460 @@ function generateRiderPDF() {
   win.document.close();
 }
 
-/* ─── ROUTE PLANNING ─────────────────────────────────── */
-function openRouteModal(orders) {
-  let list;
-  if (typeof orders === 'string') {
-    try { list = JSON.parse(orders); } catch { list = _pending; }
-  } else {
-    list = Array.isArray(orders) ? orders : _pending;
+/* ═══════════════════════════════════════════════════════════════
+   IN-APP ROUTE MAP — Full Implementation
+   Replaces old text-list route modal entirely.
+   Existing openRouteModal/closeRouteModal stubs kept for safety.
+═══════════════════════════════════════════════════════════════ */
+
+// ── Map state ─────────────────────────────────────────────────
+let _map             = null;   // Leaflet map instance
+let _mapStops        = [];     // [{order, coords, marker, distKm}]
+let _gpsMarker       = null;   // Blue dot marker
+let _gpsCircle       = null;   // Accuracy circle
+let _gpsWatchId      = null;   // watchPosition ID
+let _gpsPos          = null;   // {lat, lng} last known
+let _routePolyline   = null;   // Dashed route line
+let _routeOptimized  = false;
+let _deliveryActive  = false;
+let _deliveryIdx     = 0;      // current stop index in _mapStops
+let _mapModalOpen    = false;
+
+// ── Haversine distance (km) ───────────────────────────────────
+function _haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ── Shorten address display ───────────────────────────────────
+function _shortAddr(addr) {
+  if (!addr) return '—';
+  // Strip the coordinate suffix: (...latitude=..., longitude=...)
+  return addr.replace(/\s*\(latitude=[^)]+\)/i, '').trim();
+}
+
+// ── Build filter-aware stop list (same logic as renderOrders) ─
+function _buildFilteredStops() {
+  const today     = _getDateStr(0);
+  const yesterday = _getDateStr(1);
+  const dayBefore = _getDateStr(2);
+  return _pending.filter(o => {
+    const d = o.date || '';
+    if (_appliedDate === 'today'      && d !== today)     return false;
+    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
+    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
+    if (!_isSlotMatch(o, _appliedSlot)) return false;
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) &&
+          !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) &&
+          !(o.order_id||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+// ── Create numbered SVG icon ──────────────────────────────────
+function _numIcon(n, color='#e63946') {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+    <path d="M16 0C7.163 0 0 7.163 0 16c0 11 16 24 16 24s16-13 16-24C32 7.163 24.837 0 16 0z" fill="${color}"/>
+    <circle cx="16" cy="16" r="11" fill="white" opacity=".25"/>
+    <text x="16" y="21" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif" fill="white">${n}</text>
+  </svg>`;
+  return L.divIcon({
+    html: svg, className: '', iconSize:[32,40], iconAnchor:[16,40], popupAnchor:[0,-40]
+  });
+}
+
+// ── GPS blue pulsing dot ──────────────────────────────────────
+function _gpsIcon() {
+  return L.divIcon({
+    html: '<div class="gps-pulse-ring"></div>',
+    className: '', iconSize:[16,16], iconAnchor:[8,8]
+  });
+}
+
+// ── Start GPS watch ───────────────────────────────────────────
+function _startGPS() {
+  if (!navigator.geolocation) { rToast('GPS not supported on this device'); return; }
+  _gpsWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      _gpsPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const acc = pos.coords.accuracy;
+      if (!_map) return;
+      if (!_gpsMarker) {
+        _gpsMarker = L.marker([_gpsPos.lat, _gpsPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_map);
+        _gpsCircle = L.circle([_gpsPos.lat, _gpsPos.lng], { radius: acc, color:'#3b82f6', fillColor:'#3b82f6', fillOpacity:.08, weight:1 }).addTo(_map);
+      } else {
+        _gpsMarker.setLatLng([_gpsPos.lat, _gpsPos.lng]);
+        _gpsCircle.setLatLng([_gpsPos.lat, _gpsPos.lng]).setRadius(acc);
+      }
+    },
+    () => { rToast('GPS unavailable, showing last known location'); },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+  );
+}
+
+function _stopGPS() {
+  if (_gpsWatchId !== null) { navigator.geolocation.clearWatch(_gpsWatchId); _gpsWatchId = null; }
+}
+
+// ── Draw dashed polyline ──────────────────────────────────────
+function _drawPolyline() {
+  if (_routePolyline) { _map.removeLayer(_routePolyline); _routePolyline = null; }
+  const pts = [];
+  if (_gpsPos) pts.push([_gpsPos.lat, _gpsPos.lng]);
+  _mapStops.forEach(s => { if (s.coords && !s.delivered) pts.push([s.coords.lat, s.coords.lng]); });
+  if (pts.length < 2) return;
+  _routePolyline = L.polyline(pts, {
+    color:'#3b82f6', weight:3, opacity:.7, dashArray:'8,8'
+  }).addTo(_map);
+}
+
+// ── Render the bottom stop list ───────────────────────────────
+function _renderStopList() {
+  const el = document.getElementById('map-stop-list');
+  if (!_mapStops.length) {
+    el.innerHTML = '<p style="color:#64748b;text-align:center;padding:24px;font-size:14px">No pending orders match current filter</p>';
+    return;
   }
-  _routeAddresses = list.map(o => o.address).filter(Boolean);
-
-  const listEl = document.getElementById('route-list');
-  listEl.innerHTML = _routeAddresses.length
-    ? _routeAddresses.map((addr, i) => `
-        <div class="route-addr-item">
-          <div class="route-num">${i + 1}</div>
-          <div style="flex:1;font-size:14px">${addr}</div>
-        </div>`).join('')
-    : '<p style="color:#94a3b8;text-align:center;padding:20px">No addresses available</p>';
-
-  document.getElementById('route-overlay').style.display = 'block';
-  document.getElementById('route-modal').classList.add('open');
+  let seqNum = 0;
+  el.innerHTML = _mapStops.map((s, i) => {
+    const hasCoords = !!s.coords;
+    if (hasCoords) seqNum++;
+    const numLabel   = hasCoords ? seqNum : '⚠️';
+    const numColor   = s.delivered ? 'green' : s.skipped ? 'orange' : hasCoords ? '' : 'warn';
+    const nameClass  = s.delivered ? 'stop-name strikethrough' : 'stop-name';
+    const slotClass  = (s.order.slot||'morning') === 'morning' ? 'slot-morning' : 'slot-evening';
+    const slotLabel  = (s.order.slot||'morning') === 'morning' ? '☀️ Morning' : '🌙 Evening';
+    const dist       = (s.distKm !== null && s.distKm !== undefined) ? `~${s.distKm.toFixed(1)} km` : '';
+    const statusBadge= s.delivered ? '<span class="stop-status-badge badge-delivered">✅ Delivered</span>'
+                     : s.skipped   ? '<span class="stop-status-badge badge-skipped">⏭ Skipped</span>'
+                     : '';
+    const noCoordsBadge = !hasCoords ? '<span style="font-size:10px;color:#f97316;font-weight:700">⚠️ No GPS coords</span>' : '';
+    const activeClass= (_deliveryActive && i === _deliveryIdx) ? 'active-stop' : '';
+    const delivClass = s.delivered ? 'delivered-stop' : s.skipped ? 'skipped-stop' : '';
+    const noClass    = !hasCoords ? 'no-coords-stop' : '';
+    return `<div class="map-stop-card ${activeClass} ${delivClass} ${noClass}" id="stop-card-${i}" onclick="flyToStop(${i})">
+      <div class="stop-num ${numColor}">${numLabel}</div>
+      <div class="stop-info">
+        <div class="${nameClass}">${s.order.name || '—'}</div>
+        <div class="stop-addr">${_shortAddr(s.order.address)}</div>
+        <div class="stop-meta">
+          <span class="stop-slot ${slotClass}">${slotLabel}</span>
+          ${dist ? `<span class="stop-dist">${dist}</span>` : ''}
+          ${statusBadge}${noCoordsBadge}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function closeRouteModal() {
-  document.getElementById('route-modal').classList.remove('open');
-  document.getElementById('route-overlay').style.display = 'none';
+// ── Place markers on map ──────────────────────────────────────
+function _placeMarkers() {
+  // Remove old markers
+  _mapStops.forEach(s => { if (s.marker) _map.removeLayer(s.marker); s.marker = null; });
+  let seqNum = 0;
+  _mapStops.forEach((s, i) => {
+    if (!s.coords) return;
+    seqNum++;
+    const color = s.delivered ? '#22c55e' : s.skipped ? '#f97316' : '#e63946';
+    s.seqNum = seqNum;
+    const marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(seqNum, color) })
+      .addTo(_map)
+      .bindPopup(`<b>${s.order.name||'—'}</b><br><span style="font-size:12px;color:#475569">${_shortAddr(s.order.address)}</span><br><span style="font-size:11px;color:#64748b">${s.order.order_id||''}</span>`);
+    marker.on('click', () => { _scrollToCard(i); });
+    s.marker = marker;
+  });
 }
 
-function openInMaps() {
-  if (!_routeAddresses.length) return;
-  const origin    = encodeURIComponent(_routeAddresses[0]);
-  const waypoints = _routeAddresses.slice(1).map(a => encodeURIComponent(a)).join('|');
-  const url = waypoints.length
-    ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&waypoints=${waypoints}&travelmode=driving`
-    : `https://www.google.com/maps/search/?api=1&query=${origin}`;
+// ── Fit map to all pins ───────────────────────────────────────
+function _fitMapBounds() {
+  if (!_map) return;
+  const pts = _mapStops.filter(s=>s.coords).map(s=>[s.coords.lat, s.coords.lng]);
+  if (_gpsPos) pts.push([_gpsPos.lat, _gpsPos.lng]);
+  if (!pts.length) return;
+  if (pts.length === 1) { _map.setView(pts[0], 15); return; }
+  _map.fitBounds(L.latLngBounds(pts), { padding:[30,30], maxZoom:16 });
+}
+
+// ── Scroll stop card into view ────────────────────────────────
+function _scrollToCard(idx) {
+  const card = document.getElementById('stop-card-' + idx);
+  if (card) card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Update top title ──────────────────────────────────────────
+function _updateMapTitle(orders) {
+  const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate] || '';
+  const slotLabel = { all:'', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot] || '';
+  const withCoords = _mapStops.filter(s=>s.coords).length;
+  const total      = _mapStops.length;
+  const parts = [dateLabel];
+  if (slotLabel) parts.push(slotLabel);
+  parts.push(`${withCoords} stop${withCoords!==1?'s':''}`);
+  if (withCoords !== total) parts.push(`(${total-withCoords} without GPS)`);
+  document.getElementById('map-title').textContent = parts.join(' · ');
+}
+
+// ── OPEN MAP ──────────────────────────────────────────────────
+function openRiderMap(ordersParam) {
+  // Resolve order list
+  let orders;
+  if (typeof ordersParam === 'string') {
+    try { orders = JSON.parse(ordersParam); } catch { orders = _buildFilteredStops(); }
+  } else if (Array.isArray(ordersParam)) {
+    orders = ordersParam;
+  } else {
+    orders = _buildFilteredStops();
+  }
+
+  // Build stops
+  _mapStops = orders.map(o => ({
+    order: o,
+    coords: _extractCoordsFromAddress(o.address || ''),
+    marker: null,
+    delivered: false,
+    skipped: false,
+    distKm: null,
+    seqNum: null
+  }));
+
+  // Reset state
+  _routeOptimized  = false;
+  _deliveryActive  = false;
+  _deliveryIdx     = 0;
+  document.getElementById('btn-optimize').classList.remove('done');
+  document.getElementById('btn-optimize-icon').textContent = '🧭';
+  document.getElementById('btn-optimize-label').textContent = 'Optimize Route';
+  document.getElementById('btn-start-delivery').classList.remove('active-mode');
+  document.getElementById('btn-delivery-icon').textContent = '▶';
+  document.getElementById('btn-delivery-label').textContent = 'Start Delivery';
+  document.getElementById('delivery-bar').classList.remove('show');
+  document.getElementById('map-celebration').classList.remove('show');
+
+  // Show modal
+  document.getElementById('map-modal').classList.add('open');
+  _mapModalOpen = true;
+
+  // Push history state so back closes the modal
+  history.pushState({ riderMap: true }, '', location.href);
+
+  // Init or refresh Leaflet
+  requestAnimationFrame(() => {
+    if (!_map) {
+      _map = L.map('leaflet-map', { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+      }).addTo(_map);
+    } else {
+      _map.invalidateSize();
+    }
+
+    _placeMarkers();
+    _updateMapTitle(orders);
+    _renderStopList();
+    _startGPS();
+
+    // Fit bounds after GPS first fix or immediately
+    setTimeout(() => { _fitMapBounds(); }, 500);
+  });
+}
+
+// ── CLOSE MAP ─────────────────────────────────────────────────
+function closeRiderMap() {
+  document.getElementById('map-modal').classList.remove('open');
+  document.getElementById('delivery-bar').classList.remove('show');
+  _stopGPS();
+  _mapModalOpen = false;
+  // Clean up markers
+  _mapStops.forEach(s => { if (s.marker && _map) _map.removeLayer(s.marker); s.marker = null; });
+  if (_gpsMarker && _map)  { _map.removeLayer(_gpsMarker); _gpsMarker = null; }
+  if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
+  if (_routePolyline && _map) { _map.removeLayer(_routePolyline); _routePolyline = null; }
+}
+
+// ── FLY TO STOP ───────────────────────────────────────────────
+function flyToStop(idx) {
+  const s = _mapStops[idx];
+  if (!s || !s.coords || !_map) return;
+  _map.flyTo([s.coords.lat, s.coords.lng], 16, { duration: 0.8 });
+  if (s.marker) { s.marker.openPopup(); s.marker.bounce && s.marker.bounce(); }
+  _scrollToCard(idx);
+}
+
+// ── NEAREST NEIGHBOR ROUTE OPTIMIZE ──────────────────────────
+function optimizeRoute() {
+  const withCoords = _mapStops.filter(s => s.coords);
+  if (withCoords.length < 2) { rToast('Need at least 2 stops with GPS coords to optimize'); return; }
+
+  const startLat = _gpsPos?.lat || withCoords[0].coords.lat;
+  const startLng = _gpsPos?.lng || withCoords[0].coords.lng;
+
+  // Nearest neighbor on stops with coords
+  const toVisit = [...withCoords];
+  const ordered = [];
+  let curLat = startLat, curLng = startLng;
+  while (toVisit.length) {
+    let best = 0, bestDist = Infinity;
+    toVisit.forEach((s, i) => {
+      const d = _haversine(curLat, curLng, s.coords.lat, s.coords.lng);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    const stop = toVisit.splice(best, 1)[0];
+    stop.distKm = _haversine(curLat, curLng, stop.coords.lat, stop.coords.lng);
+    curLat = stop.coords.lat; curLng = stop.coords.lng;
+    ordered.push(stop);
+  }
+
+  // Stops without coords stay at end
+  const noCoords = _mapStops.filter(s => !s.coords);
+  _mapStops = [...ordered, ...noCoords];
+
+  _routeOptimized = true;
+  document.getElementById('btn-optimize').classList.add('done');
+  document.getElementById('btn-optimize-icon').textContent = '✅';
+  document.getElementById('btn-optimize-label').textContent = 'Route Optimized';
+
+  // Refresh map
+  _placeMarkers();
+  _renderStopList();
+  _drawPolyline();
+  _fitMapBounds();
+  rToast('🧭 Route optimized! ' + ordered.length + ' stops ordered.');
+}
+
+// ── DELIVERY MODE ─────────────────────────────────────────────
+function toggleDeliveryMode() {
+  if (!_deliveryActive) {
+    _startDeliveryMode();
+  } else {
+    _pauseDeliveryMode();
+  }
+}
+
+function _startDeliveryMode() {
+  const activeStops = _mapStops.filter(s => !s.delivered && !s.skipped);
+  if (!activeStops.length) { rToast('No stops remaining'); return; }
+  _deliveryActive = true;
+  // Find first non-done stop
+  _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  document.getElementById('btn-start-delivery').classList.add('active-mode');
+  document.getElementById('btn-delivery-icon').textContent = '⏸';
+  document.getElementById('btn-delivery-label').textContent = 'Pause';
+  document.getElementById('delivery-bar').classList.add('show');
+  _updateDeliveryBar();
+  _renderStopList();
+  flyToStop(_deliveryIdx);
+}
+
+function _pauseDeliveryMode() {
+  _deliveryActive = false;
+  document.getElementById('btn-start-delivery').classList.remove('active-mode');
+  document.getElementById('btn-delivery-icon').textContent = '▶';
+  document.getElementById('btn-delivery-label').textContent = 'Resume';
+  document.getElementById('delivery-bar').classList.remove('show');
+  _renderStopList();
+}
+
+function _updateDeliveryBar() {
+  const total    = _mapStops.length;
+  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
+  const done     = _mapStops.filter(s => s.delivered).length;
+  const cur      = _mapStops[_deliveryIdx];
+  const stopNum  = _deliveryIdx + 1;
+  document.getElementById('delivery-bar-label').textContent =
+    cur ? `Stop ${stopNum} of ${total} — ${cur.order.name || 'Customer'}` : 'Done!';
+}
+
+function deliveryMarkDone() {
+  const s = _mapStops[_deliveryIdx];
+  if (!s) return;
+  s.delivered = true;
+  // Update marker color
+  if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
+  if (s.coords) {
+    s.marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(s.seqNum||'✓', '#22c55e') }).addTo(_map);
+  }
+  _drawPolyline();
+  _advanceDelivery();
+}
+
+function deliverySkip() {
+  const s = _mapStops[_deliveryIdx];
+  if (!s) return;
+  s.skipped = true;
+  // Move skipped stop to end
+  _mapStops.splice(_deliveryIdx, 1);
+  _mapStops.push(s);
+  // Update skipped marker
+  if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
+  if (s.coords) {
+    s.marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon('⏭', '#f97316') }).addTo(_map);
+  }
+  _advanceDelivery();
+}
+
+function _advanceDelivery() {
+  // Find next non-done stop
+  let nextIdx = _deliveryIdx;
+  while (nextIdx < _mapStops.length && (_mapStops[nextIdx].delivered || _mapStops[nextIdx].skipped)) {
+    nextIdx++;
+  }
+  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
+  if (!remaining.length) {
+    _showCelebration();
+    return;
+  }
+  _deliveryIdx = nextIdx < _mapStops.length ? nextIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  _renderStopList();
+  _updateDeliveryBar();
+  flyToStop(_deliveryIdx);
+}
+
+function deliveryCall() {
+  const s = _mapStops[_deliveryIdx];
+  if (!s || !s.order.phone) return;
+  window.location.href = 'tel:' + s.order.phone;
+}
+
+function deliveryWA() {
+  const s = _mapStops[_deliveryIdx];
+  if (!s) return;
+  openWA('91' + s.order.phone, 'Hi ' + (s.order.name||'') + ', your Tiffo order is on the way!');
+}
+
+function _showCelebration() {
+  _deliveryActive = false;
+  document.getElementById('delivery-bar').classList.remove('show');
+  const delivered = _mapStops.filter(s => s.delivered).length;
+  const skipped   = _mapStops.filter(s => s.skipped).length;
+  document.getElementById('celeb-sub').textContent =
+    `${delivered} delivered · ${skipped} skipped · Great job today!`;
+  document.getElementById('map-celebration').classList.add('show');
+}
+
+// ── OPEN IN GOOGLE MAPS (from map modal) ──────────────────────
+function openInMapsFromModal() {
+  const stops = _mapStops.filter(s => s.coords && !s.delivered);
+  if (!stops.length) { rToast('No stops with GPS coordinates'); return; }
+  const origin = _gpsPos
+    ? encodeURIComponent(`${_gpsPos.lat},${_gpsPos.lng}`)
+    : encodeURIComponent(`${stops[0].coords.lat},${stops[0].coords.lng}`);
+  const wps = (_gpsPos ? stops : stops.slice(1))
+    .map(s => encodeURIComponent(`${s.coords.lat},${s.coords.lng}`)).join('|');
+  const dest = encodeURIComponent(`${stops[stops.length-1].coords.lat},${stops[stops.length-1].coords.lng}`);
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${wps.length?'&waypoints='+wps:''}&travelmode=driving`;
   window.open(url, '_blank');
 }
+
+// ── BACKWARD COMPAT STUBS ─────────────────────────────────────
+// These are kept so any old call sites don't throw errors.
+function openRouteModal(orders) { openRiderMap(orders); }
+function closeRouteModal()      { closeRiderMap(); }
+function openInMaps()           { openInMapsFromModal(); }
 
 /* ─── HELPERS ────────────────────────────────────────── */
 function openWA(phone, msg) {
@@ -837,9 +1451,32 @@ function openWA(phone, msg) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+/* Extract lat/lng embedded in address string.
+   Handles all spacing variants:
+   (latitude=25.266123, longitude=82.993456)
+   (latitude=25.266123,longitude=82.993456)
+   Latitude=25.266123, Longitude=82.993456  (case-insensitive) */
+function _extractCoordsFromAddress(address) {
+  if (!address) return null;
+  const m = address.match(/latitude\s*=\s*([+-]?\d+\.?\d*)[,\s]+longitude\s*=\s*([+-]?\d+\.?\d*)/i);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  // Sanity check — valid coordinate ranges
+  if (isNaN(lat) || isNaN(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
 function openMaps(address) {
   if (!address) { rToast('No address available'); return; }
-  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address), '_blank');
+  const coords = _extractCoordsFromAddress(address);
+  if (coords) {
+    // Precise coordinate navigation — rider lands exactly on pin
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`, '_blank');
+  } else {
+    // Fallback: text search for older addresses without coords
+    window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address), '_blank');
+  }
 }
 
 function rToast(msg) {
@@ -959,6 +1596,11 @@ function _riderShowExitConfirm() {
 }
 
 window.addEventListener('popstate', () => {
+  // If map is open, close it instead of navigating back
+  if (_mapModalOpen) {
+    closeRiderMap();
+    return;
+  }
   const creds = getRiderCreds();
   const appVisible = document.getElementById('pg-app')?.style.display !== 'none';
   const authVisible = document.getElementById('pg-auth')?.style.display !== 'none';

@@ -3256,10 +3256,27 @@ function renderUsersTable(users) {
           <button class="btn btn-outline" style="padding:5px 9px;font-size:11px" onclick="viewUserOrders('${u.phone}','${u.name}')" title="Orders"><i class="fa fa-receipt"></i></button>
           <button class="btn btn-outline" style="padding:5px 9px;font-size:11px" onclick="resetUserPw('${u.phone}','${u.name}')" title="Reset Password"><i class="fa fa-key"></i></button>
           <a href="https://wa.me/91${u.phone}" target="_blank" class="btn btn-outline" style="padding:5px 9px;font-size:11px" title="WhatsApp">\ud83d\udcac</a>
+          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px" onclick="deleteUserFromAllTab('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}')" title="Delete User"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`).join('') :
     '<tr><td colspan="9" style="text-align:center;padding:50px;color:#94a3b8"><i class="fa fa-users" style="font-size:28px;margin-bottom:10px;display:block;opacity:.3"></i>No users found</td></tr>';
+}
+
+// ── Delete User from All Users Tab ───────────────────────
+async function deleteUserFromAllTab(phone, name) {
+  confirmAction(
+    `⚠️ Permanently delete user <b>${name || phone}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all related data. This action cannot be undone.</small>`,
+    async function() {
+      try {
+        await api('adminDeleteUser', { phone });
+        aToast('User deleted permanently');
+        loadUsers();
+      } catch(e) {
+        aToast('Delete failed: ' + e.message);
+      }
+    }
+  );
 }
 
 function openAddUserModal() {

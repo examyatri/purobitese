@@ -808,10 +808,59 @@ textarea{resize:vertical;min-height:80px}
       <!-- Edit Address -->
       <div class="acct-section">
         <div class="acct-section-title">📍 Delivery Address</div>
-        <div class="form-group">
-          <textarea id="acct-addr" placeholder="Your delivery address" rows="3"></textarea>
+
+        <!-- Current saved address display -->
+        <div id="acct-addr-display" style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:13px;color:#334155;line-height:1.5;margin-bottom:10px;word-break:break-word">
+          Loading…
         </div>
-        <button class="btn-primary" onclick="saveAddress()">Save Address</button>
+
+        <!-- Toggle to show update form -->
+        <button class="btn-outline" id="acct-addr-toggle-btn" onclick="toggleAddrUpdateForm()" style="margin-bottom:10px">📍 Update Address with Map</button>
+
+        <!-- Hidden update form (shown when toggle clicked) -->
+        <div id="acct-addr-update-form" style="display:none">
+          <div class="form-group" style="margin-bottom:8px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Room / Flat / House Number</label>
+            <input type="text" id="acct-room" placeholder="Room 12 / Flat B-4 / House 5A…" autocomplete="off" oninput="_acctRoomWatcher()">
+          </div>
+          <div class="form-group" style="margin-bottom:8px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Full Address <span style="color:#22c55e;font-weight:500">(auto-fills from map pin)</span></label>
+            <textarea id="acct-addr-box" rows="3" style="font-size:13px" readonly onfocus="this.removeAttribute('readonly')" placeholder="Pin your location on the map below…"></textarea>
+          </div>
+
+          <!-- Detect / Map -->
+          <button type="button" id="acct-loc-btn" class="loc-btn" onclick="detectAcctLocation()" style="margin-bottom:8px">
+            <i class="fa fa-location-crosshairs"></i>
+            <span id="acct-loc-btn-txt">Detect My Location</span>
+          </button>
+          <div id="acct-loc-status" class="loc-status" style="display:none"></div>
+
+          <div id="acct-map-pin-area" style="display:none;margin-top:8px">
+            <div class="loc-map-wrap">
+              <div class="loc-map-hdr" style="justify-content:space-between">
+                <span><i class="fa fa-map-pin"></i>&nbsp;Drag pin to exact location</span>
+                <button type="button" onclick="_acctRecenter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                  <i class="fa fa-location-crosshairs"></i> Recenter
+                </button>
+              </div>
+              <div id="acct-leaflet-map" style="width:100%;height:220px;display:block"></div>
+              <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
+                <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55;margin-bottom:8px">
+                  📌 Drag the pin or tap the map to set your exact location.
+                </div>
+                <button type="button" id="acct-confirm-pin-btn" class="loc-confirm-btn" onclick="_confirmAcctPin()" style="margin:0">
+                  <i class="fa fa-check"></i>&nbsp;Save Location
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <input type="hidden" id="acct-lat" value="">
+          <input type="hidden" id="acct-lng" value="">
+          <input type="hidden" id="acct-loc-ok" value="0">
+
+          <button class="btn-primary" style="margin-top:12px" onclick="saveAddress()">💾 Save New Address</button>
+        </div>
       </div>
       <!-- Edit Email -->
       <div class="acct-section">
@@ -1925,48 +1974,113 @@ let _leafletMarker = null;
 let _pendingLat    = null;
 let _pendingLng    = null;
 let _pinConfirmed  = false;  // true once user clicks Save Location
+let _lastGeoResult = null;  // cached geocode object from last successful reverse-geocode
 
-/* Reverse-geocode via Nominatim (free, no key) — returns human address string */
+/* Reverse-geocode via Nominatim — returns rich structured address object */
 async function _nominatimReverseGeocode(lat, lng) {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`,
       { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
     );
     const data = await res.json();
     if (!data || data.error) return null;
     const a = data.address || {};
-    // Build a clean short address: road + suburb/neighbourhood + city
-    const parts = [
-      a.road || a.pedestrian || a.footway || '',
-      a.suburb || a.neighbourhood || a.village || a.hamlet || '',
-      a.city || a.town || a.county || ''
-    ].map(p => p.trim()).filter(Boolean);
-    return parts.length ? parts.join(', ') : (data.display_name?.split(',').slice(0,3).join(', ') || null);
+
+    // ── 1. Building / named place (strong nearby anchor) ──
+    const building = (
+      a.amenity || a.building || a.tourism || a.leisure ||
+      a.office  || a.shop    || a.historic || a.place_of_worship || ''
+    ).trim();
+
+    // ── 2. Street / road ──
+    const road = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || '').trim();
+
+    // ── 3. Neighbourhood / locality ──
+    const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || '').trim();
+
+    // ── 4. City / town ──
+    const city = (a.city || a.town || a.municipality || '').trim();
+
+    // ── 5. District / county ──
+    const district = (a.county || a.state_district || '').trim();
+
+    // ── 6. State ──
+    const state = (a.state || '').trim();
+
+    // ── 7. Pincode ──
+    const pincode = (a.postcode || '').trim();
+
+    // Compose: building, road, area, city, district, state, pincode
+    const parts = [building, road, area, city, district, state, pincode]
+      .map(p => p.trim()).filter(Boolean);
+
+    // Deduplicate consecutive identical tokens (Nominatim sometimes repeats city = county)
+    const deduped = parts.filter((v, i) => i === 0 || v.toLowerCase() !== parts[i - 1].toLowerCase());
+
+    return deduped.length
+      ? { full: deduped.join(', '), building, road, area, city, district, state, pincode }
+      : { full: data.display_name?.split(',').slice(0, 5).join(', ') || null, building:'', road:'', area:'', city:'', district:'', state:'', pincode:'' };
+
   } catch(e) { return null; }
 }
 
-/* Build the final address string: Room prefix + detected location */
-function _buildAddress(roomVal, detectedAddr) {
-  const room = (roomVal || '').trim();
-  const loc  = (detectedAddr || '').trim();
-  if (room && loc)  return `${room}, ${loc}`;
-  if (room)         return room;
-  return loc;
+/* Build the final address string:
+   [Room, ] Building, Road, Area, City, District, State, Pincode (latitude=X, longitude=Y)
+   lat/lng are always appended so the rider can paste into any map app.         */
+function _buildAddress(roomVal, geoOrStr, lat, lng) {
+  const room   = (roomVal || '').trim();
+  // Accept either a geo object or a plain fallback string
+  const locStr = (typeof geoOrStr === 'object' && geoOrStr !== null)
+    ? (geoOrStr.full || '').trim()
+    : (geoOrStr || '').trim();
+
+  // Resolve lat/lng — prefer explicit args, then _pendingLat/_pendingLng
+  const finalLat = (lat !== undefined && lat !== null) ? lat : _pendingLat;
+  const finalLng = (lng !== undefined && lng !== null) ? lng : _pendingLng;
+
+  const coordStr = (finalLat !== null && finalLng !== null)
+    ? ` (latitude=${parseFloat(finalLat).toFixed(6)}, longitude=${parseFloat(finalLng).toFixed(6)})`
+    : '';
+
+  const bodyParts = [room, locStr].map(p => p.trim()).filter(Boolean);
+  return bodyParts.join(', ') + coordStr;
 }
 
 /* Update the su-addr textarea from current pin position */
 async function _updateAddressFromPin(lat, lng) {
   const hint = document.getElementById('su-geocode-hint');
   if (hint) hint.textContent = '⏳ Fetching address from map…';
-  const detectedAddr = await _nominatimReverseGeocode(lat, lng);
-  const room = document.getElementById('su-room')?.value || '';
-  const fullAddr = _buildAddress(room, detectedAddr || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+
+  const geo = await _nominatimReverseGeocode(lat, lng);
+  _lastGeoResult = geo; // cache for room-watcher rebuilds
+
+  const room     = document.getElementById('su-room')?.value || '';
+  const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  const fullAddr = _buildAddress(room, geo || fallback, lat, lng);
+
   const addrBox = document.getElementById('su-addr');
   if (addrBox) { addrBox.removeAttribute('readonly'); addrBox.value = fullAddr; }
-  if (hint) hint.innerHTML = detectedAddr
-    ? `📍 <b>${detectedAddr}</b> — drag pin to adjust, then tap <b>Save Location</b>`
-    : '📍 Address not found — drag pin to refine, then tap Save Location';
+
+  if (hint) {
+    if (geo?.full) {
+      // Show a clean structured preview in the hint
+      const previewParts = [geo.building, geo.road, geo.area, geo.city]
+        .filter(Boolean).join(', ');
+      hint.innerHTML =
+        `📍 <b>${previewParts || geo.full}</b><br>` +
+        `<span style="color:#64748b;font-size:11px">` +
+          `${geo.state ? geo.state + (geo.pincode ? ' – ' + geo.pincode : '') + ' &nbsp;|&nbsp; ' : ''}` +
+          `🌐 ${lat.toFixed(5)}, ${lng.toFixed(5)}` +
+        `</span><br>` +
+        `<span style="color:#475569">Drag pin to fine-tune, then tap <b>Save Location</b></span>`;
+    } else {
+      hint.innerHTML =
+        `⚠️ Address not detected — drag pin to refine.<br>` +
+        `<span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span><br>` +
+        `<span style="color:#475569">Then tap <b>Save Location</b></span>`;
+    }
+  }
 }
 
 /* Init or move the Leaflet map to given coords */
@@ -2131,11 +2245,16 @@ async function _confirmLeafletPin() {
     showStatus('✅ Location saved. Delivery zone not configured yet — proceeding.', false, true);
   }
 
-  // Update address with room number prefix (final composition)
+  // Rebuild full address from cached geo + confirmed pin coords
   const room = document.getElementById('su-room')?.value.trim() || '';
   const addrBox = document.getElementById('su-addr');
-  if (addrBox && room && !addrBox.value.startsWith(room)) {
-    addrBox.value = _buildAddress(room, addrBox.value);
+  if (addrBox) {
+    addrBox.value = _buildAddress(
+      room,
+      _lastGeoResult || addrBox.value,
+      _pendingLat,
+      _pendingLng
+    );
   }
 
   _pinConfirmed = true;
@@ -2153,22 +2272,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const roomInput = document.getElementById('su-room');
   if (roomInput) {
     roomInput.addEventListener('input', () => {
-      if (_pendingLat === null) return; // map not shown yet
+      if (_pendingLat === null) return; // map not shown yet — nothing to rebuild
       const addrBox = document.getElementById('su-addr');
       if (!addrBox) return;
-      const currentVal = addrBox.value;
-      // Extract the location part (everything after first comma if room was prepended)
-      const locPart = _pendingLat !== null
-        ? (() => {
-            // Re-derive from current address minus any previous room prefix
-            const prevRoom = roomInput.dataset.prevRoom || '';
-            let loc = currentVal;
-            if (prevRoom && loc.startsWith(prevRoom + ', ')) loc = loc.slice(prevRoom.length + 2);
-            return loc;
-          })()
-        : currentVal;
-      roomInput.dataset.prevRoom = roomInput.value.trim();
-      addrBox.value = _buildAddress(roomInput.value, locPart);
+      // Always rebuild from the cached geo object + current lat/lng — clean, no string-slicing fragility
+      addrBox.value = _buildAddress(
+        roomInput.value,
+        _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`,
+        _pendingLat,
+        _pendingLng
+      );
     });
   }
 });
@@ -2222,8 +2335,17 @@ async function doSignup() {
   const addrRaw = document.getElementById('su-addr').value.trim();
   const pw      = document.getElementById('su-pw').value;
 
-  // Compose final address: ensure room is prefixed
-  const address = room && !addrRaw.startsWith(room) ? _buildAddress(room, addrRaw) : addrRaw;
+  // Final address: always rebuild from cache so lat/lng is always embedded.
+  // Even if Nominatim failed (_lastGeoResult===null), we still embed the raw coords.
+  // This guarantees the rider always gets GPS coordinates in the address.
+  let address;
+  if (_pendingLat !== null && _pendingLng !== null) {
+    // Rebuild cleanly — ensures coords suffix is always present and fresh
+    address = _buildAddress(room, _lastGeoResult || addrRaw, _pendingLat, _pendingLng);
+  } else {
+    // Fallback: user somehow submitted without a GPS fix (locOk guard below will usually catch this)
+    address = addrRaw;
+  }
 
   const setErr = (id, msg) => {
     const el = document.getElementById(id);
@@ -3126,8 +3248,19 @@ function populateAccountPage() {
   document.getElementById('acct-avatar-circle').textContent = getInitials(u.name);
   document.getElementById('acct-name').textContent  = u.name || '—';
   document.getElementById('acct-phone').textContent = u.phone || '—';
-  document.getElementById('acct-addr').value  = u.address || '';
   document.getElementById('acct-email').value = u.email || '';
+
+  // Show current address in read-only display div
+  const addrDisplay = document.getElementById('acct-addr-display');
+  if (addrDisplay) {
+    const raw = u.address || '';
+    // Show clean address (strip coords suffix for display)
+    const clean = raw.replace(/\s*\(latitude=[^)]+\)/i, '').trim();
+    const hasCoords = /latitude=/.test(raw);
+    addrDisplay.innerHTML = clean
+      ? `${clean}<br><span style="font-size:11px;color:${hasCoords ? '#22c55e' : '#f97316'};font-weight:600">${hasCoords ? '✅ GPS coordinates saved' : '⚠️ No GPS coordinates — tap Update Address to fix'}</span>`
+      : '<span style="color:#94a3b8">No address saved yet</span>';
+  }
 
   if (u.is_subscriber) {
     document.querySelectorAll('.sub-only').forEach(el => el.style.display = '');
@@ -3138,13 +3271,204 @@ function populateAccountPage() {
   }
 }
 
+// ── Account page address state ─────────────────────────────
+let _acctMap       = null;
+let _acctMarker    = null;
+let _acctPendingLat = null;
+let _acctPendingLng = null;
+let _acctGeoResult  = null;
+let _acctPinConfirmed = false;
+
+function toggleAddrUpdateForm() {
+  const form = document.getElementById('acct-addr-update-form');
+  const btn  = document.getElementById('acct-addr-toggle-btn');
+  if (!form) return;
+  const showing = form.style.display !== 'none';
+  form.style.display = showing ? 'none' : 'block';
+  btn.textContent = showing ? '📍 Update Address with Map' : '✕ Cancel Update';
+  if (!showing) {
+    // Pre-fill room from current address if possible
+    const raw = Auth.get()?.address || '';
+    const roomMatch = raw.match(/^([^,]+),/);
+    // Don't auto-fill room — let user type it fresh
+  }
+}
+
+async function detectAcctLocation() {
+  const btn    = document.getElementById('acct-loc-btn');
+  const btnTxt = document.getElementById('acct-loc-btn-txt');
+  const status = document.getElementById('acct-loc-status');
+  const showSt = (msg, ok) => {
+    status.style.display = 'block';
+    status.style.background = ok ? '#dcfce7' : '#fef9c3';
+    status.style.color      = ok ? '#166534' : '#854d0e';
+    status.textContent = msg;
+  };
+  if (!navigator.geolocation) { showSt('❌ GPS not supported on this device.', false); return; }
+  btnTxt.textContent = 'Detecting…'; btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      btn.disabled = false;
+      btnTxt.textContent = '✅ Location Detected';
+      const { latitude: lat, longitude: lng } = pos.coords;
+      _acctPendingLat = lat; _acctPendingLng = lng;
+      document.getElementById('acct-lat').value = lat;
+      document.getElementById('acct-lng').value = lng;
+      showSt('✅ Location detected — drag pin to fine-tune, then save.', true);
+      _acctShowMap(lat, lng);
+    },
+    err => {
+      btn.disabled = false;
+      btnTxt.textContent = 'Detect My Location';
+      const msg = err.code === 1 ? '📵 Location permission denied. Allow location in browser settings.'
+                : err.code === 2 ? '📡 Location unavailable. Try in open area.'
+                : '⏱️ Timed out. Please try again.';
+      showSt(msg, false);
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
+}
+
+function _acctShowMap(lat, lng) {
+  const wrap = document.getElementById('acct-map-pin-area');
+  if (wrap) wrap.style.display = 'block';
+  _acctPendingLat = lat; _acctPendingLng = lng;
+  _acctPinConfirmed = false;
+  const resetPin = document.getElementById('acct-confirm-pin-btn');
+  if (resetPin) { resetPin.style.background = '#0369a1'; resetPin.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; resetPin.disabled = false; }
+
+  function _initAcctLeaflet() {
+    if (typeof L === 'undefined') { setTimeout(_initAcctLeaflet, 150); return; }
+    if (!_acctMap) {
+      _acctMap = L.map('acct-leaflet-map', { center:[lat,lng], zoom:17, zoomControl:true, attributionControl:false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(_acctMap);
+      const redIcon = L.divIcon({
+        className:'',
+        html:`<div style="width:32px;height:42px"><svg viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 26 16 26S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.5"/><circle cx="16" cy="16" r="6" fill="white"/></svg></div>`,
+        iconSize:[32,42], iconAnchor:[16,42]
+      });
+      _acctMarker = L.marker([lat,lng], { draggable:true, icon:redIcon, autoPan:true }).addTo(_acctMap);
+      _acctMarker.on('dragend', async e => {
+        const p = e.target.getLatLng();
+        _acctPendingLat = p.lat; _acctPendingLng = p.lng; _acctPinConfirmed = false;
+        const b = document.getElementById('acct-confirm-pin-btn');
+        if (b) { b.style.background='#0369a1'; b.innerHTML='<i class="fa fa-check"></i>&nbsp;Save Location'; b.disabled=false; }
+        await _acctUpdateAddress(p.lat, p.lng);
+      });
+      _acctMap.on('click', async e => {
+        _acctMarker.setLatLng(e.latlng);
+        _acctPendingLat = e.latlng.lat; _acctPendingLng = e.latlng.lng; _acctPinConfirmed = false;
+        const b = document.getElementById('acct-confirm-pin-btn');
+        if (b) { b.style.background='#0369a1'; b.innerHTML='<i class="fa fa-check"></i>&nbsp;Save Location'; b.disabled=false; }
+        await _acctUpdateAddress(e.latlng.lat, e.latlng.lng);
+      });
+    } else {
+      _acctMap.setView([lat,lng], 17);
+      _acctMarker.setLatLng([lat,lng]);
+      setTimeout(() => _acctMap.invalidateSize(), 100);
+    }
+    _acctUpdateAddress(lat, lng);
+  }
+  _initAcctLeaflet();
+}
+
+function _acctRecenter() {
+  if (!navigator.geolocation) { toast('GPS not supported'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude:lat, longitude:lng } = pos.coords;
+    if (_acctMap && _acctMarker) {
+      _acctMap.setView([lat,lng], 17);
+      _acctMarker.setLatLng([lat,lng]);
+      _acctPendingLat = lat; _acctPendingLng = lng; _acctPinConfirmed = false;
+      const b = document.getElementById('acct-confirm-pin-btn');
+      if (b) { b.style.background='#0369a1'; b.innerHTML='<i class="fa fa-check"></i>&nbsp;Save Location'; b.disabled=false; }
+      _acctUpdateAddress(lat, lng);
+    }
+  }, () => toast('Could not get GPS. Try again.'), { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+}
+
+async function _acctUpdateAddress(lat, lng) {
+  const hint = document.getElementById('acct-geocode-hint');
+  if (hint) hint.textContent = '⏳ Fetching address from map…';
+  const geo = await _nominatimReverseGeocode(lat, lng);
+  _acctGeoResult = geo;
+  const room = document.getElementById('acct-room')?.value || '';
+  const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  const fullAddr = _buildAddress(room, geo || fallback, lat, lng);
+  const box = document.getElementById('acct-addr-box');
+  if (box) { box.removeAttribute('readonly'); box.value = fullAddr; }
+  if (hint) {
+    hint.innerHTML = geo?.full
+      ? `📍 <b>${[geo.building, geo.road, geo.area, geo.city].filter(Boolean).join(', ') || geo.full}</b><br><span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span><br><span>Drag pin to fine-tune, then tap <b>Save Location</b></span>`
+      : `⚠️ Address not detected — drag pin to refine.<br><span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
+  }
+}
+
+function _acctRoomWatcher() {
+  if (_acctPendingLat === null) return;
+  const room = document.getElementById('acct-room')?.value || '';
+  const box  = document.getElementById('acct-addr-box');
+  if (!box) return;
+  box.value = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng);
+}
+
+async function _confirmAcctPin() {
+  if (_acctPendingLat === null || _acctPendingLng === null) { toast('No pin placed yet'); return; }
+  const btn = document.getElementById('acct-confirm-pin-btn');
+  if (btn) { btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>&nbsp;Verifying…'; btn.disabled = true; }
+  const room = document.getElementById('acct-room')?.value.trim() || '';
+  const box  = document.getElementById('acct-addr-box');
+  if (box) {
+    box.value = _buildAddress(room, _acctGeoResult || box.value, _acctPendingLat, _acctPendingLng);
+  }
+  document.getElementById('acct-lat').value = _acctPendingLat;
+  document.getElementById('acct-lng').value = _acctPendingLng;
+  document.getElementById('acct-loc-ok').value = '1';
+  _acctPinConfirmed = true;
+  if (btn) { btn.style.background = '#166534'; btn.innerHTML = '<i class="fa fa-check-circle"></i>&nbsp;Location Saved!'; btn.disabled = false; }
+}
+
 async function saveAddress() {
-  const addr = document.getElementById('acct-addr').value.trim();
-  if (!addr) { toast('Enter address'); return; }
+  // New flow: always get address from the map-picker box if it's shown
+  const box = document.getElementById('acct-addr-box');
+  const locOk = document.getElementById('acct-loc-ok')?.value === '1';
+
+  let addr;
+  if (box && box.value.trim() && _acctPendingLat !== null) {
+    // Always rebuild fresh to guarantee coords are embedded
+    const room = document.getElementById('acct-room')?.value.trim() || '';
+    addr = _buildAddress(room, _acctGeoResult || box.value.trim(), _acctPendingLat, _acctPendingLng);
+    if (!_acctPinConfirmed) {
+      toast('Please tap "Save Location" on the map first to confirm your pin.');
+      return;
+    }
+  } else if (box && box.value.trim()) {
+    addr = box.value.trim();
+  } else {
+    toast('Please detect and pin your location first.');
+    return;
+  }
+
+  if (!addr) { toast('Address is empty — please try again'); return; }
+
   try {
     await api('updateProfile', { phone: Auth.get()?.phone, address: addr });
     Auth.patch({ address: addr });
-    toast('Address saved ✓');
+    // Refresh display
+    const addrDisplay = document.getElementById('acct-addr-display');
+    if (addrDisplay) {
+      const clean = addr.replace(/\s*\(latitude=[^)]+\)/i, '').trim();
+      const hasCoords = /latitude=/.test(addr);
+      addrDisplay.innerHTML = `${clean}<br><span style="font-size:11px;color:${hasCoords ? '#22c55e' : '#f97316'};font-weight:600">${hasCoords ? '✅ GPS coordinates saved' : '⚠️ No GPS coordinates'}</span>`;
+    }
+    // Collapse form
+    const form = document.getElementById('acct-addr-update-form');
+    const toggleBtn = document.getElementById('acct-addr-toggle-btn');
+    if (form) form.style.display = 'none';
+    if (toggleBtn) toggleBtn.textContent = '📍 Update Address with Map';
+    // Reset state
+    _acctPendingLat = null; _acctPendingLng = null; _acctGeoResult = null; _acctPinConfirmed = false;
+    toast('✅ Address saved with GPS coordinates!');
   } catch(e) { toast(e.message || 'Save failed'); }
 }
 
