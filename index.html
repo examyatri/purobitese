@@ -501,7 +501,6 @@ textarea{resize:vertical;min-height:80px}
       <div class="form-group">
         <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
         <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
-        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);margin-top:3px">📌 Helps the rider find you — if you don't have a room number, enter <b>0</b></div>
         <div class="field-error" id="su-room-err"></div>
       </div>
 
@@ -878,12 +877,9 @@ textarea{resize:vertical;min-height:80px}
               </div>
               <div id="acct-leaflet-map" style="width:100%;height:220px;display:block"></div>
               <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
-                <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55;margin-bottom:8px">
-                  📌 Drag the pin or tap the map to set your exact location.
+                <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
+                  📌 Drag the pin or tap the map to fine-tune your exact location.
                 </div>
-                <button type="button" id="acct-confirm-pin-btn" class="loc-confirm-btn" onclick="_confirmAcctPin()" style="margin:0">
-                  <i class="fa fa-check"></i>&nbsp;Save Location
-                </button>
               </div>
             </div>
           </div>
@@ -2026,7 +2022,7 @@ let _lastGeoResult = null;  // cached geocode object from last successful revers
 async function _nominatimReverseGeocode(lat, lng) {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=18`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&zoom=18`,
       { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
     );
     const data = await res.json();
@@ -2034,19 +2030,26 @@ async function _nominatimReverseGeocode(lat, lng) {
     const a = data.address || {};
 
     // ── 1. Building / named place (strong nearby anchor) ──
+    const namedPlace = (data.namedetails?.name || data.name || '').trim();
     const building = (
+      namedPlace ||
       a.amenity || a.building || a.tourism || a.leisure ||
-      a.office  || a.shop    || a.historic || a.place_of_worship || ''
+      a.office  || a.shop    || a.historic || a.place_of_worship ||
+      a.allotments || a.residential || a.man_made || ''
     ).trim();
 
+    // ── 1b. House number (prepend to road if present) ──
+    const houseNo = (a.house_number || '').trim();
+
     // ── 2. Street / road ──
-    const road = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || '').trim();
+    const roadRaw = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.service || '').trim();
+    const road = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
 
     // ── 3. Neighbourhood / locality ──
-    const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || '').trim();
+    const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || '').trim();
 
     // ── 4. City / town ──
-    const city = (a.city || a.town || a.municipality || '').trim();
+    const city = (a.city || a.town || a.municipality || a.city_district || '').trim();
 
     // ── 5. District / county ──
     const district = (a.county || a.state_district || '').trim();
@@ -3553,8 +3556,6 @@ function _acctShowMap(lat, lng) {
   if (wrap) wrap.style.display = 'block';
   _acctPendingLat = lat; _acctPendingLng = lng;
   _acctPinConfirmed = false;
-  const resetPin = document.getElementById('acct-confirm-pin-btn');
-  if (resetPin) { resetPin.style.background = '#0369a1'; resetPin.innerHTML = '<i class="fa fa-check"></i>&nbsp;Save Location'; resetPin.disabled = false; }
 
   function _initAcctLeaflet() {
     if (typeof L === 'undefined') { setTimeout(_initAcctLeaflet, 150); return; }
@@ -3570,15 +3571,11 @@ function _acctShowMap(lat, lng) {
       _acctMarker.on('dragend', async e => {
         const p = e.target.getLatLng();
         _acctPendingLat = p.lat; _acctPendingLng = p.lng; _acctPinConfirmed = false;
-        const b = document.getElementById('acct-confirm-pin-btn');
-        if (b) { b.style.background='#0369a1'; b.innerHTML='<i class="fa fa-check"></i>&nbsp;Save Location'; b.disabled=false; }
         await _acctUpdateAddress(p.lat, p.lng);
       });
       _acctMap.on('click', async e => {
         _acctMarker.setLatLng(e.latlng);
         _acctPendingLat = e.latlng.lat; _acctPendingLng = e.latlng.lng; _acctPinConfirmed = false;
-        const b = document.getElementById('acct-confirm-pin-btn');
-        if (b) { b.style.background='#0369a1'; b.innerHTML='<i class="fa fa-check"></i>&nbsp;Save Location'; b.disabled=false; }
         await _acctUpdateAddress(e.latlng.lat, e.latlng.lng);
       });
     } else {
@@ -3599,8 +3596,6 @@ function _acctRecenter() {
       _acctMap.setView([lat,lng], 17);
       _acctMarker.setLatLng([lat,lng]);
       _acctPendingLat = lat; _acctPendingLng = lng; _acctPinConfirmed = false;
-      const b = document.getElementById('acct-confirm-pin-btn');
-      if (b) { b.style.background='#0369a1'; b.innerHTML='<i class="fa fa-check"></i>&nbsp;Save Location'; b.disabled=false; }
       _acctUpdateAddress(lat, lng);
     }
   }, () => toast('Could not get GPS. Try again.'), { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
@@ -3618,9 +3613,14 @@ async function _acctUpdateAddress(lat, lng) {
   if (box) { box.removeAttribute('readonly'); box.value = fullAddr; }
   if (hint) {
     hint.innerHTML = geo?.full
-      ? `📍 <b>${[geo.building, geo.road, geo.area, geo.city].filter(Boolean).join(', ') || geo.full}</b><br><span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span><br><span>Drag pin to fine-tune, then tap <b>Save Location</b></span>`
+      ? `📍 <b>${[geo.building, geo.road, geo.area, geo.city].filter(Boolean).join(', ') || geo.full}</b><br><span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span><br><span style="color:#166534;font-weight:600">✅ Location set — drag pin to fine-tune</span>`
       : `⚠️ Address not detected — drag pin to refine.<br><span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
   }
+  // Auto-confirm pin — no button click needed
+  document.getElementById('acct-lat').value = lat;
+  document.getElementById('acct-lng').value = lng;
+  document.getElementById('acct-loc-ok').value = '1';
+  _acctPinConfirmed = true;
 }
 
 function _acctRoomWatcher() {
@@ -3657,10 +3657,6 @@ async function saveAddress() {
     // Always rebuild fresh to guarantee coords are embedded
     const room = document.getElementById('acct-room')?.value.trim() || '';
     addr = _buildAddress(room, _acctGeoResult || box.value.trim(), _acctPendingLat, _acctPendingLng);
-    if (!_acctPinConfirmed) {
-      toast('Please tap "Save Location" on the map first to confirm your pin.');
-      return;
-    }
   } else if (box && box.value.trim()) {
     addr = box.value.trim();
   } else {
