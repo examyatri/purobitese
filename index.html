@@ -1090,7 +1090,9 @@ let _lastKhataStr = null;
 let _lastPauseMode = null;
 let _pollTimer   = null;
 let _khataAllEntries = [];
+let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 240000;  // 240s — normal background polling (PTR available for manual refresh)
+const _REVISIT_THRESHOLD = 60000; // 60s away → trigger silent full refresh on return
 const _MENU_CACHE_KEY = 'tf_menu_cache';
 const _MENU_TTL = 10 * 60 * 1000;
 
@@ -1120,7 +1122,7 @@ function _doPostLoginRefresh(initialMenuPromise) {
     if (!_session) return; // user logged out before this resolved
     try {
       await Promise.all([
-        loadMenu(true).catch(() => {}),              // bypass cache → fresh menu
+        loadMenu(true, true).catch(() => {}),        // bypass cache → fresh menu, silent (already rendered)
         refreshPauseStatus(true).catch(() => {}),    // pause state from DB
         refreshSubscriberStatus(true).catch(() => {}), // subscriber status from DB
         (_session?.is_subscriber && _khataEnabled)
@@ -1679,7 +1681,7 @@ function back() {
 // popstate handled at bottom of script
 
 function onEnter(id) {
-  if (id === 'pg-home')    { loadMenu(); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
+  if (id === 'pg-home')    { loadMenu(true, true); loadPauseState(); loadAutoTiffinState(); refreshWalletBalance(); startPolling(); }
   if (id === 'pg-orders')  loadOrders(true);   // always force fresh render when tab opened
   if (id === 'pg-khata')   loadUserKhata(true); // always force fresh render when tab opened
   if (id === 'pg-cart')    renderCart();
@@ -2040,13 +2042,15 @@ function hideMenuSkeletons() {
   // handled by render calls
 }
 
-async function loadMenu(bypassCache = false) {
+async function loadMenu(bypassCache = false, silent = false) {
   if (_menuLoading) return;
   _menuLoading = true;
   try {
     if (bypassCache) {
-      // PTR: always fetch fresh from DB, never show cache
-      showMenuSkeletons();
+      // PTR / post-login: fetch fresh from DB
+      // silent=true (tab switch, poll) → no skeleton flash if items already rendered
+      // silent=false (PTR, first load) → show skeleton as expected
+      if (!silent || !_fullMenu.length) showMenuSkeletons();
       Store.remove(_MENU_CACHE_KEY); // clear cache so next normal load also gets fresh
       await _fetchFreshMenu();
     } else {
@@ -3289,8 +3293,9 @@ function scheduleSlotTransitions() {
       if (!_session) return; // user logged out — nothing to refresh
       try {
         await Promise.all([
-          loadMenu(true).catch(() => {}),
+          loadMenu(true, true).catch(() => {}),      // silent bypass — no skeleton on auto slot-change
           refreshPauseStatus(true).catch(() => {}),
+          refreshSubscriberStatus(true).catch(() => {}), // picks up subscription changes at slot boundary
           (_session?.is_subscriber && _khataEnabled)
             ? refreshWalletBalance(true).catch(() => {})
             : Promise.resolve()
@@ -3332,9 +3337,9 @@ async function _runPollTick() {
   refreshWalletBalance().catch(() => {});
   refreshPauseStatus().catch(() => {});
   const cur = document.querySelector('.pg.here')?.id;
-  if (cur === 'pg-orders') loadOrders().catch(() => {});
-  if (cur === 'pg-khata')  loadUserKhata().catch(() => {});
-  if (cur === 'pg-home')   loadMenu().catch(() => {});
+  if (cur === 'pg-orders') loadOrders(true).catch(() => {});   // always write latest to memory
+  if (cur === 'pg-khata')  loadUserKhata(true).catch(() => {}); // always write latest to memory
+  if (cur === 'pg-home')   loadMenu(true, true).catch(() => {});      // always bypass cache on poll, no skeleton
 }
 
 // refreshSubscriberStatus is PTR-only — no auto watcher (saves Supabase calls)
@@ -3388,10 +3393,30 @@ async function refreshPauseStatus(force = false) {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { stopPolling(); }
-  else {
-    _runPollTick(); startPolling();
+  if (document.hidden) {
+    stopPolling();
+    _hiddenAt = Date.now(); // record when app went to background
+  } else {
     scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
+    const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
+    _hiddenAt = 0;
+    if (_session && awayMs >= _REVISIT_THRESHOLD) {
+      // User was away >= 60s — silently refresh everything like a PTR
+      // but without any spinner/skeleton so UX feels instant
+      _menuLoading = false; // unlock in case a stale lock is held
+      Promise.all([
+        loadMenu(true, true).catch(() => {}),
+        refreshPauseStatus(true).catch(() => {}),
+        refreshSubscriberStatus(true).catch(() => {}),
+        (_session?.is_subscriber && _khataEnabled)
+          ? refreshWalletBalance(true).catch(() => {})
+          : Promise.resolve()
+      ]).finally(() => { startPolling(); });
+    } else {
+      // Short absence — just resume normal poll cycle
+      _runPollTick();
+      startPolling();
+    }
   }
 });
 
@@ -3431,6 +3456,8 @@ async function bootApp() {
   ══════════════════════════════════════════════════════════════ */
   const cached = SessionCache.get();
   if (cached && cached.user) {
+    // Reset flag so _doPostLoginRefresh fires on every app-open (not just first login)
+    _postLoginRefreshDone = false;
     // Restore all in-memory state from localStorage cache
     Auth.set(cached.user);
     _session.is_subscriber = !!cached.is_subscriber;
@@ -3497,7 +3524,7 @@ async function bootApp() {
             }
             // Network/timeout error → keep cached session, try again next time
           });
-      }, 30000); // 30s delay — home screen + menu fully loaded before verify starts
+      }, 3000); // 3s delay — home renders first, then verify fires promptly
     }
     return; // Fast path done. User is already on home screen.
   }
@@ -3648,6 +3675,7 @@ function doLogout() {
   _lastPauseMode = null;
   _menuLoading   = false;
   _placingOrder  = false;
+  _hiddenAt      = 0;
   _stack         = [];
   _lastSchedule  = null;
   _lastCutoff    = null;
