@@ -4327,15 +4327,67 @@ function renderNotifCard(n) {
       </button>`;
 
   } else if (isOrder) {
-    // Card Type 1 — Order: red View Order btn, blue View Transaction btn
+    // Card Type 1 — Order: 2-section card (Order + Transaction)
     const markReadOnView = !n.is_read ? `markNotifRead('${n.id}');` : '';
-    const orderId = n.meta?.orderId || '';
-    const khataBtn = isSub
-      ? `<button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px" onclick="${markReadOnView}gotoKhataForPhone('${phone}')"><i class="fa fa-wallet"></i> View Txn</button>`
-      : `<button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#e2e8f0;color:#94a3b8;border:none;border-radius:8px;cursor:not-allowed;font-family:var(--ff);font-weight:600" disabled title="Normal user — no khata"><i class="fa fa-wallet"></i> View Txn</button>`;
-    actionBtns = `
-      <button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#e63946;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px" onclick="${markReadOnView}gotoOrderById('${orderId || phone}')"><i class="fa fa-receipt"></i> View Order</button>
-      ${phone ? khataBtn : ''}`;
+    const orderId   = n.meta?.orderId    || '';
+    const txnId     = n.meta?.txnId      || '';
+    const userName  = n.meta?.userName   || n.meta?.name || '';
+    const finalAmt  = n.meta?.finalAmount != null ? '\u20b9' + n.meta.finalAmount : '';
+    const payMode   = (n.meta?.paymentMode || '').toLowerCase();
+
+    // Payment badge
+    const _payEntry = { wallet: ['Wallet','#dbeafe','#1d4ed8'], upi: ['UPI','#fef9c3','#92400e'], upi_insuf: ['UPI (Insuf)','#fee2e2','#b91c1c'], cash: ['Cash','#dcfce7','#15803d'] }[payMode] || (payMode ? [payMode,'#f1f5f9','#64748b'] : ['','#f1f5f9','#64748b']);
+    const payLabel = _payEntry[0], payBg = _payEntry[1], payFg = _payEntry[2];
+
+    const hasTxn = !!(txnId && isSub && payMode === 'wallet');
+
+    const orderSection = `<div style="background:#fff8f8;border:1.5px solid #fecdd3;border-radius:10px;padding:10px 12px;margin-bottom:${hasTxn || (isSub && payMode !== 'wallet') ? '7px' : '0'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:700;color:#be123c;letter-spacing:.5px;margin-bottom:3px">ORDER</div>
+            <div style="font-size:12px;font-weight:700;color:#0f172a;font-family:monospace;word-break:break-all">${orderId || '<span style=\"color:#94a3b8;font-style:italic\">—</span>'}</div>
+            <div style="display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap">
+              ${finalAmt ? `<span style="font-size:11px;font-weight:600;color:#374151">${finalAmt}</span>` : ''}
+              ${payLabel ? `<span style="font-size:10px;font-weight:700;background:${payBg};color:${payFg};padding:1px 7px;border-radius:8px">${payLabel}</span>` : ''}
+            </div>
+          </div>
+          <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#e63946;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
+                  onclick="${markReadOnView}gotoOrderById('${orderId}')">
+            <i class="fa fa-receipt"></i> View Order
+          </button>
+        </div>
+      </div>`;
+
+    let txnSection = '';
+    if (hasTxn) {
+      txnSection = `<div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:.5px;margin-bottom:3px">TRANSACTION</div>
+            <div style="font-size:12px;font-weight:700;color:#0f172a;font-family:monospace;word-break:break-all">${txnId}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">Wallet debit · ${userName}</div>
+          </div>
+          <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
+                  onclick="${markReadOnView}gotoKhataForPhone('${phone}')">
+            <i class="fa fa-wallet"></i> View Txn
+          </button>
+        </div>
+      </div>`;
+    } else if (isSub) {
+      txnSection = `<div style="background:#f8fafc;border:1.5px dashed #e2e8f0;border-radius:10px;padding:8px 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:700;color:#64748b;letter-spacing:.5px;margin-bottom:2px">TRANSACTION</div>
+            <div style="font-size:11px;color:#94a3b8">${payLabel ? payLabel + ' payment — no wallet debit' : 'No wallet transaction'}</div>
+          </div>
+          <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#e2e8f0;color:#64748b;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
+                  onclick="${markReadOnView}gotoKhataForPhone('${phone}')">
+            <i class="fa fa-wallet"></i> View Wallet
+          </button>
+        </div>
+      </div>`;
+    }
+    actionBtns = orderSection + txnSection;
 
   } else if (isTxn) {
     // Card Type 1 — Transaction: blue View Transaction btn
@@ -4354,6 +4406,33 @@ function renderNotifCard(n) {
   // ── Render ─────────────────────────────────────────────────────────────────
   const cardOpacity = n.is_read ? 'opacity:.72' : '';
   const dotHtml     = !n.is_read ? '<span style="width:7px;height:7px;background:#e63946;border-radius:50%;display:inline-block;flex-shrink:0"></span>' : '';
+
+  // Order cards use a full-width stacked layout (sections below header)
+  if (isOrder) {
+    return `
+    <div class="notif-card ${n.is_read ? '' : 'unread'}" id="notif-${n.id}"
+         style="border-left-color:${borderColor};${cardOpacity}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex:1">
+          <div style="width:38px;height:38px;border-radius:11px;background:${iconBg};display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${iconBg}">
+            <i class="fa ${iconClass}" style="font-size:15px;color:${iconColor}"></i>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
+              <span style="background:${labelBg};color:${labelColor};padding:2px 8px;border-radius:10px;font-size:10px;font-family:var(--ff);font-weight:700">${labelText}</span>
+              ${dotHtml}
+            </div>
+            <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'};margin-bottom:2px">${n.title || 'Notification'}</div>
+            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'}">${n.body || n.message || ''}</div>
+            ${phone ? `<div style="font-size:11px;color:#94a3b8;margin-top:3px"><i class="fa fa-phone" style="font-size:10px"></i> ${phone}</div>` : ''}
+            <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${ts}</div>
+          </div>
+        </div>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:11px;flex-shrink:0" onclick="deleteNotif('${n.id}')"><i class="fa fa-trash"></i></button>
+      </div>
+      ${actionBtns}
+    </div>`;
+  }
 
   return `
     <div class="notif-card ${n.is_read ? '' : 'unread'}" id="notif-${n.id}"
@@ -4413,30 +4492,43 @@ function gotoCouponTab(phone) {
 }
 
 // ─── NOTIFICATION → ORDERS AUTO-SEARCH BY ORDER ID ───────
-function gotoOrderById(searchTerm) {
-  // Copy order ID to clipboard
-  if (searchTerm) {
-    navigator.clipboard.writeText(searchTerm).catch(()=>{
-      const el = document.createElement('textarea');
-      el.value = searchTerm; el.style.cssText = 'position:fixed;opacity:0';
-      document.body.appendChild(el); el.select();
-      document.execCommand('copy'); document.body.removeChild(el);
-    });
+async function gotoOrderById(searchTerm) {
+  if (!searchTerm) return;
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(searchTerm).catch(() => {
+    const el = document.createElement('textarea');
+    el.value = searchTerm; el.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+  });
+
+  // Switch page without triggering its own loadOrders (we'll load with correct filter)
+  document.querySelectorAll('.pg-v').forEach(p => p.classList.remove('act'));
+  document.querySelectorAll('.sb-nav a').forEach(a => a.classList.remove('act'));
+  document.getElementById('p-orders')?.classList.add('act');
+  document.querySelector('.sb-nav a[data-pg="p-orders"]')?.classList.add('act');
+  document.getElementById('page-title').textContent = 'Orders';
+  history.pushState({ adminPg: 'p-orders' }, '', location.href);
+  if (typeof closeSidebar === 'function') closeSidebar();
+
+  // Set filter to ALL so any order date is visible
+  _ordCat = 'all'; _ordStatus = 'all';
+  document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b =>
+    b.classList.toggle('act', b.dataset.cat === 'all'));
+  document.querySelectorAll('#ord-status-chips .ord-chip').forEach(b =>
+    b.classList.toggle('act', b.dataset.status === 'all'));
+
+  // Load fresh data then search
+  try { await loadOrders(); } catch (_) {}
+
+  const inp = document.getElementById('order-search');
+  if (inp) {
+    inp.value = searchTerm;
+    inp.dispatchEvent(new Event('input'));
   }
-  showPage('p-orders');
-  let attempts = 0;
-  const tryFill = () => {
-    const inp = document.getElementById('order-search');
-    if (inp && _allOrders && _allOrders.length > 0) {
-      inp.value = searchTerm;
-      inp.dispatchEvent(new Event('input'));
-      document.getElementById('p-orders')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (searchTerm) aToast('📋 Order ID copied · Showing order ' + searchTerm);
-    } else if (attempts++ < 20) {
-      setTimeout(tryFill, 200);
-    }
-  };
-  setTimeout(tryFill, 300);
+  document.getElementById('p-orders')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  aToast('🔍 Showing order ' + searchTerm);
 }
 
 // ─── NOTIFICATION → ORDERS / KHATA AUTO-SEARCH ───────────
@@ -4464,30 +4556,36 @@ function openNuCouponPanelForUser(phone, name, address, notifId) {
   }, 200);
 }
 
-function gotoKhataForPhone(phone) {
-  // Copy phone to clipboard
-  if (phone) {
-    navigator.clipboard.writeText(phone).catch(()=>{
-      const el = document.createElement('textarea');
-      el.value = phone; el.style.cssText = 'position:fixed;opacity:0';
-      document.body.appendChild(el); el.select();
-      document.execCommand('copy'); document.body.removeChild(el);
-    });
+async function gotoKhataForPhone(phone) {
+  if (!phone) return;
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(phone).catch(() => {
+    const el = document.createElement('textarea');
+    el.value = phone; el.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+  });
+
+  // Switch page without double-triggering loadAllKhata
+  document.querySelectorAll('.pg-v').forEach(p => p.classList.remove('act'));
+  document.querySelectorAll('.sb-nav a').forEach(a => a.classList.remove('act'));
+  document.getElementById('p-khata')?.classList.add('act');
+  document.querySelector('.sb-nav a[data-pg="p-khata"]')?.classList.add('act');
+  document.getElementById('page-title').textContent = 'Khata / Wallet';
+  history.pushState({ adminPg: 'p-khata' }, '', location.href);
+  if (typeof closeSidebar === 'function') closeSidebar();
+
+  // Load fresh data then search
+  try { await loadAllKhata(); } catch (_) {}
+
+  const inp = document.getElementById('khata-search');
+  if (inp) {
+    inp.value = phone;
+    inp.dispatchEvent(new Event('input'));
   }
-  showPage('p-khata');
-  let attempts = 0;
-  const tryFill = () => {
-    const inp = document.getElementById('khata-search');
-    if (inp && _khataList && _khataList.length > 0) {
-      inp.value = phone;
-      inp.dispatchEvent(new Event('input'));
-      document.getElementById('p-khata')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (phone) aToast('📋 Number copied · Showing wallet for ' + phone);
-    } else if (attempts++ < 20) {
-      setTimeout(tryFill, 200);
-    }
-  };
-  setTimeout(tryFill, 300);
+  document.getElementById('p-khata')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  aToast('🔍 Showing wallet for ' + phone);
 }
 
 // ─── COUPON WORKFLOW: New User → Pending → WhatsApp → Sent ─

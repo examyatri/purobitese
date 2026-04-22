@@ -1142,7 +1142,7 @@ textarea{resize:vertical;min-height:80px}
         <span>Coupon Discount</span><span id="insuf-discount">-₹0</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
-        <span>Delivery Charge <span style="font-size:11px;color:#b45309">(UPI pay)</span></span><span>₹20</span>
+        <span>Delivery Charge <span style="font-size:11px;color:#b45309">(UPI pay)</span></span><span id="insuf-delivery-amt">₹20</span>
       </div>
       <div style="height:1px;background:#e5e5e5;margin:6px 0"></div>
       <div style="display:flex;justify-content:space-between;font-family:var(--ff);font-weight:700;font-size:14px;color:#1a1a1a">
@@ -3059,7 +3059,10 @@ async function placeOrder() {
 
   if (user.is_subscriber && _khataEnabled) {
     if (_walletBal < total) {
-      showInsufPopup(_walletBal, total, subtotal, discount); return;
+      // UPI insuf path always has ₹20 delivery (no wallet deduction), so recalc for popup display
+      const insufDelivery = 20;
+      const insufTotal = subtotal + insufDelivery - discount;
+      showInsufPopup(_walletBal, insufTotal, subtotal, discount, insufDelivery); return;
     }
   }
 
@@ -3118,13 +3121,19 @@ function showClosedPopup(reason) {
   document.getElementById('closed-popup').style.display = 'flex';
 }
 
-function showInsufPopup(avail, need, subtotal, discount) {
+function showInsufPopup(avail, need, subtotal, discount, delivery) {
+  // delivery defaults to 20 (UPI insuf path always charges delivery)
+  var _delivery = (delivery !== undefined && delivery !== null) ? delivery : 20;
+  var _subtotal = Math.round(subtotal || (need - _delivery));
   // Breakdown fields
-  document.getElementById('insuf-subtotal').textContent = '₹' + Math.round(subtotal || (need - 20));
+  document.getElementById('insuf-subtotal').textContent = '₹' + _subtotal;
   document.getElementById('insuf-avail').textContent    = '₹' + Math.round(avail);
-  document.getElementById('insuf-need').textContent     = '₹' + need;
+  document.getElementById('insuf-need').textContent     = '₹' + Math.round(need);
+  // Update delivery line dynamically
+  var delSpan = document.getElementById('insuf-delivery-amt');
+  if (delSpan) delSpan.textContent = '₹' + _delivery;
   // Show discount row only if a coupon was applied
-  const discRow = document.getElementById('insuf-discount-row');
+  var discRow = document.getElementById('insuf-discount-row');
   if (discount && discount > 0) {
     document.getElementById('insuf-discount').textContent = '-₹' + Math.round(discount);
     discRow.style.display = 'flex';

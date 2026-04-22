@@ -1177,13 +1177,20 @@ function _renderStopList() {
     const phone = s.order.phone || '';
     const safePhone = phone.replace(/'/g,"");
     const safeName  = (s.order.name||'').replace(/'/g,"");
-    const actionBtns = (!s.delivered && phone) ? `
-      <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap" onclick="event.stopPropagation()">
+    // View button: always shown when coords exist (works on delivered stops too)
+    const viewBtn = hasCoords
+      ? `<button onclick="openStreetView(${i})" style="flex:1;min-width:44px;background:#0f766e;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Street View">👁 View</button>`
+      : '';
+    // Communication + nav buttons: only for active (non-delivered) stops with a phone
+    const commBtns = (!s.delivered && phone) ? `
         <a href="tel:${safePhone}" style="flex:1;min-width:44px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px">📞</a>
         <button onclick="openWA('91${safePhone}','Hi ${safeName}, your Tiffo order is on the way!')" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
         <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>
-        ${hasCoords ? `<button onclick="openStreetView(${i})" style="flex:1;min-width:44px;background:#0f766e;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Street View">👁 View</button>` : ''}
-        <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>
+        <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>` : '';
+    const actionBtns = (viewBtn || commBtns) ? `
+      <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${commBtns}
+        ${viewBtn}
       </div>` : '';
 
     return `<div class="map-stop-card ${activeClass} ${delivClass} ${noClass}" id="stop-card-${i}" onclick="flyToStop(${i})">
@@ -1754,8 +1761,11 @@ function openInMapsFromStop(idx) {
 /* ── Street View for a stop (free, no key needed) ────────────── */
 function openStreetView(idx) {
   const s = _mapStops[idx];
-  if (!s || !s.coords) { rToast('GPS coordinates required for Street View'); return; }
-  const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${s.coords.lat},${s.coords.lng}`;
+  if (!s || !s.coords) { rToast('No GPS coordinates for this stop'); return; }
+  const { lat, lng } = s.coords;
+  // Use search?api=1&query= which reliably opens the location pin on all devices.
+  // The pano deep-link (?api=1&map_action=pano) is unreliable on many Android browsers.
+  const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   _gMapsOpen(url);
 }
 
