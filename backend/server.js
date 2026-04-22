@@ -174,6 +174,28 @@ function formatThali(t, items = []) {
 
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
+// Shared user auth — used by both 'login' and 'checkSession' (were 100% identical)
+async function _authenticateUser(phone, password) {
+  const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+  if (!user) return { success: false, error: 'Session invalid' };
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) return { success: false, error: 'Session invalid' };
+  const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
+  const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+  const { password_hash, ...safeUser } = user;
+  return { success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 };
+}
+
+// Shared staff auth — used by both 'adminLogin' and 'staffLogin' (were 100% identical)
+async function _authenticateStaff(username, password) {
+  const { data: staff } = await supabase.from('staff').select('*').eq('username', username).single();
+  if (!staff) return { success: false, error: 'Invalid credentials' };
+  const valid = await bcrypt.compare(password, staff.password_hash);
+  if (!valid) return { success: false, error: 'Invalid credentials' };
+  const { password_hash, ...safeStaff } = staff;
+  return { success: true, staff: safeStaff };
+}
+
 async function _atomicWalletUpdate(phone, delta) {
   const { data: rows } = await supabase
     .from('khata_summary')
@@ -358,28 +380,10 @@ app.post('/api', async (req, res) => {
 
       // ── AUTH ──────────────────────────────────────────────────────────────
 
-      case 'checkSession': {
-        const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
-        if (!user) return res.json({ success: false, error: 'Session invalid' });
-        const valid = await bcrypt.compare(data.password, user.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Session invalid' });
-        const { data: sub }     = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        const { data: balRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        const { password_hash, ...safeUser } = user;
-        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
-      }
-
+      case 'checkSession':
       case 'login': {
-        const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
-        if (!user) return res.json({ success: false, error: 'Session invalid' });
-        const valid = await bcrypt.compare(data.password, user.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Session invalid' });
-        const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        const { password_hash, ...safeUser } = user;
-        return res.json({ success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 });
+        const result = await _authenticateUser(cleanPhone(data.phone), data.password);
+        return res.json(result);
       }
 
       case 'signup': {
@@ -408,6 +412,11 @@ app.post('/api', async (req, res) => {
             meta:     { phone, name: data.name, address: data.address || '', email: data.email || '' }
           });
         } catch(_) {}
+        // ── Initialise wallet row so balance reads 0 immediately (not null) ──
+        try {
+          await supabase.from('khata_summary')
+            .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+        } catch(_) {}
         return res.json({
           success: true,
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
@@ -416,22 +425,10 @@ app.post('/api', async (req, res) => {
         });
       }
 
-      case 'adminLogin': {
-        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
-        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
-        const valid = await bcrypt.compare(data.password, staff.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
-        const { password_hash, ...safeStaff } = staff;
-        return res.json({ success: true, staff: safeStaff });
-      }
-
+      case 'adminLogin':
       case 'staffLogin': {
-        const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
-        if (!staff) return res.json({ success: false, error: 'Invalid credentials' });
-        const valid = await bcrypt.compare(data.password, staff.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
-        const { password_hash, ...safeStaff } = staff;
-        return res.json({ success: true, staff: safeStaff });
+        const result = await _authenticateStaff(data.username, data.password);
+        return res.json(result);
       }
 
       case 'updateProfile': {
@@ -1095,6 +1092,21 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
+      // Auto-delete all expired coupons (called silently when admin opens coupon tab)
+      case 'deleteExpiredCoupons': {
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: expired, error: fetchErr } = await supabase
+          .from('coupons')
+          .select('id')
+          .not('expiry_date', 'is', null)
+          .lt('expiry_date', today);
+        if (fetchErr) return res.json({ success: false, error: fetchErr.message });
+        const ids = (expired || []).map(r => r.id);
+        if (ids.length === 0) return res.json({ success: true, deleted: 0 });
+        await supabase.from('coupons').delete().in('id', ids);
+        return res.json({ success: true, deleted: ids.length });
+      }
+
       // ── SUBSCRIBERS ──────────────────────────────────────────────────────
 
       case 'checkSubscriber': {
@@ -1280,8 +1292,9 @@ app.post('/api', async (req, res) => {
           .gte('date', twoDaysAgo)
           .order('created_at', { ascending: false });
         const formatted = (rows || []).map(formatOrder);
-        const resolved = await resolveRiderNames(formatted);
-        return res.json({ success: true, orders: resolved });
+        // No resolveRiderNames here — rider panel only shows the logged-in rider's own orders,
+        // so the DB roundtrip to fetch all riders is wasteful.
+        return res.json({ success: true, orders: formatted });
       }
 
       case 'getRiders': {
@@ -1782,7 +1795,8 @@ app.post('/api', async (req, res) => {
       case 'getCoupons':
         { const { data: rows, error: cErr } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
           if (cErr) throw new Error('DB error: ' + cErr.message);
-          return res.json({ success: true, coupons: rows || [] }); }
+          const coupons = (rows || []).map(c => ({ ...c, used_by: (() => { try { return JSON.parse(c.used_by || '[]'); } catch { return []; } })() }));
+          return res.json({ success: true, coupons }); }
 
       case 'addCoupon':
         { if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
@@ -1857,8 +1871,6 @@ app.post('/api', async (req, res) => {
             result.push(formatThali(t, items || []));
           }
           return res.json({ success: true, thalis: result }); }
-        { const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', data.thaliId);
-          return res.json({ success: true, items: items || [] }); }
 
       case 'getSettings':
         { const { data: rows } = await supabase.from('admin_settings').select('*');
@@ -1867,7 +1879,7 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, settings: {
             cutoff:         map['order_cutoff_config'] || {},
             weeklySchedule: map['weekly_schedule']     || [],
-            khataEnabled:   map['khata_enabled']       !== false,
+            khataEnabled:   map['khata_enabled']       === true,
             deliveryZone:   map['delivery_zone']       || null
           }}); }
 
@@ -1882,11 +1894,12 @@ app.post('/api', async (req, res) => {
         const todayStart = new Date(); todayStart.setHours(0,0,0,0);
         const safeEnd = data.to + 'T23:59:59.999Z';
         // Ensure the range end never reaches today
+        let rangeEnd;
         if (new Date(safeEnd) >= todayStart) {
           const dayBefore = new Date(todayStart.getTime() - 1);
-          var rangeEnd = dayBefore.toISOString();
+          rangeEnd = dayBefore.toISOString();
         } else {
-          var rangeEnd = safeEnd;
+          rangeEnd = safeEnd;
         }
         let query = supabase.from('notifications').delete()
           .gte('created_at', data.from)
