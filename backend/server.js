@@ -140,10 +140,10 @@ function normOrderTime(v) {
 function formatOrder(o) {
   return {
     ...o,
-    date:         normOrderDate(o.date),
-    time:         normOrderTime(o.time),
-    items:        typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
-    order_source: o.order_source || o.source || 'user'  // normalise DB column name → frontend key
+    date:  normOrderDate(o.date),
+    time:  normOrderTime(o.time),
+    items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
+    source: o.source || 'user'  // consistent with khata_entries.source
   };
 }
 
@@ -199,7 +199,7 @@ async function _createTxnEntry(phone, orderId, amount, newBalance, type, source,
     time:            istTimeStr(ist),
     order_id:        orderId,
     order_status:    'pending',
-    order_source:    source,
+    source:          source,
     created_at:      new Date().toISOString()
   });
 }
@@ -253,7 +253,7 @@ async function _deductMenuStock(items) {
   }
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'customer', slot = 'morning', paymentMode = null }) {
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -299,7 +299,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
 
   await _deductMenuStock(items);
 
-  await supabase.from('orders').insert({
+  const { error: ordErr } = await supabase.from('orders').insert({
     order_id:        orderId,
     user_id:         user.phone,
     name:            user.name,
@@ -317,11 +317,12 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     user_type:       user.is_subscriber ? 'subscriber' : 'daily',
     rider_id:        null,
     slot:            source === 'admin' ? (slot || 'morning') : null,
-    order_source:    source || 'customer',
+    source:          source === 'admin' ? 'admin' : source === 'admin_bulk' ? 'admin_bulk' : 'user',
     date:            dateStr,
     time:            timeStr,
     created_at:      new Date().toISOString()
   });
+  if (ordErr) throw new Error('Order save failed: ' + ordErr.message);
 
   // ── Fire notification for every order type (subscriber + daily + upi_insuf) ──
   try {
@@ -634,7 +635,7 @@ app.post('/api', async (req, res) => {
         }
         const result = await _createSingleOrder({
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
-          khataEnabled, ist, coupon: data.coupon || null, source: 'customer',
+          khataEnabled, ist, coupon: data.coupon || null, source: 'user',
           paymentMode: data.paymentMode || null
         });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
@@ -726,7 +727,7 @@ app.post('/api', async (req, res) => {
             time:            istTimeStr(ist),
             order_id:        data.orderId,
             order_status:    'rejected',
-            order_source:    'admin',
+            source:          'admin',
             created_at:      new Date().toISOString()
           });
           await _createNotification({
@@ -931,7 +932,7 @@ app.post('/api', async (req, res) => {
             time:            istTimeStr(ist),
             order_id:        orderId,
             order_status:    'pending',
-            order_source:    'admin_bulk',
+            source:          'admin_bulk',
             created_at:      new Date().toISOString()
           });
 
@@ -1389,7 +1390,7 @@ app.post('/api', async (req, res) => {
           time:            istTimeStr(ist),
           order_id:        null,
           order_status:    null,
-          order_source:    'admin',
+          source:          'admin',
           created_at:      new Date().toISOString()
         });
         await _createNotification({
@@ -1416,7 +1417,7 @@ app.post('/api', async (req, res) => {
           time:            istTimeStr(ist),
           order_id:        data.order_id || null,
           order_status:    null,
-          order_source:    'admin',
+          source:          'admin',
           created_at:      new Date().toISOString()
         });
         await _createNotification({
@@ -1452,7 +1453,7 @@ app.post('/api', async (req, res) => {
           time:            data.time || istTimeStr(ist),
           order_id:        data.order_id || null,
           order_status:    data.order_status || null,
-          order_source:    data.order_source || 'admin',
+          source:          data.source || 'admin',
           created_at:      new Date().toISOString()
         });
         await _atomicWalletUpdate(phone, amount);
@@ -1760,11 +1761,11 @@ app.post('/api', async (req, res) => {
           const { data: subs } = await supabase.from('subscribers').select('phone, plan, plan_end');
           const subMap = {};
           for (const s of (subs || [])) subMap[s.phone] = s;
-          const { data: orderAgg } = await supabase.from('orders').select('user_phone, date').order('date', { ascending: false });
+          const { data: orderAgg } = await supabase.from('orders').select('phone, date').order('date', { ascending: false });
           const orderMap = {};
           for (const o of (orderAgg || [])) {
-            if (!orderMap[o.user_phone]) orderMap[o.user_phone] = { count: 0, last: o.date };
-            orderMap[o.user_phone].count++;
+            if (!orderMap[o.phone]) orderMap[o.phone] = { count: 0, last: o.date };
+            orderMap[o.phone].count++;
           }
           const safe = (rows || []).map(u => {
             const { password_hash, ...s } = u;
