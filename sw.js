@@ -41,11 +41,14 @@
    NOTE: /ping endpoint kept alive by UptimeRobot every 5 min.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v12';
+const CACHE      = 'tiffo-v13';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
-/* Core app shell — cached on install */
-const PRECACHE = ['./', './index.html', './admin.html', './rider.html', './manifest.json', './manifest-rider.json', './manifest-admin.json'];
+/* Core app shell — cached on install.
+   NOTE: rider/ and admin/ are separate PWA scopes with their own SWs.
+   Do NOT add rider.html / admin.html here — that caused cross-app
+   clients.claim() reloads and icon mixing in v53. */
+const PRECACHE = ['./', './index.html', './manifest.json'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
