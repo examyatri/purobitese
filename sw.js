@@ -41,7 +41,7 @@
    NOTE: /ping endpoint kept alive by UptimeRobot every 5 min.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v9';
+const CACHE      = 'tiffo-v10';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install */

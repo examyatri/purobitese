@@ -466,9 +466,6 @@ textarea{resize:vertical;min-height:80px}
     <!-- Signup tab -->
     <div id="signup-tab" style="display:none">
 
-      <!-- Section: Basic Info -->
-      <div class="su-section-hd">Basic Info</div>
-
       <div class="form-group">
         <label>Full Name <span style="color:#dc2626;font-size:11px">*</span></label>
         <input type="text" id="su-name" placeholder="Your full name" autocomplete="name">
@@ -481,9 +478,6 @@ textarea{resize:vertical;min-height:80px}
         <div class="wa-hint"><i class="fa-brands fa-whatsapp"></i> We'll send your order updates here</div>
         <div class="field-error" id="su-phone-err"></div>
       </div>
-
-      <!-- Section: Address -->
-      <div class="su-section-hd">Delivery Address</div>
 
       <div class="form-group">
         <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
@@ -540,9 +534,6 @@ textarea{resize:vertical;min-height:80px}
         <input type="hidden" id="su-lng" value="">
         <input type="hidden" id="su-loc-ok" value="0">
       </div>
-
-      <!-- Section: Security -->
-      <div class="su-section-hd">Security</div>
 
       <div class="form-group">
         <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
@@ -4566,6 +4557,35 @@ function doLogout() {
   });
   const loginCreds = document.getElementById('login-creds-hint');
   if (loginCreds) loginCreds.style.display = 'none';
+
+  // Clear login form
+  ['login-phone','login-pw'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Clear signup form completely
+  ['su-name','su-phone','su-room','su-addr','su-pw'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['su-name-err','su-phone-err','su-room-err','su-addr-err','su-pw-err'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+  // Reset location state
+  const suLocOk = document.getElementById('su-loc-ok');
+  if (suLocOk) suLocOk.value = '0';
+  const suLat = document.getElementById('su-lat');
+  if (suLat) suLat.value = '';
+  const suLng = document.getElementById('su-lng');
+  if (suLng) suLng.value = '';
+  const suLocStatus = document.getElementById('su-loc-status');
+  if (suLocStatus) { suLocStatus.textContent = ''; suLocStatus.className = 'loc-status'; }
+  const suMapArea = document.getElementById('su-map-pin-area');
+  if (suMapArea) suMapArea.style.display = 'none';
+  const suLocBtnTxt = document.getElementById('su-loc-btn-txt');
+  if (suLocBtnTxt) suLocBtnTxt.textContent = 'Detect My Location';
 
   closeAllSheets();
   _transitionToLogin(false);  // goes to signup tab (fresh start)

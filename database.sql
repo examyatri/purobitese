@@ -1,4 +1,24 @@
 -- ============================================================
+--  PURO BITE / TIFFO — COMPLETE DATABASE (MERGED)
+--  Generated: 2026-04-23
+--  Files merged (in order):
+--    1. database.sql          — Full schema reset & base tables
+--    2. RUN_THIS_IN_SUPABASE.sql   — v27 migration
+--    3. migration_address_latlong.sql  — Address/lat-long columns
+--    4. migration_v18_notif_rebuild.sql  — Notification table rebuild
+--    5. migration_v46_atomic_wallet.sql  — Atomic wallet RPC
+--
+--  HOW TO USE:
+--    Run in Supabase SQL Editor.
+--    database.sql will reset all tables; migrations apply on top.
+-- ============================================================
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 1: database.sql                                        ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ============================================================
 --  PURO BITE — DATABASE RESET SCRIPT
 --  ✅ Deletes all old data
 --  ✅ Recreates all tables with correct columns
@@ -141,6 +161,7 @@ CREATE TABLE orders (
   rider_id        TEXT,
   slot            TEXT        DEFAULT NULL,
   refund_type     TEXT        DEFAULT NULL,
+  source          TEXT        NOT NULL DEFAULT 'user',  -- 'user' | 'admin' | 'admin_bulk'
   date            DATE,
   time            TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -197,7 +218,7 @@ CREATE TABLE khata_entries (
   time            TEXT,
   order_id        TEXT,
   order_status    TEXT,
-  order_source    TEXT,
+  source          TEXT,  -- 'user' | 'admin' | 'admin_bulk' — matches orders.source
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -258,73 +279,275 @@ DROP TABLE _staff_backup;
 -- ============================================================
 
 
--- ── MIGRATION: Add missing columns to EXISTING live database ─
--- Run this block separately if you already have tables and don't
--- want to wipe data. Safe to run multiple times (IF NOT EXISTS).
+-- ══════════════════════════════════════════════════════════════
+--  LIVE DATABASE MIGRATION — Run once in Supabase SQL Editor
+--  Safe to run on existing data. Nothing is deleted.
+-- ══════════════════════════════════════════════════════════════
 
-ALTER TABLE khata_entries   ADD COLUMN IF NOT EXISTS order_source  TEXT;
-ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS created_at    TIMESTAMPTZ NOT NULL DEFAULT now();
-ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS veg_type      TEXT NOT NULL DEFAULT 'veg';
-ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS sub_items      TEXT;
-ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS sub_category   TEXT;
-ALTER TABLE menu_items      ADD COLUMN IF NOT EXISTS meal_session   TEXT NOT NULL DEFAULT 'both';
-ALTER TABLE nu_coupon_sent  ADD COLUMN IF NOT EXISTS coupon_code   TEXT;
-ALTER TABLE subscribers     ADD COLUMN IF NOT EXISTS auto_tiffin   BOOLEAN NOT NULL DEFAULT true; -- legacy column, kept for compatibility
+-- orders: add missing columns
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS slot         TEXT    DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_type  TEXT    DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode TEXT    DEFAULT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source       TEXT    NOT NULL DEFAULT 'user';
 
--- ── END MIGRATION ─────────────────────────────────────────────
+-- khata_entries: rename order_source → source (same name as orders.source)
+ALTER TABLE khata_entries RENAME COLUMN order_source TO source;
 
--- ── MIGRATION v_coupons: Coupon restriction fields ─────────────────────────
--- Run this block on existing databases. Safe to run multiple times.
+-- menu_items: add missing columns
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS veg_type     TEXT        NOT NULL DEFAULT 'veg';
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS sub_items    TEXT;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS sub_category TEXT;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS meal_session TEXT        NOT NULL DEFAULT 'both';
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ NOT NULL DEFAULT now();
 
-ALTER TABLE coupons ADD COLUMN IF NOT EXISTS restriction_type TEXT    NOT NULL DEFAULT 'unlimited';
-ALTER TABLE coupons ADD COLUMN IF NOT EXISTS allowed_phones   JSONB   NOT NULL DEFAULT '[]';
-ALTER TABLE coupons ADD COLUMN IF NOT EXISTS max_per_user     INTEGER;
-ALTER TABLE coupons ADD COLUMN IF NOT EXISTS cap_amount       NUMERIC;
-
--- Backfill: existing coupons with per_user_limit=1 → restriction_type = one_time_per_user
-UPDATE coupons SET restriction_type = 'one_time_per_user' WHERE per_user_limit = 1 AND restriction_type = 'unlimited';
-UPDATE coupons SET restriction_type = 'limited_total'     WHERE (max_usage IS NOT NULL OR total_usage_limit IS NOT NULL) AND restriction_type = 'unlimited';
-
--- ── END MIGRATION v_coupons ────────────────────────────────────────────────
-
--- ── MIGRATION v_orders_slot: order slot field ──────────────────────────────
--- Stores 'morning' or 'evening' for admin-created (bulk/udhar) orders.
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT NULL;
--- ── END MIGRATION order slot ───────────────────────────────────────────────
-
--- ── MIGRATION v13: refund_type field ──────────────────────────────────────
--- Tracks how rejected orders were refunded: 'wallet' | 'cash' | 'none'
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_type TEXT DEFAULT NULL;
-CREATE INDEX IF NOT EXISTS idx_orders_refund_type ON orders (refund_type) WHERE refund_type IS NOT NULL;
--- ── END MIGRATION v13 ─────────────────────────────────────────────────────
-
--- ── MIGRATION v14: Subscriber Tab Upgrade ─────────────────────────────────────
--- Run migration_v14_subscriber_upgrade.sql on existing live databases.
--- For fresh installs this schema is already included above.
+-- subscribers: add missing columns
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS plan            TEXT    NOT NULL DEFAULT 'morning';
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_morning   BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_evening   BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_delivery_off BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS auto_tiffin     BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE subscribers ALTER COLUMN plan_end DROP NOT NULL;
--- ── END MIGRATION v14 ─────────────────────────────────────────────────────────
 
--- ── MIGRATION v15: Notification-Centric Coupon Workflow ───────────────────────
--- Nu Coupon Panel moved from Subscribers tab into Notifications tab.
--- Pending list is now derived from unread notifications (type='user').
--- nu_coupon_sent gains name + notif_id for full traceability.
--- deleteNotificationRange now only deletes is_read=true rows.
--- signup handler now fires a type='user' notification with full meta.
+-- coupons: add missing columns
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS restriction_type TEXT  NOT NULL DEFAULT 'unlimited';
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS allowed_phones   JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS max_per_user     INTEGER;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS cap_amount       NUMERIC;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS auto_delete      BOOLEAN NOT NULL DEFAULT false;
+UPDATE coupons SET restriction_type = 'one_time_per_user' WHERE per_user_limit = 1 AND restriction_type = 'unlimited';
+UPDATE coupons SET restriction_type = 'limited_total'     WHERE (max_usage IS NOT NULL OR total_usage_limit IS NOT NULL) AND restriction_type = 'unlimited';
 
-ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS name     TEXT;
-ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS notif_id TEXT;
+-- nu_coupon_sent: add missing columns
+ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS name        TEXT;
+ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS notif_id    TEXT;
+ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS coupon_code TEXT;
 
--- Index to speed up pending-list query (unread user notifications)
+-- backfill source values
+UPDATE orders        SET source = 'user' WHERE source IS NULL;
+UPDATE khata_entries SET source = 'user' WHERE source IS NULL;
+
+-- indexes
+CREATE INDEX IF NOT EXISTS idx_orders_refund_type ON orders       (refund_type) WHERE refund_type IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notifs_type_unread ON notifications (type, is_read) WHERE is_read = false;
--- ── END MIGRATION v15 ─────────────────────────────────────────────────────────
 
--- ── MIGRATION: payment_mode column ────────────────────────────────────────────
--- Adds payment_mode to orders table to track how each order was paid.
--- Values: 'wallet' | 'upi' | 'upi_insuf' | 'unpaid'
--- Run this once on your existing Supabase database.
-ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode TEXT DEFAULT NULL;
--- ── END MIGRATION: payment_mode ───────────────────────────────────────────────
+-- ══════════════════════════════════════════════════════════════
+--  ✅ Done — all tables up to date
+-- ══════════════════════════════════════════════════════════════
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 2: RUN_THIS_IN_SUPABASE.sql  (v27 migration)          ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ============================================================
+--  TIFFO / PURO BITE — v27 Migration
+--  Run this ONCE in Supabase SQL Editor
+--  Safe to run on your live database — no data is deleted
+-- ============================================================
+
+-- 1. Add 'source' column to orders (if not already present)
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'user';
+
+-- 2. Rename khata_entries.order_source → source
+--    (Makes both tables use the same column name)
+ALTER TABLE khata_entries RENAME COLUMN order_source TO source;
+
+-- 3. Backfill any NULL source values in orders
+UPDATE orders SET source = 'user'
+  WHERE source IS NULL
+    AND (user_type = 'daily' OR user_type = 'subscriber');
+
+UPDATE orders SET source = 'admin_bulk'
+  WHERE source IS NULL
+    AND slot IS NOT NULL;
+
+-- 4. Backfill any NULL source values in khata_entries
+UPDATE khata_entries SET source = 'admin'
+  WHERE source IS NULL
+    AND type IN ('recharge', 'adjustment');
+
+UPDATE khata_entries SET source = 'user'
+  WHERE source IS NULL
+    AND order_id IS NOT NULL;
+
+-- ✅ Done. Deploy server.js next.
+-- ============================================================
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 3: migration_address_latlong.sql                       ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ══════════════════════════════════════════════════════════════════
+-- PuroBite — Address + Lat/Long migration
+-- Purpose : Ensure address columns in users + orders can store the
+--           full embedded-coordinate format:
+--           "Room 5, Ruiya Annexe BHU (latitude=25.317420, longitude=82.987654)"
+--           TEXT already supports this — these statements are safe
+--           no-ops if the columns already exist and are already TEXT.
+-- Run once against your Supabase project (SQL Editor).
+-- ══════════════════════════════════════════════════════════════════
+
+-- ── 1. users.address ─────────────────────────────────────────────
+-- Already TEXT in schema. This ALTER is a safety guard in case any
+-- older migration accidentally set it to VARCHAR(n).
+ALTER TABLE users
+  ALTER COLUMN address TYPE TEXT;
+
+-- ── 2. orders.address ────────────────────────────────────────────
+ALTER TABLE orders
+  ALTER COLUMN address TYPE TEXT;
+
+-- ── 3. Index: fast search by address substring (optional but useful
+--      for admin panel "search by address" queries)
+CREATE INDEX IF NOT EXISTS idx_orders_address  ON orders  USING gin (to_tsvector('simple', coalesce(address, '')));
+CREATE INDEX IF NOT EXISTS idx_users_address   ON users   USING gin (to_tsvector('simple', coalesce(address, '')));
+
+-- ══════════════════════════════════════════════════════════════════
+-- HOW COORDINATES ARE STORED (no extra columns needed)
+-- ══════════════════════════════════════════════════════════════════
+--
+--  The app embeds GPS in the address string itself:
+--
+--    "Room 205, Ruiya Annexe Hostel BHU (latitude=25.317420, longitude=82.987654)"
+--
+--  To query by coordinates directly from SQL (if needed later):
+--
+--    SELECT order_id, address,
+--      regexp_replace(address, '.+latitude=([0-9.]+).+', '\1')::numeric AS lat,
+--      regexp_replace(address, '.+longitude=([0-9.]+)\)', '\1')::numeric AS lng
+--    FROM orders
+--    WHERE address ~ 'latitude=';
+--
+-- ══════════════════════════════════════════════════════════════════
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 4: migration_v18_notif_rebuild.sql                     ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ============================================================
+-- MIGRATION v18 — Notification Tab Rebuild
+-- Run this once against your Supabase database.
+-- All statements are safe to re-run (IF NOT EXISTS / DO NOTHING).
+-- ============================================================
+
+-- ── 1. notifications table ────────────────────────────────────────────────────
+-- The existing schema already has: id, type, priority, group_id, title, body,
+-- meta (JSONB), is_read, read_at, created_at.
+-- No column additions needed — is_subscriber lives inside the meta JSONB.
+
+-- Ensure the partial index for the NU Coupon pending-list query exists.
+-- (may already exist from a prior migration — IF NOT EXISTS handles it)
+CREATE INDEX IF NOT EXISTS idx_notifs_type_unread
+  ON notifications (type, is_read)
+  WHERE is_read = false;
+
+-- Speed up date-range deletion queries (admin delete by range)
+CREATE INDEX IF NOT EXISTS idx_notifs_created_at
+  ON notifications (created_at);
+
+-- Speed up read-notification queries (Read section rendering)
+CREATE INDEX IF NOT EXISTS idx_notifs_is_read
+  ON notifications (is_read, created_at DESC);
+
+
+-- ── 2. nu_coupon_sent table ───────────────────────────────────────────────────
+-- Ensure all columns used by the Sent tab are present.
+ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS name        TEXT;
+ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS notif_id    TEXT;
+ALTER TABLE nu_coupon_sent ADD COLUMN IF NOT EXISTS coupon_code TEXT;
+-- sent_at should already exist; this is a safety guard for older installs.
+-- (Supabase/Postgres will error if column already exists WITHOUT IF NOT EXISTS,
+--  but ADD COLUMN IF NOT EXISTS is safe.)
+
+
+-- ── 3. Backfill is_subscriber into existing order notification meta ───────────
+-- For every existing 'order' notification, look up whether the user (via phone
+-- in meta) is in the subscribers table, and stamp is_subscriber accordingly.
+-- This is a one-time backfill so old cards show correct View Transaction state.
+DO $$
+DECLARE
+  r RECORD;
+  phone_val TEXT;
+  sub_exists BOOLEAN;
+BEGIN
+  FOR r IN
+    SELECT id, meta
+    FROM notifications
+    WHERE type = 'order'
+      AND (meta->>'is_subscriber') IS NULL
+  LOOP
+    phone_val := r.meta->>'phone';
+    IF phone_val IS NOT NULL THEN
+      SELECT EXISTS(
+        SELECT 1 FROM subscribers WHERE phone = phone_val
+      ) INTO sub_exists;
+      UPDATE notifications
+        SET meta = meta || jsonb_build_object('is_subscriber', sub_exists)
+        WHERE id = r.id;
+    END IF;
+  END LOOP;
+END;
+$$;
+
+
+-- ── 4. Verify (read-only sanity check — produces a count, not an error) ───────
+SELECT
+  COUNT(*)                                          AS total_order_notifs,
+  COUNT(*) FILTER (WHERE meta->>'is_subscriber' = 'true')  AS marked_subscriber,
+  COUNT(*) FILTER (WHERE meta->>'is_subscriber' = 'false') AS marked_non_subscriber,
+  COUNT(*) FILTER (WHERE (meta->>'is_subscriber') IS NULL) AS not_backfilled
+FROM notifications
+WHERE type = 'order';
+
+-- Expected: not_backfilled = 0 after migration runs successfully.
+-- ============================================================
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 5: migration_v46_atomic_wallet.sql                     ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PuroBite / Tiffo — v46 Migration: Atomic Wallet RPC
+-- Run this ONCE in Supabase SQL Editor → makes wallet updates truly atomic.
+-- After running, _atomicWalletUpdate() in server.js will use this instead of
+-- the read-modify-write pattern.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Function: increment_balance(p_phone, p_delta)
+-- Atomically adds p_delta (can be negative) to khata_summary.balance.
+-- Uses INSERT ... ON CONFLICT DO UPDATE so it works even if row doesn't exist yet.
+-- Returns the new balance.
+
+CREATE OR REPLACE FUNCTION increment_balance(p_phone TEXT, p_delta NUMERIC)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_new_balance NUMERIC;
+BEGIN
+  INSERT INTO khata_summary (phone, balance, updated_at)
+    VALUES (p_phone, p_delta, NOW())
+  ON CONFLICT (phone)
+  DO UPDATE
+    SET balance    = khata_summary.balance + EXCLUDED.balance,
+        updated_at = NOW()
+  RETURNING balance INTO v_new_balance;
+
+  RETURN v_new_balance;
+END;
+$$;
+
+-- Grant execute to the service role (used by server.js via supabase-js)
+GRANT EXECUTE ON FUNCTION increment_balance(TEXT, NUMERIC) TO service_role;
+GRANT EXECUTE ON FUNCTION increment_balance(TEXT, NUMERIC) TO anon;
+GRANT EXECUTE ON FUNCTION increment_balance(TEXT, NUMERIC) TO authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- VERIFY: Run the following in SQL Editor to test:
+-- SELECT increment_balance('9999999999', 100);   -- should return 100 (or prior balance + 100)
+-- SELECT increment_balance('9999999999', -50);   -- should return 50 (or prior - 50)
+-- ─────────────────────────────────────────────────────────────────────────────
