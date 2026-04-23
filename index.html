@@ -4298,7 +4298,7 @@ function _wipeAndShowLogin() {
 async function bootApp() {
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').then(reg => {
+    navigator.serviceWorker.register('./sw.js', { scope: '/' }).then(reg => {
       // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
