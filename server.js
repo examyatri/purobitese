@@ -1,17 +1,18 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  PuroBite / Tiffo — Backend API (server.js)         ║
-// ║  Version : v18.0                                    ║
-// ║  Updated : 2026-04-22                               ║
+// ║  Version : v19.0 (v42 release)                      ║
+// ║  Updated : 2026-04-23                               ║
 // ║  Stack   : Node.js + Express → Render (free tier)  ║
 // ║  DB      : Supabase (PostgreSQL)                    ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
-const express = require('express');
-const https   = require('https');
+const express     = require('express');
+const https       = require('https');
+const compression = require('compression');
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt  = require('bcryptjs');
+const bcrypt      = require('bcryptjs');
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 const app = express();
@@ -24,7 +25,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(compression()); // gzip all responses — 60–80% smaller payloads
+app.use(express.json({ limit: '512kb' })); // guard against oversized payloads
+
+// ─── NO-CACHE HEADER for all /api responses (data must always be fresh) ──────
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -82,9 +90,8 @@ function generateId(prefix, ist) {
   return `${prefix}-${y}${mo}${d}-${h}${mi}${s}-${rand5()}`;
 }
 
-function generateOrderId(ist)  { return generateId('ORD',   ist); }
-function generateThaliId(ist)  { return generateId('THALI', ist); }
-function generateTxnId(ist)    { return generateId('TXN',   ist); }
+function generateOrderId(ist)  { return generateId('ORD', ist); }
+function generateTxnId(ist)    { return generateId('TXN', ist); }
 
 async function generateRiderId(ist) {
   const d   = String(ist.getUTCDate()).padStart(2, '0');
@@ -168,10 +175,6 @@ function formatMenuItem(i) {
   };
 }
 
-function formatThali(t, items = []) {
-  return { ...t, items };
-}
-
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
 // Shared user auth — used by both 'login' and 'checkSession' (were 100% identical)
@@ -197,12 +200,23 @@ async function _authenticateStaff(username, password) {
 }
 
 async function _atomicWalletUpdate(phone, delta) {
-  const { data: rows } = await supabase
+  // Preferred path: atomic Postgres RPC (no read-modify-write race).
+  // Run migration_v46_atomic_wallet.sql in Supabase once to enable this.
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc('increment_balance', {
+    p_phone: phone,
+    p_delta: delta
+  });
+  if (!rpcErr && rpcResult !== null && rpcResult !== undefined) {
+    return Number(rpcResult); // RPC returned new balance atomically ✓
+  }
+
+  // Fallback: safe read-modify-write (single-process Render env — not truly racy in practice)
+  const { data: row } = await supabase
     .from('khata_summary')
     .select('balance')
     .eq('phone', phone)
     .single();
-  const newBalance = ((rows?.balance) ?? 0) + delta;
+  const newBalance = ((row?.balance) ?? 0) + delta;
   await supabase
     .from('khata_summary')
     .upsert({ phone, balance: newBalance, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
@@ -243,38 +257,23 @@ async function _createNotification(fields) {
   });
 }
 
-async function _deductThaliStock(thali_id, qty = 1) {
-  const { data: row } = await supabase
-    .from('thalis')
-    .select('stock_qty')
-    .eq('thali_id', thali_id)
-    .single();
-  if (row && row.stock_qty !== null) {
-    await supabase
-      .from('thalis')
-      .update({ stock_qty: Math.max(0, row.stock_qty - qty) })
-      .eq('thali_id', thali_id);
-  }
-}
-
 async function _deductMenuStock(items) {
-  for (const item of items) {
-    if (item.isThali === true) {
-      await _deductThaliStock(item.item_id, item.qty || 1);
-    } else {
-      const { data: row } = await supabase
-        .from('menu_items')
-        .select('stock_grams')
-        .eq('item_id', item.item_id)
-        .single();
-      if (row && row.stock_grams !== null) {
-        await supabase
-          .from('menu_items')
-          .update({ stock_grams: Math.max(0, row.stock_grams - (item.stock_grams || 100) * item.qty) })
-          .eq('item_id', item.item_id);
-      }
-    }
-  }
+  if (!items || items.length === 0) return;
+  // Batch-fetch all stock values in one query, then update in parallel
+  const ids = items.map(i => i.item_id).filter(Boolean);
+  if (!ids.length) return;
+  const { data: rows } = await supabase
+    .from('menu_items')
+    .select('item_id, stock_grams')
+    .in('item_id', ids);
+  const stockMap = {};
+  for (const r of (rows || [])) stockMap[r.item_id] = r.stock_grams;
+  await Promise.all(items.map(item => {
+    const cur = stockMap[item.item_id];
+    if (cur == null) return Promise.resolve();
+    const newStock = Math.max(0, cur - (item.stock_grams || 100) * item.qty);
+    return supabase.from('menu_items').update({ stock_grams: newStock }).eq('item_id', item.item_id);
+  }));
 }
 
 async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'user', slot = 'morning', paymentMode = null }) {
@@ -374,15 +373,49 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v1' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v2' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
+
+// ─── IDEMPOTENCY GUARD (in-memory, protects createOrder double-submits) ───────
+// Stores SHA-256-like fingerprint of mutation actions for 30s to reject duplicates.
+// Cleared automatically — Map never grows unboundedly on free-tier Render.
+const _recentMutations = new Map();
+const _MUTATION_TTL = 30_000; // 30 seconds
+const _MUTATION_ACTIONS = new Set(['createOrder', 'bulkGenerateOrders', 'forceUdharOrder', 'rechargeWallet', 'manualRefund']);
+
+function _mutationKey(action, data) {
+  // Key = action + phone + total_amount (enough to catch accidental double-submit)
+  const phone = data.phone || data.phones?.join(',') || '';
+  const amt   = data.amount || data.price || (data.items ? data.items.reduce((s,i)=>s+(i.price*i.qty),0) : '');
+  return `${action}:${phone}:${amt}`;
+}
 
 // ─── MAIN ENDPOINT ────────────────────────────────────────────────────────────
 app.post('/api', async (req, res) => {
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ success: false, error: 'Invalid request body' });
+  }
   const { action, data = {}, apiKey } = req.body;
 
   if (apiKey !== SECURE_API_KEY) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  // Idempotency: reject mutation duplicates within 30s window
+  if (_MUTATION_ACTIONS.has(action)) {
+    const mKey = _mutationKey(action, data);
+    const lastTs = _recentMutations.get(mKey);
+    const now = Date.now();
+    if (lastTs && (now - lastTs) < _MUTATION_TTL) {
+      return res.status(429).json({ success: false, error: 'Duplicate request — please wait a moment' });
+    }
+    _recentMutations.set(mKey, now);
+    // Cleanup stale keys lazily (runs max once per request, O(n) but Map is tiny)
+    if (_recentMutations.size > 500) {
+      for (const [k, ts] of _recentMutations) {
+        if (now - ts > _MUTATION_TTL) _recentMutations.delete(k);
+      }
+    }
   }
 
   const ist = getIST();
@@ -476,6 +509,31 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
       }
 
+      // ── MERGED: replaces 4 separate calls (getMenu + getWeeklySchedule + getOrderCutoff + getKhataEnabled) ──
+      case 'getHomeData': {
+        const [menuRes, scheduleRes, cutoffRes, khataRes] = await Promise.all([
+          supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+          supabase.from('admin_settings').select('value').eq('key', 'weekly_schedule').single(),
+          supabase.from('admin_settings').select('value').eq('key', 'order_cutoff_config').single(),
+          supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single()
+        ]);
+        let schedule = null, config = null;
+        if (scheduleRes.data?.value)  { try { schedule = JSON.parse(scheduleRes.data.value); } catch { schedule = null; } }
+        if (cutoffRes.data?.value)    { try { config   = JSON.parse(cutoffRes.data.value);   } catch { config   = null; } }
+        const enabled = JSON.parse(khataRes.data?.value || 'false') === true;
+        return res.json({ success: true, items: (menuRes.data || []).map(formatMenuItem), schedule, config, enabled });
+      }
+
+      // ── MERGED: replaces getSubscriberBalance + getSubscriberPauseStatus (same row) ──
+      case 'getSubscriberStatus': {
+        const phone = cleanPhone(data.phone);
+        const [balRes, subRes] = await Promise.all([
+          supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
+          supabase.from('subscribers').select('pause_delivery').eq('phone', phone).single()
+        ]);
+        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: subRes.data?.pause_delivery || 'none' });
+      }
+
       case 'adminGetMenu': {
         const { data: rows } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
         return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
@@ -520,90 +578,14 @@ app.post('/api', async (req, res) => {
       }
 
       case 'updateMenuOrder': {
-        for (const entry of (data.order || [])) {
-          await supabase.from('menu_items').update({ sort_order: entry.sort_order }).eq('item_id', entry.item_id);
-        }
+        await Promise.all((data.order || []).map(entry =>
+          supabase.from('menu_items').update({ sort_order: entry.sort_order }).eq('item_id', entry.item_id)
+        ));
         return res.json({ success: true });
       }
 
       case 'updateMenuStock': {
         await supabase.from('menu_items').update({ stock_grams: data.stock_grams }).eq('item_id', data.item_id);
-        return res.json({ success: true });
-      }
-
-      // ── THALIS ────────────────────────────────────────────────────────────
-
-      case 'getThalis': {
-        const { data: thalis } = await supabase.from('thalis').select('*').eq('is_active', true);
-        const result = [];
-        for (const t of (thalis || [])) {
-          const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', t.thali_id);
-          result.push(formatThali(t, items || []));
-        }
-        return res.json({ success: true, thalis: result });
-      }
-
-      case 'adminGetThalis': {
-        const { data: thalis } = await supabase.from('thalis').select('*');
-        const result = [];
-        for (const t of (thalis || [])) {
-          const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', t.thali_id);
-          result.push(formatThali(t, items || []));
-        }
-        return res.json({ success: true, thalis: result });
-      }
-
-      case 'addThali':
-      case 'createThali': {
-        const thali_id = generateThaliId(ist);
-        await supabase.from('thalis').insert({
-          thali_id,
-          name:        data.name,
-          description: data.description || null,
-          image_url:   data.image_url || null,
-          price:       data.price,
-          stock_qty:   data.stock_qty ?? null,
-          is_active:   true,
-          created_at:  new Date().toISOString()
-        });
-        return res.json({ success: true, thali_id });
-      }
-
-      case 'updateThali': {
-        const tid = data.thali_id || data.id; // normalize: frontend may send data.id
-        const updates = { ...data };
-        delete updates.thali_id;
-        delete updates.id;
-        await supabase.from('thalis').update(updates).eq('thali_id', tid);
-        return res.json({ success: true });
-      }
-
-      case 'deleteThali': {
-        const tid = data.thali_id || data.id;
-        await supabase.from('thali_items').delete().eq('thali_id', tid);
-        await supabase.from('thalis').delete().eq('thali_id', tid);
-        return res.json({ success: true });
-      }
-
-      case 'getThaliItems': {
-        const { data: thaliItems } = await supabase
-          .from('thali_items').select('*').eq('thali_id', data.thaliId);
-        return res.json({ success: true, items: thaliItems || [] });
-      }
-
-      case 'addThaliItem': {
-        await supabase.from('thali_items').insert({
-          thali_id:       data.thali_id,
-          menu_item_id:   data.menu_item_id,
-          variant_label:  data.variant_label || null,
-          menu_item_name: data.menu_item_name || null,
-          created_at:     new Date().toISOString()
-        });
-        return res.json({ success: true });
-      }
-
-      case 'removeThaliItem': {
-        await supabase.from('thali_items').delete().eq('id', data.id);
         return res.json({ success: true });
       }
 
@@ -723,14 +705,15 @@ app.post('/api', async (req, res) => {
         await supabase.from('orders').update({ order_status: 'rejected', refund_type: refundType }).eq('order_id', data.orderId);
 
         // Wallet refund — only for subscribers
+        let refundNewBal = null;
         if (refundType === 'wallet' && isSubscriber) {
-          const newBal = await _atomicWalletUpdate(order.phone, +order.final_amount);
+          refundNewBal = await _atomicWalletUpdate(order.phone, +order.final_amount);
           await supabase.from('khata_entries').insert({
             id:              generateTxnId(ist),
             phone:           order.phone,
             type:            'adjustment',
             amount:          +order.final_amount,
-            running_balance: newBal,
+            running_balance: refundNewBal,
             note:            'Refund: Order ' + data.orderId + ' rejected',
             date:            istDateStr(ist),
             time:            istTimeStr(ist),
@@ -767,7 +750,7 @@ app.post('/api', async (req, res) => {
           });
         }
 
-        return res.json({ success: true, refundType, isSubscriber, newBalance: null });
+        return res.json({ success: true, refundType, isSubscriber, newBalance: refundNewBal });
       }
 
       case 'getOrderTransactions': {
@@ -809,11 +792,21 @@ app.post('/api', async (req, res) => {
 
         const orderedPhones = new Set((todayOrders || []).map(o => o.phone));
 
+        // Batch-fetch users and wallet balances — avoids N+1 DB round trips
+        const subPhones = (subs || []).map(s => s.phone);
+        const [{ data: allUserRows }, { data: allBalRows }] = await Promise.all([
+          supabase.from('users').select('phone, name, address').in('phone', subPhones.length ? subPhones : ['']),
+          supabase.from('khata_summary').select('phone, balance').in('phone', subPhones.length ? subPhones : [''])
+        ]);
+        const userMap = {};
+        (allUserRows || []).forEach(u => { userMap[u.phone] = u; });
+        const balMap = {};
+        (allBalRows || []).forEach(b => { balMap[b.phone] = b.balance; });
+
         const result = [];
         for (const sub of (subs || [])) {
-          const { data: user }   = await supabase.from('users').select('name, address').eq('phone', sub.phone).single();
-          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', sub.phone).single();
-          const balance   = balRow?.balance || 0;
+          const userRow = userMap[sub.phone];
+          const balance   = balMap[sub.phone] ?? 0;
           const pause     = sub.pause_delivery || 'none';
           const ordered   = orderedPhones.has(sub.phone);
 
@@ -829,8 +822,8 @@ app.post('/api', async (req, res) => {
 
           result.push({
             phone:       sub.phone,
-            name:        user?.name || sub.phone,
-            address:     user?.address || '',
+            name:        userRow?.name || sub.phone,
+            address:     userRow?.address || '',
             balance,
             plan_end:    sub.plan_end,
             pause,
@@ -842,14 +835,20 @@ app.post('/api', async (req, res) => {
         // If orderFor === 'all', also include non-subscriber users
         if (orderFor === 'all') {
           const { data: allUsers } = await supabase.from('users').select('phone, name, address');
-          const subPhones = new Set((subs || []).map(s => s.phone));
+          const subPhoneSet = new Set(subPhones);
+          const extraPhones = (allUsers || []).filter(u => !subPhoneSet.has(u.phone)).map(u => u.phone);
+          // Batch-fetch balances for extra users too
+          const { data: extraBalRows } = extraPhones.length
+            ? await supabase.from('khata_summary').select('phone, balance').in('phone', extraPhones)
+            : { data: [] };
+          const extraBalMap = {};
+          (extraBalRows || []).forEach(b => { extraBalMap[b.phone] = b.balance; });
           for (const u of (allUsers || [])) {
-            if (subPhones.has(u.phone)) continue;
-            const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', u.phone).single();
+            if (subPhoneSet.has(u.phone)) continue;
             const ordered = orderedPhones.has(u.phone);
             result.push({
               phone: u.phone, name: u.name || u.phone, address: u.address || '',
-              balance: balRow?.balance || 0, plan_end: null,
+              balance: extraBalMap[u.phone] ?? 0, plan_end: null,
               pause: 'none', already_ordered: ordered, eligible: !ordered
             });
           }
@@ -869,14 +868,22 @@ app.post('/api', async (req, res) => {
         const priceNum = parseFloat(price) || 0;
         const bulkSlot = slot || 'morning';
 
-        // Server-side: fetch already-ordered phones for this slot today (duplicate guard)
-        const { data: existingOrders } = await supabase
-          .from('orders')
-          .select('phone')
-          .eq('date', today)
-          .eq('slot', bulkSlot)
-          .not('order_status', 'eq', 'cancelled');
+        // Pre-fetch everything in parallel before the loop — avoids N+1
+        const cleanPhones = phones.map(cleanPhone);
+        const [
+          { data: khataSettingRow },
+          { data: existingOrders },
+          { data: bulkUserRows }
+        ] = await Promise.all([
+          supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single(),
+          supabase.from('orders').select('phone').eq('date', today).eq('slot', bulkSlot).not('order_status', 'eq', 'cancelled'),
+          supabase.from('users').select('*').in('phone', cleanPhones)
+        ]);
+
+        const bulkKhataEnabled = JSON.parse(khataSettingRow?.value || 'false');
         const alreadyOrderedSet = new Set((existingOrders || []).map(o => o.phone));
+        const bulkUserMap = {};
+        for (const u of (bulkUserRows || [])) bulkUserMap[u.phone] = u;
 
         for (const phone of phones) {
           const cleanPh = cleanPhone(phone);
@@ -887,15 +894,19 @@ app.post('/api', async (req, res) => {
             continue;
           }
 
-          const { data: user } = await supabase.from('users').select('*').eq('phone', cleanPh).single();
+          const user = bulkUserMap[cleanPh];
           if (!user) { skipped.push({ phone: cleanPh, reason: 'user not found' }); continue; }
 
           const orderId  = generateOrderId(ist);
           const items    = [{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }];
 
-          // Atomic wallet update — returns new balance (can go negative for udhar)
-          const newBal  = await _atomicWalletUpdate(cleanPh, -priceNum);
-          const isUdhar = newBal < 0;
+          // Only deduct wallet when khata is enabled (mirrors createOrder behaviour)
+          let newBal  = null;
+          let isUdhar = false;
+          if (bulkKhataEnabled) {
+            newBal  = await _atomicWalletUpdate(cleanPh, -priceNum);
+            isUdhar = newBal < 0;
+          }
 
           const orderRow = {
             order_id:        orderId,
@@ -908,8 +919,8 @@ app.post('/api', async (req, res) => {
             delivery_charge: 0,
             final_amount:    priceNum,
             order_status:    'pending',
-            payment_status:  isUdhar ? 'unpaid' : 'wallet',
-            payment_mode:    isUdhar ? 'unpaid' : 'wallet',
+            payment_status:  bulkKhataEnabled ? (isUdhar ? 'unpaid' : 'wallet') : 'pending',
+            payment_mode:    bulkKhataEnabled ? (isUdhar ? 'unpaid' : 'wallet') : 'upi',
             user_type:       'subscriber',
             source:          'admin_bulk',
             slot:            bulkSlot,
@@ -920,30 +931,32 @@ app.post('/api', async (req, res) => {
 
           const { error: insErr } = await supabase.from('orders').insert(orderRow);
           if (insErr) {
-            // Rollback wallet deduction if order insert failed
-            await _atomicWalletUpdate(cleanPh, priceNum);
+            // Rollback wallet deduction if order insert failed (only if we deducted)
+            if (bulkKhataEnabled) await _atomicWalletUpdate(cleanPh, priceNum);
             skipped.push({ phone: cleanPh, reason: insErr.message });
             continue;
           }
 
-          // Record transaction via shared helper (consistent with all other order flows)
-          const txnNote = isUdhar
-            ? (reason ? `[UDHAR] ${reason}` : `[UDHAR] Bulk order: ${itemName}`)
-            : (reason || `Bulk order: ${itemName}`);
-          await supabase.from('khata_entries').insert({
-            id:              generateTxnId(ist),
-            phone:           cleanPh,
-            type:            'debit',
-            amount:          priceNum,
-            running_balance: newBal,
-            note:            txnNote,
-            date:            today,
-            time:            istTimeStr(ist),
-            order_id:        orderId,
-            order_status:    'pending',
-            source:          'admin_bulk',
-            created_at:      new Date().toISOString()
-          });
+          // Record wallet transaction only when khata is enabled
+          if (bulkKhataEnabled) {
+            const txnNote = isUdhar
+              ? (reason ? `[UDHAR] ${reason}` : `[UDHAR] Bulk order: ${itemName}`)
+              : (reason || `Bulk order: ${itemName}`);
+            await supabase.from('khata_entries').insert({
+              id:              generateTxnId(ist),
+              phone:           cleanPh,
+              type:            'debit',
+              amount:          priceNum,
+              running_balance: newBal,
+              note:            txnNote,
+              date:            today,
+              time:            istTimeStr(ist),
+              order_id:        orderId,
+              order_status:    'pending',
+              source:          'admin_bulk',
+              created_at:      new Date().toISOString()
+            });
+          }
 
           if (isUdhar) udhar.push({ phone: cleanPh, orderId, balance: newBal });
           else created.push({ phone: cleanPh, orderId });
@@ -1134,23 +1147,27 @@ app.post('/api', async (req, res) => {
 
       case 'adminGetSubscribers': {
         const { data: subs } = await supabase.from('subscribers').select('*');
-        const enriched = [];
-        for (const s of (subs || [])) {
-          const { data: u }   = await supabase.from('users').select('name, address').eq('phone', s.phone).single();
-          const { data: bal } = await supabase.from('khata_summary').select('balance').eq('phone', s.phone).single();
-          enriched.push({
-            ...s,
-            name:           u?.name    || null,
-            address:        u?.address || null,
-            balance:        bal?.balance || 0,
-            plan:           s.plan || null,
-            pause_morning:  s.pause_morning  || false,
-            pause_evening:  s.pause_evening  || false,
-            is_delivery_off: s.is_delivery_off || false,
-            // legacy field for index.html compatibility
-            is_paused:      s.pause_morning || s.pause_evening || (s.pause_delivery && s.pause_delivery !== 'none') || false
-          });
-        }
+        const phones = (subs || []).map(s => s.phone);
+        const [{ data: userRows }, { data: balRows }] = phones.length
+          ? await Promise.all([
+              supabase.from('users').select('phone, name, address').in('phone', phones),
+              supabase.from('khata_summary').select('phone, balance').in('phone', phones)
+            ])
+          : [{ data: [] }, { data: [] }];
+        const uMap = {}, bMap = {};
+        for (const u of (userRows || [])) uMap[u.phone] = u;
+        for (const b of (balRows  || [])) bMap[b.phone] = b.balance;
+        const enriched = (subs || []).map(s => ({
+          ...s,
+          name:            uMap[s.phone]?.name    || null,
+          address:         uMap[s.phone]?.address || null,
+          balance:         bMap[s.phone] ?? 0,
+          plan:            s.plan || null,
+          pause_morning:   s.pause_morning   || false,
+          pause_evening:   s.pause_evening   || false,
+          is_delivery_off: s.is_delivery_off || false,
+          is_paused:       s.pause_morning || s.pause_evening || (s.pause_delivery && s.pause_delivery !== 'none') || false
+        }));
         return res.json({ success: true, subscribers: enriched });
       }
 
@@ -1213,6 +1230,11 @@ app.post('/api', async (req, res) => {
           password_hash: hash,
           created_at:    new Date().toISOString()
         });
+        // Initialise wallet row at 0 so balance never shows null (mirrors signup)
+        try {
+          await supabase.from('khata_summary')
+            .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+        } catch(_) {}
         if (data.addAsSubscriber) {
           await supabase.from('subscribers').insert({
             phone,
@@ -1246,6 +1268,11 @@ app.post('/api', async (req, res) => {
           is_delivery_off: false,
           created_at:     new Date().toISOString()
         });
+        // Ensure wallet row exists at 0 so balance never shows null
+        try {
+          await supabase.from('khata_summary')
+            .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+        } catch(_) {}
         return res.json({ success: true });
       }
 
@@ -1456,11 +1483,13 @@ app.post('/api', async (req, res) => {
 
       case 'adminGetAllKhata': {
         const { data: rows } = await supabase.from('khata_summary').select('*');
-        const enriched = [];
-        for (const k of (rows || [])) {
-          const { data: u } = await supabase.from('users').select('name').eq('phone', k.phone).single();
-          enriched.push({ ...k, name: u?.name || null });
-        }
+        const kPhones = (rows || []).map(k => k.phone);
+        const { data: kUsers } = kPhones.length
+          ? await supabase.from('users').select('phone, name').in('phone', kPhones)
+          : { data: [] };
+        const kuMap = {};
+        for (const u of (kUsers || [])) kuMap[u.phone] = u.name;
+        const enriched = (rows || []).map(k => ({ ...k, name: kuMap[k.phone] || null }));
         return res.json({ success: true, khata: enriched });
       }
 
@@ -1547,8 +1576,8 @@ app.post('/api', async (req, res) => {
           r1, r2, r3, r4, r5, r6, r7, r8
         ] = await Promise.all([
           supabase.from('orders').select('*', { count: 'exact', head: true }).eq('date', today),
-          supabase.from('orders').select('final_amount').eq('date', today).neq('order_status', 'rejected'),
-          supabase.from('orders').select('final_amount').gte('date', monthStart).neq('order_status', 'rejected'),
+          supabase.from('orders').select('final_amount').eq('date', today).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
+          supabase.from('orders').select('final_amount').gte('date', monthStart).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
           supabase.from('orders').select('*', { count: 'exact', head: true }),
           supabase.from('users').select('*', { count: 'exact', head: true }),
           supabase.from('subscribers').select('*', { count: 'exact', head: true }),
@@ -1610,11 +1639,6 @@ app.post('/api', async (req, res) => {
       case 'deleteNotification': {
         await supabase.from('notifications').delete().eq('id', data.id);
         return res.json({ success: true });
-      }
-
-      case 'deleteNotificationsByRange': {
-        const { count } = await supabase.from('notifications').delete({ count: 'exact' }).gte('created_at', data.from).lte('created_at', data.to);
-        return res.json({ success: true, deleted: count || 0 });
       }
 
       case 'purgeOldNotifications': {
@@ -1709,10 +1733,10 @@ app.post('/api', async (req, res) => {
         const minDays  = MIN_DAYS[type];
         if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
 
-        // Compute the safest allowed cutoff date (today − minDays)
-        const safeCutoff = new Date();
-        safeCutoff.setDate(safeCutoff.getDate() - minDays);
-        const safeCutoffStr = safeCutoff.toISOString().slice(0, 10);
+        // Compute the safest allowed cutoff date (today − minDays) in IST, not UTC
+        const safeCutoffIST = getIST();
+        safeCutoffIST.setUTCDate(safeCutoffIST.getUTCDate() - minDays);
+        const safeCutoffStr = istDateStr(safeCutoffIST);
 
         // Honour whichever is earlier: what admin requested vs. the safety cutoff
         const cutoffDate = reqDate < safeCutoffStr ? reqDate : safeCutoffStr;
@@ -1738,12 +1762,11 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Confirmation string mismatch' });
         }
 
-        // Minimum retention: delete only data OLDER than these cutoffs
-        const now = new Date();
+        // Minimum retention: delete only data OLDER than these cutoffs (in IST, not UTC)
         const dateCutoff = (daysAgo) => {
-          const d = new Date(now);
-          d.setDate(d.getDate() - daysAgo);
-          return d.toISOString().slice(0, 10);
+          const d = getIST();
+          d.setUTCDate(d.getUTCDate() - daysAgo);
+          return istDateStr(d);
         };
 
         const ordersCutoff  = dateCutoff(5);   // orders  older than 5 days
@@ -1852,42 +1875,41 @@ app.post('/api', async (req, res) => {
 
       case 'getSubscribers':
         { const { data: subs } = await supabase.from('subscribers').select('*').order('plan_start', { ascending: false });
-          const result = [];
-          for (const s of (subs || [])) {
-            const { data: u } = await supabase.from('users').select('name, address').eq('phone', s.phone).single();
-            result.push({ ...s, name: u?.name || '', address: u?.address || '', plan: s.plan || null });
-          }
+          const gsPhones = (subs || []).map(s => s.phone);
+          const { data: gsUsers } = gsPhones.length
+            ? await supabase.from('users').select('phone, name, address').in('phone', gsPhones)
+            : { data: [] };
+          const gsMap = {};
+          for (const u of (gsUsers || [])) gsMap[u.phone] = u;
+          const result = (subs || []).map(s => ({ ...s, name: gsMap[s.phone]?.name || '', address: gsMap[s.phone]?.address || '', plan: s.plan || null }));
           return res.json({ success: true, subscribers: result }); }
 
       case 'getAllKhata': {
         const { data: rows } = await supabase.from('khata_summary').select('*');
-        const enriched = [];
-        for (const r of (rows || [])) {
-          const { data: u } = await supabase.from('users').select('name').eq('phone', r.phone).single();
-          const { data: txns } = await supabase.from('khata_entries').select('id, type, created_at')
-            .eq('phone', r.phone).order('created_at', { ascending: false });
-          const allTxns = txns || [];
-          const lastRecharge = allTxns.find(t => t.type === 'recharge');
-          enriched.push({
-            phone:            r.phone,
-            balance:          r.balance,
-            updated_at:       r.updated_at,
-            name:             u?.name || null,
-            txn_count:        allTxns.length,
-            last_recharge_at: lastRecharge?.created_at || null
-          });
+        const akPhones = (rows || []).map(r => r.phone);
+        const [{ data: akUsers }, { data: akTxns }] = akPhones.length
+          ? await Promise.all([
+              supabase.from('users').select('phone, name').in('phone', akPhones),
+              supabase.from('khata_entries').select('phone, id, type, created_at').in('phone', akPhones).order('created_at', { ascending: false })
+            ])
+          : [{ data: [] }, { data: [] }];
+        const akUMap = {}, akTMap = {};
+        for (const u of (akUsers || [])) akUMap[u.phone] = u.name;
+        for (const t of (akTxns  || [])) {
+          if (!akTMap[t.phone]) akTMap[t.phone] = { count: 0, lastRecharge: null };
+          akTMap[t.phone].count++;
+          if (!akTMap[t.phone].lastRecharge && t.type === 'recharge') akTMap[t.phone].lastRecharge = t.created_at;
         }
+        const enriched = (rows || []).map(r => ({
+          phone:            r.phone,
+          balance:          r.balance,
+          updated_at:       r.updated_at,
+          name:             akUMap[r.phone] || null,
+          txn_count:        akTMap[r.phone]?.count || 0,
+          last_recharge_at: akTMap[r.phone]?.lastRecharge || null
+        }));
         return res.json({ success: true, khata: enriched });
       }
-
-      case 'adminGetThalisAll':
-        { const { data: thalis } = await supabase.from('thalis').select('*');
-          const result = [];
-          for (const t of (thalis || [])) {
-            const { data: items } = await supabase.from('thali_items').select('*').eq('thali_id', t.thali_id);
-            result.push(formatThali(t, items || []));
-          }
-          return res.json({ success: true, thalis: result }); }
 
       case 'getSettings':
         { const { data: rows } = await supabase.from('admin_settings').select('*');
@@ -1935,9 +1957,9 @@ app.post('/api', async (req, res) => {
         const minDays  = MIN_DAYS[type];
         if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
 
-        const safeCutoff    = new Date();
-        safeCutoff.setDate(safeCutoff.getDate() - minDays);
-        const safeCutoffStr = safeCutoff.toISOString().slice(0, 10);
+        const safeCutoffIST2 = getIST();
+        safeCutoffIST2.setUTCDate(safeCutoffIST2.getUTCDate() - minDays);
+        const safeCutoffStr = istDateStr(safeCutoffIST2);
         const cutoffDate    = reqDate < safeCutoffStr ? reqDate : safeCutoffStr;
 
         if (type === 'orders') {
