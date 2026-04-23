@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    PuroBite / Tiffo — Service Worker (sw.js)
-   Version : v21.0  |  Updated : 2026-04-22
+   Version : v22.0  |  Updated : 2026-04-23
 
    ARCHITECTURE:
    ┌──────────────────────────────────────────────────────────┐
@@ -41,11 +41,11 @@
    NOTE: /ping endpoint kept alive by UptimeRobot every 5 min.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v10';
+const CACHE      = 'tiffo-v11';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install */
-const PRECACHE = ['./', './index.html', './admin.html', './rider.html', './manifest.json'];
+const PRECACHE = ['./', './index.html', './admin.html', './rider.html', './manifest.json', './manifest-rider.json', './manifest-admin.json'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
@@ -141,7 +141,12 @@ self.addEventListener('fetch', e => {
           return res;
         })
         .catch(async () => {
-          const cached = await caches.match('./index.html');
+          // Serve the correct cached page based on which portal was requested
+          const path = url.pathname;
+          const cacheKey = path.includes('admin') ? './admin.html'
+                         : path.includes('rider') ? './rider.html'
+                         : './index.html';
+          const cached = await caches.match(cacheKey);
           if (cached) return cached;
           return new Response(OFFLINE_HTML, {
             headers: { 'Content-Type': 'text/html; charset=utf-8' }
