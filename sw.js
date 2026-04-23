@@ -41,7 +41,7 @@
    NOTE: /ping endpoint kept alive by UptimeRobot every 5 min.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v8';
+const CACHE      = 'tiffo-v9';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install */
@@ -53,6 +53,10 @@ const CDN_ORIGINS = [
   'https://fonts.gstatic.com',
   'https://cdnjs.cloudflare.com'
 ];
+
+/* Max age for stale-while-revalidate assets (non-HTML, non-CDN).
+   Assets older than this will block on network rather than serve stale. */
+const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const OFFLINE_HTML = `<!DOCTYPE html>
 <html><head><title>Tiffo Offline</title>
@@ -147,7 +151,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* Strategy 4 — All other assets: stale-while-revalidate */
+  /* Strategy 4 — All other assets: stale-while-revalidate, capped at 7 days */
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(request);
@@ -159,7 +163,20 @@ self.addEventListener('fetch', e => {
           return res;
         })
         .catch(() => null);
-      return cached || fetchPromise;
+
+      // If no cached version, wait for network
+      if (!cached) return fetchPromise;
+
+      // If cached version is too old (>7d), wait for network (block on fresh)
+      const cachedDate = cached.headers.get('date');
+      if (cachedDate) {
+        const ageMs = Date.now() - new Date(cachedDate).getTime();
+        if (ageMs > ASSET_MAX_AGE_MS) return fetchPromise.catch(() => cached);
+      }
+
+      // Serve stale immediately, update cache in background
+      fetchPromise; // fire-and-forget revalidation
+      return cached;
     })
   );
 });
