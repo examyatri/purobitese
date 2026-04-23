@@ -581,6 +581,44 @@ footer { background:var(--dark); padding:22px 20px; text-align:center; }
 </div>
 
 <!-- iOS BOTTOM SHEET -->
+<!-- ANDROID MANUAL INSTALL GUIDE (shown when deferredPrompt not ready) -->
+<div class="ios-overlay" id="androidOverlay" onclick="closeAndroidIfOutside(event)">
+  <div class="ios-sheet">
+    <div class="ios-sheet-header">
+      <div class="ios-sheet-title">🤖 Install on Android</div>
+      <button class="ios-close" onclick="closeAndroid()">✕</button>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-icon" style="background:#4285f4;">🌐</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title">Step 1 — Chrome mein kholein</div>
+        <div class="ios-step-desc">Google Chrome mein <strong>tiffo.online/app</strong> visit karo (dusra browser nahi)</div>
+      </div>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-icon" style="background:#34a853;">⋮</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title">Step 2 — Menu kholein</div>
+        <div class="ios-step-desc">Chrome ke upar right corner mein 3 dots (⋮) pe tap karo</div>
+      </div>
+    </div>
+    <div class="ios-step">
+      <div class="ios-step-icon" style="background:#f59e0b;">📲</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title">Step 3 — Add to Home screen</div>
+        <div class="ios-step-desc">Menu mein "Add to Home screen" ya "Install app" option dhundho aur tap karo</div>
+      </div>
+    </div>
+    <div class="ios-step" style="background:#f0fdf4;">
+      <div class="ios-step-icon" style="background:var(--teal);">✅</div>
+      <div class="ios-step-body">
+        <div class="ios-step-title" style="color:var(--teal);">Done! Tiffo Installed 🎉</div>
+        <div class="ios-step-desc">Home screen pe Tiffo ka icon aayega — native app ki tarah open hoga!</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="ios-overlay" id="iosOverlay" onclick="closeIosIfOutside(event)">
   <div class="ios-sheet">
     <div class="ios-sheet-header">
@@ -963,6 +1001,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ── SERVICE WORKER REGISTRATION ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('[Tiffo] SW registered ✅ scope:', reg.scope))
+      .catch(err => console.warn('[Tiffo] SW registration failed:', err));
+  });
+}
+
 // ── SET UI TO "INSTALLED" STATE ──
 function setInstalledUI() {
   document.querySelectorAll('.btn-platform').forEach(b => {
@@ -1006,13 +1053,8 @@ function startInstall(platform) {
       }
     });
   } else {
-    // deferredPrompt not available yet
-    // Show a helpful message instead of redirecting to website
-    showToast('⚠️ Chrome mein kholein aur try karein — tiffo.online/app');
-    setTimeout(() => {
-      // Try opening PWA scope directly so Chrome can prompt
-      window.location.href = 'https://tiffo.online/app/?install=1';
-    }, 1800);
+    // deferredPrompt not available — show Android manual guide
+    document.getElementById('androidOverlay').classList.add('show');
   }
 }
 
@@ -1090,7 +1132,12 @@ function closeIos() {
 function closeIosIfOutside(e) {
   if (e.target === document.getElementById('iosOverlay')) closeIos();
 }
-
+function closeAndroid() {
+  document.getElementById('androidOverlay').classList.remove('show');
+}
+function closeAndroidIfOutside(e) {
+  if (e.target === document.getElementById('androidOverlay')) closeAndroid();
+}
 function switchTab(tab, btn) {
   document.querySelectorAll('.guide-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.guide-content').forEach(c => c.classList.remove('active'));
