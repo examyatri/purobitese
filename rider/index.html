@@ -2078,7 +2078,7 @@ window.addEventListener('popstate', () => {
 <script>
 /* ── Service Worker registration — auto-reload on new Vercel deploy ── */
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').then(reg => {
+  navigator.serviceWorker.register('./sw.js', { scope: '/rider/' }).then(reg => {
     reg.addEventListener('updatefound', () => {
       const nw = reg.installing;
       if (!nw) return;
