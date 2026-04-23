@@ -6,6 +6,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#e63946">
+<link rel="manifest" href="/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tiffo">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <title>Tiffo – Ghar Ka Tiffin 🍱 | Install Free App</title>
 <meta name="description" content="Ghar ka tiffin delivered daily. Fresh homemade food — Auto Tiffin, Wallet, Live Tracking. Install Tiffo App free on Android & iPhone.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -917,53 +923,116 @@ footer { background:var(--dark); padding:22px 20px; text-align:center; }
 <script>
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const isAndroid = /android/i.test(navigator.userAgent);
-const isStandalone = window.matchMedia('(display-mode:standalone)').matches || window.navigator.standalone;
-let deferredPrompt = null;
 
+// ── PWA INSTALL DETECTION (3 ways) ──
+// 1. display-mode standalone = already running as PWA
+// 2. navigator.standalone = iOS Safari PWA
+// 3. localStorage flag = user installed previously (Android fallback)
+function checkIsInstalled() {
+  return window.matchMedia('(display-mode:standalone)').matches
+      || window.navigator.standalone === true
+      || localStorage.getItem('tiffo_installed') === 'yes';
+}
+
+let deferredPrompt = null;
+let installResolved = false; // prevent double-trigger
+
+// ── CAPTURE INSTALL PROMPT ASAP (before any click) ──
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
-});
-window.addEventListener('appinstalled', () => {
-  deferredPrompt = null;
-  showToast('🎉 Tiffo installed! Open from home screen.');
+  console.log('[Tiffo] beforeinstallprompt captured ✅');
 });
 
+// ── AFTER INSTALL ──
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  localStorage.setItem('tiffo_installed', 'yes');
+  setInstalledUI();
+  showToast('🎉 Tiffo installed! Ghar screen se kholo.');
+});
+
+// ── ON PAGE LOAD ──
 window.addEventListener('DOMContentLoaded', () => {
-  if (isStandalone) {
-    document.querySelectorAll('.btn-platform').forEach(b => {
-      b.innerHTML = '<span class="plat-icon">✅</span><span class="plat-label"><span class="plat-sub">App is</span><span class="plat-name">Installed!</span></span>';
-      b.style.background = '#22c55e'; b.style.color = '#fff';
-      b.onclick = openApp;
-    });
-    document.getElementById('installNote').textContent = '✅ App installed — open from home screen';
+  if (checkIsInstalled()) {
+    setInstalledUI();
   } else if (isIOS) {
     document.getElementById('installNote').textContent = 'Tap iPhone button to see install steps 👆';
+  } else {
+    document.getElementById('installNote').textContent = 'No App Store needed · Works like a native app';
   }
 });
 
+// ── SET UI TO "INSTALLED" STATE ──
+function setInstalledUI() {
+  document.querySelectorAll('.btn-platform').forEach(b => {
+    b.innerHTML = '<span class="plat-icon">✅</span><span class="plat-label"><span class="plat-sub">App is</span><span class="plat-name">Open App</span></span>';
+    b.style.background = 'var(--teal)';
+    b.style.color = '#fff';
+    b.style.boxShadow = '0 4px 16px rgba(42,157,143,0.4)';
+    b.onclick = openPWA;
+  });
+  const note = document.getElementById('installNote');
+  if (note) note.textContent = '✅ Tiffo installed — tap to open';
+}
+
+// ── MAIN INSTALL HANDLER ──
 function startInstall(platform) {
-  if (isStandalone) { openApp(); return; }
+  // Already installed? Just open PWA
+  if (checkIsInstalled()) {
+    openPWA();
+    return;
+  }
+
   if (platform === 'ios') {
     document.getElementById('iosOverlay').classList.add('show');
     return;
   }
-  // Android
-  showProgress(() => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(c => {
-        if (c.outcome === 'accepted') showToast('🎉 Tiffo installed!');
-        deferredPrompt = null;
-      });
-    } else {
-      // fallback
-      window.location.href = 'https://tiffo.online';
-    }
-  });
+
+  // Android / Chrome
+  if (deferredPrompt) {
+    // ✅ CORRECT: Prompt first, THEN show progress animation
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(choice => {
+      deferredPrompt = null;
+      if (choice.outcome === 'accepted') {
+        // Show success animation after user accepts
+        showProgressAnimation(() => {
+          localStorage.setItem('tiffo_installed', 'yes');
+          setInstalledUI();
+        });
+      } else {
+        showToast('❌ Install cancel kiya — dobara try karo!');
+      }
+    });
+  } else {
+    // deferredPrompt not available yet
+    // Show a helpful message instead of redirecting to website
+    showToast('⚠️ Chrome mein kholein aur try karein — tiffo.online/app');
+    setTimeout(() => {
+      // Try opening PWA scope directly so Chrome can prompt
+      window.location.href = 'https://tiffo.online/app/?install=1';
+    }, 1800);
+  }
 }
 
-function showProgress(onDone) {
+// ── OPEN REAL PWA (not website, PWA scope) ──
+function openPWA() {
+  document.getElementById('progressOverlay').classList.remove('show');
+
+  // If already running in standalone = just go to actual app
+  if (window.matchMedia('(display-mode:standalone)').matches || window.navigator.standalone) {
+    window.location.href = 'https://tiffo.online';
+    return;
+  }
+
+  // Open PWA — Chrome will launch installed PWA instead of browser tab
+  // Using tiffo.online (start_url from manifest.json)
+  window.open('https://tiffo.online', '_blank');
+}
+
+// ── PROGRESS ANIMATION (shown AFTER user accepts install) ──
+function showProgressAnimation(onDone) {
   const overlay = document.getElementById('progressOverlay');
   const fill = document.getElementById('progressFill');
   const pct = document.getElementById('progressPct');
@@ -973,48 +1042,46 @@ function showProgress(onDone) {
   const icon = document.getElementById('progressIcon');
   const openBtn = document.getElementById('btnOpenApp');
 
-  fill.style.width = '0%'; pct.textContent = '0%';
+  // Reset state
+  fill.style.width = '0%';
+  pct.textContent = '0%';
   openBtn.style.display = 'none';
   icon.textContent = '⬇️';
-  title.textContent = 'Downloading Tiffo';
-  sub.textContent = 'Setting up your tiffin app...';
-  status.textContent = 'Connecting to server...';
+  title.textContent = 'Installing Tiffo';
+  sub.textContent = 'Thoda wait karo...';
+  status.textContent = 'Setting up...';
   overlay.classList.add('show');
 
+  // Fast animation — install already happened, this is just visual
   const phases = [
-    { p:12, s:'Starting download...', d:350 },
-    { p:28, s:'Downloading... 28%', d:450 },
-    { p:45, s:'Downloading... 45%', d:400 },
-    { p:63, s:'Verifying package...', d:450 },
-    { p:79, s:'Installing Tiffo...', d:350 },
-    { p:91, s:'Setting up...', d:300 },
-    { p:100, s:'Done!', d:200 },
+    { p:20, s:'Setting up app...', d:250 },
+    { p:45, s:'Copying files...', d:300 },
+    { p:70, s:'Installing...', d:300 },
+    { p:88, s:'Almost done...', d:250 },
+    { p:100, s:'Done! 🎉', d:200 },
   ];
+
   let i = 0;
   function next() {
     if (i >= phases.length) {
       icon.textContent = '✅';
-      title.textContent = 'Installation Complete!';
-      sub.textContent = 'Tiffo is ready on your device 🎉';
+      title.textContent = 'Tiffo Installed!';
+      sub.textContent = 'App ready hai — home screen pe icon aayega 🎉';
       status.textContent = '';
       pct.textContent = '100%';
       openBtn.style.display = 'block';
-      if (onDone) setTimeout(onDone, 600);
+      openBtn.onclick = openPWA;
+      if (onDone) onDone();
       return;
     }
     const ph = phases[i++];
     fill.style.width = ph.p + '%';
     pct.textContent = ph.p + '%';
-    if (ph.p >= 79) { icon.textContent = '⚙️'; title.textContent = 'Installing Tiffo'; }
+    if (ph.p >= 70) { icon.textContent = '⚙️'; }
     status.textContent = ph.s;
     setTimeout(next, ph.d);
   }
   next();
-}
-
-function openApp() {
-  document.getElementById('progressOverlay').classList.remove('show');
-  window.location.href = 'https://tiffo.online';
 }
 
 function closeIos() {
