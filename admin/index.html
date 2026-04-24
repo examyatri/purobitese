@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v19.0                                    ║
-     ║  Updated : 2026-04-22                               ║
-     ║  Changes : Delivery zone panel polish, validation   ║
+     ║  Version : v19.1                                    ║
+     ║  Updated : 2026-04-24                               ║
+     ║  Changes : Mobile-first UX, bottom nav bar,         ║
+     ║            smart double-tap back guard              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -502,6 +503,128 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 @media(max-width:480px){
   .grid-stats{grid-template-columns:1fr 1fr}
 }
+
+/* ── MOBILE OPTIMISATIONS (phones ≤ 640px) ──────────────── */
+@media(max-width:640px){
+  /* Topbar: tighten + hide text labels on secondary buttons */
+  #topbar{height:54px;padding:0 12px;gap:8px}
+  .topbar-title{font-size:14px}
+  .topbar-chip{display:none} /* hide Live chip, save space */
+  #topbar .btn-outline .fa-rotate-right::before{content:'\f021'} /* keep icon */
+  #topbar .btn-outline{padding:6px 10px;font-size:0} /* icon-only refresh */
+  #topbar .btn-outline i{font-size:14px}
+  #topbar .btn-danger{padding:6px 10px;font-size:0}  /* icon-only logout */
+  #topbar .btn-danger i{font-size:14px}
+
+  /* Content breathing room */
+  #content{padding:12px;padding-bottom:80px} /* bottom padding for mobile nav bar */
+
+  /* Stat cards: tighter */
+  .stat-val{font-size:22px}
+  .stat-icon{width:40px;height:40px}
+  .card{padding:16px}
+
+  /* Page headers: stack */
+  .page-header{flex-direction:column;align-items:flex-start;gap:10px}
+  .page-header>div:last-child{width:100%;display:flex;flex-wrap:wrap;gap:8px}
+  .page-header>div:last-child .btn{flex:1;justify-content:center;font-size:12px;padding:8px 10px}
+
+  /* Tables: allow horizontal scroll cleanly */
+  .tbl-wrap{-webkit-overflow-scrolling:touch;margin:0 -2px}
+  table{min-width:500px}
+  th,td{padding:10px 10px;font-size:12px}
+
+  /* Filter bar: full width inputs */
+  .filter-bar{gap:8px;padding:10px 12px}
+  .filter-bar select,.filter-bar .search-input{font-size:13px;width:100%}
+
+  /* Modals: bottom-sheet style on mobile */
+  .mo-bg{align-items:flex-end;padding:0}
+  .mo-box{
+    border-radius:20px 20px 0 0;max-height:92vh;
+    padding:20px 18px 28px;
+    /* Safe area for home indicator */
+    padding-bottom:max(28px,env(safe-area-inset-bottom));
+  }
+  .mo-title{font-size:16px}
+
+  /* Tab pills: scroll horizontally */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    width:100%;max-width:100%;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+
+  /* Order cat tabs & chips: horizontal scroll */
+  #ord-cat-tabs,#ord-status-chips{flex-wrap:nowrap;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  #ord-cat-tabs::-webkit-scrollbar,#ord-status-chips::-webkit-scrollbar{display:none}
+
+  /* Subscriber chips: scroll */
+  .subs-chips-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;padding-bottom:2px}
+  .subs-chips-row::-webkit-scrollbar{display:none}
+
+  /* Buttons in action rows: smaller */
+  .act-btn{padding:5px 9px;font-size:11px}
+
+  /* Settings: full-width panels */
+  .settings-panel{padding:16px}
+
+  /* Auth card: full-width comfortable */
+  .auth-card{border-radius:0;min-height:100vh;display:flex;flex-direction:column;
+    justify-content:center;padding:32px 24px}
+
+  /* Toast: full-width at bottom */
+  #a-toast{bottom:max(16px,env(safe-area-inset-bottom));left:12px;right:12px;
+    max-width:unset;font-size:13px}
+
+  /* Mobile bottom navigation bar */
+  #mob-bottom-nav{display:flex}
+}
+
+/* ── MOBILE BOTTOM NAV BAR ───────────────────────────────── */
+#mob-bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:#0f172a;
+  padding:8px 0 max(8px,env(safe-area-inset-bottom));
+  z-index:200;
+  border-top:1px solid rgba(255,255,255,.1);
+  box-shadow:0 -4px 20px rgba(0,0,0,.3);
+}
+.mob-nav-items{
+  display:flex;align-items:center;justify-content:space-around;
+}
+.mob-nav-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:4px 8px;background:none;border:none;cursor:pointer;
+  color:rgba(148,163,184,.7);font-family:var(--ff);font-size:9px;
+  font-weight:600;min-width:52px;letter-spacing:.2px;transition:color 180ms;
+}
+.mob-nav-btn i{font-size:18px;transition:color 180ms}
+.mob-nav-btn.act{color:#fff}
+.mob-nav-btn.act i{color:var(--p)}
+.mob-nav-more{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:4px 8px;background:none;border:none;cursor:pointer;
+  color:rgba(148,163,184,.7);font-family:var(--ff);font-size:9px;
+  font-weight:600;min-width:52px;letter-spacing:.2px;
+}
+.mob-nav-more i{font-size:18px}
+
+/* ── EXIT CONFIRM DIALOG (mobile-tuned) ─────────────────── */
+#_admin-exit-overlay .exit-dialog{
+  background:#fff;border-radius:20px;padding:28px 24px;
+  width:100%;max-width:340px;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);
+  font-family:var(--ff);
+}
+@media(max-width:640px){
+  #_admin-exit-overlay{align-items:flex-end!important}
+  #_admin-exit-overlay .exit-dialog{
+    border-radius:20px 20px 0 0;max-width:100%;
+    padding-bottom:max(28px,env(safe-area-inset-bottom));
+  }
+}
 /* ── Pull-to-Refresh ── */
 .ptr-zone{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
   transition:height 200ms ease;color:#94a3b8;font-size:13px;font-family:var(--ff);gap:7px}
@@ -578,6 +701,27 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
       <div class="sb-footer-copy">© 2026 Tiffo · All rights reserved<br>Crafted with ❤️ for home kitchens</div>
     </div>
   </aside>
+
+  <!-- MOBILE BOTTOM NAV (visible on phones ≤640px via CSS) -->
+  <nav id="mob-bottom-nav" aria-label="Mobile navigation">
+    <div class="mob-nav-items">
+      <button class="mob-nav-btn act" data-pg="p-dash" onclick="showPage('p-dash')">
+        <i class="fa fa-chart-line"></i><span>Dash</span>
+      </button>
+      <button class="mob-nav-btn" data-pg="p-orders" onclick="showPage('p-orders')">
+        <i class="fa fa-bag-shopping"></i><span>Orders</span>
+      </button>
+      <button class="mob-nav-btn" data-pg="p-subs" onclick="showPage('p-subs')">
+        <i class="fa fa-crown"></i><span>Subs</span>
+      </button>
+      <button class="mob-nav-btn" data-pg="p-users" onclick="showPage('p-users')">
+        <i class="fa fa-users"></i><span>Users</span>
+      </button>
+      <button class="mob-nav-btn" id="mob-nav-more" onclick="toggleSidebar()">
+        <i class="fa fa-bars"></i><span>More</span>
+      </button>
+    </div>
+  </nav>
 
   <div id="main">
     <header id="topbar">
@@ -4852,6 +4996,8 @@ function showPage(id) {
   document.getElementById('page-title').textContent = title;
   // Push history state so back button is interceptable
   history.pushState({ adminPg: id }, '', location.href);
+  // Sync mobile bottom nav active state
+  updateMobNav(id);
   // When opening Orders page, always reset to Today filter
   if (id === 'p-orders') {
     _ordCat = 'today'; _ordStatus = 'all';
@@ -4887,43 +5033,116 @@ async function _silentDeleteExpiredCoupons() {
   } catch(_) {}
 }
 
-// ─── ACCIDENTAL BACK PREVENTION (Admin) ──────────────────
-// Uses tf_admin_session token to detect logged-in state
-function _adminShowExitConfirm() {
-  if (document.getElementById('_admin-exit-overlay')) return;
-  const overlay = document.createElement('div');
-  overlay.id = '_admin-exit-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px';
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:360px;font-family:system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <p style="font-size:17px;font-weight:700;margin:0 0 8px;color:#0f172a">Leave Admin Panel?</p>
-      <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.5">You are still logged in. Are you sure you want to leave this page?</p>
-      <div style="display:flex;gap:10px">
-        <button id="_admin-stay-btn" style="flex:1;padding:12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:#334155">Stay</button>
-        <button id="_admin-leave-btn" style="flex:1;padding:12px;border-radius:10px;border:none;background:#ef4444;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Leave</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.getElementById('_admin-stay-btn').onclick = () => {
-    overlay.remove();
-    history.pushState({ adminPg: 'stay' }, '', location.href);
-  };
-  document.getElementById('_admin-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
+// ─── MOBILE BOTTOM NAV SYNC ───────────────────────────────
+function updateMobNav(pgId) {
+  document.querySelectorAll('#mob-bottom-nav .mob-nav-btn[data-pg]').forEach(b => {
+    b.classList.toggle('act', b.dataset.pg === pgId);
+  });
 }
 
-window.addEventListener('popstate', () => {
-  const session = AdminAuth.get();
-  const isLoggedIn = !!session;
-  const mainVisible = document.getElementById('main-layout')?.style.display !== 'none';
-  if (isLoggedIn && mainVisible) {
-    history.pushState({ adminPg: 'guard' }, '', location.href);
-    _adminShowExitConfirm();
-  }
-});
+// ─── ACCIDENTAL BACK PREVENTION ──────────────────────────
+// Strategy: first back press pushes a guard state (so the URL doesn't change).
+// If a second back press arrives within 1.5 s, we show a bottom-sheet confirm.
+// Normal navigation (showPage, sidebar links) is never affected.
+(function initBackGuard() {
+  let _guardActive  = false; // true while we've intercepted one back press
+  let _guardTimer   = null;
 
-window.addEventListener('DOMContentLoaded', () => {
-  history.pushState({ adminPg: 'init' }, '', location.href);
-});
+  function _createDialog() {
+    const existing = document.getElementById('_admin-exit-overlay');
+    if (existing) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = '_admin-exit-overlay';
+    overlay.style.cssText =
+      'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;' +
+      'display:flex;align-items:flex-end;justify-content:center;padding:0';
+    overlay.innerHTML = `
+      <div class="exit-dialog" style="
+        background:#fff;border-radius:20px 20px 0 0;padding:28px 24px;
+        width:100%;max-width:480px;
+        padding-bottom:max(28px,env(safe-area-inset-bottom));
+        box-shadow:0 -8px 40px rgba(0,0,0,.25);
+        font-family:var(--ff);
+        animation:slideUpDialog 220ms cubic-bezier(.34,1.2,.64,1)">
+        <div style="width:40px;height:4px;background:#e2e8f0;border-radius:4px;margin:0 auto 22px"></div>
+        <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Leave Admin Panel?</p>
+        <p style="font-size:13.5px;color:#64748b;margin:0 0 24px;line-height:1.55">
+          You're still logged in. Leaving will take you outside the admin dashboard.
+        </p>
+        <div style="display:flex;gap:10px">
+          <button id="_admin-stay-btn"
+            style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;
+                   background:#fff;font-size:14px;font-weight:600;cursor:pointer;
+                   color:#334155;font-family:var(--ff)">
+            Stay
+          </button>
+          <button id="_admin-leave-btn"
+            style="flex:1;padding:13px;border-radius:12px;border:none;
+                   background:#ef4444;color:#fff;font-size:14px;font-weight:600;
+                   cursor:pointer;font-family:var(--ff)">
+            Leave
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    document.getElementById('_admin-stay-btn').onclick = () => {
+      overlay.remove();
+      _guardActive = false;
+      // Push guard state back so next back press is interceptable again
+      history.pushState({ adminGuard: true }, '', location.href);
+    };
+    document.getElementById('_admin-leave-btn').onclick = () => {
+      overlay.remove();
+      _guardActive = false;
+      // Really go back — navigate away from admin
+      history.go(-1);
+    };
+    // Tapping backdrop = Stay
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        overlay.remove();
+        _guardActive = false;
+        history.pushState({ adminGuard: true }, '', location.href);
+      }
+    });
+  }
+
+  window.addEventListener('popstate', () => {
+    const session    = AdminAuth.get();
+    const isLoggedIn = !!session;
+    const mainVis    = document.getElementById('main-layout')?.style.display !== 'none';
+    if (!isLoggedIn || !mainVis) return; // not logged in — let browser handle normally
+
+    // Re-push guard so we can intercept the *next* press too
+    history.pushState({ adminGuard: true }, '', location.href);
+
+    if (!_guardActive) {
+      // First back press: silently catch it, start timer
+      _guardActive = true;
+      _guardTimer  = setTimeout(() => { _guardActive = false; }, 1500);
+    } else {
+      // Second back press within 1.5 s — show confirm dialog
+      clearTimeout(_guardTimer);
+      _guardActive = false;
+      _createDialog();
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    history.pushState({ adminGuard: true }, '', location.href);
+  });
+
+  // Slide-up animation for dialog
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    @keyframes slideUpDialog{
+      from{transform:translateY(60px);opacity:0}
+      to{transform:translateY(0);opacity:1}
+    }`;
+  document.head.appendChild(styleEl);
+})();
 
 /* ═══════════════════════════════════════
    PULL-TO-REFRESH — Admin Orders Page
