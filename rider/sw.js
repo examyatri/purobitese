@@ -1,27 +1,50 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v3.0  |  Updated : 2026-04-23
+   Version : v4.0  |  Updated : 2026-04-24
 
    Lives at /rider/sw.js so its scope is ONLY /rider/
    — completely isolated from the main Tiffo PWA at /
    and the admin PWA at /admin/.
 
-   This means:
-   - clients.claim() only claims /rider/* tabs
-   - controllerchange only fires in rider tabs
-   - No cross-app reloads or icon mixing
+   v4.0 changes:
+   - Bumped cache name → tiffo-rider-v4 (forces fresh
+     index.html after OSRM routing + marker updates)
+   - Added router.project-osrm.org to NETWORK_ONLY
+     (routing responses must always be live, never cached)
+   - Added tile.openstreetmap.org to TILE_CACHE with
+     aggressive 30-day caching (rider re-uses same roads daily)
+   - Added TILE_CACHE cleanup on activate
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v3';
+const CACHE      = 'tiffo-rider-v4';   // ← bumped from v3
 const FONT_CACHE = 'tiffo-fonts-v1';
+const TILE_CACHE = 'tiffo-osm-tiles-v1'; // NEW: OSM map tiles
 
 /* Only rider assets */
 const PRECACHE = ['./index.html', './manifest.json'];
 
+/* CDN assets — cache-first (fonts, leaflet JS/CSS) */
 const CDN_ORIGINS = [
   'https://fonts.googleapis.com',
   'https://fonts.gstatic.com',
   'https://cdnjs.cloudflare.com'
+];
+
+/* OSM tile servers — cached aggressively (30 days) */
+const TILE_ORIGINS = [
+  'https://a.tile.openstreetmap.org',
+  'https://b.tile.openstreetmap.org',
+  'https://c.tile.openstreetmap.org'
+];
+const TILE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const TILE_CACHE_LIMIT = 500; // max tiles to store
+
+/* Network-only: never cache these */
+const NETWORK_ONLY_ORIGINS = [
+  'purobitese-api.onrender.com',        // backend GAS API
+  'router.project-osrm.org',            // OSRM routing — must be live
+  'maps.googleapis.com',                // Google Maps API calls
+  'maps.google.com'
 ];
 
 const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -56,12 +79,11 @@ self.addEventListener('activate', e => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== CACHE && k !== FONT_CACHE)
+          .filter(k => k !== CACHE && k !== FONT_CACHE && k !== TILE_CACHE)
           .map(k => caches.delete(k))
       )
     )
   );
-  // clients.claim() only affects /rider/* clients — safe now
   self.clients.claim();
 });
 
@@ -70,13 +92,42 @@ self.addEventListener('fetch', e => {
   const { request } = e;
   const url = new URL(request.url);
 
-  /* API — network only */
-  if (
-    url.hostname === 'purobitese-api.onrender.com' ||
-    url.pathname.startsWith('/api/')
-  ) return;
+  /* ── Network-only: API + OSRM routing + Google Maps ── */
+  if (NETWORK_ONLY_ORIGINS.some(o => url.hostname.includes(o))) return;
+  if (url.pathname.startsWith('/api/')) return;
 
-  /* CDN — cache first */
+  /* ── OSM map tiles — cache-first, 30-day TTL, 500 tile cap ── */
+  if (TILE_ORIGINS.some(o => url.href.startsWith(o))) {
+    e.respondWith(
+      caches.open(TILE_CACHE).then(async cache => {
+        const cached = await cache.match(request);
+        if (cached) {
+          const cachedDate = cached.headers.get('date');
+          const ageMs = cachedDate ? Date.now() - new Date(cachedDate).getTime() : 0;
+          if (ageMs < TILE_MAX_AGE_MS) return cached; // fresh tile — serve from cache
+        }
+        // Fetch fresh tile
+        try {
+          const res = await fetch(request);
+          if (res && res.status === 200) {
+            cache.put(request, res.clone());
+            // Trim cache if over limit (evict oldest)
+            cache.keys().then(keys => {
+              if (keys.length > TILE_CACHE_LIMIT) {
+                keys.slice(0, keys.length - TILE_CACHE_LIMIT).forEach(k => cache.delete(k));
+              }
+            });
+          }
+          return res;
+        } catch {
+          return cached || new Response('', { status: 503 });
+        }
+      })
+    );
+    return;
+  }
+
+  /* ── CDN — cache-first (fonts, Leaflet JS/CSS) ── */
   if (CDN_ORIGINS.some(o => url.href.startsWith(o))) {
     e.respondWith(
       caches.open(FONT_CACHE).then(async cache => {
@@ -90,7 +141,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* HTML navigation — network first, offline fallback */
+  /* ── HTML navigation — network-first, offline fallback ── */
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request)
@@ -109,7 +160,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* All other assets — stale-while-revalidate */
+  /* ── All other assets — stale-while-revalidate ── */
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(request);

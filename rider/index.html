@@ -320,6 +320,65 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}
 }
 
+/* ─── MAP MODE TOGGLE ─────────────────────────────────── */
+#map-mode-toggle{
+  display:flex;gap:3px;background:#0f172a;border-radius:8px;padding:3px;flex-shrink:0;
+}
+.mmt-btn{
+  border:none;border-radius:6px;padding:5px 9px;font-family:var(--ff);font-weight:700;
+  font-size:10px;cursor:pointer;transition:all 180ms;color:#64748b;background:transparent;
+  white-space:nowrap;
+}
+.mmt-btn.act{background:#3b82f6;color:#fff}
+
+/* ─── BATCH BADGE on Navigate button ─────────────────── */
+#batch-badge{
+  position:absolute;top:-4px;right:-4px;
+  background:#f59e0b;color:#1a1f2e;
+  border-radius:10px;padding:1px 5px;font-size:9px;font-weight:800;
+  display:none;pointer-events:none;
+}
+#btn-gmaps-nav{position:relative}
+
+/* ─── NEXT BATCH BANNER ───────────────────────────────── */
+#next-batch-bar{
+  display:none;
+  background:linear-gradient(90deg,#f59e0b,#d97706);
+  color:#1a1f2e;
+  padding:8px 14px;
+  align-items:center;justify-content:space-between;
+  flex-shrink:0;
+  border-top:1px solid #fbbf24;
+}
+#next-batch-bar.show{display:flex}
+#next-batch-bar-text{font-family:var(--ff);font-weight:700;font-size:12px}
+#next-batch-go{
+  background:#1a1f2e;color:#f59e0b;border:none;
+  border-radius:8px;padding:5px 12px;font-family:var(--ff);font-weight:800;font-size:11px;
+  cursor:pointer;
+}
+
+/* ─── ALL PINS OVERLAY (Street Map full view) ─────────── */
+#all-pins-panel{
+  position:absolute;inset:0;z-index:50;
+  background:#0f172a;
+  display:none;flex-direction:column;
+}
+#all-pins-panel.show{display:flex}
+#all-pins-topbar{
+  background:#1e293b;padding:10px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;border-bottom:1px solid #334155;
+}
+#all-pins-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#f1f5f9}
+#all-pins-close{background:#334155;color:#94a3b8;border:none;border-radius:7px;padding:5px 10px;font-size:14px;cursor:pointer}
+#all-pins-leaflet{flex:1;width:100%}
+#all-pins-stats{
+  background:#1e293b;padding:7px 14px;
+  font-family:var(--ff);font-size:11px;color:#64748b;
+  flex-shrink:0;text-align:center;border-top:1px solid #334155;
+}
+
 /* Pull-to-Refresh */
 #ptr-zone-rider{
   position:fixed;top:0;left:0;right:0;z-index:999;
@@ -458,7 +517,16 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 <div id="map-modal">
   <!-- Top bar -->
   <div id="map-topbar">
-    <div id="map-title">🗺 Route Planner</div>
+    <div style="display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden">
+      <div id="map-title">🗺 Route Planner</div>
+      <div id="live-track-badge" style="display:none;font-size:10px;color:#22c55e;font-family:var(--ff);font-weight:700;margin-top:1px;white-space:nowrap">
+        <span style="display:inline-block;width:6px;height:6px;background:#22c55e;border-radius:50%;margin-right:4px;animation:pulse 1.5s infinite;vertical-align:middle"></span>LIVE TRACKING
+      </div>
+    </div>
+    <div id="map-mode-toggle">
+      <button class="mmt-btn act" id="mmt-street" onclick="setMapMode('street')">🗺 Street</button>
+      <button class="mmt-btn" id="mmt-gmaps" onclick="setMapMode('gmaps')">📍 GMaps</button>
+    </div>
     <button id="map-close-btn" onclick="closeRiderMap()">✕</button>
   </div>
 
@@ -480,11 +548,28 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     <button class="map-action-btn" id="btn-gmaps-nav" onclick="openInMapsFromModal()" style="background:#1a73e8;color:#fff">
       <span>🗺</span>
       <span id="btn-gmaps-label">Navigate</span>
+      <span id="batch-badge"></span>
     </button>
-    <button class="map-action-btn" id="btn-gmaps-route" onclick="openAllStopsInGMaps()" style="background:#334155;color:#94a3b8" title="Open full route in Google Maps">
-      <span>📍</span>
-      <span>All Stops</span>
+    <button class="map-action-btn" id="btn-all-pins" onclick="openAllPinsView()" style="background:#0f766e;color:#fff">
+      <span>📌</span>
+      <span>All Pins</span>
     </button>
+  </div>
+
+  <!-- Next Batch Banner -->
+  <div id="next-batch-bar">
+    <div id="next-batch-bar-text">✅ Batch done! Next 10 ready</div>
+    <button id="next-batch-go" onclick="loadNextGMapsBatch()">Next Batch →</button>
+  </div>
+
+  <!-- All Pins Overlay Panel -->
+  <div id="all-pins-panel">
+    <div id="all-pins-topbar">
+      <div id="all-pins-title">📌 All Customer Pins</div>
+      <button id="all-pins-close" onclick="closeAllPinsView()">✕ Close</button>
+    </div>
+    <div id="all-pins-leaflet"></div>
+    <div id="all-pins-stats">Loading pins…</div>
   </div>
 
   <!-- Stop List -->
@@ -1001,6 +1086,13 @@ function generateRiderPDF() {
     const slot  = o.slot ? (o.slot==='morning'?'☀️ Morning':'🌙 Evening') : (_isSlotMatch(o,'morning')?'☀️ Morning':'🌙 Evening');
     const pay   = o.user_type==='subscriber' ? '💳 Wallet' : '💵 Cash';
     const status= (o.order_status||'pending').replace(/_/g,' ');
+    const _cm   = (o.address||'').match(/latitude\s*=\s*([+-]?\d+\.?\d*)[,\s]+longitude\s*=\s*([+-]?\d+\.?\d*)/i);
+    const _mapUrl = _cm
+      ? `https://www.google.com/maps?q=${_cm[1]},${_cm[2]}`
+      : (o.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}` : '');
+    const mapCell = _mapUrl
+      ? `<a href="${_mapUrl}" target="_blank" style="display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;white-space:nowrap">🗺 Map</a>`
+      : `<span style="color:#94a3b8;font-size:11px">—</span>`;
     return `<tr style="background:${i%2===0?'#fff':'#f9fafb'}">
       <td>${i+1}</td>
       <td style="font-family:monospace;font-size:11px">${o.order_id}</td>
@@ -1012,6 +1104,7 @@ function generateRiderPDF() {
       <td>${slot}</td>
       <td style="font-size:11px">${o.date||'—'}<br>${o.time||''}</td>
       <td style="font-size:11px;color:${o.order_status==='delivered'?'#166534':'#b45309'}">${status}</td>
+      <td style="text-align:center">${mapCell}</td>
     </tr>`;
   }).join('');
 
@@ -1031,9 +1124,9 @@ function generateRiderPDF() {
   <h1>🛵 Tiffo Rider — ${tabLabel} Orders</h1>
   <div class="meta">Rider: ${_rider?.name||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_appliedQuery+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
   <table>
-    <thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Address</th><th>Items</th><th>Amount</th><th>Payment</th><th>Session</th><th>Date/Time</th><th>Status</th></tr></thead>
+    <thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Address</th><th>Items</th><th>Amount</th><th>Payment</th><th>Session</th><th>Date/Time</th><th>Status</th><th>Map</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="total-row"><td colspan="5" style="text-align:right;padding:10px">Total (${filtered.length} orders):</td><td style="padding:10px;font-size:14px">₹${totalAmt}</td><td colspan="4"></td></tr></tfoot>
+    <tfoot><tr class="total-row"><td colspan="5" style="text-align:right;padding:10px">Total (${filtered.length} orders):</td><td style="padding:10px;font-size:14px">₹${totalAmt}</td><td colspan="5"></td></tr></tfoot>
   </table>
   <footer>Tiffo Rider Panel © 2026</footer>
   <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200)}<\/script>
@@ -1054,11 +1147,24 @@ let _gpsMarker       = null;   // Blue dot marker
 let _gpsCircle       = null;   // Accuracy circle
 let _gpsWatchId      = null;   // watchPosition ID
 let _gpsPos          = null;   // {lat, lng} last known
-let _routePolyline   = null;   // Dashed route line
+let _routePolyline   = null;   // Fallback straight-line polyline
+let _routeLayer      = null;   // OSRM road-following GeoJSON layer
+let _routeDrawing    = false;  // Prevent concurrent OSRM fetches
 let _routeOptimized  = false;
 let _deliveryActive  = false;
 let _deliveryIdx     = 0;      // current stop index in _mapStops
 let _mapModalOpen    = false;
+let _mapMode         = 'street'; // 'street' | 'gmaps'
+let _gmapsBatchStart = 0;        // offset into sorted stops for current GMaps batch
+const _GMAPS_BATCH   = 10;       // stops per Google Maps batch
+let _allPinsMap      = null;     // separate Leaflet instance for All Pins view
+
+// ── Live tracking state ───────────────────────────────────────
+let _lastRouteRedrawPos  = null; // GPS position at last OSRM redraw
+let _routeRedrawTimer    = null; // debounce timer for live redraw
+let _liveTrackingActive  = false;// true when delivery mode running
+const _REDRAW_DIST_M     = 40;   // redraw if moved > 40m
+const _AUTOPAN_DIST_M    = 80;   // auto-pan threshold (unused directly, handled by bounds check)
 
 // ── Haversine distance (km) ───────────────────────────────────
 function _haversine(lat1, lng1, lat2, lng2) {
@@ -1117,40 +1223,174 @@ function _gpsIcon() {
 }
 
 // ── Start GPS watch ───────────────────────────────────────────
+// ── Start GPS watch ───────────────────────────────────────────
+// Every fix: move dot, auto-pan (delivery mode), redraw route if moved >40m
 function _startGPS() {
   if (!navigator.geolocation) { rToast('GPS not supported on this device'); return; }
   _gpsWatchId = navigator.geolocation.watchPosition(
     pos => {
-      _gpsPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      const acc = pos.coords.accuracy;
+      const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const acc    = pos.coords.accuracy;
+      _gpsPos = newPos;
       if (!_map) return;
+
+      // 1. Move blue dot & accuracy circle
       if (!_gpsMarker) {
-        _gpsMarker = L.marker([_gpsPos.lat, _gpsPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_map);
-        _gpsCircle = L.circle([_gpsPos.lat, _gpsPos.lng], { radius: acc, color:'#3b82f6', fillColor:'#3b82f6', fillOpacity:.08, weight:1 }).addTo(_map);
+        _gpsMarker = L.marker([newPos.lat, newPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_map);
+        _gpsCircle = L.circle([newPos.lat, newPos.lng], {
+          radius: acc, color:'#3b82f6', fillColor:'#3b82f6', fillOpacity:.08, weight:1
+        }).addTo(_map);
       } else {
-        _gpsMarker.setLatLng([_gpsPos.lat, _gpsPos.lng]);
-        _gpsCircle.setLatLng([_gpsPos.lat, _gpsPos.lng]).setRadius(acc);
+        _gpsMarker.setLatLng([newPos.lat, newPos.lng]);
+        _gpsCircle.setLatLng([newPos.lat, newPos.lng]).setRadius(acc);
+      }
+
+      // 2. Auto-pan: if GPS dot near edge, re-center map
+      if (_deliveryActive && _liveTrackingActive) {
+        const padded = _map.getBounds().pad(-0.22);
+        if (!padded.contains([newPos.lat, newPos.lng])) {
+          _map.panTo([newPos.lat, newPos.lng], { animate: true, duration: 0.8 });
+        }
+      }
+
+      // 3. Live route redraw — debounced, triggers every 40m of movement
+      if (_deliveryActive && _liveTrackingActive) {
+        const movedM = _lastRouteRedrawPos
+          ? _haversine(_lastRouteRedrawPos.lat, _lastRouteRedrawPos.lng, newPos.lat, newPos.lng) * 1000
+          : Infinity;
+        if (movedM >= _REDRAW_DIST_M) {
+          clearTimeout(_routeRedrawTimer);
+          _routeRedrawTimer = setTimeout(async () => {
+            _lastRouteRedrawPos = { ...newPos };
+            await _drawPolyline();
+            _updateLiveDistances();
+          }, 2000); // 2s debounce — avoids OSRM spam
+        }
       }
     },
-    () => { rToast('GPS unavailable, showing last known location'); },
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    err => { if (err.code !== err.TIMEOUT) rToast('GPS unavailable — using last known position'); },
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
   );
+}
+
+// ── Update distance labels on cards from live GPS ─────────────
+function _updateLiveDistances() {
+  if (!_gpsPos) return;
+  _mapStops.forEach((s, i) => {
+    if (!s.coords || s.delivered || s.skipped) return;
+    // Don't overwrite road distance (from OSRM) with haversine
+    if (!s._distIsRoad) {
+      s.distKm = _haversine(_gpsPos.lat, _gpsPos.lng, s.coords.lat, s.coords.lng);
+    }
+    const card = document.getElementById('stop-card-' + i);
+    if (card) {
+      const distEl = card.querySelector('.stop-dist');
+      if (distEl && s.distKm != null) {
+        distEl.textContent = s._distIsRoad ? `🛣 ${s.distKm.toFixed(1)}km` : `~${s.distKm.toFixed(1)}km`;
+      }
+    }
+  });
+  const cur = _mapStops[_deliveryIdx];
+  if (cur?.distKm != null && _deliveryActive) {
+    const label = cur._distIsRoad ? `🛣 ${cur.distKm.toFixed(1)}km by road` : `~${cur.distKm.toFixed(1)}km`;
+    document.getElementById('delivery-bar-progress').textContent =
+      `${_mapStops.filter(s=>s.delivered).length} done · ${_mapStops.filter(s=>!s.delivered&&!s.skipped).length} left · ${label}`;
+  }
 }
 
 function _stopGPS() {
   if (_gpsWatchId !== null) { navigator.geolocation.clearWatch(_gpsWatchId); _gpsWatchId = null; }
+  clearTimeout(_routeRedrawTimer);
+  _routeRedrawTimer   = null;
+  _liveTrackingActive = false;
+  _lastRouteRedrawPos = null;
 }
 
-// ── Draw dashed polyline ──────────────────────────────────────
-function _drawPolyline() {
+// ── Clear all route layers ────────────────────────────────────
+function _clearRouteLayer() {
+  if (_routeLayer)    { _map.removeLayer(_routeLayer);    _routeLayer    = null; }
   if (_routePolyline) { _map.removeLayer(_routePolyline); _routePolyline = null; }
-  const pts = [];
-  if (_gpsPos) pts.push([_gpsPos.lat, _gpsPos.lng]);
-  _mapStops.forEach(s => { if (s.coords && !s.delivered) pts.push([s.coords.lat, s.coords.lng]); });
+}
+
+// ── Draw fallback straight-line polyline ──────────────────────
+function _drawFallbackPolyline(pts) {
+  _clearRouteLayer();
   if (pts.length < 2) return;
   _routePolyline = L.polyline(pts, {
-    color:'#3b82f6', weight:3, opacity:.7, dashArray:'8,8'
+    color:'#3b82f6', weight:3, opacity:.6, dashArray:'8,8'
   }).addTo(_map);
+}
+
+// ── Draw road-following route via OSRM (free, no API key) ─────
+// Falls back to straight dashed line if OSRM fails/times out.
+// Extracts road distance (km) from OSRM and stores on current stop.
+async function _drawPolyline() {
+  if (!_map) return;
+
+  // Build ordered waypoints: GPS → pending stops in sequence
+  const pts = [];
+  if (_gpsPos) pts.push({ lat: _gpsPos.lat, lng: _gpsPos.lng });
+  _mapStops.forEach(s => {
+    if (s.coords && !s.delivered && !s.skipped) pts.push({ lat: s.coords.lat, lng: s.coords.lng });
+  });
+
+  _clearRouteLayer();
+  if (pts.length < 2) return;
+
+  // Prevent multiple simultaneous fetches; show fallback instantly
+  if (_routeDrawing) {
+    _drawFallbackPolyline(pts.map(p => [p.lat, p.lng]));
+    return;
+  }
+  _routeDrawing = true;
+
+  // Show straight dashed line immediately so map isn't empty while fetching
+  _drawFallbackPolyline(pts.map(p => [p.lat, p.lng]));
+
+  try {
+    const coords = pts.slice(0, 25).map(p => `${p.lng},${p.lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) throw new Error('OSRM ' + res.status);
+    const data = await res.json();
+    if (!data.routes?.[0]) throw new Error('No route');
+
+    _clearRouteLayer();
+    const route  = data.routes[0];
+    const geojson = route.geometry;
+
+    // ── Store road distance on current stop (replaces haversine) ──
+    if (route.legs?.[0]) {
+      const roadKm = route.legs[0].distance / 1000;
+      const curStop = _mapStops[_deliveryIdx];
+      if (curStop && !curStop.delivered && !curStop.skipped) {
+        curStop.distKm     = roadKm;
+        curStop._distIsRoad = true;
+      }
+      if (_deliveryActive && curStop) {
+        document.getElementById('delivery-bar-progress').textContent =
+          `${_mapStops.filter(s=>s.delivered).length} done · ${_mapStops.filter(s=>!s.delivered&&!s.skipped).length} left · 🛣 ${roadKm.toFixed(1)}km`;
+      }
+    }
+
+    // Professional 3-layer road line: white casing + blue fill + inner highlight
+    _routeLayer = L.layerGroup([
+      L.geoJSON(geojson, { style:{ color:'#fff', weight:7, opacity:0.45, lineJoin:'round', lineCap:'round' } }),
+      L.geoJSON(geojson, { style:{ color:'#2563eb', weight:5, opacity:0.9, lineJoin:'round', lineCap:'round' } }),
+      L.geoJSON(geojson, { style:{ color:'#93c5fd', weight:2, opacity:0.55, lineJoin:'round' } })
+    ]).addTo(_map);
+
+  } catch (e) {
+    // Silently keep the fallback straight line
+    console.warn('OSRM failed, using straight line:', e.message);
+  } finally {
+    _routeDrawing = false;
+  }
 }
 
 // ── Render the bottom stop list ───────────────────────────────
@@ -1169,7 +1409,9 @@ function _renderStopList() {
     const nameClass  = s.delivered ? 'stop-name strikethrough' : 'stop-name';
     const slotClass  = (s.order.slot||'morning') === 'morning' ? 'slot-morning' : 'slot-evening';
     const slotLabel  = (s.order.slot||'morning') === 'morning' ? '☀️' : '🌙';
-    const dist       = (s.distKm !== null && s.distKm !== undefined) ? `~${s.distKm.toFixed(1)}km` : '';
+    const dist       = (s.distKm !== null && s.distKm !== undefined)
+      ? (s._distIsRoad ? `🛣 ${s.distKm.toFixed(1)}km` : `~${s.distKm.toFixed(1)}km`)
+      : '';
     const statusBadge= s.delivered ? '<span class="stop-status-badge badge-delivered">✅ Done</span>'
                      : s.skipped   ? '<span class="stop-status-badge badge-skipped">⏭ Skipped</span>'
                      : '';
@@ -1228,13 +1470,35 @@ function _placeMarkers() {
   let seqNum = 0;
   _mapStops.forEach((s, i) => {
     if (!s.coords) return;
-    seqNum++;
-    const color = s.delivered ? '#22c55e' : s.skipped ? '#f97316' : '#e63946';
-    s.seqNum = seqNum;
-    const marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(seqNum, color) })
+    const isDelivered = s.delivered;
+    const isSkipped   = s.skipped;
+    const isActive    = _deliveryActive && i === _deliveryIdx;
+
+    // Sequence number: only count pending stops
+    if (!isDelivered && !isSkipped) seqNum++;
+    const label = isDelivered ? '✓' : isSkipped ? '⏭' : seqNum;
+
+    // Color: green=done, orange=skipped, gold=active current, red=pending
+    const color = isDelivered ? '#22c55e'
+                : isSkipped   ? '#f97316'
+                : isActive    ? '#f59e0b'
+                : '#e63946';
+
+    s.seqNum = isDelivered || isSkipped ? null : seqNum;
+    const distLabel = s.distKm != null ? `<br><span style="font-size:11px;color:#64748b">~${s.distKm.toFixed(1)} km away</span>` : '';
+    const marker = L.marker([s.coords.lat, s.coords.lng], {
+      icon: _numIcon(label, color),
+      zIndexOffset: isActive ? 500 : isDelivered ? -100 : 0
+    })
       .addTo(_map)
-      .bindPopup(`<b>${s.order.name||'—'}</b><br><span style="font-size:12px;color:#475569">${_shortAddr(s.order.address)}</span><br><span style="font-size:11px;color:#64748b">${s.order.order_id||''}</span>`);
+      .bindPopup(
+        `<b style="font-size:13px">${s.order.name || '—'}</b>${distLabel}` +
+        `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
+        `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
+      );
     marker.on('click', () => { _scrollToCard(i); });
+    // Auto-open popup on active stop
+    if (isActive) setTimeout(() => marker.openPopup(), 300);
     s.marker = marker;
   });
 }
@@ -1295,6 +1559,9 @@ function openRiderMap(ordersParam) {
   _routeOptimized  = false;
   _deliveryActive  = false;
   _deliveryIdx     = 0;
+  _resetGMapsBatch();
+  const lbadge0 = document.getElementById('live-track-badge');
+  if (lbadge0) lbadge0.style.display = 'none';
   document.getElementById('btn-optimize').classList.remove('done');
   document.getElementById('btn-optimize-icon').textContent = '🧭';
   document.getElementById('btn-optimize-label').textContent = 'Optimize Route';
@@ -1342,7 +1609,8 @@ function closeRiderMap() {
   _mapStops.forEach(s => { if (s.marker && _map) _map.removeLayer(s.marker); s.marker = null; });
   if (_gpsMarker && _map)  { _map.removeLayer(_gpsMarker); _gpsMarker = null; }
   if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
-  if (_routePolyline && _map) { _map.removeLayer(_routePolyline); _routePolyline = null; }
+  _clearRouteLayer();
+  _routeDrawing = false; // reset in case OSRM fetch was mid-flight
 }
 
 // ── FLY TO STOP ───────────────────────────────────────────────
@@ -1391,7 +1659,7 @@ function _findNearestRemainingIdx() {
   return bestIdx;
 }
 
-function optimizeRoute() {
+async function optimizeRoute() {
   const withCoords = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
   if (withCoords.length < 2) { rToast('Need at least 2 stops with GPS coords to optimize'); return; }
 
@@ -1419,7 +1687,7 @@ function optimizeRoute() {
   // Refresh map — draw route preview from GPS through all stops in order
   _placeMarkers();
   _renderStopList();
-  _drawPolyline();
+  await _drawPolyline();
   _fitMapBounds();
 
   const totalKm = ordered.reduce((sum, s) => sum + (s.distKm || 0), 0);
@@ -1427,15 +1695,15 @@ function optimizeRoute() {
 }
 
 // ── DELIVERY MODE ─────────────────────────────────────────────
-function toggleDeliveryMode() {
+async function toggleDeliveryMode() {
   if (!_deliveryActive) {
-    _startDeliveryMode();
+    await _startDeliveryMode();
   } else {
     _pauseDeliveryMode();
   }
 }
 
-function _startDeliveryMode() {
+async function _startDeliveryMode() {
   const activeStops = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!activeStops.length) { rToast('No stops remaining'); return; }
 
@@ -1454,12 +1722,16 @@ function _startDeliveryMode() {
       document.getElementById('btn-optimize-icon').textContent = '✅';
       document.getElementById('btn-optimize-label').textContent = 'Optimized';
       _placeMarkers();
-      _drawPolyline();
+      await _drawPolyline();
       rToast('🧭 Auto-optimized from your location!');
     }
   }
 
   _deliveryActive = true;
+  _liveTrackingActive = true;
+  _lastRouteRedrawPos = _gpsPos ? { ..._gpsPos } : null;
+  const lbadge = document.getElementById('live-track-badge');
+  if (lbadge) lbadge.style.display = 'block';
   // Start at the nearest undelivered stop from current GPS (dynamic, not just index 0)
   _deliveryIdx = _findNearestRemainingIdx();
   if (_deliveryIdx === -1) _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
@@ -1476,6 +1748,10 @@ function _startDeliveryMode() {
 
 function _pauseDeliveryMode() {
   _deliveryActive = false;
+  _liveTrackingActive = false;
+  clearTimeout(_routeRedrawTimer);
+  const lbadge = document.getElementById('live-track-badge');
+  if (lbadge) lbadge.style.display = 'none';
   document.getElementById('btn-start-delivery').classList.remove('active-mode');
   document.getElementById('btn-delivery-icon').textContent  = '▶';
   document.getElementById('btn-delivery-label').textContent = 'Resume';
@@ -1548,16 +1824,8 @@ async function deliveryMarkDone() {
     s.delivered = true;
     s._syncing  = false;
 
-    // Update marker to green
-    if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
-    if (s.coords) {
-      s.marker = L.marker([s.coords.lat, s.coords.lng], {
-        icon: _numIcon(s.seqNum || '✓', '#22c55e')
-      }).addTo(_map);
-    }
-    _drawPolyline();
     rToast('✅ Delivered & synced!');
-    _advanceDelivery();
+    await _advanceDelivery(); // handles _placeMarkers + _drawPolyline + renumbering
 
   } catch (e) {
     s._syncing = false;
@@ -1567,22 +1835,18 @@ async function deliveryMarkDone() {
   }
 }
 
-function deliverySkip() {
+async function deliverySkip() {
   const s = _mapStops[_deliveryIdx];
   if (!s) return;
   s.skipped = true;
   // Move skipped stop to end so it stays in queue
   _mapStops.splice(_deliveryIdx, 1);
   _mapStops.push(s);
-  // Update skipped marker color (orange)
-  if (s.marker) { _map.removeLayer(s.marker); s.marker = null; }
-  if (s.coords) {
-    s.marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon('⏭', '#f97316') }).addTo(_map);
-  }
   // NOTE: do NOT call backend — order stays "pending/out for delivery" in the DB
   // so it remains in the main order list's "For Delivery" section
   rToast('⏭ Skipped — finding nearest next stop…');
-  _drawPolyline();
+  _placeMarkers(); // re-number remaining pins
+  await _drawPolyline();
 
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) {
@@ -1600,7 +1864,7 @@ function deliverySkip() {
   flyToStop(_deliveryIdx);
 }
 
-function _advanceDelivery() {
+async function _advanceDelivery() {
   // Reset deliver button
   const btn = document.getElementById('dbar-deliver');
   if (btn) { btn.textContent = '✅ Delivered'; btn.classList.remove('loading'); }
@@ -1628,10 +1892,22 @@ function _advanceDelivery() {
   }
 
   // Redraw route line from GPS through remaining stops in optimized order
-  _drawPolyline();
+  _placeMarkers(); // re-number pins: nearest remaining = #1
+  await _drawPolyline();
   _renderStopList();
   _updateDeliveryBar();
   flyToStop(_deliveryIdx);
+
+  // Check if current GMaps batch is now exhausted; auto-advance and notify
+  const remainingCount = _mapStops.filter(s => !s.delivered && !s.skipped && s.coords).length;
+  const batchRemaining = _GMAPS_BATCH - (_gmapsBatchStart % _GMAPS_BATCH || _GMAPS_BATCH);
+  // If this stop was the last in the batch, show next-batch banner
+  if (remainingCount > 0 && batchRemaining <= 1) {
+    _gmapsBatchStart += _GMAPS_BATCH;
+    if (_gmapsBatchStart >= remainingCount) _gmapsBatchStart = 0;
+    const nextCount = Math.min(_GMAPS_BATCH, remainingCount);
+    _showNextBatchBar(nextCount, _gmapsBatchStart);
+  }
 
   // Show distance to next stop if GPS available
   const nextStop = _mapStops[_deliveryIdx];
@@ -1719,24 +1995,25 @@ function _gMapsNavUrl(dest, originCoords) {
 /* ── Build a multi-stop route URL (Google Maps Dir API, free) ────
    Google Maps allows up to 25 waypoints via URL.
    stops = array of {coords?, order}
-   Drops already-delivered stops. Keeps order of _mapStops.       */
-function _gMapsMultiStopUrl(stops, originCoords) {
+   batchStart = offset into nearest-neighbor sorted array (default 0).
+   Returns {url, hasMore, batchEnd, sorted}.                          */
+function _gMapsMultiStopUrl(stops, originCoords, batchStart) {
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const mode     = isMobile ? 'two-wheeler' : 'driving';
 
   const withCoords = stops.filter(s => s.coords);
   if (!withCoords.length) return null;
 
-  // Sort stops nearest-neighbor from origin before building URL.
+  // Sort nearest-neighbor from origin
   const startLat = originCoords?.lat ?? withCoords[0].coords.lat;
   const startLng = originCoords?.lng ?? withCoords[0].coords.lng;
   const sorted   = _nearestNeighborSort([...withCoords], startLat, startLng);
 
-  // Practical batch cap: 10 stops (origin + 8 waypoints + destination).
-  // Reliable on Android/iOS Google Maps app and browser alike.
-  const BATCH    = 10;
-  const batch    = sorted.slice(0, BATCH);
-  const overflow = sorted.length > BATCH;
+  const start    = batchStart || 0;
+  const batch    = sorted.slice(start, start + _GMAPS_BATCH);
+  if (!batch.length) return null;
+
+  const hasMore  = (start + _GMAPS_BATCH) < sorted.length;
 
   const origin  = originCoords
     ? `${originCoords.lat},${originCoords.lng}`
@@ -1749,9 +2026,8 @@ function _gMapsMultiStopUrl(stops, originCoords) {
   const wpStr    = midStops.map(s => `${s.coords.lat},${s.coords.lng}`).join('|');
   const wpParam  = wpStr ? `&waypoints=${encodeURIComponent(wpStr)}` : '';
 
-  if (overflow) rToast(`🗺 Showing nearest ${BATCH} stops · tap Navigate after each for next batch`);
-
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
+  return { url, hasMore, batchEnd: start + batch.length, sorted, batchSize: batch.length };
 }
 
 /* ── Navigate to a stop by index (from stop card "Nav" button) ── */
@@ -1795,11 +2071,11 @@ function shareLocationViaWA(idx) {
 /* ── Main "Google Maps" button handler in the map modal ─────────
    Smart context-aware:
    • Delivery active  → navigate to CURRENT stop only (one-tap nav)
-   • Not active       → open full multi-stop optimized route        */
+   • Not active       → open current batch of 10 optimized stops
+   • After batch done → auto-advance to next batch                 */
 function openInMapsFromModal() {
   if (_deliveryActive) {
     // During delivery: single-stop nav to current nearest stop.
-    // Each tap after marking delivered goes to the next nearest — always fresh, never stale.
     const cur = _mapStops[_deliveryIdx];
     if (!cur) { rToast('No current stop'); return; }
     const dest = cur.coords || _shortAddr(cur.order.address);
@@ -1810,7 +2086,7 @@ function openInMapsFromModal() {
     return;
   }
 
-  // Pre-delivery: open nearest batch of stops for route planning.
+  // Pre-delivery: open current batch from _gmapsBatchStart
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) { rToast('No stops remaining'); return; }
 
@@ -1826,8 +2102,146 @@ function openInMapsFromModal() {
     return;
   }
 
-  const url = _gMapsMultiStopUrl(remaining, _gpsPos || null);
-  if (url) _gMapsOpen(url);
+  const result = _gMapsMultiStopUrl(remaining, _gpsPos || null, _gmapsBatchStart);
+  if (!result) { rToast('Could not build route'); return; }
+
+  _gMapsOpen(result.url);
+
+  // Update badge and next-batch bar
+  if (result.hasMore) {
+    const nextCount = Math.min(_GMAPS_BATCH, result.sorted.length - result.batchEnd);
+    _showBatchBadge(result.batchEnd, result.sorted.length);
+    _showNextBatchBar(nextCount, result.batchEnd);
+    rToast(`🗺 Batch ${Math.floor(_gmapsBatchStart/_GMAPS_BATCH)+1}: ${result.batchSize} stops · ${result.sorted.length - result.batchEnd} more waiting`);
+  } else {
+    _hideBatchBadge();
+    _hideNextBatchBar();
+    rToast(`🗺 Final batch: ${result.batchSize} stops`);
+  }
+}
+
+/* ── Load the next Google Maps batch ────────────────────────── */
+function loadNextGMapsBatch() {
+  _gmapsBatchStart += _GMAPS_BATCH;
+  const remaining  = _mapStops.filter(s => !s.delivered && !s.skipped);
+  const withCoords = remaining.filter(s => s.coords);
+
+  // If batch start exceeds total, reset to 0 (wrap around)
+  if (_gmapsBatchStart >= withCoords.length) _gmapsBatchStart = 0;
+
+  openInMapsFromModal();
+}
+
+/* ── Batch badge helpers ─────────────────────────────────────── */
+function _showBatchBadge(done, total) {
+  const badge = document.getElementById('batch-badge');
+  if (!badge) return;
+  badge.textContent = done + '/' + total;
+  badge.style.display = 'block';
+}
+function _hideBatchBadge() {
+  const badge = document.getElementById('batch-badge');
+  if (badge) badge.style.display = 'none';
+}
+function _showNextBatchBar(nextCount, batchEnd) {
+  const bar = document.getElementById('next-batch-bar');
+  const txt = document.getElementById('next-batch-bar-text');
+  if (!bar) return;
+  if (txt) txt.textContent = `✅ Batch done! Next ${nextCount} stops ready (${batchEnd} delivered so far)`;
+  bar.classList.add('show');
+}
+function _hideNextBatchBar() {
+  const bar = document.getElementById('next-batch-bar');
+  if (bar) bar.classList.remove('show');
+}
+
+/* ── Map Mode Toggle ─────────────────────────────────────────── */
+function setMapMode(mode) {
+  _mapMode = mode;
+  document.getElementById('mmt-street').classList.toggle('act', mode === 'street');
+  document.getElementById('mmt-gmaps').classList.toggle('act', mode === 'gmaps');
+
+  const leafletContainer = document.getElementById('map-container');
+  const actionBar        = document.getElementById('map-actions');
+  const nextBatchBar     = document.getElementById('next-batch-bar');
+
+  if (mode === 'street') {
+    // Show Leaflet map
+    leafletContainer.style.display = '';
+    actionBar.style.display = '';
+    if (_map) { requestAnimationFrame(() => _map.invalidateSize()); }
+    // Hide GMaps-only next batch bar if visible (it'll re-appear when Navigate tapped)
+  } else {
+    // GMaps mode: collapse Leaflet (keep it alive so GPS still works)
+    // Show a clean "tap Navigate to open" instruction area
+    leafletContainer.style.display = 'none';
+    // GMaps mode keeps action bar for Navigate/Next-Batch
+  }
+
+  rToast(mode === 'street' ? '🗺 Street map mode' : '📍 Google Maps mode');
+}
+
+/* ── Open All Pins View (full Leaflet map with every stop pin) ── */
+function openAllPinsView() {
+  const panel = document.getElementById('all-pins-panel');
+  panel.classList.add('show');
+
+  requestAnimationFrame(() => {
+    const container = document.getElementById('all-pins-leaflet');
+    if (!_allPinsMap) {
+      _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
+    } else {
+      _allPinsMap.invalidateSize();
+    }
+
+    // Clear old markers
+    _allPinsMap.eachLayer(layer => { if (layer instanceof L.Marker) _allPinsMap.removeLayer(layer); });
+
+    const pts = [];
+    let pinned = 0, noCoords = 0;
+
+    _mapStops.forEach((s, i) => {
+      if (!s.coords) { noCoords++; return; }
+      pinned++;
+      const color = s.delivered ? '#22c55e' : s.skipped ? '#f97316' : '#e63946';
+      const label = s.delivered ? '✓' : s.skipped ? '⏭' : (i + 1);
+      const marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(label, color) })
+        .addTo(_allPinsMap)
+        .bindPopup(
+          `<b style="font-size:13px">${s.order.name || '—'}</b>` +
+          `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
+          `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
+        );
+      pts.push([s.coords.lat, s.coords.lng]);
+    });
+
+    // Add GPS dot if available
+    if (_gpsPos) {
+      L.marker([_gpsPos.lat, _gpsPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_allPinsMap);
+      pts.push([_gpsPos.lat, _gpsPos.lng]);
+    }
+
+    // Fit bounds
+    if (pts.length > 1) _allPinsMap.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 16 });
+    else if (pts.length === 1) _allPinsMap.setView(pts[0], 15);
+
+    // Stats
+    const statsEl = document.getElementById('all-pins-stats');
+    if (statsEl) statsEl.textContent = `${pinned} stops pinned · ${noCoords} without GPS · tap any pin for details`;
+  });
+}
+
+function closeAllPinsView() {
+  document.getElementById('all-pins-panel').classList.remove('show');
+  if (_allPinsMap) _allPinsMap.invalidateSize();
+}
+
+/* ── Reset batch tracking when map is opened/reloaded ─────────── */
+function _resetGMapsBatch() {
+  _gmapsBatchStart = 0;
+  _hideBatchBadge();
+  _hideNextBatchBar();
 }
 
 /* ── Backward compat stubs ────────────────────────────────────── */
@@ -1859,14 +2273,14 @@ function _extractCoordsFromAddress(address) {
   return { lat, lng };
 }
 
-/* ── "All Stops" button — always opens full remaining route ─────
-   Even during delivery mode. Good for sending to a colleague etc. */
+/* ── "All Stops" backward-compat — full remaining route ─────────
+   Opens full remaining route from batch 0 (all stops).          */
 function openAllStopsInGMaps() {
   const remaining = _mapStops.filter(s => !s.delivered);
   if (!remaining.length) { rToast('No stops remaining'); return; }
   if (!remaining.some(s => s.coords)) { rToast('No GPS coords — cannot build route'); return; }
-  const url = _gMapsMultiStopUrl(remaining, _gpsPos || null);
-  if (url) _gMapsOpen(url);
+  const result = _gMapsMultiStopUrl(remaining, _gpsPos || null, 0);
+  if (result) _gMapsOpen(result.url);
 }
 
 /* ── openMaps — called from order card "🗺 Maps" button ─────────
