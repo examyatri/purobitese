@@ -14,9 +14,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#e63946">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Tiffo – Ghar ka Khana</title>
-<link rel="manifest" href="./manifest.json">
+<link rel="manifest" href="/manifest.json">
 <!-- ── Preconnect: browser early-connects before render reaches these links ── -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4298,7 +4298,7 @@ function _wipeAndShowLogin() {
 async function bootApp() {
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { scope: '/' }).then(reg => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
       // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
