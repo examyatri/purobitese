@@ -551,3 +551,68 @@ GRANT EXECUTE ON FUNCTION increment_balance(TEXT, NUMERIC) TO authenticated;
 -- SELECT increment_balance('9999999999', 100);   -- should return 100 (or prior balance + 100)
 -- SELECT increment_balance('9999999999', -50);   -- should return 50 (or prior - 50)
 -- ─────────────────────────────────────────────────────────────────────────────
+
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- MIGRATION v43 — bulk_increment_balance
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Run this ONCE in Supabase SQL Editor after deploying v43.
+-- Safe to re-run at any time (CREATE OR REPLACE). No existing data is changed.
+-- ═════════════════════════════════════════════════════════════════════════════
+
+-- Function: bulk_increment_balance(p_phones TEXT[], p_delta NUMERIC)
+--
+-- PURPOSE
+--   Replaces N sequential _atomicWalletUpdate() calls with a single SQL
+--   statement. Used exclusively by bulkGenerateOrders to update all subscriber
+--   wallet balances atomically in one round trip regardless of count.
+--
+-- HOW IT WORKS
+--   INSERT ... SELECT unnest(p_phones), p_delta ... ON CONFLICT (phone) DO UPDATE
+--   • New phone  → inserts row with balance = p_delta
+--   • Existing   → adds p_delta to current balance  (negative = deduction)
+--   RETURNING gives back every phone's final balance so the server can classify
+--   each user as normal (balance ≥ 0) or udhar (balance < 0) without extra reads.
+--
+-- ARGUMENTS
+--   p_phones  TEXT[]   — array of E.164-stripped phone numbers (no +91)
+--   p_delta   NUMERIC  — amount to apply:  negative = deduct,  positive = refund
+--
+-- RETURNS
+--   TABLE(phone TEXT, new_balance NUMERIC)  — one row per input phone
+--
+-- USAGE IN SERVER
+--   Deduct:   supabase.rpc('bulk_increment_balance', { p_phones, p_delta: -price })
+--   Rollback: supabase.rpc('bulk_increment_balance', { p_phones, p_delta: +price })
+--
+-- EXAMPLE
+--   SELECT * FROM bulk_increment_balance(ARRAY['9876543210','9123456789'], -80);
+--   -- User A had ₹100 → returns (9876543210,  20)   normal
+--   -- User B had ₹50  → returns (9123456789, -30)   udhar
+
+CREATE OR REPLACE FUNCTION bulk_increment_balance(p_phones TEXT[], p_delta NUMERIC)
+RETURNS TABLE(phone TEXT, new_balance NUMERIC)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  INSERT INTO khata_summary (phone, balance, updated_at)
+    SELECT unnest(p_phones), p_delta, NOW()
+  ON CONFLICT (phone)
+  DO UPDATE
+    SET balance    = khata_summary.balance + EXCLUDED.balance,
+        updated_at = NOW()
+  RETURNING khata_summary.phone, khata_summary.balance;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION bulk_increment_balance(TEXT[], NUMERIC) TO service_role;
+GRANT EXECUTE ON FUNCTION bulk_increment_balance(TEXT[], NUMERIC) TO anon;
+GRANT EXECUTE ON FUNCTION bulk_increment_balance(TEXT[], NUMERIC) TO authenticated;
+
+-- ── Quick verification (paste into SQL Editor after running the migration) ───
+-- SELECT * FROM bulk_increment_balance(ARRAY['0000000001', '0000000002'], -50);
+-- Expected: two rows each showing (phone, <current_balance − 50>)
+-- Clean up test rows afterwards:
+-- DELETE FROM khata_summary WHERE phone IN ('0000000001', '0000000002');
