@@ -38,7 +38,7 @@
       — SW never caches them — clients always hit live backend ✅
    3. No frontend change needed for backend-only deploys
 
-   NOTE: /ping endpoint kept alive by UptimeRobot every 5 min.
+   NOTE: /ping kept alive by self-ping (12 min) + UptimeRobot (5 min).
    ───────────────────────────────────────────────────────── */
 
 const CACHE      = 'tiffo-v13';

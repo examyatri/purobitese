@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — User App (index.html)           ║
-     ║  Version : v47.0                                    ║
+     ║  Version : v48.0                                    ║
      ║  Updated : 2026-04-26                               ║
      ║  Changes : Fresh DB on every home visit (5s guard), ║
      ║            revisit threshold restored to 90s,       ║
@@ -150,13 +150,24 @@ textarea{resize:vertical;min-height:80px}
 .loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
 /* (loc-finetune styles removed — replaced by Leaflet interactive map) */
 /* ── Structured Address Card ── */
-.addr-card{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:14px 15px;margin-top:10px;margin-bottom:6px}
-.addr-card-title{font-family:var(--ff);font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;gap:5px}
-.addr-card-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;font-family:var(--fb);font-size:12.5px;color:#1e293b;line-height:1.45}
-.addr-card-row .ai{color:#64748b;font-size:11px;min-width:14px;margin-top:1px}
+.addr-card{background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1.5px solid #86efac;border-radius:16px;padding:14px 15px;margin-top:10px;margin-bottom:6px;box-shadow:0 2px 8px rgba(22,163,74,.07)}
+.addr-card-title{font-family:var(--ff);font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:6px;padding-bottom:8px;border-bottom:1px solid #bbf7d0}
+.addr-card-row{display:flex;align-items:flex-start;gap:9px;margin-bottom:8px;font-family:var(--fb);font-size:13px;color:#1e293b;line-height:1.45}
+.addr-card-row:last-child{margin-bottom:0}
+.addr-card-row .ai{font-size:12px;min-width:16px;margin-top:2px;flex-shrink:0}
 .addr-card-row .av{flex:1;word-break:break-word}
-.addr-card-row .av.muted{color:#64748b;font-size:11.5px}
-.addr-card-divider{height:1px;background:#dcfce7;margin:8px 0}
+.addr-card-row .av.muted{color:#64748b;font-size:12px}
+/* Semantic row type colours */
+.addr-card-row.row-building .ai{color:#1d4ed8}
+.addr-card-row.row-near .ai{color:#d97706}
+.addr-card-row.row-nearby .ai{color:#b45309}
+.addr-card-row.row-road .ai{color:#475569}
+.addr-card-row.row-city .ai{color:#0e7490}
+.addr-card-row.row-state .ai{color:#6d28d9}
+.addr-card-row.row-coords .ai{color:#94a3b8}
+.addr-card-row.row-room .ai{color:#15803d}
+.addr-card-row.row-extra .ai{color:#0369a1}
+.addr-card-divider{height:1px;background:linear-gradient(90deg,#bbf7d0,transparent);margin:10px 0}
 .addr-detail-label{font-family:var(--ff);font-size:11.5px;font-weight:600;color:#15803d;margin-bottom:5px;margin-top:10px;display:block}
 .addr-detail-input{width:100%;padding:9px 12px;border:1.5px solid #bbf7d0;border-radius:10px;font-family:var(--fb);font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color 200ms;box-sizing:border-box}
 .addr-detail-input:focus{border-color:#16a34a}
@@ -547,10 +558,10 @@ textarea{resize:vertical;min-height:80px}
       <!-- ── Detected Address Preview (shown after location detected) ── -->
       <div id="su-addr-preview-wrap" style="display:none">
         <div class="addr-card">
-          <div class="addr-card-title"><i class="fa fa-map-location-dot"></i> Detected Address</div>
+          <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
           <div id="su-addr-card-body"><!-- filled by JS --></div>
           <div class="addr-card-divider"></div>
-          <span class="addr-detail-label">✏️ Add extra detail <span style="font-weight:400;color:#64748b">(Nearby landmarks auto-detected above · you can add floor, block, gate no., etc.)</span></span>
+          <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
           <input type="text" id="su-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off">
         </div>
         <!-- Hidden textarea stores final combined address for submission -->
@@ -840,8 +851,8 @@ textarea{resize:vertical;min-height:80px}
         <div class="acct-section-title">📍 Delivery Address</div>
 
         <!-- Current saved address display -->
-        <div id="acct-addr-display" style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:13px;color:#334155;line-height:1.5;margin-bottom:10px;word-break:break-word">
-          Loading…
+        <div id="acct-addr-display" style="margin-bottom:10px">
+          <div style="color:#94a3b8;font-size:13px;padding:10px 0">Loading…</div>
         </div>
 
         <!-- Toggle to show update form -->
@@ -881,10 +892,10 @@ textarea{resize:vertical;min-height:80px}
           <!-- Detected address card (shown after map detection) -->
           <div id="acct-addr-preview-wrap" style="display:none">
             <div class="addr-card">
-              <div class="addr-card-title"><i class="fa fa-map-location-dot"></i> Detected Address</div>
+              <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
               <div id="acct-addr-card-body"><!-- filled by JS --></div>
               <div class="addr-card-divider"></div>
-              <span class="addr-detail-label">✏️ Add extra detail <span style="font-weight:400;color:#64748b">(Nearby landmarks auto-detected above · add floor, block, gate no., etc.)</span></span>
+              <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
               <input type="text" id="acct-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off" oninput="_acctDetailWatcher()">
             </div>
           </div>
@@ -2094,18 +2105,52 @@ function _getPlusCode(lat, lng) {
   try { return window._encodePlusCode(lat, lng, 10); } catch(e) { return ''; }
 }
 
-/* Reverse-geocode via Nominatim — returns rich structured address object */
+/* ── Nominatim nearby-landmark search (runs in parallel with reverse) ──
+   Fetches up to 8 named places within ~200 m of the pin.
+   Returns array of unique display names, filtered against already-known tokens. */
+async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
+  try {
+    // viewbox ~0.002 deg ≈ 200 m radius box
+    const d = 0.002;
+    const box = `${lng-d},${lat-d},${lng+d},${lat+d}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&namedetails=1&bounded=1&viewbox=${box}&q=`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } });
+    const results = await res.json();
+    if (!Array.isArray(results)) return [];
+    const seen = new Set(excludeSet);
+    const out = [];
+    for (const r of results) {
+      const name = (r.namedetails?.name || r.display_name?.split(',')[0] || '').trim();
+      if (!name) continue;
+      const k = name.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(name);
+      if (out.length >= 4) break;
+    }
+    return out;
+  } catch(e) { return []; }
+}
+
+/* Reverse-geocode via Nominatim — returns rich structured address object.
+   Also fires a parallel nearby-search for richer landmark context. */
 async function _nominatimReverseGeocode(lat, lng) {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&zoom=18`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
-    );
-    const data = await res.json();
+    // Fire both requests in parallel for speed
+    const [revRes, _] = await Promise.allSettled([
+      fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&zoom=18`,
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
+      ),
+      null // placeholder; nearby search runs after we know the building name
+    ]);
+
+    if (revRes.status !== 'fulfilled') return null;
+    const data = await revRes.value.json();
     if (!data || data.error) return null;
     const a = data.address || {};
 
-    // ── 1. Building / named place (primary anchor at pin location) ──
+    // ── 1. Building / named place at pin ──
     const namedPlace = (data.namedetails?.name || data.name || '').trim();
     const building = (
       namedPlace ||
@@ -2114,12 +2159,10 @@ async function _nominatimReverseGeocode(lat, lng) {
       a.allotments || a.residential || a.man_made || ''
     ).trim();
 
-    // ── 1b. House number (prepend to road if present) ──
-    const houseNo = (a.house_number || '').trim();
-
     // ── 2. Street / road ──
-    const roadRaw = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.service || '').trim();
-    const road = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
+    const houseNo  = (a.house_number || '').trim();
+    const roadRaw  = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.service || '').trim();
+    const road     = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
 
     // ── 3. Neighbourhood / locality ──
     const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || '').trim();
@@ -2127,7 +2170,7 @@ async function _nominatimReverseGeocode(lat, lng) {
     // ── 4. City / town ──
     const city = (a.city || a.town || a.municipality || a.city_district || '').trim();
 
-    // ── 5. District / county ──
+    // ── 5. District ──
     const district = (a.county || a.state_district || '').trim();
 
     // ── 6. State ──
@@ -2136,37 +2179,52 @@ async function _nominatimReverseGeocode(lat, lng) {
     // ── 7. Pincode ──
     const pincode = (a.postcode || '').trim();
 
-    // ── 8. Auto nearby landmarks (Near / Opp.) — 1 to 3 entries ──
-    // Collect distinct known-place candidates from Nominatim address fields,
-    // excluding whatever is already used as building / road / area.
-    const _usedLower = new Set([building, road, area].map(s => s.toLowerCase()).filter(Boolean));
-    const _nearCandidates = [
+    // ── 8. Nearby landmarks — two-source strategy ──
+    //   Source A: Nominatim address fields (fast, from reverse response)
+    //   Source B: Nominatim /search in viewbox (parallel, richer results)
+    const usedLower = new Set([building, road, area, city, district, state, pincode]
+      .map(s => s.toLowerCase()).filter(Boolean));
+
+    // Source A candidates from address fields
+    const candidatesA = [
       a.amenity, a.leisure, a.tourism, a.shop, a.office,
       a.historic, a.place_of_worship, a.man_made,
       a.hamlet, a.locality, a.quarter
-    ]
-      .map(s => (s || '').trim())
-      .filter(s => s && !_usedLower.has(s.toLowerCase()));
-    const _nearSeen = new Set();
-    const nearUnique = _nearCandidates.filter(s => {
+    ].map(s => (s || '').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
+
+    // Source B: parallel nearby search (non-blocking — if it fails we still have A)
+    let candidatesB = [];
+    try {
+      candidatesB = await _fetchNearbyLandmarks(lat, lng, usedLower);
+    } catch(e) { /* silent fallback */ }
+
+    // Merge A + B, deduplicate, pick up to 4
+    const nearSeen = new Set(usedLower);
+    const nearAll = [...candidatesA, ...candidatesB].filter(s => {
       const k = s.toLowerCase();
-      if (_nearSeen.has(k)) return false;
-      _nearSeen.add(k);
+      if (nearSeen.has(k)) return false;
+      nearSeen.add(k);
       return true;
     });
-    const nearParts = nearUnique.slice(0, 3);
-    const nearLine = nearParts.length ? 'Near ' + nearParts.join(' / Opp. ') : '';
 
-    // Compose: building, road, area, city, district, state, pincode
+    // Split into "nearest" (first result = directly near the pin) and "also nearby"
+    // If building is found: nearFirst = 1 direct neighbour, nearExtra = up to 2 more
+    // If no building:       nearFirst = up to 2 direct neighbours
+    const hasBuilding = Boolean(building);
+    const nearFirst = nearAll.slice(0, hasBuilding ? 1 : 2);   // directly adjacent
+    const nearExtra = nearAll.slice(hasBuilding ? 1 : 2, hasBuilding ? 3 : 4); // also nearby
+
+    // Compose full address string (for storage)
     const parts = [building, road, area, city, district, state, pincode]
       .map(p => p.trim()).filter(Boolean);
-
-    // Deduplicate consecutive identical tokens
-    const deduped = parts.filter((v, i) => i === 0 || v.toLowerCase() !== parts[i - 1].toLowerCase());
+    const deduped = parts.filter((v, i) => i === 0 || v.toLowerCase() !== parts[i-1].toLowerCase());
 
     return deduped.length
-      ? { full: deduped.join(', '), building, road, area, city, district, state, pincode, nearLine }
-      : { full: data.display_name?.split(',').slice(0, 5).join(', ') || null, building:'', road:'', area:'', city:'', district:'', state:'', pincode:'', nearLine:'' };
+      ? { full: deduped.join(', '), building, road, area, city, district, state, pincode,
+          nearFirst, nearExtra }
+      : { full: data.display_name?.split(',').slice(0, 5).join(', ') || null,
+          building:'', road:'', area:'', city:'', district:'', state:'', pincode:'',
+          nearFirst:[], nearExtra:[] };
 
   } catch(e) { return null; }
 }
@@ -2174,7 +2232,8 @@ async function _nominatimReverseGeocode(lat, lng) {
 /* Build the final address string in structured multiline format:
    [Room/Flat/House], [Building/Hotel/Hostel]
    [Street/Road/Area]
-   [Near Landmark / extra detail]
+   [Near Landmark] / [Nearby Landmarks]
+   [extra detail]
    [City], [District] - [PIN]
    [State], India
    Coordinates: lat, lng
@@ -2186,71 +2245,166 @@ function _buildAddress(roomVal, geoOrStr, lat, lng, extraDetail) {
   const geo    = (typeof geoOrStr === 'object' && geoOrStr !== null) ? geoOrStr : null;
   const locStr = geo ? (geo.full || '').trim() : (geoOrStr || '').trim();
 
-  // Resolve lat/lng — prefer explicit args, then _pendingLat/_pendingLng
   const finalLat = (lat !== undefined && lat !== null) ? lat : _pendingLat;
   const finalLng = (lng !== undefined && lng !== null) ? lng : _pendingLng;
 
   if (geo) {
-    // Structured multiline format
     const line1Parts = [room, geo.building].map(p => p.trim()).filter(Boolean);
     const line1 = line1Parts.join(', ');
     const line2 = [geo.road, geo.area].map(p => p.trim()).filter(Boolean).join(', ');
-    // Auto-detected nearby landmarks + user's manual extra detail merged into one near line
-    const nearAuto  = (geo.nearLine || '').trim();
-    const nearExtra = extra.trim();
-    const line3Parts = [nearAuto, nearExtra].filter(Boolean);
+
+    // Support both new (nearFirst/nearExtra arrays) and legacy (nearLine string)
+    const nearFirst  = Array.isArray(geo.nearFirst) ? geo.nearFirst : [];
+    const nearExtra  = Array.isArray(geo.nearExtra) ? geo.nearExtra : [];
+    const legacyNear = typeof geo.nearLine === 'string' ? geo.nearLine.trim() : '';
+
+    let nearLine = '';
+    if (nearFirst.length) {
+      nearLine = 'Near ' + nearFirst[0];
+      if (nearExtra.length) nearLine += ' / Opp. ' + nearExtra.join(', ');
+    } else if (legacyNear) {
+      nearLine = legacyNear;
+    }
+
+    const line3Parts = [nearLine, extra].filter(Boolean);
     const line3 = line3Parts.join(' / ');
     const cityPin = [geo.city, geo.district ? `${geo.district}` : ''].filter(Boolean).join(', ') +
                     (geo.pincode ? ` - ${geo.pincode}` : '');
-    const line4 = cityPin;
     const line5 = geo.state ? `${geo.state}, India` : 'India';
     const coordStr = (finalLat !== null && finalLng !== null)
-      ? `Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)}`
-      : '';
+      ? `Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)}` : '';
     const plusStr = (finalLat !== null && finalLng !== null)
-      ? `Plus Code: ${_getPlusCode(parseFloat(finalLat), parseFloat(finalLng))}`
-      : '';
-    return [line1, line2, line3, line4, line5, coordStr, plusStr]
+      ? `Plus Code: ${_getPlusCode(parseFloat(finalLat), parseFloat(finalLng))}` : '';
+    return [line1, line2, line3, cityPin, line5, coordStr, plusStr]
       .map(l => l.trim()).filter(Boolean).join('\n');
   }
 
-  // Fallback (no geo): plain format
   const bodyParts = [room, locStr, extra].map(p => p.trim()).filter(Boolean);
   const coordStr = (finalLat !== null && finalLng !== null)
-    ? ` (Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)})`
-    : '';
+    ? ` (Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)})` : '';
   return bodyParts.join(', ') + coordStr;
 }
 
 /* Render a structured address card HTML from geo object + extras */
 function _renderAddrCard(cardBodyEl, geo, roomVal, lat, lng, extraDetail) {
   if (!cardBodyEl) return;
-  const room   = (roomVal || '').trim();
-  const extra  = (extraDetail || '').trim();
+  const room  = (roomVal || '').trim();
+  const extra = (extraDetail || '').trim();
+
   if (!geo || !geo.full) {
-    cardBodyEl.innerHTML = `<div class="addr-card-row"><i class="ai fa fa-map-marker-alt"></i><span class="av">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>`;
+    cardBodyEl.innerHTML = `<div class="addr-card-row row-coords"><i class="ai fa fa-crosshairs"></i><span class="av muted">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>`;
     return;
   }
-  const plusCode = _getPlusCode(lat, lng);
-  const rows = [];
-  if (room)         rows.push(['fa-door-open',    room,                           false]);
-  if (geo.building) rows.push(['fa-building',     geo.building,                   false]);
-  const roadArea = [geo.road, geo.area].filter(Boolean).join(', ');
-  if (roadArea)     rows.push(['fa-road',          roadArea,                       false]);
-  // Auto-detected nearby landmarks (1–3, from Nominatim)
-  const nearAuto = (geo.nearLine || '').trim();
-  if (nearAuto)     rows.push(['fa-location-dot', nearAuto,                        false]);
-  // Manual extra detail added by user
-  if (extra)        rows.push(['fa-pen-to-square', extra,                          false]);
-  const cityLine = [geo.city, geo.district].filter(Boolean).join(', ') + (geo.pincode ? ` – ${geo.pincode}` : '');
-  if (cityLine.trim()) rows.push(['fa-city',       cityLine,                       false]);
-  if (geo.state)    rows.push(['fa-flag',          `${geo.state}, India`,          false]);
-  rows.push(['fa-globe',   `${lat.toFixed(6)}, ${lng.toFixed(6)}`, true]);
-  if (plusCode) rows.push(['fa-qrcode',    `Plus Code: ${plusCode}`,               true]);
 
-  cardBodyEl.innerHTML = rows.map(([icon, val, muted]) =>
-    `<div class="addr-card-row"><i class="ai fa ${icon}"></i><span class="av${muted?' muted':''}">${val}</span></div>`
-  ).join('');
+  const plusCode = _getPlusCode(lat, lng);
+  const rows = []; // [rowClass, icon, label, value, muted]
+
+  // Room / Flat
+  if (room) rows.push(['row-room', 'fa-door-open', '', room, false]);
+
+  // Building — your pin location
+  if (geo.building) rows.push(['row-building', 'fa-building', '', geo.building, false]);
+
+  // Road + area
+  const roadArea = [geo.road, geo.area].filter(Boolean).join(', ');
+  if (roadArea) rows.push(['row-road', 'fa-road', '', roadArea, false]);
+
+  // ── Nearby landmarks (semantic Near / Nearby split) ──
+  const nearFirst  = Array.isArray(geo.nearFirst) ? geo.nearFirst : [];
+  const nearExtra  = Array.isArray(geo.nearExtra) ? geo.nearExtra : [];
+  const legacyNear = typeof geo.nearLine === 'string' ? geo.nearLine.replace(/^Near\s+/i,'').trim() : '';
+
+  if (nearFirst.length) {
+    nearFirst.forEach(n => rows.push(['row-near', 'fa-map-pin', 'Near', n, false]));
+    if (nearExtra.length) rows.push(['row-nearby', 'fa-location-dot', 'Nearby', nearExtra.join(', '), false]);
+  } else if (legacyNear) {
+    rows.push([geo.building ? 'row-nearby' : 'row-near',
+               geo.building ? 'fa-location-dot' : 'fa-map-pin',
+               geo.building ? 'Nearby' : 'Near', legacyNear, false]);
+  }
+
+  // Manual extra detail (user-typed)
+  if (extra) rows.push(['row-extra', 'fa-pencil', '', extra, false]);
+
+  // City + district + pincode
+  const cityLine = [geo.city, geo.district].filter(Boolean).join(', ') + (geo.pincode ? ` – ${geo.pincode}` : '');
+  if (cityLine.trim()) rows.push(['row-city', 'fa-city', '', cityLine, false]);
+
+  // State
+  if (geo.state) rows.push(['row-state', 'fa-flag', '', `${geo.state}, India`, false]);
+
+  // Coordinates + Plus Code (muted metadata)
+  rows.push(['row-coords', 'fa-crosshairs', '', `${lat.toFixed(6)}, ${lng.toFixed(6)}`, true]);
+  if (plusCode) rows.push(['row-coords', 'fa-qrcode', '', `Plus Code: ${plusCode}`, true]);
+
+  cardBodyEl.innerHTML = rows.map(([cls, icon, label, val, muted]) => {
+    const labelHtml = label
+      ? `<span style="font-size:10px;font-weight:700;color:#94a3b8;margin-right:4px;text-transform:uppercase;letter-spacing:.35px">${label}</span>`
+      : '';
+    return `<div class="addr-card-row ${cls}"><i class="ai fa ${icon}"></i><span class="av${muted?' muted':''}">${labelHtml}${val}</span></div>`;
+  }).join('');
+}
+
+/* Render the *saved* address string (multiline text from DB) into a pretty card.
+   Used in settings page to show the current stored address beautifully.
+   Parses the structured lines produced by _buildAddress. */
+function _renderSavedAddrDisplay(containerEl, rawAddr) {
+  if (!containerEl) return;
+  if (!rawAddr || !rawAddr.trim()) {
+    containerEl.innerHTML = '<span style="color:#94a3b8;font-size:13px">No address saved yet</span>';
+    return;
+  }
+
+  const lines = rawAddr.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Detect GPS presence
+  const hasCoords = lines.some(l => /^Coordinates:/i.test(l));
+
+  // Parse each line into typed rows for display
+  const rows = [];
+  for (const line of lines) {
+    if (/^Coordinates:/i.test(line)) {
+      rows.push(['row-coords', 'fa-crosshairs', '', line.replace(/^Coordinates:\s*/i,''), true]);
+    } else if (/^Plus Code:/i.test(line)) {
+      rows.push(['row-coords', 'fa-qrcode', '', line, true]);
+    } else if (/^Near\b/i.test(line)) {
+      const val = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ')[0];
+      rows.push(['row-near', 'fa-map-pin', 'Near', val, false]);
+      // If "Opp." extras exist
+      const oppParts = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ').slice(1);
+      if (oppParts.length) rows.push(['row-nearby','fa-location-dot','Nearby', oppParts.join(', '), false]);
+    } else if (/India$/.test(line)) {
+      rows.push(['row-state', 'fa-flag', '', line, false]);
+    } else if (/\d{5,6}/.test(line) && (line.includes(',') || line.includes('–') || line.includes('-'))) {
+      rows.push(['row-city', 'fa-city', '', line, false]);
+    } else if (/^(Semi Circle|Road|Street|Lane|Marg|Nagar|Colony|Campus|Path|Way|Ave)/i.test(line) ||
+               /Road|Street|Lane|Marg|Colony/i.test(line)) {
+      rows.push(['row-road', 'fa-road', '', line, false]);
+    } else if (rows.length === 0) {
+      // First line — likely room + building
+      rows.push(['row-building', 'fa-building', '', line, false]);
+    } else {
+      rows.push(['row-road', 'fa-road', '', line, false]);
+    }
+  }
+
+  const badge = hasCoords
+    ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#15803d;background:#dcfce7;padding:3px 8px;border-radius:20px;margin-bottom:10px"><i class="fa fa-check-circle"></i> GPS Verified</span>`
+    : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#92400e;background:#fef3c7;padding:3px 8px;border-radius:20px;margin-bottom:10px"><i class="fa fa-triangle-exclamation"></i> No GPS — tap Update Address</span>`;
+
+  const rowsHtml = rows.map(([cls, icon, label, val, muted]) => {
+    const labelHtml = label
+      ? `<span style="font-size:10px;font-weight:700;color:#94a3b8;margin-right:4px;text-transform:uppercase;letter-spacing:.35px">${label}</span>`
+      : '';
+    return `<div class="addr-card-row ${cls}"><i class="ai fa ${icon}"></i><span class="av${muted?' muted':''}">${labelHtml}${val}</span></div>`;
+  }).join('');
+
+  containerEl.innerHTML = `
+    <div class="addr-card" style="margin-top:0;margin-bottom:0">
+      <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Saved Delivery Address</div>
+      ${badge}
+      ${rowsHtml}
+    </div>`;
 }
 
 /* Update the su-addr textarea from current pin position */
@@ -2277,12 +2431,14 @@ async function _updateAddressFromPin(lat, lng) {
 
   if (hint) {
     if (geo?.full) {
-      hint.innerHTML =
-        `<span style="color:#166534;font-weight:600">✅ Location detected — drag pin to fine-tune</span>`;
+      const bldg = geo.building ? `<strong>${geo.building}</strong>` : '';
+      const near = (geo.nearFirst||[]).concat(geo.nearExtra||[]).slice(0,1).join('');
+      const sub  = bldg ? (near ? ` · near ${near}` : '') : (near ? near : '');
+      hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ ${bldg || 'Location'} detected${sub ? ` ${sub}` : ''} — drag pin to fine-tune</span>`;
     } else {
       hint.innerHTML =
         `⚠️ Address not detected — drag pin to refine.<br>` +
-        `<span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>`;
+        `<span style="color:#64748b;font-size:11px">📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>`;
     }
   }
 
@@ -3625,11 +3781,7 @@ function populateAccountPage() {
   // Show current address in read-only display div
   const addrDisplay = document.getElementById('acct-addr-display');
   if (addrDisplay) {
-    const raw = u.address || '';
-    const hasCoords = /Coordinates:/i.test(raw) || /latitude=/i.test(raw);
-    addrDisplay.innerHTML = raw
-      ? `<pre style="white-space:pre-wrap;font-family:var(--fb);font-size:12.5px;margin:0;line-height:1.6">${raw}</pre><br><span style="font-size:11px;color:${hasCoords ? '#22c55e' : '#f97316'};font-weight:600">${hasCoords ? '✅ GPS coordinates saved' : '⚠️ No GPS coordinates — tap Update Address to fix'}</span>`
-      : '<span style="color:#94a3b8">No address saved yet</span>';
+    _renderSavedAddrDisplay(addrDisplay, u.address || '');
   }
 
   if (u.is_subscriber) {
@@ -3767,9 +3919,14 @@ async function _acctUpdateAddress(lat, lng) {
   _renderAddrCard(document.getElementById('acct-addr-card-body'), geo, room, lat, lng, extra);
 
   if (hint) {
-    hint.innerHTML = geo?.full
-      ? `<span style="color:#166534;font-weight:600">✅ Location detected — drag pin to fine-tune</span>`
-      : `⚠️ Address not detected — drag pin to refine.<br><span style="color:#64748b;font-size:11px">🌐 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
+    if (geo?.full) {
+      const bldg = geo.building ? `<strong>${geo.building}</strong>` : '';
+      const near = (geo.nearFirst||[]).concat(geo.nearExtra||[]).slice(0,1).join('');
+      const sub  = bldg ? (near ? ` · near ${near}` : '') : (near ? near : '');
+      hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ ${bldg || 'Location'} detected${sub ? ` ${sub}` : ''} — drag pin to fine-tune</span>`;
+    } else {
+      hint.innerHTML = `⚠️ Address not detected — drag pin to refine.<br><span style="color:#64748b;font-size:11px">📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
+    }
   }
   // Auto-confirm pin — no button click needed
   document.getElementById('acct-lat').value = lat;
@@ -3840,10 +3997,7 @@ async function saveAddress() {
     Auth.patch({ address: addr });
     // Refresh display
     const addrDisplay = document.getElementById('acct-addr-display');
-    if (addrDisplay) {
-      const hasCoords = /Coordinates:/i.test(addr);
-      addrDisplay.innerHTML = `<pre style="white-space:pre-wrap;font-family:var(--fb);font-size:12px;margin:0">${addr}</pre><br><span style="font-size:11px;color:${hasCoords ? '#22c55e' : '#f97316'};font-weight:600">${hasCoords ? '✅ GPS coordinates saved' : '⚠️ No GPS coordinates'}</span>`;
-    }
+    if (addrDisplay) _renderSavedAddrDisplay(addrDisplay, addr);
 
     // Collapse form
     const form = document.getElementById('acct-addr-update-form');
