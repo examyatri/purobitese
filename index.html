@@ -2002,7 +2002,6 @@ async function doLogin() {
 
     // ── loadMenu sets _khataEnabled via _fetchFreshMenu, then we persist session ──
     const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
-    // SessionCache saved after menu resolves so _khataEnabled is correct; startPolling via _doPostLoginRefresh only
     _initMenuP3.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
@@ -2010,7 +2009,7 @@ async function doLogin() {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
     });
-    // Do NOT call startPolling() here — _doPostLoginRefresh calls it after menu resolves
+    startPolling();
     _doPostLoginRefresh(_initMenuP3);
   } catch(e) {
     // ❌ Login failed — always re-enable button so user can retry
@@ -2142,62 +2141,26 @@ function _getPlusCode(lat, lng) {
   try { return window._encodePlusCode(lat, lng, 10); } catch(e) { return ''; }
 }
 
-/* ════════════════════════════════════════════════════════════════════
-   ROBUST GEOCODING ENGINE v2.0
-   Works for dense cities, campuses, colonies, rural areas.
-
-   3 parallel Nominatim calls:
-     A) /reverse zoom=19  → exact building polygon at pin
-     B) /reverse zoom=17  → road / suburb / district context
-     C) /search viewbox   → nearby POIs, sorted by real distance to pin
-
-   Building resolution priority:
-     1. zoom=19 namedetails.name  (actual polygon name)
-     2. zoom=19 address fields    (amenity/building/tourism/leisure…)
-     3. zoom=17 namedetails.name  (broader snap)
-     4. zoom=17 address fields
-     5. Promote nearest POI from distance-sorted search
-
-   nearFirst = 1 closest landmark  → "Near: X"
-   nearExtra = next 1-3 landmarks  → "Nearby: X, Y"
-   ════════════════════════════════════════════════════════════════════ */
-
-/* Haversine distance in metres */
+/* ── Nominatim nearby-landmark search ──────────────────────────────────
+   Robust 3-tier radius: 150 m → 300 m → 500 m so it works in dense
+   cities, campuses AND sparse rural areas. Results are sorted by real
+   haversine distance to the pin so nearFirst/nearExtra are always the
+   geographically closest landmarks. */
 function _distMetres(lat1, lng1, lat2, lng2) {
   const R = 6371000;
-  const dL = (lat2 - lat1) * Math.PI / 180;
-  const dG = (lng2 - lng1) * Math.PI / 180;
-  const a  = Math.sin(dL/2)**2 +
-             Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dG/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dL = (lat2-lat1)*Math.PI/180, dG = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dL/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dG/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-
-/* Extract the most descriptive name from a single Nominatim reverse response */
-function _extractBuilding(data) {
-  if (!data) return '';
-  const a = data.address || {};
-  return (
-    (data.namedetails?.name || data.name || '').trim() ||
-    (a.amenity || a.building || a.tourism || a.leisure ||
-     a.office  || a.shop    || a.historic|| a.place_of_worship ||
-     a.residential || a.man_made || a.allotments || '').trim()
-  );
-}
-
-/* Fetch nearby POIs sorted by real distance to pin.
-   Uses 3-tier radius (150 m → 300 m → 500 m) so it always finds
-   landmarks in both dense cities and sparse rural areas. */
 async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
-  const headers  = { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' };
-  const amenities = 'hostel,hotel,university,college,hospital,school,' +
-                    'office,place_of_worship,restaurant,cafe,pharmacy,' +
-                    'bank,atm,marketplace,community_centre,library';
-  for (const d of [0.0015, 0.003, 0.005]) {
+  const headers = { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' };
+  const amenities = 'hostel,hotel,university,college,hospital,school,office,' +
+                    'place_of_worship,restaurant,cafe,pharmacy,bank,atm,marketplace,library';
+  for (const d of [0.0015, 0.003, 0.005]) {          // 150 m / 300 m / 500 m
     try {
       const box = `${lng-d},${lat-d},${lng+d},${lat+d}`;
-      const url = `https://nominatim.openstreetmap.org/search` +
-                  `?format=json&limit=15&addressdetails=0&namedetails=1` +
-                  `&bounded=1&viewbox=${box}&amenity=${amenities}`;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=15` +
+                  `&addressdetails=0&namedetails=1&bounded=1&viewbox=${box}&amenity=${amenities}`;
       const res  = await fetch(url, { headers });
       const list = await res.json();
       if (!Array.isArray(list) || !list.length) continue;
@@ -2222,7 +2185,12 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
   return [];
 }
 
-/* Main reverse-geocode: fires 3 Nominatim calls in parallel and merges results */
+/* Reverse-geocode via Nominatim — 3 parallel calls for maximum accuracy.
+   Call A: zoom=19 → snaps to the exact building polygon at the pin.
+   Call B: zoom=17 → broader context for road / suburb / district.
+   Call C: _fetchNearbyLandmarks → distance-sorted nearby POIs.
+   Building priority: zoom=19 name → zoom=19 fields → zoom=17 name → zoom=17 fields
+                      → promote closest POI if still nothing found. */
 async function _nominatimReverseGeocode(lat, lng) {
   try {
     const headers = { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' };
@@ -2242,108 +2210,94 @@ async function _nominatimReverseGeocode(lat, lng) {
     const a19 = d19?.address || {};
     const a17 = d17?.address || {};
 
-    // 1. Building — priority: zoom=19 name → zoom=19 fields → zoom=17 name → zoom=17 fields
-    const building = _extractBuilding(d19) || _extractBuilding(d17);
+    // ── 1. Building: zoom=19 name → zoom=19 fields → zoom=17 name → zoom=17 fields ──
+    const _bldg = d => (d && !d.error)
+      ? ((d.namedetails?.name || d.name || '').trim() ||
+         (d.address?.amenity || d.address?.building || d.address?.tourism ||
+          d.address?.leisure || d.address?.office   || d.address?.shop    ||
+          d.address?.historic|| d.address?.place_of_worship ||
+          d.address?.residential || d.address?.man_made || '').trim())
+      : '';
+    const building = _bldg(d19) || _bldg(d17);
 
-    // 2. Road — prefer zoom=19 (has house_number), fallback zoom=17
+    // ── 2. Road ──
     const houseNo = (a19.house_number || a17.house_number || '').trim();
-    const roadRaw = (
-      a19.road || a19.pedestrian || a19.footway || a19.path ||
-      a17.road || a17.pedestrian || a17.footway || a17.path ||
-      a19.cycleway || a17.service || ''
-    ).trim();
+    const roadRaw = (a19.road || a19.pedestrian || a19.footway || a19.path ||
+                     a17.road || a17.pedestrian || a17.footway || a17.path ||
+                     a19.cycleway || a17.service || '').trim();
     const road = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
 
-    // 3. Area / neighbourhood
-    const area = (
-      a19.neighbourhood || a17.neighbourhood ||
-      a19.suburb        || a17.suburb        ||
-      a19.quarter       || a17.quarter       ||
-      a19.village       || a17.village       ||
-      a19.hamlet        || a17.hamlet        ||
-      a19.locality      || a17.locality      || ''
-    ).trim();
+    // ── 3. Neighbourhood / locality ──
+    const area = (a19.neighbourhood || a17.neighbourhood ||
+                  a19.suburb        || a17.suburb        ||
+                  a19.quarter       || a17.quarter       ||
+                  a19.village       || a17.village       ||
+                  a19.hamlet        || a17.hamlet        ||
+                  a19.locality      || a17.locality      || '').trim();
 
-    // 4. City
-    const city = (
-      a19.city || a17.city || a19.town || a17.town ||
-      a19.municipality || a17.municipality || ''
-    ).trim();
+    // ── 4. City ──
+    const city = (a19.city || a17.city || a19.town || a17.town ||
+                  a19.municipality || a17.municipality || '').trim();
 
-    // 5. District
-    const district = (
-      a19.county         || a17.county         ||
-      a19.state_district || a17.state_district || ''
-    ).trim();
+    // ── 5. District ──
+    const district = (a19.county        || a17.county        ||
+                      a19.state_district|| a17.state_district|| '').trim();
 
-    // 6. State
+    // ── 6. State ──
     const state = (a19.state || a17.state || '').trim();
 
-    // 7. Pincode
+    // ── 7. Pincode ──
     const pincode = (a19.postcode || a17.postcode || '').trim();
 
-    // 8. Exclusion set — don't repeat fields already shown
-    const usedLower = new Set(
-      [building, road, area, city, district, state, pincode]
-        .map(s => s.toLowerCase()).filter(Boolean)
-    );
+    // ── 8. Exclusion set ──
+    const usedLower = new Set([building, road, area, city, district, state, pincode]
+      .map(s => s.toLowerCase()).filter(Boolean));
 
-    // 9. Nearby candidates — Source A: address field extras
-    const addrExtras = [
+    // ── 9. Source A: address field extras ──
+    const candidatesA = [
       a19.amenity, a19.leisure, a19.tourism, a19.shop, a19.office,
       a19.historic, a19.place_of_worship, a19.man_made,
       a17.amenity, a17.leisure, a17.tourism,
       a19.hamlet, a19.locality, a19.quarter
-    ].map(s => (s || '').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
+    ].map(s => (s||'').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
 
-    // Source B: distance-sorted POI search
+    // ── 10. Source B: distance-sorted POI search ──
     const poiNames = (nearbyRes.status === 'fulfilled' && Array.isArray(nearbyRes.value))
-      ? nearbyRes.value.filter(s => s && !usedLower.has(s.toLowerCase()))
-      : [];
+      ? nearbyRes.value.filter(s => s && !usedLower.has(s.toLowerCase())) : [];
 
-    // Merge — POI search first (distance-sorted = more accurate order)
+    // Merge — POI search first (distance order), then address extras
     const nearSeen = new Set(usedLower);
-    let nearAll = [...poiNames, ...addrExtras].filter(s => {
+    let nearAll = [...poiNames, ...candidatesA].filter(s => {
       const k = s.toLowerCase();
       if (nearSeen.has(k)) return false;
       nearSeen.add(k);
       return true;
     });
 
-    // 10. If no building found, promote closest POI as building
+    // ── 11. Promote closest POI as building if none found ──
     let resolvedBuilding = building;
     if (!resolvedBuilding && nearAll.length) {
       resolvedBuilding = nearAll.shift();
     }
 
-    // 11. Split: nearFirst = 1 (Near:), nearExtra = up to 3 (Nearby:)
+    // ── 12. nearFirst = 1 (Near:),  nearExtra = up to 3 (Nearby:) ──
     const nearFirst = nearAll.slice(0, 1);
     const nearExtra = nearAll.slice(1, 4);
 
-    // 12. Compose storage string
+    // ── 13. Compose storage string ──
     const parts = [resolvedBuilding, road, area, city, district, state, pincode]
       .map(p => p.trim()).filter(Boolean);
-    const deduped = parts.filter((v, i) => i === 0 || v.toLowerCase() !== parts[i-1].toLowerCase());
+    const deduped = parts.filter((v,i) => i===0 || v.toLowerCase() !== parts[i-1].toLowerCase());
 
-    if (!deduped.length) {
-      const fallback = (d19?.display_name || d17?.display_name || '')
-        .split(',').slice(0, 5).join(', ');
-      return {
-        full: fallback || null,
-        building: '', road: '', area: '', city: '', district: '', state: '', pincode: '',
-        nearFirst: [], nearExtra: []
-      };
-    }
-
-    return {
-      full: deduped.join(', '),
-      building: resolvedBuilding, road, area, city, district, state, pincode,
-      nearFirst, nearExtra
-    };
+    return deduped.length
+      ? { full: deduped.join(', '), building: resolvedBuilding, road, area,
+          city, district, state, pincode, nearFirst, nearExtra }
+      : { full: (d19?.display_name || d17?.display_name || '').split(',').slice(0,5).join(', ') || null,
+          building:'', road:'', area:'', city:'', district:'', state:'', pincode:'',
+          nearFirst:[], nearExtra:[] };
 
   } catch(e) { return null; }
 }
-
 /* Build the final address string in structured multiline format:
    [Room/Flat/House], [Building/Hotel/Hostel]
    [Street/Road/Area]
@@ -2373,15 +2327,16 @@ function _buildAddress(roomVal, geoOrStr, lat, lng, extraDetail) {
     const nearExtra  = Array.isArray(geo.nearExtra) ? geo.nearExtra : [];
     const legacyNear = typeof geo.nearLine === 'string' ? geo.nearLine.trim() : '';
 
-    // FIX: Emit distinct prefixed lines so _renderSavedAddrDisplay can parse reliably
-    const nearLines = [];
-    if (nearFirst.length) nearLines.push('Near: ' + nearFirst.join(', '));
-    if (nearExtra.length) nearLines.push('Nearby: ' + nearExtra.join(', '));
-    if (!nearLines.length && legacyNear) nearLines.push('Near: ' + legacyNear.replace(/^Near\s+/i,''));
+    let nearLine = '';
+    if (nearFirst.length) {
+      nearLine = 'Near ' + nearFirst[0];
+      if (nearExtra.length) nearLine += ' / Opp. ' + nearExtra.join(', ');
+    } else if (legacyNear) {
+      nearLine = legacyNear;
+    }
 
-    // FIX: prefix extra detail so _renderSavedAddrDisplay can identify it on re-parse
-    if (extra) nearLines.push('Detail: ' + extra);
-    const line3 = nearLines.filter(Boolean).join('\n');
+    const line3Parts = [nearLine, extra].filter(Boolean);
+    const line3 = line3Parts.join(' / ');
     const cityPin = [geo.city, geo.district ? `${geo.district}` : ''].filter(Boolean).join(', ') +
                     (geo.pincode ? ` - ${geo.pincode}` : '');
     const line5 = geo.state ? `${geo.state}, India` : 'India';
@@ -2481,29 +2436,21 @@ function _renderSavedAddrDisplay(containerEl, rawAddr) {
       rows.push(['row-coords', 'fa-crosshairs', '', line.replace(/^Coordinates:\s*/i,''), true]);
     } else if (/^Plus Code:/i.test(line)) {
       rows.push(['row-coords', 'fa-qrcode', '', line, true]);
-    } else if (/^Near:\s*/i.test(line)) {
-      // FIX: New stable format "Near: <name>" 
-      rows.push(['row-near', 'fa-map-pin', 'Near', line.replace(/^Near:\s*/i,''), false]);
-    } else if (/^Nearby:\s*/i.test(line)) {
-      // FIX: New stable format "Nearby: <names>"
-      rows.push(['row-nearby', 'fa-location-dot', 'Nearby', line.replace(/^Nearby:\s*/i,''), false]);
     } else if (/^Near\b/i.test(line)) {
-      // Legacy format "Near <name> / Opp. <extras>"
       const val = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ')[0];
       rows.push(['row-near', 'fa-map-pin', 'Near', val, false]);
+      // If "Opp." extras exist
       const oppParts = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ').slice(1);
       if (oppParts.length) rows.push(['row-nearby','fa-location-dot','Nearby', oppParts.join(', '), false]);
     } else if (/India$/.test(line)) {
       rows.push(['row-state', 'fa-flag', '', line, false]);
     } else if (/\d{5,6}/.test(line) && (line.includes(',') || line.includes('–') || line.includes('-'))) {
       rows.push(['row-city', 'fa-city', '', line, false]);
-    } else if (/^Detail:\s*/i.test(line)) {
-      // User-typed extra detail line
-      rows.push(['row-extra', 'fa-pencil', '', line.replace(/^Detail:\s*/i,''), false]);
-    } else if (/Road|Street|Lane|Marg|Colony|Campus|Nagar|Path|Way|Ave|Circle/i.test(line)) {
+    } else if (/^(Semi Circle|Road|Street|Lane|Marg|Nagar|Colony|Campus|Path|Way|Ave)/i.test(line) ||
+               /Road|Street|Lane|Marg|Colony/i.test(line)) {
       rows.push(['row-road', 'fa-road', '', line, false]);
-    } else if (rows.length === 0 || rows[rows.length-1][0] === 'row-room') {
-      // FIX: First non-room line is building
+    } else if (rows.length === 0) {
+      // First line — likely room + building
       rows.push(['row-building', 'fa-building', '', line, false]);
     } else {
       rows.push(['row-road', 'fa-road', '', line, false]);
@@ -2983,35 +2930,24 @@ async function doSignup() {
 
   try {
     const res = await api('signup', { name, phone, email, address, password: pw });
-    // ✅ Success — patch address back so session reflects exactly what was saved to DB
-    const savedUser = { ...res.user, address };
+    // ✅ Success — stays disabled (navigating away)
     Creds.save(phone, pw);
-    Auth.set(savedUser);
+    Auth.set(res.user);
     _session.is_subscriber = false;
     _walletBal = 0;
     _khataEnabled = false;
     applyKhataVisibility();
-    // Reset guard so fresh signup gets its own post-login refresh chain
-    _postLoginRefreshDone = false;
-    // Reset signup geo state so form is clean if revisited
-    _pendingLat = null; _pendingLng = null; _lastGeoResult = null; _pinConfirmed = false;
+    SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
     showMenuSkeletons();
     _transitionToHome();
-    // silent=true: skeletons already shown above, avoid double flash
-    const _initMenuP4 = loadMenu(true, true);
-    // Save session AFTER menu resolves so _khataEnabled is set correctly
-    _initMenuP4.then(() => {
-      SessionCache.save({ user: savedUser, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: _khataEnabled });
-    }).catch(() => {
-      SessionCache.save({ user: savedUser, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
-    });
-    // Do NOT call startPolling() here — _doPostLoginRefresh calls it after loadMenu resolves
+    const _initMenuP4 = loadMenu(true, false); // bypassCache=true — fresh signup always hits DB, never stale cache
+    startPolling();
     _doPostLoginRefresh(_initMenuP4);
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     // ❌ Failed — re-enable button so user can retry
     if (_suBtn) _suBtn.disabled = false;
-    setAuthStatus('signup-status', 'su-btn', '\u26a0\ufe0f ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
+    setAuthStatus('signup-status', 'su-btn', '⚠️ ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
   }
 }
 
@@ -3030,7 +2966,7 @@ function hideMenuSkeletons() {
 }
 
 async function loadMenu(bypassCache = false, silent = false) {
-  if (_menuLoading) return Promise.resolve(); // always return a Promise so callers can chain
+  if (_menuLoading) return;
   _menuLoading = true;
   try {
     if (bypassCache) {
@@ -4840,7 +4776,7 @@ applyKhataVisibility();
 _transitionToHome();
 
 const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
-// Do NOT call startPolling() here — _doPostLoginRefresh calls it after menu resolves
+startPolling();
 _doPostLoginRefresh(_initMenuP);
 
 // BACKGROUND VERIFY — at most once every 48h.
@@ -4931,7 +4867,7 @@ applyPauseState(_pauseMode);
 showMenuSkeletons();
 _transitionToHome();
 const _initMenuP2 = loadMenu(true, false); // bypassCache=true — fresh login always hits DB, never stale cache
-// SessionCache saved after menu resolves so _khataEnabled is correct; startPolling via _doPostLoginRefresh only
+// loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
 _initMenuP2.then(() => {
   SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
     walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
@@ -4939,7 +4875,7 @@ _initMenuP2.then(() => {
   SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
     walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
 });
-// Do NOT call startPolling() here — _doPostLoginRefresh calls it after menu resolves
+startPolling();
 _doPostLoginRefresh(_initMenuP2);
 ```
 
