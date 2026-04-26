@@ -41,7 +41,7 @@ const TILE_CACHE_LIMIT = 500; // max tiles to store
 
 /* Network-only: never cache these */
 const NETWORK_ONLY_ORIGINS = [
-  'purobitese-api.onrender.com',        // backend GAS API
+  'purobitese-api.onrender.com',        // Render backend API
   'router.project-osrm.org',            // OSRM routing — must be live
   'maps.googleapis.com',                // Google Maps API calls
   'maps.google.com'

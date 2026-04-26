@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — Rider App (rider.html)          ║
-     ║  Version : v34.0                                    ║
+     ║  Version : v35.0                                    ║
      ║  Updated : 2026-04-25                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
@@ -1234,8 +1234,8 @@ let _allPinsMap      = null;     // separate Leaflet instance for All Pins view
 let _lastRouteRedrawPos  = null; // GPS position at last OSRM redraw
 let _routeRedrawTimer    = null; // debounce timer for live redraw
 let _liveTrackingActive  = false;// true when delivery mode running
-const _REDRAW_DIST_M     = 40;   // redraw if moved > 40m
-const _AUTOPAN_DIST_M    = 80;   // auto-pan threshold (unused directly, handled by bounds check)
+const _REDRAW_DIST_M     = 25;   // redraw if moved > 25m (tighter = smoother live updates)
+const _AUTOPAN_DIST_M    = 80;   // auto-pan threshold
 
 // ── Haversine distance (km) ───────────────────────────────────
 function _haversine(lat1, lng1, lat2, lng2) {
@@ -1250,13 +1250,15 @@ function _haversine(lat1, lng1, lat2, lng2) {
 function _shortAddr(addr) {
   if (!addr) return '—';
   return addr
-    // NEW format: strip "Coordinates: x, y" line
+    // Strip coordinates line
     .replace(/\n?Coordinates\s*:\s*[+-]?\d+\.?\d*\s*,\s*[+-]?\d+\.?\d*/gi, '')
-    // NEW format: strip "Plus Code: XXXX+XX" line
+    // Strip Plus Code line
     .replace(/\n?Plus Code\s*:\s*\S+/gi, '')
+    // Strip state/country line (Uttar Pradesh, India etc.)
+    .replace(/\n?[A-Za-z\s]+,\s*India\s*/gi, '')
     // OLD format: strip " (latitude=x, longitude=y)" suffix
     .replace(/\s*\(latitude=[^)]+\)/gi, '')
-    // Clean up trailing commas/spaces from multiline joins
+    // Collapse multiple blank lines
     .replace(/\n{2,}/g, '\n')
     .trim();
 }
@@ -1345,7 +1347,7 @@ function _startGPS() {
             _lastRouteRedrawPos = { ...newPos };
             await _drawPolyline();
             _updateLiveDistances();
-          }, 2000); // 2s debounce — avoids OSRM spam
+          }, 1500); // 1.5s debounce — balances OSRM load with responsiveness
         }
       }
     },
@@ -1403,8 +1405,8 @@ function _drawFallbackPolyline(pts) {
 }
 
 // ── Draw road-following route via OSRM (free, no API key) ─────
-// Falls back to straight dashed line if OSRM fails/times out.
-// Extracts road distance (km) from OSRM and stores on current stop.
+// Handles 1-stop case (GPS → single destination) too.
+// Falls back to straight dashed line only if OSRM completely fails.
 async function _drawPolyline() {
   if (!_map) return;
 
@@ -1416,16 +1418,16 @@ async function _drawPolyline() {
   });
 
   _clearRouteLayer();
-  if (pts.length < 2) return;
+  if (pts.length < 2) return; // need at least GPS + 1 stop (or 2 stops without GPS)
 
-  // Prevent multiple simultaneous fetches; show fallback instantly
+  // Prevent multiple simultaneous fetches
   if (_routeDrawing) {
     _drawFallbackPolyline(pts.map(p => [p.lat, p.lng]));
     return;
   }
   _routeDrawing = true;
 
-  // Show straight dashed line immediately so map isn't empty while fetching
+  // Show straight placeholder ONLY while fetching — will be replaced immediately on success
   _drawFallbackPolyline(pts.map(p => [p.lat, p.lng]));
 
   try {
@@ -1441,8 +1443,9 @@ async function _drawPolyline() {
     const data = await res.json();
     if (!data.routes?.[0]) throw new Error('No route');
 
+    // OSRM succeeded — clear the fallback line NOW before drawing road route
     _clearRouteLayer();
-    const route  = data.routes[0];
+    const route   = data.routes[0];
     const geojson = route.geometry;
 
     // ── Store road distance on current stop (replaces haversine) ──
@@ -1450,7 +1453,7 @@ async function _drawPolyline() {
       const roadKm = route.legs[0].distance / 1000;
       const curStop = _mapStops[_deliveryIdx];
       if (curStop && !curStop.delivered && !curStop.skipped) {
-        curStop.distKm     = roadKm;
+        curStop.distKm      = roadKm;
         curStop._distIsRoad = true;
       }
       if (_deliveryActive && curStop) {
@@ -1459,16 +1462,16 @@ async function _drawPolyline() {
       }
     }
 
-    // Professional 3-layer road line: white casing + blue fill + inner highlight
+    // Google Maps-style 3-layer road route: white casing → blue fill → light highlight
     _routeLayer = L.layerGroup([
-      L.geoJSON(geojson, { style:{ color:'#fff', weight:7, opacity:0.45, lineJoin:'round', lineCap:'round' } }),
-      L.geoJSON(geojson, { style:{ color:'#2563eb', weight:5, opacity:0.9, lineJoin:'round', lineCap:'round' } }),
-      L.geoJSON(geojson, { style:{ color:'#93c5fd', weight:2, opacity:0.55, lineJoin:'round' } })
+      L.geoJSON(geojson, { style:{ color:'#ffffff', weight:8,  opacity:0.55, lineJoin:'round', lineCap:'round' } }),
+      L.geoJSON(geojson, { style:{ color:'#1a73e8', weight:5,  opacity:1.0,  lineJoin:'round', lineCap:'round' } }),
+      L.geoJSON(geojson, { style:{ color:'#8ab4f8', weight:2,  opacity:0.65, lineJoin:'round' } })
     ]).addTo(_map);
 
   } catch (e) {
-    // Silently keep the fallback straight line
-    console.warn('OSRM failed, using straight line:', e.message);
+    // OSRM failed — fallback straight line stays visible, no error shown to rider
+    console.warn('OSRM routing failed, showing straight line:', e.message);
   } finally {
     _routeDrawing = false;
   }
@@ -1745,7 +1748,24 @@ function _findNearestRemainingIdx() {
 
 async function optimizeRoute() {
   const withCoords = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
-  if (withCoords.length < 2) { rToast('Need at least 2 stops with GPS coords to optimize'); return; }
+
+  if (withCoords.length === 0) { rToast('No stops with GPS coordinates yet'); return; }
+
+  // ── Single stop: no ordering needed, just draw road route and show distance ──
+  if (withCoords.length === 1) {
+    _routeOptimized = true;
+    document.getElementById('btn-optimize').classList.add('done');
+    document.getElementById('btn-optimize-icon').textContent = '✅';
+    document.getElementById('btn-optimize-label').textContent = 'Ready';
+    _placeMarkers();
+    _renderStopList();
+    await _drawPolyline(); // OSRM GPS→stop road route
+    _fitMapBounds();
+    const s = withCoords[0];
+    const distTxt = s.distKm != null ? ` · 🛣 ${s.distKm.toFixed(1)}km by road` : '';
+    rToast(`📍 1 stop: ${s.order.name || 'Customer'}${distTxt}`);
+    return;
+  }
 
   const startLat = _gpsPos?.lat ?? withCoords[0].coords.lat;
   const startLng = _gpsPos?.lng ?? withCoords[0].coords.lng;
@@ -1768,7 +1788,7 @@ async function optimizeRoute() {
   document.getElementById('btn-optimize-icon').textContent = '✅';
   document.getElementById('btn-optimize-label').textContent = 'Optimized';
 
-  // Refresh map — draw route preview from GPS through all stops in order
+  // Refresh map — draw road route from GPS through all stops in order
   _placeMarkers();
   _renderStopList();
   await _drawPolyline();
@@ -1808,6 +1828,14 @@ async function _startDeliveryMode() {
       _placeMarkers();
       await _drawPolyline();
       rToast('🧭 Auto-optimized from your location!');
+    } else if (withCoords.length === 1) {
+      // Single stop — still get road route via OSRM
+      _routeOptimized = true;
+      document.getElementById('btn-optimize').classList.add('done');
+      document.getElementById('btn-optimize-icon').textContent = '✅';
+      document.getElementById('btn-optimize-label').textContent = 'Ready';
+      _placeMarkers();
+      await _drawPolyline();
     }
   }
 
