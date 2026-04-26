@@ -1,10 +1,11 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  PuroBite / Tiffo — Backend API (server.js)         ║
-// ║  Version : v19.0 (v42 release)                      ║
-// ║  Updated : 2026-04-23                               ║
-// ║  Stack   : Node.js + Express → Render (free tier)  ║
-// ║  DB      : Supabase (PostgreSQL)                    ║
+// ║  Version : v21.0 (v47 release)                      ║
+// ║  Updated : 2026-04-26                               ║
+// ║  Changes : bulkGenerateOrders — fetch subscriber    ║
+// ║            pause status in Step 1, enforce pause    ║
+// ║            check in Step 2 (skips paused/off subs). ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -340,7 +341,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     payment_mode:    paymentMode || (khataEnabled && user.is_subscriber ? 'wallet' : 'upi'),
     user_type:       user.is_subscriber ? 'subscriber' : 'daily',
     rider_id:        null,
-    slot:            source === 'admin' ? (slot || 'morning') : null,
+    slot:            slot || 'morning',
     source:          source === 'admin' ? 'admin' : source === 'admin_bulk' ? 'admin_bulk' : 'user',
     date:            dateStr,
     time:            timeStr,
@@ -624,10 +625,27 @@ app.post('/api', async (req, res) => {
           const finalEst = subtotal + dc - disc;
           if (currentBal < finalEst) return res.json({ success: false, error: 'Insufficient wallet balance' });
         }
+        // Auto-detect morning/evening slot from IST time of order placement
+        let autoSlot = 'morning';
+        try {
+          const { data: schRow } = await supabase.from('admin_settings').select('value').eq('key', 'weekly_schedule').single();
+          const sch = JSON.parse(schRow?.value || '[]');
+          const dayIdx = ist.getUTCDay();
+          const d = Array.isArray(sch) && sch.length === 7 ? sch[dayIdx] : null;
+          const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+          if (d && d.open) {
+            const dsH = parseInt(d.dinnerStart || '18') || 18;
+            const dsM = parseInt(d.dinnerStartMin || '0') || 0;
+            if (nowMins >= dsH * 60 + dsM) autoSlot = 'evening';
+          } else {
+            autoSlot = nowMins >= 17 * 60 ? 'evening' : 'morning';
+          }
+        } catch { autoSlot = (ist.getUTCHours() * 60 + ist.getUTCMinutes()) >= 17 * 60 ? 'evening' : 'morning'; }
+
         const result = await _createSingleOrder({
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
           khataEnabled, ist, coupon: data.coupon || null, source: 'user',
-          paymentMode: data.paymentMode || null
+          paymentMode: data.paymentMode || null, slot: autoSlot
         });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
       }
@@ -678,7 +696,7 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Invalid order status: ' + rawStatus });
         }
         const updates = { order_status: normalizedStatus };
-        if (data.riderId) updates.rider_id = data.riderId;
+        // rider_id is set ONLY by admin via assignRider — never overwritten here
         await supabase.from('orders').update(updates).eq('order_id', data.orderId);
         if (normalizedStatus === 'delivered') {
           await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
@@ -780,6 +798,11 @@ app.post('/api', async (req, res) => {
         const planFilter = data.planFilter || 'all'; // 'all' | 'active' | 'expiring'
         const orderFor   = data.orderFor || 'subscribers'; // 'subscribers' | 'all'
 
+        // Fetch khata setting to know if balance matters for eligibility
+        const { data: khataSettingForBulk } = await supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single();
+        const khataEnabledForBulk = JSON.parse(khataSettingForBulk?.value || 'false');
+        const bulkPrice = parseFloat(data.price) || 0;  // price for balance eligibility check
+
         // Fetch all subscribers (no expiry — subscriptions are now infinite)
         const { data: subs } = await supabase.from('subscribers').select('*');
 
@@ -818,7 +841,9 @@ app.post('/api', async (req, res) => {
           const slotPaused = deliveryOff
             || (slot === 'morning' && pm)
             || (slot === 'evening' && pe);
-          const eligible = !slotPaused && !ordered;
+          // Eligible for auto-bulk: not paused, not already ordered, and sufficient balance (if khata enabled)
+          const insufficientBalance = khataEnabledForBulk && balance < bulkPrice;
+          const eligible = !slotPaused && !ordered && !insufficientBalance;
 
           result.push({
             phone:       sub.phone,
@@ -827,7 +852,11 @@ app.post('/api', async (req, res) => {
             balance,
             plan_end:    sub.plan_end,
             pause,
+            pause_morning:  sub.pause_morning || false,
+            pause_evening:  sub.pause_evening || false,
+            is_delivery_off: sub.is_delivery_off || false,
             already_ordered: ordered,
+            insufficient_balance: insufficientBalance,
             eligible
           });
         }
@@ -868,98 +897,165 @@ app.post('/api', async (req, res) => {
         const priceNum = parseFloat(price) || 0;
         const bulkSlot = slot || 'morning';
 
-        // Pre-fetch everything in parallel before the loop — avoids N+1
+        // ─── STEP 1: Pre-fetch all data in parallel ──────────────────────────
         const cleanPhones = phones.map(cleanPhone);
         const [
           { data: khataSettingRow },
           { data: existingOrders },
-          { data: bulkUserRows }
+          { data: bulkUserRows },
+          { data: bulkSubRows }
         ] = await Promise.all([
           supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single(),
-          supabase.from('orders').select('phone').eq('date', today).eq('slot', bulkSlot).not('order_status', 'eq', 'cancelled'),
-          supabase.from('users').select('*').in('phone', cleanPhones)
+          supabase.from('orders').select('phone').eq('date', today).or(`slot.eq.${bulkSlot},slot.is.null`).not('order_status', 'eq', 'cancelled'),
+          supabase.from('users').select('*').in('phone', cleanPhones),
+          supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_evening, is_delivery_off').in('phone', cleanPhones)
         ]);
 
         const bulkKhataEnabled = JSON.parse(khataSettingRow?.value || 'false');
         const alreadyOrderedSet = new Set((existingOrders || []).map(o => o.phone));
         const bulkUserMap = {};
         for (const u of (bulkUserRows || [])) bulkUserMap[u.phone] = u;
+        // Build pause map — skip subscribers who have paused the relevant slot
+        const bulkSubMap = {};
+        for (const s of (bulkSubRows || [])) bulkSubMap[s.phone] = s;
 
+        // ─── STEP 2: Filter eligible users — pure JS, zero DB calls ─────────
+        const eligiblePhones = [];
         for (const phone of phones) {
           const cleanPh = cleanPhone(phone);
-
-          // Server-side duplicate guard: skip if already has order for this slot today
           if (alreadyOrderedSet.has(cleanPh)) {
-            skipped.push({ phone: cleanPh, reason: 'already ordered today' });
-            continue;
+            skipped.push({ phone: cleanPh, reason: 'already ordered today' }); continue;
           }
-
-          const user = bulkUserMap[cleanPh];
-          if (!user) { skipped.push({ phone: cleanPh, reason: 'user not found' }); continue; }
-
-          const orderId  = generateOrderId(ist);
-          const items    = [{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }];
-
-          // Only deduct wallet when khata is enabled (mirrors createOrder behaviour)
-          let newBal  = null;
-          let isUdhar = false;
-          if (bulkKhataEnabled) {
-            newBal  = await _atomicWalletUpdate(cleanPh, -priceNum);
-            isUdhar = newBal < 0;
+          if (!bulkUserMap[cleanPh]) {
+            skipped.push({ phone: cleanPh, reason: 'user not found' }); continue;
           }
+          // Pause/delivery-off check — respects both legacy pause_delivery and granular fields
+          const sub = bulkSubMap[cleanPh];
+          if (sub) {
+            const pause = sub.pause_delivery || 'none';
+            const pm = sub.pause_morning || (pause === 'lunch' || pause === 'both');
+            const pe = sub.pause_evening || (pause === 'dinner' || pause === 'both');
+            const deliveryOff = sub.is_delivery_off || false;
+            const slotPaused = deliveryOff
+              || (bulkSlot === 'morning' && pm)
+              || (bulkSlot === 'evening' && pe);
+            if (slotPaused) {
+              skipped.push({ phone: cleanPh, reason: 'delivery paused for this slot' }); continue;
+            }
+          }
+          eligiblePhones.push(cleanPh);
+        }
 
-          const orderRow = {
+        if (!eligiblePhones.length) {
+          return res.json({ success: true, created: 0, skipped: skipped.length, udhar: 0, details: { created, udhar, skipped } });
+        }
+
+        // ─── STEP 3: Batch wallet deduction — ONE DB call for all users ──────
+        // bulk_increment_balance() atomically updates all wallets in one SQL statement
+        // and returns each user's new balance. Falls back to sequential if RPC missing.
+        const balanceMap = {};  // phone → new balance after deduction
+        if (bulkKhataEnabled) {
+          const { data: balRows, error: balErr } = await supabase.rpc('bulk_increment_balance', {
+            p_phones: eligiblePhones,
+            p_delta:  -priceNum
+          });
+          if (balErr) {
+            // RPC not yet deployed — sequential fallback (run database.sql migration to fix)
+            console.warn('[bulkGenerateOrders] bulk_increment_balance unavailable, using sequential fallback:', balErr.message);
+            for (const ph of eligiblePhones) {
+              balanceMap[ph] = await _atomicWalletUpdate(ph, -priceNum);
+            }
+          } else {
+            for (const row of (balRows || [])) balanceMap[row.phone] = Number(row.new_balance);
+          }
+        }
+
+        // ─── STEP 4: Build all rows in JS — zero DB calls ───────────────────
+        // IDs use a zero-padded batch index (B0001…B0999) instead of rand5() to
+        // guarantee uniqueness within the batch regardless of how fast it runs.
+        const itemsJson  = JSON.stringify([{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }]);
+        const nowIso     = new Date().toISOString();
+        const timeStr    = istTimeStr(ist);
+        const datePart   = `${ist.getUTCFullYear()}${String(ist.getUTCMonth()+1).padStart(2,'0')}${String(ist.getUTCDate()).padStart(2,'0')}`;
+        const timePart   = `${String(ist.getUTCHours()).padStart(2,'0')}${String(ist.getUTCMinutes()).padStart(2,'0')}${String(ist.getUTCSeconds()).padStart(2,'0')}`;
+        const allOrderRows = [];
+
+        eligiblePhones.forEach((cleanPh, idx) => {
+          const user     = bulkUserMap[cleanPh];
+          const newBal   = bulkKhataEnabled ? (balanceMap[cleanPh] ?? null) : null;
+          const isUdhar  = bulkKhataEnabled && newBal !== null && newBal < 0;
+          const seqTag   = `B${String(idx + 1).padStart(4, '0')}`;  // B0001, B0002 …
+          const orderId  = `ORD-${datePart}-${timePart}-${seqTag}`;
+
+          allOrderRows.push({
             order_id:        orderId,
-            user_id:         user.user_id || cleanPh,
+            user_id:         cleanPh,       // orders.user_id = phone, same as _createSingleOrder
             name:            user.name,
             phone:           cleanPh,
             address:         user.address || '',
-            items:           JSON.stringify(items),
+            items:           itemsJson,
             total_amount:    priceNum,
             delivery_charge: 0,
             final_amount:    priceNum,
+            discount:        0,
             order_status:    'pending',
             payment_status:  bulkKhataEnabled ? (isUdhar ? 'unpaid' : 'wallet') : 'pending',
             payment_mode:    bulkKhataEnabled ? (isUdhar ? 'unpaid' : 'wallet') : 'upi',
             user_type:       'subscriber',
+            rider_id:        null,
             source:          'admin_bulk',
             slot:            bulkSlot,
             date:            today,
-            time:            istTimeStr(ist),
-            created_at:      new Date().toISOString()
-          };
-
-          const { error: insErr } = await supabase.from('orders').insert(orderRow);
-          if (insErr) {
-            // Rollback wallet deduction if order insert failed (only if we deducted)
-            if (bulkKhataEnabled) await _atomicWalletUpdate(cleanPh, priceNum);
-            skipped.push({ phone: cleanPh, reason: insErr.message });
-            continue;
-          }
-
-          // Record wallet transaction only when khata is enabled
-          if (bulkKhataEnabled) {
-            const txnNote = isUdhar
-              ? (reason ? `[UDHAR] ${reason}` : `[UDHAR] Bulk order: ${itemName}`)
-              : (reason || `Bulk order: ${itemName}`);
-            await supabase.from('khata_entries').insert({
-              id:              generateTxnId(ist),
-              phone:           cleanPh,
-              type:            'debit',
-              amount:          priceNum,
-              running_balance: newBal,
-              note:            txnNote,
-              date:            today,
-              time:            istTimeStr(ist),
-              order_id:        orderId,
-              order_status:    'pending',
-              source:          'admin_bulk',
-              created_at:      new Date().toISOString()
-            });
-          }
+            time:            timeStr,
+            created_at:      nowIso
+          });
 
           if (isUdhar) udhar.push({ phone: cleanPh, orderId, balance: newBal });
           else created.push({ phone: cleanPh, orderId });
+        });
+
+        // ─── STEP 5: Batch orders insert — ONE DB call ───────────────────────
+        const { error: ordersErr } = await supabase.from('orders').insert(allOrderRows);
+        if (ordersErr) {
+          // Insert failed — reverse ALL wallet deductions atomically
+          if (bulkKhataEnabled && eligiblePhones.length) {
+            await supabase.rpc('bulk_increment_balance', { p_phones: eligiblePhones, p_delta: +priceNum })
+              .catch(async () => {
+                for (const ph of eligiblePhones) await _atomicWalletUpdate(ph, +priceNum).catch(() => {});
+              });
+          }
+          return res.json({ success: false, error: 'Orders insert failed: ' + ordersErr.message });
+        }
+
+        // ─── STEP 6: Batch khata entries insert — ONE DB call ───────────────
+        // Non-fatal: orders are already committed — log error and return success.
+        if (bulkKhataEnabled) {
+          const allKhataRows = allOrderRows.map((ord, idx) => {
+            const isUdharRow = ord.payment_status === 'unpaid';
+            // Use same type values as _createSingleOrder so wallet ledger displays correctly:
+            // 'tiffin_udhar' → red  |  'tiffin_given' → amber  (keyed in admin typeLabel/typeColor)
+            const txnType    = isUdharRow ? 'tiffin_udhar' : 'tiffin_given';
+            const txnNote    = isUdharRow
+              ? (reason ? `[UDHAR] ${reason}` : `[UDHAR] Bulk order: ${itemName}`)
+              : (reason  || `Bulk order: ${itemName}`);
+            const seqTag     = `B${String(idx + 1).padStart(4, '0')}`;
+            return {
+              id:              `TXN-${datePart}-${timePart}-${seqTag}`,
+              phone:           ord.phone,
+              type:            txnType,             // 'tiffin_given' or 'tiffin_udhar'
+              amount:          -priceNum,   // negative = deduction, matches _createSingleOrder
+              running_balance: balanceMap[ord.phone] ?? null,
+              note:            txnNote,
+              date:            today,
+              time:            timeStr,
+              order_id:        ord.order_id,
+              order_status:    'pending',
+              source:          'admin_bulk',
+              created_at:      nowIso
+            };
+          });
+          const { error: khataErr } = await supabase.from('khata_entries').insert(allKhataRows);
+          if (khataErr) console.error('[bulkGenerateOrders] khata_entries batch insert failed:', khataErr.message);
         }
 
         return res.json({
@@ -1201,6 +1297,8 @@ app.post('/api', async (req, res) => {
 
       case 'getUserByPhone': {
         const q = (data.phone || data.query || '').trim();
+        const checkSlot = data.slot || null;  // optional slot for bulk-add checks
+        const checkDate = data.date || istDateStr(ist);
         let user = null;
         // Try exact phone match first
         { const { data: u } = await supabase.from('users').select('*').eq('phone', cleanPhone(q)).single();
@@ -1212,9 +1310,31 @@ app.post('/api', async (req, res) => {
         }
         if (!user) return res.json({ success: false, error: 'User not found' });
         const { password_hash, ...safe } = user;
-        // Also fetch wallet balance for bulkAddManual udhar display
+        // Fetch wallet balance
         const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', safe.phone).single();
-        safe.balance = balRow?.balance || 0;
+        safe.balance = balRow?.balance ?? 0;
+        const bulkPriceCheck = parseFloat(data.price) || 0;  // 0 = no price check
+        safe.insufficient_balance = bulkPriceCheck > 0 && safe.balance < bulkPriceCheck;
+
+        // If slot provided, also check: already ordered this slot today + pause status
+        if (checkSlot) {
+          const [{ data: existOrd }, { data: subRow }] = await Promise.all([
+            supabase.from('orders').select('order_id').eq('phone', safe.phone).eq('date', checkDate).eq('slot', checkSlot).not('order_status', 'eq', 'cancelled').limit(1),
+            supabase.from('subscribers').select('pause_delivery, pause_morning, pause_evening, is_delivery_off').eq('phone', safe.phone).single()
+          ]);
+          safe.already_ordered = !!(existOrd && existOrd.length);
+          // Compute pause status for this slot
+          const sub = subRow || {};
+          const pause = sub.pause_delivery || 'none';
+          const pm = sub.pause_morning || (pause === 'lunch' || pause === 'both');
+          const pe = sub.pause_evening || (pause === 'dinner' || pause === 'both');
+          const deliveryOff = sub.is_delivery_off || false;
+          safe.slot_paused = deliveryOff
+            || (checkSlot === 'morning' && pm)
+            || (checkSlot === 'evening' && pe);
+          safe.is_subscriber = !!subRow;
+          safe.pause_delivery = sub.pause_delivery || 'none';
+        }
         return res.json({ success: true, user: safe });
       }
 
@@ -1868,10 +1988,15 @@ app.post('/api', async (req, res) => {
           });
           return res.json({ success: true }); }
 
-      case 'updateCoupon':
-        { const updates = { ...data }; delete updates.id;
-          await supabase.from('coupons').update(updates).eq('id', data.id);
-          return res.json({ success: true }); }
+      case 'updateCoupon': {
+        const COUPON_EDITABLE = ['code','discount_type','discount_value','cap_amount','max_cap',
+          'min_order','min_order_amount','max_usage','total_usage_limit','per_user_limit',
+          'max_per_user','expiry_date','is_active','restriction_type','allowed_phones','auto_delete'];
+        const updates = {};
+        for (const k of COUPON_EDITABLE) { if (data[k] !== undefined) updates[k] = data[k]; }
+        if (!Object.keys(updates).length) return res.json({ success: false, error: 'Nothing to update' });
+        await supabase.from('coupons').update(updates).eq('id', data.id);
+        return res.json({ success: true }); }
 
       case 'getSubscribers':
         { const { data: subs } = await supabase.from('subscribers').select('*').order('plan_start', { ascending: false });
@@ -1930,7 +2055,10 @@ app.post('/api', async (req, res) => {
       case 'deleteNotificationRange': {
         // Respects read_only flag — only deletes read notifications, never unread
         // ALWAYS excludes today's notifications regardless of read status
-        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        // Use IST midnight (not UTC midnight) so the "today" guard is correct
+        // getIST() shifts clock by +5:30 and stores IST time in UTC fields
+        const todayStart = getIST();
+        todayStart.setUTCHours(0, 0, 0, 0); // zero IST midnight via UTC accessors
         const safeEnd = data.to + 'T23:59:59.999Z';
         // Ensure the range end never reaches today
         let rangeEnd;
