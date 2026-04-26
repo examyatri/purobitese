@@ -46,9 +46,19 @@ if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 const SALT_ROUNDS = 10;
 
 // ─── SELF-PING ────────────────────────────────────────────────────────────────
-// ✅ SELF-PING REMOVED — UptimeRobot already pings /ping every 5 min externally.
-// Self-ping was redundant and wasted free-tier CPU + memory.
-// On $7 paid plan, server is always-on anyway — no ping needed at all.
+// Pings own /ping every 10 minutes to prevent Render free-tier sleep.
+// Only runs if RENDER_EXTERNAL_URL is set (i.e. on Render, not local).
+if (process.env.RENDER_EXTERNAL_URL) {
+  const PING_URL = process.env.RENDER_EXTERNAL_URL + '/ping';
+  setInterval(() => {
+    https.get(PING_URL, (res) => {
+      console.log(`[self-ping] ${new Date().toISOString()} → ${res.statusCode}`);
+    }).on('error', (err) => {
+      console.error('[self-ping] error:', err.message);
+    });
+  }, 12 * 60 * 1000); // every 12 minutes
+  console.log('[self-ping] active →', PING_URL);
+}
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function getIST() {
@@ -807,11 +817,17 @@ app.post('/api', async (req, res) => {
         const { data: subs } = await supabase.from('subscribers').select('*');
 
         // Fetch today's orders for this slot to detect duplicates
-        const { data: todayOrders } = await supabase.from('orders')
+        // slot='both' → check both morning and evening orders
+        let todayOrdersQuery = supabase.from('orders')
           .select('phone, order_id')
           .eq('date', today)
-          .eq('slot', slot)
           .not('order_status', 'eq', 'cancelled');
+        if (slot === 'both') {
+          todayOrdersQuery = todayOrdersQuery.in('slot', ['morning', 'evening']);
+        } else {
+          todayOrdersQuery = todayOrdersQuery.eq('slot', slot);
+        }
+        const { data: todayOrders } = await todayOrdersQuery;
 
         const orderedPhones = new Set((todayOrders || []).map(o => o.phone));
 
