@@ -2143,26 +2143,26 @@ function _getPlusCode(lat, lng) {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   ROBUST GEOCODING ENGINE  v2.0
-   Works reliably for: dense city streets, university campuses, colonies,
-   rural areas, malls, hospitals, residential buildings.
+   ROBUST GEOCODING ENGINE v2.0
+   Works for dense cities, campuses, colonies, rural areas.
 
-   Strategy (3 parallel Nominatim calls):
+   3 parallel Nominatim calls:
      A) /reverse zoom=19  → exact building polygon at pin
-     B) /reverse zoom=17  → broader context (road, suburb, district)
-     C) /search viewbox   → nearby POIs sorted by distance to pin
+     B) /reverse zoom=17  → road / suburb / district context
+     C) /search viewbox   → nearby POIs, sorted by real distance to pin
 
    Building resolution priority:
-     1. zoom=19 namedetails.name (most precise — actual polygon name)
-     2. zoom=19 address fields (amenity / building / tourism / leisure …)
-     3. zoom=17 namedetails.name (broader snap — catches named blocks)
-     4. Promote nearest POI from search if nothing found above
+     1. zoom=19 namedetails.name  (actual polygon name)
+     2. zoom=19 address fields    (amenity/building/tourism/leisure…)
+     3. zoom=17 namedetails.name  (broader snap)
+     4. zoom=17 address fields
+     5. Promote nearest POI from distance-sorted search
 
-   nearFirst  = 1 landmark closest to pin  → "Near: X"
-   nearExtra  = next 2 landmarks           → "Nearby: X, Y"
+   nearFirst = 1 closest landmark  → "Near: X"
+   nearExtra = next 1-3 landmarks  → "Nearby: X, Y"
    ════════════════════════════════════════════════════════════════════ */
 
-/* Haversine distance in metres between two lat/lng points */
+/* Haversine distance in metres */
 function _distMetres(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const dL = (lat2 - lat1) * Math.PI / 180;
@@ -2172,7 +2172,7 @@ function _distMetres(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-/* Extract a clean building/place name from a Nominatim reverse response */
+/* Extract the most descriptive name from a single Nominatim reverse response */
 function _extractBuilding(data) {
   if (!data) return '';
   const a = data.address || {};
@@ -2184,16 +2184,15 @@ function _extractBuilding(data) {
   );
 }
 
-/* Fetch nearby POIs sorted by distance to pin.
-   Uses 3-tier radius: 150 m → 300 m → 500 m so dense cities always get results.
-   Returns [{name, dist}] sorted nearest-first. */
+/* Fetch nearby POIs sorted by real distance to pin.
+   Uses 3-tier radius (150 m → 300 m → 500 m) so it always finds
+   landmarks in both dense cities and sparse rural areas. */
 async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
-  const headers = { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' };
+  const headers  = { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' };
   const amenities = 'hostel,hotel,university,college,hospital,school,' +
                     'office,place_of_worship,restaurant,cafe,pharmacy,' +
                     'bank,atm,marketplace,community_centre,library';
-
-  for (const d of [0.0015, 0.003, 0.005]) {         // ~150 m / 300 m / 500 m
+  for (const d of [0.0015, 0.003, 0.005]) {
     try {
       const box = `${lng-d},${lat-d},${lng+d},${lat+d}`;
       const url = `https://nominatim.openstreetmap.org/search` +
@@ -2202,7 +2201,6 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
       const res  = await fetch(url, { headers });
       const list = await res.json();
       if (!Array.isArray(list) || !list.length) continue;
-
       const seen = new Set(excludeSet);
       const out  = [];
       for (const r of list) {
@@ -2211,15 +2209,12 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
         const k = name.toLowerCase();
         if (seen.has(k)) continue;
         seen.add(k);
-        // Compute actual distance so we can sort properly
         const dist = (r.lat && r.lon)
-          ? _distMetres(lat, lng, parseFloat(r.lat), parseFloat(r.lon))
-          : 9999;
+          ? _distMetres(lat, lng, parseFloat(r.lat), parseFloat(r.lon)) : 9999;
         out.push({ name, dist });
-        if (out.length >= 10) break;
       }
       if (out.length) {
-        out.sort((a, b) => a.dist - b.dist);    // nearest first
+        out.sort((a, b) => a.dist - b.dist);
         return out.map(o => o.name);
       }
     } catch(e) { /* try next radius */ }
@@ -2227,36 +2222,30 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
   return [];
 }
 
-/* ── MAIN: Robust reverse-geocode ──────────────────────────────────────
-   Fires 3 Nominatim calls in parallel:
-     [0] /reverse zoom=19  — exact building/polygon
-     [1] /reverse zoom=17  — road / suburb / district context
-     [2] /search viewbox   — nearby POIs (distance-sorted)                */
+/* Main reverse-geocode: fires 3 Nominatim calls in parallel and merges results */
 async function _nominatimReverseGeocode(lat, lng) {
   try {
     const headers = { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' };
-    const baseRev = `https://nominatim.openstreetmap.org/reverse` +
-                    `?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1`;
+    const base = `https://nominatim.openstreetmap.org/reverse` +
+                 `?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1`;
 
     const [r19, r17, nearbyRes] = await Promise.allSettled([
-      fetch(`${baseRev}&zoom=19`, { headers }),   // A: precise polygon
-      fetch(`${baseRev}&zoom=17`, { headers }),   // B: road/suburb context
-      _fetchNearbyLandmarks(lat, lng, new Set())  // C: nearby POIs
+      fetch(`${base}&zoom=19`, { headers }),
+      fetch(`${base}&zoom=17`, { headers }),
+      _fetchNearbyLandmarks(lat, lng, new Set())
     ]);
 
-    // ── Parse responses ──
-    const d19 = (r19.status === 'fulfilled') ? await r19.value.json().catch(()=>null) : null;
-    const d17 = (r17.status === 'fulfilled') ? await r17.value.json().catch(()=>null) : null;
-    if (!d19 && !d17) return null;
+    const d19 = (r19.status === 'fulfilled') ? await r19.value.json().catch(() => null) : null;
+    const d17 = (r17.status === 'fulfilled') ? await r17.value.json().catch(() => null) : null;
+    if ((!d19 || d19.error) && (!d17 || d17.error)) return null;
 
-    const a19 = (d19?.address) || {};
-    const a17 = (d17?.address) || {};
+    const a19 = d19?.address || {};
+    const a17 = d17?.address || {};
 
-    // ── 1. Building: priority cascade ──
-    //    Try zoom=19 first (most precise), then zoom=17, then promote from POI list
-    let building = _extractBuilding(d19) || _extractBuilding(d17);
+    // 1. Building — priority: zoom=19 name → zoom=19 fields → zoom=17 name → zoom=17 fields
+    const building = _extractBuilding(d19) || _extractBuilding(d17);
 
-    // ── 2. Road: prefer zoom=19 (has house_number), fallback zoom=17 ──
+    // 2. Road — prefer zoom=19 (has house_number), fallback zoom=17
     const houseNo = (a19.house_number || a17.house_number || '').trim();
     const roadRaw = (
       a19.road || a19.pedestrian || a19.footway || a19.path ||
@@ -2265,7 +2254,7 @@ async function _nominatimReverseGeocode(lat, lng) {
     ).trim();
     const road = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
 
-    // ── 3. Area / neighbourhood ──
+    // 3. Area / neighbourhood
     const area = (
       a19.neighbourhood || a17.neighbourhood ||
       a19.suburb        || a17.suburb        ||
@@ -2275,81 +2264,80 @@ async function _nominatimReverseGeocode(lat, lng) {
       a19.locality      || a17.locality      || ''
     ).trim();
 
-    // ── 4. City ──
+    // 4. City
     const city = (
       a19.city || a17.city || a19.town || a17.town ||
       a19.municipality || a17.municipality || ''
     ).trim();
 
-    // ── 5. District ──
+    // 5. District
     const district = (
-      a19.county        || a17.county        ||
-      a19.state_district|| a17.state_district|| ''
+      a19.county         || a17.county         ||
+      a19.state_district || a17.state_district || ''
     ).trim();
 
-    // ── 6. State ──
+    // 6. State
     const state = (a19.state || a17.state || '').trim();
 
-    // ── 7. Pincode ──
+    // 7. Pincode
     const pincode = (a19.postcode || a17.postcode || '').trim();
 
-    // ── 8. Build exclusion set (don't repeat known tokens in nearby list) ──
+    // 8. Exclusion set — don't repeat fields already shown
     const usedLower = new Set(
       [building, road, area, city, district, state, pincode]
         .map(s => s.toLowerCase()).filter(Boolean)
     );
 
-    // ── 9. Collect nearby POI names ──
-    //    Source A: address field extras from both zoom levels
+    // 9. Nearby candidates — Source A: address field extras
     const addrExtras = [
       a19.amenity, a19.leisure, a19.tourism, a19.shop, a19.office,
       a19.historic, a19.place_of_worship, a19.man_made,
       a17.amenity, a17.leisure, a17.tourism,
       a19.hamlet, a19.locality, a19.quarter
-    ].map(s => (s||'').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
+    ].map(s => (s || '').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
 
-    //    Source B: distance-sorted POI search results
+    // Source B: distance-sorted POI search
     const poiNames = (nearbyRes.status === 'fulfilled' && Array.isArray(nearbyRes.value))
       ? nearbyRes.value.filter(s => s && !usedLower.has(s.toLowerCase()))
       : [];
 
-    // Merge, deduplicate — keep POI search (distance-sorted) first for accuracy
+    // Merge — POI search first (distance-sorted = more accurate order)
     const nearSeen = new Set(usedLower);
-    const nearAll  = [...poiNames, ...addrExtras].filter(s => {
+    let nearAll = [...poiNames, ...addrExtras].filter(s => {
       const k = s.toLowerCase();
       if (nearSeen.has(k)) return false;
       nearSeen.add(k);
       return true;
     });
 
-    // ── 10. If no building found yet, promote the closest POI ──
-    if (!building && nearAll.length) {
-      building = nearAll.shift();   // nearest POI becomes the building
+    // 10. If no building found, promote closest POI as building
+    let resolvedBuilding = building;
+    if (!resolvedBuilding && nearAll.length) {
+      resolvedBuilding = nearAll.shift();
     }
 
-    // ── 11. Split nearAll into Near (1) and Nearby (up to 3) ──
-    const nearFirst = nearAll.slice(0, 1);   // single closest landmark → "Near:"
-    const nearExtra = nearAll.slice(1, 4);   // next up to 3 → "Nearby:"
+    // 11. Split: nearFirst = 1 (Near:), nearExtra = up to 3 (Nearby:)
+    const nearFirst = nearAll.slice(0, 1);
+    const nearExtra = nearAll.slice(1, 4);
 
-    // ── 12. Build storage string ──
-    const parts = [building, road, area, city, district, state, pincode]
+    // 12. Compose storage string
+    const parts = [resolvedBuilding, road, area, city, district, state, pincode]
       .map(p => p.trim()).filter(Boolean);
-    const deduped = parts.filter((v,i) => i===0 || v.toLowerCase() !== parts[i-1].toLowerCase());
+    const deduped = parts.filter((v, i) => i === 0 || v.toLowerCase() !== parts[i-1].toLowerCase());
 
     if (!deduped.length) {
-      // Absolute fallback: use display_name from whichever zoom responded
-      const fallbackName = (d19?.display_name || d17?.display_name || '')
+      const fallback = (d19?.display_name || d17?.display_name || '')
         .split(',').slice(0, 5).join(', ');
       return {
-        full: fallbackName || null,
-        building:'', road:'', area:'', city:'', district:'', state:'', pincode:'',
-        nearFirst:[], nearExtra:[]
+        full: fallback || null,
+        building: '', road: '', area: '', city: '', district: '', state: '', pincode: '',
+        nearFirst: [], nearExtra: []
       };
     }
 
     return {
       full: deduped.join(', '),
-      building, road, area, city, district, state, pincode,
+      building: resolvedBuilding, road, area, city, district, state, pincode,
       nearFirst, nearExtra
     };
 
