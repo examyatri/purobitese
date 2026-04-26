@@ -1966,6 +1966,7 @@ async function doLogin() {
 
     // ── loadMenu sets _khataEnabled via _fetchFreshMenu, then we persist session ──
     const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
+    // SessionCache saved after menu resolves so _khataEnabled is correct; startPolling via _doPostLoginRefresh only
     _initMenuP3.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
@@ -1973,7 +1974,7 @@ async function doLogin() {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
     });
-    startPolling();
+    // Do NOT call startPolling() here — _doPostLoginRefresh calls it after menu resolves
     _doPostLoginRefresh(_initMenuP3);
   } catch(e) {
     // ❌ Login failed — always re-enable button so user can retry
@@ -2107,13 +2108,15 @@ function _getPlusCode(lat, lng) {
 
 /* ── Nominatim nearby-landmark search (runs in parallel with reverse) ──
    Fetches up to 8 named places within ~200 m of the pin.
-   Returns array of unique display names, filtered against already-known tokens. */
+   Returns array of unique display names, filtered against already-known tokens.
+   FIX: Use amenity=* search (not empty q=) so Nominatim returns real POI results. */
 async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
   try {
-    // viewbox ~0.002 deg ≈ 200 m radius box
-    const d = 0.002;
+    // viewbox ~0.003 deg ≈ 300 m radius box (slightly wider for campus-dense areas)
+    const d = 0.003;
     const box = `${lng-d},${lat-d},${lng+d},${lat+d}`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&namedetails=1&bounded=1&viewbox=${box}&q=`;
+    // FIX: amenity=* is the correct Nominatim param to get all named POIs in a viewbox
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&amenity=hostel,hotel,university,college,hospital,school,office,place_of_worship,restaurant,cafe`;
     const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } });
     const results = await res.json();
     if (!Array.isArray(results)) return [];
@@ -2126,7 +2129,7 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
       if (seen.has(k)) continue;
       seen.add(k);
       out.push(name);
-      if (out.length >= 4) break;
+      if (out.length >= 5) break;
     }
     return out;
   } catch(e) { return []; }
@@ -2136,13 +2139,13 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
    Also fires a parallel nearby-search for richer landmark context. */
 async function _nominatimReverseGeocode(lat, lng) {
   try {
-    // Fire both requests in parallel for speed
-    const [revRes, _] = await Promise.allSettled([
+    // FIX: Fire BOTH requests truly in parallel (was: null placeholder before)
+    const [revRes, nearbyRes] = await Promise.allSettled([
       fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&zoom=18`,
         { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
       ),
-      null // placeholder; nearby search runs after we know the building name
+      _fetchNearbyLandmarks(lat, lng, new Set()) // pre-fire with empty set; we'll filter after
     ]);
 
     if (revRes.status !== 'fulfilled') return null;
@@ -2192,10 +2195,12 @@ async function _nominatimReverseGeocode(lat, lng) {
       a.hamlet, a.locality, a.quarter
     ].map(s => (s || '').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
 
-    // Source B: parallel nearby search (non-blocking — if it fails we still have A)
+    // Source B: already fetched in parallel above — filter against usedLower now
     let candidatesB = [];
     try {
-      candidatesB = await _fetchNearbyLandmarks(lat, lng, usedLower);
+      const rawB = (nearbyRes.status === 'fulfilled' && Array.isArray(nearbyRes.value))
+        ? nearbyRes.value : [];
+      candidatesB = rawB.filter(s => s && !usedLower.has(s.toLowerCase()));
     } catch(e) { /* silent fallback */ }
 
     // Merge A + B, deduplicate, pick up to 4
@@ -2258,16 +2263,15 @@ function _buildAddress(roomVal, geoOrStr, lat, lng, extraDetail) {
     const nearExtra  = Array.isArray(geo.nearExtra) ? geo.nearExtra : [];
     const legacyNear = typeof geo.nearLine === 'string' ? geo.nearLine.trim() : '';
 
-    let nearLine = '';
-    if (nearFirst.length) {
-      nearLine = 'Near ' + nearFirst[0];
-      if (nearExtra.length) nearLine += ' / Opp. ' + nearExtra.join(', ');
-    } else if (legacyNear) {
-      nearLine = legacyNear;
-    }
+    // FIX: Emit distinct prefixed lines so _renderSavedAddrDisplay can parse reliably
+    const nearLines = [];
+    if (nearFirst.length) nearLines.push('Near: ' + nearFirst.join(', '));
+    if (nearExtra.length) nearLines.push('Nearby: ' + nearExtra.join(', '));
+    if (!nearLines.length && legacyNear) nearLines.push('Near: ' + legacyNear.replace(/^Near\s+/i,''));
 
-    const line3Parts = [nearLine, extra].filter(Boolean);
-    const line3 = line3Parts.join(' / ');
+    // FIX: prefix extra detail so _renderSavedAddrDisplay can identify it on re-parse
+    if (extra) nearLines.push('Detail: ' + extra);
+    const line3 = nearLines.filter(Boolean).join('\n');
     const cityPin = [geo.city, geo.district ? `${geo.district}` : ''].filter(Boolean).join(', ') +
                     (geo.pincode ? ` - ${geo.pincode}` : '');
     const line5 = geo.state ? `${geo.state}, India` : 'India';
@@ -2367,21 +2371,29 @@ function _renderSavedAddrDisplay(containerEl, rawAddr) {
       rows.push(['row-coords', 'fa-crosshairs', '', line.replace(/^Coordinates:\s*/i,''), true]);
     } else if (/^Plus Code:/i.test(line)) {
       rows.push(['row-coords', 'fa-qrcode', '', line, true]);
+    } else if (/^Near:\s*/i.test(line)) {
+      // FIX: New stable format "Near: <name>" 
+      rows.push(['row-near', 'fa-map-pin', 'Near', line.replace(/^Near:\s*/i,''), false]);
+    } else if (/^Nearby:\s*/i.test(line)) {
+      // FIX: New stable format "Nearby: <names>"
+      rows.push(['row-nearby', 'fa-location-dot', 'Nearby', line.replace(/^Nearby:\s*/i,''), false]);
     } else if (/^Near\b/i.test(line)) {
+      // Legacy format "Near <name> / Opp. <extras>"
       const val = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ')[0];
       rows.push(['row-near', 'fa-map-pin', 'Near', val, false]);
-      // If "Opp." extras exist
       const oppParts = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ').slice(1);
       if (oppParts.length) rows.push(['row-nearby','fa-location-dot','Nearby', oppParts.join(', '), false]);
     } else if (/India$/.test(line)) {
       rows.push(['row-state', 'fa-flag', '', line, false]);
     } else if (/\d{5,6}/.test(line) && (line.includes(',') || line.includes('–') || line.includes('-'))) {
       rows.push(['row-city', 'fa-city', '', line, false]);
-    } else if (/^(Semi Circle|Road|Street|Lane|Marg|Nagar|Colony|Campus|Path|Way|Ave)/i.test(line) ||
-               /Road|Street|Lane|Marg|Colony/i.test(line)) {
+    } else if (/^Detail:\s*/i.test(line)) {
+      // User-typed extra detail line
+      rows.push(['row-extra', 'fa-pencil', '', line.replace(/^Detail:\s*/i,''), false]);
+    } else if (/Road|Street|Lane|Marg|Colony|Campus|Nagar|Path|Way|Ave|Circle/i.test(line)) {
       rows.push(['row-road', 'fa-road', '', line, false]);
-    } else if (rows.length === 0) {
-      // First line — likely room + building
+    } else if (rows.length === 0 || rows[rows.length-1][0] === 'row-room') {
+      // FIX: First non-room line is building
       rows.push(['row-building', 'fa-building', '', line, false]);
     } else {
       rows.push(['row-road', 'fa-road', '', line, false]);
@@ -2861,24 +2873,35 @@ async function doSignup() {
 
   try {
     const res = await api('signup', { name, phone, email, address, password: pw });
-    // ✅ Success — stays disabled (navigating away)
+    // ✅ Success — patch address back so session reflects exactly what was saved to DB
+    const savedUser = { ...res.user, address };
     Creds.save(phone, pw);
-    Auth.set(res.user);
+    Auth.set(savedUser);
     _session.is_subscriber = false;
     _walletBal = 0;
     _khataEnabled = false;
     applyKhataVisibility();
-    SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
+    // Reset guard so fresh signup gets its own post-login refresh chain
+    _postLoginRefreshDone = false;
+    // Reset signup geo state so form is clean if revisited
+    _pendingLat = null; _pendingLng = null; _lastGeoResult = null; _pinConfirmed = false;
     showMenuSkeletons();
     _transitionToHome();
-    const _initMenuP4 = loadMenu(true, false); // bypassCache=true — fresh signup always hits DB, never stale cache
-    startPolling();
+    // silent=true: skeletons already shown above, avoid double flash
+    const _initMenuP4 = loadMenu(true, true);
+    // Save session AFTER menu resolves so _khataEnabled is set correctly
+    _initMenuP4.then(() => {
+      SessionCache.save({ user: savedUser, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: _khataEnabled });
+    }).catch(() => {
+      SessionCache.save({ user: savedUser, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
+    });
+    // Do NOT call startPolling() here — _doPostLoginRefresh calls it after loadMenu resolves
     _doPostLoginRefresh(_initMenuP4);
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     // ❌ Failed — re-enable button so user can retry
     if (_suBtn) _suBtn.disabled = false;
-    setAuthStatus('signup-status', 'su-btn', '⚠️ ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
+    setAuthStatus('signup-status', 'su-btn', '\u26a0\ufe0f ' + (e.message || 'Signup failed. Try again.'), 'error', 0);
   }
 }
 
@@ -2897,7 +2920,7 @@ function hideMenuSkeletons() {
 }
 
 async function loadMenu(bypassCache = false, silent = false) {
-  if (_menuLoading) return;
+  if (_menuLoading) return Promise.resolve(); // always return a Promise so callers can chain
   _menuLoading = true;
   try {
     if (bypassCache) {
@@ -4699,7 +4722,7 @@ async function bootApp() {
     _transitionToHome();
 
     const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
-    startPolling();
+    // Do NOT call startPolling() here — _doPostLoginRefresh calls it after menu resolves
     _doPostLoginRefresh(_initMenuP);
 
     // BACKGROUND VERIFY — at most once every 48h.
@@ -4787,7 +4810,7 @@ async function bootApp() {
     showMenuSkeletons();
     _transitionToHome();
     const _initMenuP2 = loadMenu(true, false); // bypassCache=true — fresh login always hits DB, never stale cache
-    // loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
+    // SessionCache saved after menu resolves so _khataEnabled is correct; startPolling via _doPostLoginRefresh only
     _initMenuP2.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
@@ -4795,7 +4818,7 @@ async function bootApp() {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
     });
-    startPolling();
+    // Do NOT call startPolling() here — _doPostLoginRefresh calls it after menu resolves
     _doPostLoginRefresh(_initMenuP2);
 
   } catch(e) {
