@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    PuroBite / Tiffo — Service Worker (sw.js)
-   Version : v24.0  |  Updated : 2026-04-23
+   Version : v24.0  |  Updated : 2026-04-26
 
    ARCHITECTURE:
    ┌──────────────────────────────────────────────────────────┐
@@ -41,7 +41,7 @@
    NOTE: /ping kept alive by self-ping (12 min) + UptimeRobot (5 min).
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v13';
+const CACHE      = 'tiffo-v14';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install.

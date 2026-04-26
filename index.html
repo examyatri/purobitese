@@ -1,15 +1,13 @@
 <!DOCTYPE html>
-
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — User App (index.html)           ║
-     ║  Version : v49.0                                    ║
+     ║  Version : v49.1                                    ║
      ║  Updated : 2026-04-26                               ║
      ║  Changes : Fresh DB on every home visit (5s guard), ║
      ║            revisit threshold restored to 90s,       ║
      ║            wallet+orders auto-refresh after order,  ║
      ║            _visibleSession clean dsm/dem lookups.   ║
      ╚══════════════════════════════════════════════════════╝ -->
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -253,144 +251,144 @@ textarea{resize:vertical;min-height:80px}
 
 /* Menu grid */
 #menu-list{display:flex;flex-direction:column;gap:0}
-.m-item{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(–sh)}
+.m-item{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .m-item-inner{display:flex;gap:12px}
 .m-item-info{flex:1;min-width:0}
-.m-item-name{font-family:var(–ff);font-weight:600;font-size:16px;color:var(–dk);line-height:1.3}
-.m-item-cat{font-family:var(–fb);font-size:12px;color:var(–gr);margin-top:2px}
+.m-item-name{font-family:var(--ff);font-weight:600;font-size:16px;color:var(--dk);line-height:1.3}
+.m-item-cat{font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px}
 /* merged duplicate removed – canonical definition below */
 .m-item-img-wrap{position:relative;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px}
 .m-item-img{width:96px;height:96px;border-radius:12px;object-fit:cover}
 .m-item-img-ph{width:96px;height:96px;border-radius:12px;background:linear-gradient(135deg,#f5f5f5,#e5e5e5);display:flex;align-items:center;justify-content:center;font-size:28px}
 .stock-overlay{position:absolute;top:0;left:0;right:0;width:96px;height:96px;background:rgba(0,0,0,.35);border-radius:12px;display:flex;align-items:center;justify-content:center}
-.oos-pill{background:rgba(0,0,0,.7);color:#fff;font-family:var(–ff);font-size:10px;font-weight:600;border-radius:8px;padding:3px 7px}
+.oos-pill{background:rgba(0,0,0,.7);color:#fff;font-family:var(--ff);font-size:10px;font-weight:600;border-radius:8px;padding:3px 7px}
 /* Veg/NonVeg dot */
 .veg-dot{width:16px;height:16px;border:1.5px solid #2a9d8f;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.veg-dot::after{content:’’;width:8px;height:8px;border-radius:50%;background:#2a9d8f;display:block}
+.veg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#2a9d8f;display:block}
 .nonveg-dot{width:16px;height:16px;border:1.5px solid #c1121f;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.nonveg-dot::after{content:’’;width:8px;height:8px;border-radius:50%;background:#c1121f;display:block}
-.slot-badge{display:inline-block;font-family:var(–fb);font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;margin-top:4px;letter-spacing:.2px}
+.nonveg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#c1121f;display:block}
+.slot-badge{display:inline-block;font-family:var(--fb);font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;margin-top:4px;letter-spacing:.2px}
 .slot-badge-morning{background:#fff8e7;color:#b45309;border:1px solid #fde68a}
 .slot-badge-evening{background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe}
 .slot-badge-both{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
 /* Highlight badge – Zomato style top-left */
-.highlight-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(–ff);font-size:10px;font-weight:700;color:#f4591d;letter-spacing:.3px;margin-bottom:2px}
+.highlight-badge{display:inline-flex;align-items:center;gap:4px;font-family:var(--ff);font-size:10px;font-weight:700;color:#f4591d;letter-spacing:.3px;margin-bottom:2px}
 .highlight-badge i{font-size:9px}
 /* Add-btn below image */
-.img-add-btn{border:none;background:#fff;color:var(–g);border-radius:8px;padding:5px 14px;font-family:var(–ff);font-weight:700;font-size:13px;cursor:pointer;border:2px solid var(–g);width:96px;white-space:nowrap}
-.img-add-btn:hover{background:var(–g);color:#fff}
-.img-qty-row{display:flex;align-items:center;justify-content:space-between;background:#fff;border:2px solid var(–g);border-radius:8px;overflow:hidden;width:96px}
-.img-qty-btn{border:none;background:none;color:var(–g);width:28px;height:28px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(–ff)}
-.img-qty-val{font-family:var(–ff);font-weight:700;font-size:14px;color:var(–g);min-width:22px;text-align:center}
+.img-add-btn{border:none;background:#fff;color:var(--g);border-radius:8px;padding:5px 14px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;border:2px solid var(--g);width:96px;white-space:nowrap}
+.img-add-btn:hover{background:var(--g);color:#fff}
+.img-qty-row{display:flex;align-items:center;justify-content:space-between;background:#fff;border:2px solid var(--g);border-radius:8px;overflow:hidden;width:96px}
+.img-qty-btn{border:none;background:none;color:var(--g);width:28px;height:28px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--ff)}
+.img-qty-val{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--g);min-width:22px;text-align:center}
 .variants-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.variant-pill{border:2px solid #e5e7eb;border-radius:20px;padding:4px 10px;font-family:var(–ff);font-size:12px;font-weight:600;background:#fff;cursor:pointer;transition:all 150ms;color:var(–gr)}
-.variant-pill.active{border-color:var(–g);background:var(–gl);color:var(–g)}
+.variant-pill{border:2px solid #e5e7eb;border-radius:20px;padding:4px 10px;font-family:var(--ff);font-size:12px;font-weight:600;background:#fff;cursor:pointer;transition:all 150ms;color:var(--gr)}
+.variant-pill.active{border-color:var(--g);background:var(--gl);color:var(--g)}
 .m-item-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-.m-item-price{font-family:var(–ff);font-weight:700;font-size:16px;color:var(–dk)}
-.qty-row{display:flex;align-items:center;gap:0;background:var(–pl);border-radius:20px;overflow:hidden}
-.qty-btn{border:none;background:none;color:var(–p);width:30px;height:30px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(–ff)}
-.qty-val{font-family:var(–ff);font-weight:700;font-size:14px;color:var(–p);min-width:22px;text-align:center}
-.add-btn{border:none;background:var(–grad);color:#fff;border-radius:20px;padding:6px 16px;font-family:var(–ff);font-weight:700;font-size:13px;cursor:pointer}
+.m-item-price{font-family:var(--ff);font-weight:700;font-size:16px;color:var(--dk)}
+.qty-row{display:flex;align-items:center;gap:0;background:var(--pl);border-radius:20px;overflow:hidden}
+.qty-btn{border:none;background:none;color:var(--p);width:30px;height:30px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--ff)}
+.qty-val{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--p);min-width:22px;text-align:center}
+.add-btn{border:none;background:var(--grad);color:#fff;border-radius:20px;padding:6px 16px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer}
 /* Celebration overlay for coupon */
 #coupon-celebrate{position:fixed;inset:0;pointer-events:none;z-index:9990;display:none}
 .confetti-piece{position:absolute;width:8px;height:8px;border-radius:2px;animation:confettiFall 1.8s ease-in forwards}
 @keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
 /* Cart page */
-.cart-header,.orders-header,.khata-header,.account-header{background:#fff;padding:14px var(–pg-pad);position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;box-shadow:0 1px 0 #f0f0f0}
-.back-btn{border:none;background:none;width:36px;height:36px;border-radius:10px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(–dk);font-size:16px}
-.pg-title{font-family:var(–ff);font-weight:700;font-size:18px}
-.cart-item-row{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:var(–sh)}
+.cart-header,.orders-header,.khata-header,.account-header{background:#fff;padding:14px var(--pg-pad);position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;box-shadow:0 1px 0 #f0f0f0}
+.back-btn{border:none;background:none;width:36px;height:36px;border-radius:10px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--dk);font-size:16px}
+.pg-title{font-family:var(--ff);font-weight:700;font-size:18px}
+.cart-item-row{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh)}
 .ci-info{flex:1;min-width:0}
-.ci-name{font-family:var(–ff);font-weight:600;font-size:14px}
-.ci-variant{font-family:var(–fb);font-size:12px;color:var(–gr)}
-.ci-price{font-family:var(–ff);font-weight:700;font-size:14px;color:var(–p)}
-.ci-del{border:none;background:none;color:var(–gr);font-size:16px;cursor:pointer;padding:4px;margin-left:4px}
+.ci-name{font-family:var(--ff);font-weight:600;font-size:14px}
+.ci-variant{font-family:var(--fb);font-size:12px;color:var(--gr)}
+.ci-price{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--p)}
+.ci-del{border:none;background:none;color:var(--gr);font-size:16px;cursor:pointer;padding:4px;margin-left:4px}
 .empty-state{text-align:center;padding:60px 24px;display:flex;flex-direction:column;align-items:center;gap:12px}
 .empty-icon{font-size:56px;color:#e5e7eb}
-.empty-title{font-family:var(–ff);font-weight:700;font-size:18px;color:var(–gr)}
+.empty-title{font-family:var(--ff);font-weight:700;font-size:18px;color:var(--gr)}
 /* Coupon */
 .cpn-row{display:flex;gap:8px;margin-bottom:12px}
 .cpn-row input{flex:1}
-.cpn-apply-btn{border:none;background:var(–grad);color:#fff;border-radius:10px;padding:0 18px;font-family:var(–ff);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap}
-#cpn-msg{font-family:var(–fb);font-size:13px;margin-top:-6px;margin-bottom:8px;display:block}
+.cpn-apply-btn{border:none;background:var(--grad);color:#fff;border-radius:10px;padding:0 18px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap}
+#cpn-msg{font-family:var(--fb);font-size:13px;margin-top:-6px;margin-bottom:8px;display:block}
 /* Bill card */
-.bill-card{background:#fff;border-radius:14px;padding:16px;box-shadow:var(–sh);margin-bottom:12px}
+.bill-card{background:#fff;border-radius:14px;padding:16px;box-shadow:var(--sh);margin-bottom:12px}
 .bill-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.bill-label{font-family:var(–fb);font-size:14px;color:var(–gr)}
-.bill-val{font-family:var(–ff);font-weight:600;font-size:14px}
+.bill-label{font-family:var(--fb);font-size:14px;color:var(--gr)}
+.bill-val{font-family:var(--ff);font-weight:600;font-size:14px}
 .bill-divider{border:none;border-top:1px solid #f0f0f0;margin:10px 0}
-.bill-total{font-family:var(–ff);font-weight:700;font-size:18px;color:var(–dk)}
+.bill-total{font-family:var(--ff);font-weight:700;font-size:18px;color:var(--dk)}
 /* Success pages */
 .success-wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:40px 24px calc(40px + env(safe-area-inset-bottom,0px));gap:16px;text-align:center;background:#fff}
-.success-icon{font-size:64px;color:var(–g);animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1)}
+.success-icon{font-size:64px;color:var(--g);animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1)}
 @keyframes scaleIn{from{transform:scale(0)}to{transform:scale(1)}}
-.success-title{font-family:var(–ff);font-weight:800;font-size:26px}
-.order-id-badge{background:#f5f5f5;border-radius:10px;padding:8px 16px;font-family:monospace;font-size:13px;color:var(–dk);word-break:break-all;text-align:center}
-.delivery-card{background:var(–gl);border-radius:14px;padding:14px 18px;width:100%;text-align:left}
-.wallet-deduct-card{background:var(–grad);border-radius:14px;padding:14px 18px;width:100%;color:#fff}
-.wa-btn{background:#25d366;color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(–ff);font-weight:600;font-size:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;transition:opacity 200ms}
+.success-title{font-family:var(--ff);font-weight:800;font-size:26px}
+.order-id-badge{background:#f5f5f5;border-radius:10px;padding:8px 16px;font-family:monospace;font-size:13px;color:var(--dk);word-break:break-all;text-align:center}
+.delivery-card{background:var(--gl);border-radius:14px;padding:14px 18px;width:100%;text-align:left}
+.wallet-deduct-card{background:var(--grad);border-radius:14px;padding:14px 18px;width:100%;color:#fff}
+.wa-btn{background:#25d366;color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--ff);font-weight:600;font-size:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;transition:opacity 200ms}
 .wa-btn:active{opacity:.85}
 /* Orders */
-.order-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(–sh)}
+.order-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .ord-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
-.ord-id{font-family:monospace;font-size:11px;color:var(–gr);word-break:break-all;flex:1}
-.ord-items{font-family:var(–fb);font-size:13px;color:var(–gr);margin-bottom:8px;line-height:1.5}
+.ord-id{font-family:monospace;font-size:11px;color:var(--gr);word-break:break-all;flex:1}
+.ord-items{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:8px;line-height:1.5}
 .ord-foot{display:flex;align-items:center;justify-content:space-between}
-.ord-total{font-family:var(–ff);font-weight:700;font-size:15px}
-.ord-pay-badge{border-radius:8px;padding:3px 8px;font-family:var(–ff);font-size:11px;font-weight:600;background:#f5f5f5;color:var(–gr)}
-.ord-help-btn{border:none;background:none;color:var(–g);font-family:var(–ff);font-size:12px;font-weight:600;cursor:pointer}
+.ord-total{font-family:var(--ff);font-weight:700;font-size:15px}
+.ord-pay-badge{border-radius:8px;padding:3px 8px;font-family:var(--ff);font-size:11px;font-weight:600;background:#f5f5f5;color:var(--gr)}
+.ord-help-btn{border:none;background:none;color:var(--g);font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer}
 /* Account */
-.account-hero{background:var(–grad);padding:32px var(–pg-pad) 24px;text-align:center}
-.acct-avatar{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-family:var(–ff);font-weight:700;font-size:28px;color:#fff;border:3px solid rgba(255,255,255,.5)}
-.acct-name{font-family:var(–ff);font-weight:700;font-size:20px;color:#fff}
-.acct-phone{font-family:var(–fb);font-size:14px;color:rgba(255,255,255,.8);margin-top:2px}
-.acct-section{background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:var(–sh)}
-.acct-section-title{font-family:var(–ff);font-weight:700;font-size:15px;color:var(–dk);margin-bottom:12px}
+.account-hero{background:var(--grad);padding:32px var(--pg-pad) 24px;text-align:center}
+.acct-avatar{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;font-size:28px;color:#fff;border:3px solid rgba(255,255,255,.5)}
+.acct-name{font-family:var(--ff);font-weight:700;font-size:20px;color:#fff}
+.acct-phone{font-family:var(--fb);font-size:14px;color:rgba(255,255,255,.8);margin-top:2px}
+.acct-section{background:#fff;border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:var(--sh)}
+.acct-section-title{font-family:var(--ff);font-weight:700;font-size:15px;color:var(--dk);margin-bottom:12px}
 /* Khata */
-.khata-bal-card{background:var(–grad);border-radius:16px;padding:24px 20px;color:#fff;margin-bottom:12px;text-align:center;position:relative;overflow:hidden}
-.khata-bal-card::after{content:””;position:absolute;right:-20px;top:-20px;width:100px;height:100px;background:rgba(255,255,255,.08);border-radius:50%}
-.khata-bal-label{font-family:var(–ff);font-size:11px;font-weight:600;opacity:.8;letter-spacing:1px;text-transform:uppercase}
-.khata-bal-amt{font-family:var(–ff);font-weight:800;font-size:46px;margin:6px 0}
-.khata-entry{background:#fff;border-radius:14px;padding:13px 14px;margin-bottom:8px;box-shadow:var(–sh);display:flex;gap:12px;align-items:center;border-left:4px solid transparent}
-.khata-entry.credit{border-left-color:var(–g)}
-.khata-entry.debit{border-left-color:var(–pd)}
+.khata-bal-card{background:var(--grad);border-radius:16px;padding:24px 20px;color:#fff;margin-bottom:12px;text-align:center;position:relative;overflow:hidden}
+.khata-bal-card::after{content:"";position:absolute;right:-20px;top:-20px;width:100px;height:100px;background:rgba(255,255,255,.08);border-radius:50%}
+.khata-bal-label{font-family:var(--ff);font-size:11px;font-weight:600;opacity:.8;letter-spacing:1px;text-transform:uppercase}
+.khata-bal-amt{font-family:var(--ff);font-weight:800;font-size:46px;margin:6px 0}
+.khata-entry{background:#fff;border-radius:14px;padding:13px 14px;margin-bottom:8px;box-shadow:var(--sh);display:flex;gap:12px;align-items:center;border-left:4px solid transparent}
+.khata-entry.credit{border-left-color:var(--g)}
+.khata-entry.debit{border-left-color:var(--pd)}
 .ke-icon{font-size:20px;flex-shrink:0;margin-top:2px}
 .ke-info{flex:1;min-width:0}
-.ke-label{font-family:var(–ff);font-weight:600;font-size:13px}
-.ke-date{font-family:var(–fb);font-size:11px;color:var(–gr)}
-.ke-note{font-family:var(–fb);font-size:12px;color:var(–gr);margin-top:2px}
-.ke-amt{font-family:var(–ff);font-weight:700;font-size:15px;flex-shrink:0}
-.ke-amt.credit{color:var(–g)}.ke-amt.debit{color:var(–pd)}
-.ke-bal{font-family:var(–fb);font-size:11px;color:var(–gr);text-align:right}
+.ke-label{font-family:var(--ff);font-weight:600;font-size:13px}
+.ke-date{font-family:var(--fb);font-size:11px;color:var(--gr)}
+.ke-note{font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px}
+.ke-amt{font-family:var(--ff);font-weight:700;font-size:15px;flex-shrink:0}
+.ke-amt.credit{color:var(--g)}.ke-amt.debit{color:var(--pd)}
+.ke-bal{font-family:var(--fb);font-size:11px;color:var(--gr);text-align:right}
 .filter-row{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
 .filter-row input[type=date]{flex:1;min-width:100px;font-size:13px;padding:8px 10px}
-.filter-btn,.reset-btn{border:none;border-radius:8px;padding:8px 14px;font-family:var(–ff);font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
-.filter-btn{background:var(–grad);color:#fff}
-.reset-btn{background:#f5f5f5;color:var(–gr)}
+.filter-btn,.reset-btn{border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
+.filter-btn{background:var(--grad);color:#fff}
+.reset-btn{background:#f5f5f5;color:var(--gr)}
 /* Pause Sheet */
-.sheet-title{font-family:var(–ff);font-weight:700;font-size:18px}
+.sheet-title{font-family:var(--ff);font-weight:700;font-size:18px}
 .sheet-close{border:none;background:#f5f5f5;border-radius:10px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px}
-.resume-link{color:var(–g);font-family:var(–ff);font-weight:600;font-size:14px;border:none;background:none;cursor:pointer;text-align:center;width:100%;margin-top:10px}
+.resume-link{color:var(--g);font-family:var(--ff);font-weight:600;font-size:14px;border:none;background:none;cursor:pointer;text-align:center;width:100%;margin-top:10px}
 /* Account Panel Sheet */
-.panel-hero{background:var(–grad);border-radius:16px;padding:20px;color:#fff;text-align:center;margin-bottom:14px}
-.panel-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-family:var(–ff);font-weight:700;font-size:22px;color:#fff}
-.panel-link{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f5f5f5;color:var(–dk);font-family:var(–ff);font-weight:600;font-size:14px;cursor:pointer;background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left}
+.panel-hero{background:var(--grad);border-radius:16px;padding:20px;color:#fff;text-align:center;margin-bottom:14px}
+.panel-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;font-size:22px;color:#fff}
+.panel-link{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #f5f5f5;color:var(--dk);font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;background:none;border-left:none;border-right:none;border-top:none;width:100%;text-align:left}
 .panel-link:last-of-type{border-bottom:none}
-.panel-link i{color:var(–p);width:20px}
+.panel-link i{color:var(--p);width:20px}
 /* Closed popup */
-.closed-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;max-width:300px;width:90%;box-shadow:var(–shl)}
+.closed-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;max-width:300px;width:90%;box-shadow:var(--shl)}
 .closed-emoji{font-size:48px;margin-bottom:12px}
 /* Insufficient balance UPI popup */
-.insuf-card{background:#fff;border-radius:20px;padding:28px 22px;text-align:center;max-width:320px;width:92%;box-shadow:var(–shl)}
+.insuf-card{background:#fff;border-radius:20px;padding:28px 22px;text-align:center;max-width:320px;width:92%;box-shadow:var(--shl)}
 .insuf-card .insuf-emoji{font-size:44px;margin-bottom:10px}
-.insuf-card .insuf-title{font-family:var(–ff);font-weight:700;font-size:17px;margin-bottom:8px;color:#1a1a1a}
-.insuf-card .insuf-bal-row{font-family:var(–fb);font-size:13px;color:var(–gr);margin-bottom:12px;line-height:1.6}
-.insuf-card .insuf-note{font-family:var(–fb);font-size:13px;color:var(–gr);margin-bottom:18px;line-height:1.6;background:#fef9c3;border-radius:10px;padding:10px 12px;color:#854d0e}
+.insuf-card .insuf-title{font-family:var(--ff);font-weight:700;font-size:17px;margin-bottom:8px;color:#1a1a1a}
+.insuf-card .insuf-bal-row{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:12px;line-height:1.6}
+.insuf-card .insuf-note{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:18px;line-height:1.6;background:#fef9c3;border-radius:10px;padding:10px 12px;color:#854d0e}
 .insuf-card .insuf-btn-row{display:flex;gap:10px}
-.insuf-card .insuf-btn-row .btn-cancel{flex:1;background:#f2f2f2;color:#555;border:none;border-radius:12px;padding:13px;font-family:var(–ff);font-weight:600;font-size:14px;cursor:pointer}
-.insuf-card .insuf-btn-row .btn-yes{flex:2;background:var(–grad);color:#fff;border:none;border-radius:12px;padding:13px;font-family:var(–ff);font-weight:700;font-size:14px;cursor:pointer}
+.insuf-card .insuf-btn-row .btn-cancel{flex:1;background:#f2f2f2;color:#555;border:none;border-radius:12px;padding:13px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer}
+.insuf-card .insuf-btn-row .btn-yes{flex:2;background:var(--grad);color:#fff;border:none;border-radius:12px;padding:13px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer}
 .sub-only{display:none}
-.pg-pad{padding:0 var(–pg-pad)}
+.pg-pad{padding:0 var(--pg-pad)}
 /* Scroll helper */
 ::-webkit-scrollbar{width:0;height:0}
 /* Backdrop */
@@ -401,42 +399,40 @@ textarea{resize:vertical;min-height:80px}
 /* ── RESPONSIVE: flexible layout for all screen sizes ── */
 /* Tiny phones (<360px): tighter padding, smaller text */
 @media(max-width:359px){
-:root{–pg-pad:10px;–bnav-h:58px}
-.home-logo{font-size:20px}
-.m-item-name{font-size:15px}
-.m-item-img,.m-item-img-ph{width:68px;height:68px}
-.cat-chip{padding:6px 12px;font-size:12px}
-#cutoff-banner{font-size:12px;padding:12px 14px}
-.monthly-plan-card{padding:12px 14px}
-.btn-primary,.btn-outline{font-size:14px;padding:12px}
+  :root{--pg-pad:10px;--bnav-h:58px}
+  .home-logo{font-size:20px}
+  .m-item-name{font-size:15px}
+  .m-item-img,.m-item-img-ph{width:68px;height:68px}
+  .cat-chip{padding:6px 12px;font-size:12px}
+  #cutoff-banner{font-size:12px;padding:12px 14px}
+  .monthly-plan-card{padding:12px 14px}
+  .btn-primary,.btn-outline{font-size:14px;padding:12px}
 }
 /* Standard phones (360-540px): default, already tuned */
 @media(min-width:360px) and (max-width:540px){
-:root{–pg-pad:clamp(12px,4vw,18px)}
+  :root{--pg-pad:clamp(12px,4vw,18px)}
 }
 /* Large phones / small tablets (541-768px): expand max-width, bigger padding */
 @media(min-width:541px){
-:root{–pg-pad:clamp(18px,3vw,28px)}
-.pg,#bottom-nav,.sheet,#cart-fab,#toast,#cart-pill{max-width:600px}
-.home-logo{font-size:24px}
-.m-item-img,.m-item-img-ph{width:90px;height:90px}
+  :root{--pg-pad:clamp(18px,3vw,28px)}
+  .pg,#bottom-nav,.sheet,#cart-fab,#toast,#cart-pill{max-width:600px}
+  .home-logo{font-size:24px}
+  .m-item-img,.m-item-img-ph{width:90px;height:90px}
 }
 /* Tablets (769px+): wider, centered card layout */
 @media(min-width:769px){
-body{background:#e8e8e8}
-.pg,#bottom-nav,.sheet,#cart-fab,#toast,#cart-pill,#app-loader,#retry-screen{max-width:480px}
-:root{–pg-pad:24px}
-/* show a subtle card shadow on tablet desktop view */
-.pg{box-shadow:0 0 40px rgba(0,0,0,.15)}
+  body{background:#e8e8e8}
+  .pg,#bottom-nav,.sheet,#cart-fab,#toast,#cart-pill,#app-loader,#retry-screen{max-width:480px}
+  :root{--pg-pad:24px}
+  /* show a subtle card shadow on tablet desktop view */
+  .pg{box-shadow:0 0 40px rgba(0,0,0,.15)}
 }
 /* ── END RESPONSIVE ── */
 </style>
-
 </head>
 <body class="auth-mode">
 
 <!-- App Loader -->
-
 <div id="app-loader">
   <div class="loader-logo"><span class="r">Tif</span><span class="g">fo</span></div>
   <div class="loader-tag">Ghar Ka Tiffin 😍</div>
@@ -445,7 +441,6 @@ body{background:#e8e8e8}
 </div>
 
 <!-- Retry Screen -->
-
 <div id="retry-screen" style="display:none">
   <i class="fa-solid fa-wifi-slash"></i>
   <p class="retry-msg"></p>
@@ -460,7 +455,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      PAGE: AUTH
 ══════════════════════════════════════════════ -->
-
 <div id="pg-auth" class="pg pg-scroll-full">
   <div class="auth-top">
     <div class="auth-logo">🍱 Tiffo</div>
@@ -473,138 +467,134 @@ body{background:#e8e8e8}
       <button class="tab-btn" id="tab-signup" onclick="switchTab('signup')">Sign Up</button>
     </div>
 
-```
-<!-- Login tab -->
-<div id="login-tab">
-  <div id="login-creds-hint" class="creds-hint" style="display:none">✅ Credentials loaded — tap Login</div>
-  <div class="form-group">
-    <label>Mobile Number (WhatsApp)</label>
-    <input type="tel" id="login-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
-  </div>
-  <div class="form-group">
-    <label>Password</label>
-    <div class="pw-wrap">
-      <input type="password" id="login-pw" placeholder="Your password">
-      <button class="pw-toggle" onclick="togglePw('login-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
-    </div>
-  </div>
-  <button class="forgot-link" onclick="forgotPw()">Forgot Password?</button>
-  <div id="login-status" class="auth-status" style="display:none"></div>
-  <div class="mt16">
-    <button class="btn-primary" id="login-btn" onclick="doLogin()">Login</button>
-  </div>
-</div>
-
-<!-- Signup tab -->
-<div id="signup-tab" style="display:none">
-
-  <div class="form-group">
-    <label>Full Name <span style="color:#dc2626;font-size:11px">*</span></label>
-    <input type="text" id="su-name" placeholder="Your full name" autocomplete="name">
-    <div class="field-error" id="su-name-err"></div>
-  </div>
-
-  <div class="form-group">
-    <label>WhatsApp Number <span style="color:#dc2626;font-size:11px">*</span></label>
-    <input type="tel" id="su-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel">
-    <div class="wa-hint"><i class="fa-brands fa-whatsapp"></i> We'll send your order updates here</div>
-    <div class="field-error" id="su-phone-err"></div>
-  </div>
-
-  <div class="form-group">
-    <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
-    <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
-    <div class="field-error" id="su-room-err"></div>
-    <div style="margin-top:4px;font-size:11.5px;font-weight:600;color:#475569;font-family:var(--fb)">
-      📌 Room Number नहीं है तो <span style="color:#dc2626">0</span> भरें &nbsp;·&nbsp; <span style="font-weight:400;color:#64748b">No room number? Enter 0</span>
-    </div>
-  </div>
-
-  <!-- ── Location Verify Card ── -->
-  <div class="loc-section">
-    <div class="loc-section-title">
-      <i class="fa fa-location-dot" style="color:#e63946"></i>
-      Verify Delivery Location
-    </div>
-
-    <!-- Step 1: Detect button -->
-    <button type="button" id="su-loc-btn" class="loc-btn" onclick="detectSignupLocation()">
-      <i class="fa fa-location-crosshairs"></i>
-      <span id="su-loc-btn-txt">Detect My Location</span>
-    </button>
-    <div class="su-step-hint" style="text-align:center;margin-top:6px">Tap to auto-fill your delivery address 📍</div>
-
-    <!-- Status message (shown after detection) -->
-    <div id="su-loc-status" class="loc-status"></div>
-
-    <!-- Step 2: Interactive Leaflet map with draggable pin (shown after GPS fires) -->
-    <div id="su-map-pin-area" style="display:none">
-      <div class="loc-map-wrap">
-        <div class="loc-map-hdr" style="justify-content:space-between">
-          <span><i class="fa fa-map-pin"></i>&nbsp;Pin your exact location</span>
-          <button type="button" onclick="_recenterToGPS()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
-            <i class="fa fa-location-crosshairs"></i> Recenter
-          </button>
+    <!-- Login tab -->
+    <div id="login-tab">
+      <div id="login-creds-hint" class="creds-hint" style="display:none">✅ Credentials loaded — tap Login</div>
+      <div class="form-group">
+        <label>Mobile Number (WhatsApp)</label>
+        <input type="tel" id="login-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="login-pw" placeholder="Your password">
+          <button class="pw-toggle" onclick="togglePw('login-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
         </div>
-        <!-- Leaflet renders here -->
-        <div id="su-leaflet-map" style="width:100%;height:250px;display:block"></div>
-        <!-- Drag hint -->
-        <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
-          <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
-            📌 Drag the red pin or tap the map to fine-tune your exact location.
-          </div>
-        </div>
+      </div>
+      <button class="forgot-link" onclick="forgotPw()">Forgot Password?</button>
+      <div id="login-status" class="auth-status" style="display:none"></div>
+      <div class="mt16">
+        <button class="btn-primary" id="login-btn" onclick="doLogin()">Login</button>
       </div>
     </div>
 
-    <input type="hidden" id="su-lat" value="">
-    <input type="hidden" id="su-lng" value="">
-    <input type="hidden" id="su-loc-ok" value="0">
-  </div>
+    <!-- Signup tab -->
+    <div id="signup-tab" style="display:none">
 
-  <!-- ── Detected Address Preview (shown after location detected) ── -->
-  <div id="su-addr-preview-wrap" style="display:none">
-    <div class="addr-card">
-      <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
-      <div id="su-addr-card-body"><!-- filled by JS --></div>
-      <div class="addr-card-divider"></div>
-      <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
-      <input type="text" id="su-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off">
+      <div class="form-group">
+        <label>Full Name <span style="color:#dc2626;font-size:11px">*</span></label>
+        <input type="text" id="su-name" placeholder="Your full name" autocomplete="name">
+        <div class="field-error" id="su-name-err"></div>
+      </div>
+
+      <div class="form-group">
+        <label>WhatsApp Number <span style="color:#dc2626;font-size:11px">*</span></label>
+        <input type="tel" id="su-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel">
+        <div class="wa-hint"><i class="fa-brands fa-whatsapp"></i> We'll send your order updates here</div>
+        <div class="field-error" id="su-phone-err"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
+        <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
+        <div class="field-error" id="su-room-err"></div>
+        <div style="margin-top:4px;font-size:11.5px;font-weight:600;color:#475569;font-family:var(--fb)">
+          📌 Room Number नहीं है तो <span style="color:#dc2626">0</span> भरें &nbsp;·&nbsp; <span style="font-weight:400;color:#64748b">No room number? Enter 0</span>
+        </div>
+      </div>
+
+      <!-- ── Location Verify Card ── -->
+      <div class="loc-section">
+        <div class="loc-section-title">
+          <i class="fa fa-location-dot" style="color:#e63946"></i>
+          Verify Delivery Location
+        </div>
+
+        <!-- Step 1: Detect button -->
+        <button type="button" id="su-loc-btn" class="loc-btn" onclick="detectSignupLocation()">
+          <i class="fa fa-location-crosshairs"></i>
+          <span id="su-loc-btn-txt">Detect My Location</span>
+        </button>
+        <div class="su-step-hint" style="text-align:center;margin-top:6px">Tap to auto-fill your delivery address 📍</div>
+
+        <!-- Status message (shown after detection) -->
+        <div id="su-loc-status" class="loc-status"></div>
+
+        <!-- Step 2: Interactive Leaflet map with draggable pin (shown after GPS fires) -->
+        <div id="su-map-pin-area" style="display:none">
+          <div class="loc-map-wrap">
+            <div class="loc-map-hdr" style="justify-content:space-between">
+              <span><i class="fa fa-map-pin"></i>&nbsp;Pin your exact location</span>
+              <button type="button" onclick="_recenterToGPS()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                <i class="fa fa-location-crosshairs"></i> Recenter
+              </button>
+            </div>
+            <!-- Leaflet renders here -->
+            <div id="su-leaflet-map" style="width:100%;height:250px;display:block"></div>
+            <!-- Drag hint -->
+            <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
+              <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
+                📌 Drag the red pin or tap the map to fine-tune your exact location.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <input type="hidden" id="su-lat" value="">
+        <input type="hidden" id="su-lng" value="">
+        <input type="hidden" id="su-loc-ok" value="0">
+      </div>
+
+      <!-- ── Detected Address Preview (shown after location detected) ── -->
+      <div id="su-addr-preview-wrap" style="display:none">
+        <div class="addr-card">
+          <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
+          <div id="su-addr-card-body"><!-- filled by JS --></div>
+          <div class="addr-card-divider"></div>
+          <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
+          <input type="text" id="su-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off">
+        </div>
+        <!-- Hidden textarea stores final combined address for submission -->
+        <textarea id="su-addr" style="display:none" readonly></textarea>
+        <div class="field-error" id="su-addr-err"></div>
+      </div>
+
+      <div class="form-group" style="margin-top:16px">
+        <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
+        <div class="pw-wrap">
+          <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password">
+          <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
+        </div>
+        <div class="field-error" id="su-pw-err"></div>
+      </div>
+
+      <div style="margin-top:12px;padding-bottom:16px">
+        <div id="signup-status" class="auth-status" style="display:none"></div>
+        <button class="btn-primary" id="su-btn" onclick="doSignup()">
+          <i class="fa-solid fa-user-plus" style="margin-right:6px"></i>Create Account
+        </button>
+        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);text-align:center;margin-top:10px;line-height:1.5">
+          By creating an account you agree to receive order updates on WhatsApp
+        </div>
+      </div>
+
     </div>
-    <!-- Hidden textarea stores final combined address for submission -->
-    <textarea id="su-addr" style="display:none" readonly></textarea>
-    <div class="field-error" id="su-addr-err"></div>
-  </div>
-
-  <div class="form-group" style="margin-top:16px">
-    <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
-    <div class="pw-wrap">
-      <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password">
-      <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
-    </div>
-    <div class="field-error" id="su-pw-err"></div>
-  </div>
-
-  <div style="margin-top:12px;padding-bottom:16px">
-    <div id="signup-status" class="auth-status" style="display:none"></div>
-    <button class="btn-primary" id="su-btn" onclick="doSignup()">
-      <i class="fa-solid fa-user-plus" style="margin-right:6px"></i>Create Account
-    </button>
-    <div style="font-family:var(--fb);font-size:11px;color:var(--gr);text-align:center;margin-top:10px;line-height:1.5">
-      By creating an account you agree to receive order updates on WhatsApp
-    </div>
-  </div>
-
-</div>
-```
-
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: HOME
 ══════════════════════════════════════════════ -->
-
 <div id="pg-home" class="pg">
   <div class="home-header flex-sb">
     <div>
@@ -632,57 +622,53 @@ body{background:#e8e8e8}
       </div>
     </div>
 
-```
-<div style="padding:0 var(--pg-pad)">
-  <!-- Pause toggle (PRO subscribers only) -->
-  <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
-    <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Auto Tiffin</div>
-      <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Tap to manage tiffin sessions</div>
-      <span class="pause-status-badge active" id="pause-status-badge">● All Active</span>
+    <div style="padding:0 var(--pg-pad)">
+      <!-- Pause toggle (PRO subscribers only) -->
+      <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
+        <div style="flex:1">
+          <div style="font-family:var(--ff);font-weight:600;font-size:14px">Auto Tiffin</div>
+          <div id="pause-subtitle" style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Tap to manage tiffin sessions</div>
+          <span class="pause-status-badge active" id="pause-status-badge">● All Active</span>
+        </div>
+        <input type="checkbox" class="toggle-sw active" id="pause-toggle" onchange="onPauseToggle(this)" checked>
+      </div>
+
+
+      <!-- Monthly plan card (non-subscriber only) -->
+      <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
+        <div style="width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#x1F371;</div>
+        <div style="flex:1;position:relative;z-index:1">
+          <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
+          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;1200</span> Free Home Delivery</div>
+        </div>
+        <div style="background:rgba(255,255,255,.25);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px"></i></div>
+      </div>
+
+      <!-- Cutoff banner -->
+      <div id="cutoff-banner" style="display:none"></div>
+
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass" style="color:var(--gr)"></i>
+        <input type="search" id="menu-search" placeholder="Search dishes..." onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}" oninput="_menuSearchDebounce(this.value)">
+        <button id="search-go-btn" onclick="onMenuSearch(document.getElementById('menu-search').value)" style="border:none;background:none;padding:0 4px;cursor:pointer;color:var(--p);font-size:17px;display:flex;align-items:center"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
+      </div>
+
+      <!-- Category chips -->
+      <div class="cat-scroll" id="cat-scroll"></div>
+
+      <!-- Menu section -->
+      <div class="sec-hd" id="menu-section-hd">Menu</div>
+      <div id="menu-list"></div>
     </div>
-    <input type="checkbox" class="toggle-sw active" id="pause-toggle" onchange="onPauseToggle(this)" checked>
-  </div>
-
-
-  <!-- Monthly plan card (non-subscriber only) -->
-  <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
-    <div style="width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#x1F371;</div>
-    <div style="flex:1;position:relative;z-index:1">
-      <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
-      <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;1200</span> Free Home Delivery</div>
-    </div>
-    <div style="background:rgba(255,255,255,.25);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px"></i></div>
-  </div>
-
-  <!-- Cutoff banner -->
-  <div id="cutoff-banner" style="display:none"></div>
-
-
-  <!-- Search -->
-  <div class="search-wrap">
-    <i class="fa-solid fa-magnifying-glass" style="color:var(--gr)"></i>
-    <input type="search" id="menu-search" placeholder="Search dishes..." onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}" oninput="_menuSearchDebounce(this.value)">
-    <button id="search-go-btn" onclick="onMenuSearch(document.getElementById('menu-search').value)" style="border:none;background:none;padding:0 4px;cursor:pointer;color:var(--p);font-size:17px;display:flex;align-items:center"><i class="fa-solid fa-magnifying-glass"></i></button>
-    <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
-  </div>
-
-  <!-- Category chips -->
-  <div class="cat-scroll" id="cat-scroll"></div>
-
-  <!-- Menu section -->
-  <div class="sec-hd" id="menu-section-hd">Menu</div>
-  <div id="menu-list"></div>
-</div>
-```
-
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: CART
 ══════════════════════════════════════════════ -->
-
 <div id="pg-cart" class="pg">
   <div class="cart-header">
     <button class="back-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
@@ -699,52 +685,48 @@ body{background:#e8e8e8}
       <div id="cart-items-wrap">
         <div id="cart-items-list" class="mt8"></div>
 
-```
-    <!-- Coupon -->
-    <div class="sec-hd">Have a Coupon?</div>
-    <div class="cpn-row">
-      <input type="text" id="cpn-input" placeholder="Enter coupon code" style="text-transform:uppercase">
-      <button class="cpn-apply-btn" onclick="applyCoupon()">Apply</button>
-    </div>
-    <span id="cpn-msg"></span>
+        <!-- Coupon -->
+        <div class="sec-hd">Have a Coupon?</div>
+        <div class="cpn-row">
+          <input type="text" id="cpn-input" placeholder="Enter coupon code" style="text-transform:uppercase">
+          <button class="cpn-apply-btn" onclick="applyCoupon()">Apply</button>
+        </div>
+        <span id="cpn-msg"></span>
 
-    <!-- Bill -->
-    <div class="bill-card">
-      <div class="bill-row">
-        <span class="bill-label">Subtotal</span>
-        <span class="bill-val" id="bill-subtotal">₹0</span>
-      </div>
-      <div class="bill-row" id="bill-discount-row" style="display:none">
-        <span class="bill-label">Discount</span>
-        <span class="bill-val text-g" id="bill-discount">−₹0</span>
-      </div>
-      <div class="bill-row" id="bill-delivery-row">
-        <span class="bill-label">Delivery</span>
-        <span class="bill-val" id="bill-delivery">₹20</span>
-      </div>
-      <hr class="bill-divider">
-      <div class="bill-row">
-        <span style="font-family:var(--ff);font-weight:700;font-size:16px">Total</span>
-        <span class="bill-total" id="bill-total">₹0</span>
-      </div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:6px" id="delivery-note">Estimated delivery: Lunch 12–1 PM / Dinner 8–9 PM</div>
-    </div>
+        <!-- Bill -->
+        <div class="bill-card">
+          <div class="bill-row">
+            <span class="bill-label">Subtotal</span>
+            <span class="bill-val" id="bill-subtotal">₹0</span>
+          </div>
+          <div class="bill-row" id="bill-discount-row" style="display:none">
+            <span class="bill-label">Discount</span>
+            <span class="bill-val text-g" id="bill-discount">−₹0</span>
+          </div>
+          <div class="bill-row" id="bill-delivery-row">
+            <span class="bill-label">Delivery</span>
+            <span class="bill-val" id="bill-delivery">₹20</span>
+          </div>
+          <hr class="bill-divider">
+          <div class="bill-row">
+            <span style="font-family:var(--ff);font-weight:700;font-size:16px">Total</span>
+            <span class="bill-total" id="bill-total">₹0</span>
+          </div>
+          <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:6px" id="delivery-note">Estimated delivery: Lunch 12–1 PM / Dinner 8–9 PM</div>
+        </div>
 
-    <div class="mt4">
-      <button class="btn-primary" id="place-order-btn" onclick="placeOrder()">Place Order 🚀</button>
+        <div class="mt4">
+          <button class="btn-primary" id="place-order-btn" onclick="placeOrder()">Place Order 🚀</button>
+        </div>
+        <div style="height:20px"></div>
+      </div>
     </div>
-    <div style="height:20px"></div>
-  </div>
-</div>
-```
-
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: SUCCESS (non-subscriber)
 ══════════════════════════════════════════════ -->
-
 <div id="pg-success" class="pg pg-scroll-full">
   <div class="success-wrap">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
@@ -771,7 +753,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      PAGE: SUCCESS-SUB (subscriber)
 ══════════════════════════════════════════════ -->
-
 <div id="pg-success-sub" class="pg pg-scroll-full">
   <div class="success-wrap">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
@@ -796,7 +777,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      PAGE: SUCCESS-INSUF (subscriber, insufficient wallet → UPI)
 ══════════════════════════════════════════════ -->
-
 <div id="pg-success-insuf" class="pg pg-scroll-full">
   <div class="success-wrap">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
@@ -823,7 +803,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      PAGE: ORDERS
 ══════════════════════════════════════════════ -->
-
 <div id="pg-orders" class="pg">
   <div class="orders-header">
     <button class="back-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
@@ -855,7 +834,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      PAGE: ACCOUNT
 ══════════════════════════════════════════════ -->
-
 <div id="pg-account" class="pg">
   <div class="account-header">
     <button class="back-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
@@ -872,129 +850,125 @@ body{background:#e8e8e8}
       <div class="acct-section">
         <div class="acct-section-title">📍 Delivery Address</div>
 
-```
-    <!-- Current saved address display -->
-    <div id="acct-addr-display" style="margin-bottom:10px">
-      <div style="color:#94a3b8;font-size:13px;padding:10px 0">Loading…</div>
-    </div>
+        <!-- Current saved address display -->
+        <div id="acct-addr-display" style="margin-bottom:10px">
+          <div style="color:#94a3b8;font-size:13px;padding:10px 0">Loading…</div>
+        </div>
 
-    <!-- Toggle to show update form -->
-    <button class="btn-outline" id="acct-addr-toggle-btn" onclick="toggleAddrUpdateForm()" style="margin-bottom:10px">📍 Update Address with Map</button>
+        <!-- Toggle to show update form -->
+        <button class="btn-outline" id="acct-addr-toggle-btn" onclick="toggleAddrUpdateForm()" style="margin-bottom:10px">📍 Update Address with Map</button>
 
-    <!-- Hidden update form (shown when toggle clicked) -->
-    <div id="acct-addr-update-form" style="display:none">
-      <div class="form-group" style="margin-bottom:8px">
-        <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Room / Flat / House Number</label>
-        <input type="text" id="acct-room" placeholder="Room 12 / Flat B-4 / House 5A…" autocomplete="off" oninput="_acctRoomWatcher()">
-      </div>
-
-      <!-- Detect / Map -->
-      <button type="button" id="acct-loc-btn" class="loc-btn" onclick="detectAcctLocation()" style="margin-bottom:8px">
-        <i class="fa fa-location-crosshairs"></i>
-        <span id="acct-loc-btn-txt">Detect My Location</span>
-      </button>
-      <div id="acct-loc-status" class="loc-status" style="display:none"></div>
-
-      <div id="acct-map-pin-area" style="display:none;margin-top:8px">
-        <div class="loc-map-wrap">
-          <div class="loc-map-hdr" style="justify-content:space-between">
-            <span><i class="fa fa-map-pin"></i>&nbsp;Drag pin to exact location</span>
-            <button type="button" onclick="_acctRecenter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
-              <i class="fa fa-location-crosshairs"></i> Recenter
-            </button>
+        <!-- Hidden update form (shown when toggle clicked) -->
+        <div id="acct-addr-update-form" style="display:none">
+          <div class="form-group" style="margin-bottom:8px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Room / Flat / House Number</label>
+            <input type="text" id="acct-room" placeholder="Room 12 / Flat B-4 / House 5A…" autocomplete="off" oninput="_acctRoomWatcher()">
           </div>
-          <div id="acct-leaflet-map" style="width:100%;height:220px;display:block"></div>
-          <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
-            <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
-              📌 Drag the pin or tap the map to fine-tune your exact location.
+
+          <!-- Detect / Map -->
+          <button type="button" id="acct-loc-btn" class="loc-btn" onclick="detectAcctLocation()" style="margin-bottom:8px">
+            <i class="fa fa-location-crosshairs"></i>
+            <span id="acct-loc-btn-txt">Detect My Location</span>
+          </button>
+          <div id="acct-loc-status" class="loc-status" style="display:none"></div>
+
+          <div id="acct-map-pin-area" style="display:none;margin-top:8px">
+            <div class="loc-map-wrap">
+              <div class="loc-map-hdr" style="justify-content:space-between">
+                <span><i class="fa fa-map-pin"></i>&nbsp;Drag pin to exact location</span>
+                <button type="button" onclick="_acctRecenter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                  <i class="fa fa-location-crosshairs"></i> Recenter
+                </button>
+              </div>
+              <div id="acct-leaflet-map" style="width:100%;height:220px;display:block"></div>
+              <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
+                <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
+                  📌 Drag the pin or tap the map to fine-tune your exact location.
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- Detected address card (shown after map detection) -->
+          <div id="acct-addr-preview-wrap" style="display:none">
+            <div class="addr-card">
+              <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
+              <div id="acct-addr-card-body"><!-- filled by JS --></div>
+              <div class="addr-card-divider"></div>
+              <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
+              <input type="text" id="acct-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off" oninput="_acctDetailWatcher()">
+            </div>
+          </div>
+
+          <!-- Hidden field stores full address -->
+          <textarea id="acct-addr-box" style="display:none" readonly></textarea>
+
+          <input type="hidden" id="acct-lat" value="">
+          <input type="hidden" id="acct-lng" value="">
+          <input type="hidden" id="acct-loc-ok" value="0">
+
+          <button class="btn-primary" style="margin-top:12px" onclick="saveAddress()">💾 Save New Address</button>
         </div>
       </div>
-
-      <!-- Detected address card (shown after map detection) -->
-      <div id="acct-addr-preview-wrap" style="display:none">
-        <div class="addr-card">
-          <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
-          <div id="acct-addr-card-body"><!-- filled by JS --></div>
-          <div class="addr-card-divider"></div>
-          <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
-          <input type="text" id="acct-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off" oninput="_acctDetailWatcher()">
+      <!-- Edit Email -->
+      <div class="acct-section">
+        <div class="acct-section-title">📧 Email</div>
+        <div class="form-group">
+          <input type="email" id="acct-email" placeholder="your@email.com">
+        </div>
+        <button class="btn-primary" onclick="saveEmail()">Save Email</button>
+      </div>
+      <!-- Change Password -->
+      <div class="acct-section">
+        <div class="acct-section-title">🔒 Change Password</div>
+        <div class="form-group">
+          <label>Current Password</label>
+          <input type="password" id="pw-cur" placeholder="Current password">
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" id="pw-new" placeholder="New password (min 6 chars)">
+        </div>
+        <button class="btn-primary" onclick="changePassword()">Change Password</button>
+      </div>
+      <!-- Subscription card -->
+      <div class="acct-section sub-only" id="sub-card">
+        <div class="acct-section-title">🎫 Tiffin Subscription</div>
+        <div class="flex-sb mt8">
+          <div>
+            <div style="font-family:var(--fb);font-size:13px;color:var(--gr)">Plan Period</div>
+            <div id="sub-dates" style="font-family:var(--ff);font-weight:600;font-size:14px;margin-top:2px">—</div>
+          </div>
+          <div id="sub-status-badge" class="status-badge status-delivered">Active ✓</div>
         </div>
       </div>
-
-      <!-- Hidden field stores full address -->
-      <textarea id="acct-addr-box" style="display:none" readonly></textarea>
-
-      <input type="hidden" id="acct-lat" value="">
-      <input type="hidden" id="acct-lng" value="">
-      <input type="hidden" id="acct-loc-ok" value="0">
-
-      <button class="btn-primary" style="margin-top:12px" onclick="saveAddress()">💾 Save New Address</button>
-    </div>
-  </div>
-  <!-- Edit Email -->
-  <div class="acct-section">
-    <div class="acct-section-title">📧 Email</div>
-    <div class="form-group">
-      <input type="email" id="acct-email" placeholder="your@email.com">
-    </div>
-    <button class="btn-primary" onclick="saveEmail()">Save Email</button>
-  </div>
-  <!-- Change Password -->
-  <div class="acct-section">
-    <div class="acct-section-title">🔒 Change Password</div>
-    <div class="form-group">
-      <label>Current Password</label>
-      <input type="password" id="pw-cur" placeholder="Current password">
-    </div>
-    <div class="form-group">
-      <label>New Password</label>
-      <input type="password" id="pw-new" placeholder="New password (min 6 chars)">
-    </div>
-    <button class="btn-primary" onclick="changePassword()">Change Password</button>
-  </div>
-  <!-- Subscription card -->
-  <div class="acct-section sub-only" id="sub-card">
-    <div class="acct-section-title">🎫 Tiffin Subscription</div>
-    <div class="flex-sb mt8">
-      <div>
-        <div style="font-family:var(--fb);font-size:13px;color:var(--gr)">Plan Period</div>
-        <div id="sub-dates" style="font-family:var(--ff);font-weight:600;font-size:14px;margin-top:2px">—</div>
+      <!-- Wallet card -->
+      <div class="acct-section khata-gated" style="display:none">
+        <div class="flex-sb">
+          <div class="acct-section-title">💰 Wallet Balance</div>
+          <button onclick="nav('pg-khata')" style="border:none;background:none;color:var(--p);font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">View Khata →</button>
+        </div>
+        <div class="wallet-bal" style="font-family:var(--ff);font-weight:800;font-size:32px;color:var(--g);margin-top:6px">₹0</div>
       </div>
-      <div id="sub-status-badge" class="status-badge status-delivered">Active ✓</div>
+      <!-- About -->
+      <div class="acct-section">
+        <button class="flex-sb w100" style="border:none;background:none;cursor:pointer" onclick="document.getElementById('about-modal').style.display='flex'">
+          <div class="acct-section-title" style="margin-bottom:0">ℹ️ About Tiffo</div>
+          <i class="fa-solid fa-chevron-right" style="color:var(--gr)"></i>
+        </button>
+      </div>
+      <!-- Logout -->
+      <button class="btn-primary" style="background:var(--pd)" onclick="doLogout()">
+        <i class="fa-solid fa-right-from-bracket"></i> Logout
+      </button>
+      <div style="height:20px"></div>
     </div>
-  </div>
-  <!-- Wallet card -->
-  <div class="acct-section khata-gated" style="display:none">
-    <div class="flex-sb">
-      <div class="acct-section-title">💰 Wallet Balance</div>
-      <button onclick="nav('pg-khata')" style="border:none;background:none;color:var(--p);font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">View Khata →</button>
-    </div>
-    <div class="wallet-bal" style="font-family:var(--ff);font-weight:800;font-size:32px;color:var(--g);margin-top:6px">₹0</div>
-  </div>
-  <!-- About -->
-  <div class="acct-section">
-    <button class="flex-sb w100" style="border:none;background:none;cursor:pointer" onclick="document.getElementById('about-modal').style.display='flex'">
-      <div class="acct-section-title" style="margin-bottom:0">ℹ️ About Tiffo</div>
-      <i class="fa-solid fa-chevron-right" style="color:var(--gr)"></i>
-    </button>
-  </div>
-  <!-- Logout -->
-  <button class="btn-primary" style="background:var(--pd)" onclick="doLogout()">
-    <i class="fa-solid fa-right-from-bracket"></i> Logout
-  </button>
-  <div style="height:20px"></div>
-</div>
-```
-
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: KHATA
 ══════════════════════════════════════════════ -->
-
 <div id="pg-khata" class="pg khata-gated" style="display:none">
   <div class="khata-header">
     <button class="back-btn" onclick="back()"><i class="fa-solid fa-arrow-left"></i></button>
@@ -1034,7 +1008,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      BOTTOM NAV
 ══════════════════════════════════════════════ -->
-
 <nav id="bottom-nav">
   <button onclick="nav('pg-home')" data-pg="pg-home">
     <i class="fa-solid fa-house"></i><span>Home</span>
@@ -1059,7 +1032,6 @@ body{background:#e8e8e8}
 </nav>
 
 <!-- Cart FAB -->
-
 <button id="cart-fab" onclick="nav('pg-cart')" style="display:none">
   <i class="fa-solid fa-bag-shopping"></i>
   <span id="fab-count">0</span> items
@@ -1068,7 +1040,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      PAUSE SHEET
 ══════════════════════════════════════════════ -->
-
 <div id="pause-sheet" class="sheet" style="display:none">
   <div class="flex-sb" style="margin-bottom:4px">
     <div class="sheet-title">Auto Tiffin Settings</div>
@@ -1108,7 +1079,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      ACCOUNT PANEL SHEET
 ══════════════════════════════════════════════ -->
-
 <div id="account-panel" class="sheet" style="display:none">
   <div style="text-align:right;margin-bottom:8px">
     <button class="sheet-close" onclick="closeAccountPanel()"><i class="fa-solid fa-xmark"></i></button>
@@ -1142,7 +1112,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      ABOUT MODAL
 ══════════════════════════════════════════════ -->
-
 <div id="about-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="closed-card" style="max-width:320px">
     <div style="font-size:36px;margin-bottom:8px">🍱</div>
@@ -1159,7 +1128,6 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      CLOSED POPUP
 ══════════════════════════════════════════════ -->
-
 <div id="closed-popup" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="closed-card">
     <div class="closed-emoji">🌙</div>
@@ -1172,46 +1140,42 @@ body{background:#e8e8e8}
 <!-- ══════════════════════════════════════════════
      INSUFFICIENT BALANCE — UPI PAY POPUP
 ══════════════════════════════════════════════ -->
-
 <div id="insuf-bal-popup" class="modal-overlay" style="display:none">
   <div class="insuf-card">
     <div class="insuf-emoji">💳</div>
     <div class="insuf-title">Low Wallet Balance</div>
 
-```
-<!-- Bill breakdown -->
-<div style="width:100%;background:#f8f8f8;border-radius:12px;padding:12px 14px;margin-bottom:12px;text-align:left">
-  <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
-    <span>Items</span><span id="insuf-subtotal">₹0</span>
-  </div>
-  <div id="insuf-discount-row" style="display:none;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#16a34a;margin-bottom:6px">
-    <span>Coupon Discount</span><span id="insuf-discount">-₹0</span>
-  </div>
-  <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
-    <span>Delivery Charge <span style="font-size:11px;color:#b45309">(UPI pay)</span></span><span id="insuf-delivery-amt">₹20</span>
-  </div>
-  <div style="height:1px;background:#e5e5e5;margin:6px 0"></div>
-  <div style="display:flex;justify-content:space-between;font-family:var(--ff);font-weight:700;font-size:14px;color:#1a1a1a">
-    <span>Total to Pay</span><span id="insuf-need">₹0</span>
-  </div>
-</div>
+    <!-- Bill breakdown -->
+    <div style="width:100%;background:#f8f8f8;border-radius:12px;padding:12px 14px;margin-bottom:12px;text-align:left">
+      <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
+        <span>Items</span><span id="insuf-subtotal">₹0</span>
+      </div>
+      <div id="insuf-discount-row" style="display:none;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#16a34a;margin-bottom:6px">
+        <span>Coupon Discount</span><span id="insuf-discount">-₹0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;color:#444;margin-bottom:6px">
+        <span>Delivery Charge <span style="font-size:11px;color:#b45309">(UPI pay)</span></span><span id="insuf-delivery-amt">₹20</span>
+      </div>
+      <div style="height:1px;background:#e5e5e5;margin:6px 0"></div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--ff);font-weight:700;font-size:14px;color:#1a1a1a">
+        <span>Total to Pay</span><span id="insuf-need">₹0</span>
+      </div>
+    </div>
 
-<!-- Wallet status -->
-<div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;margin-bottom:12px;padding:0 2px">
-  <span style="color:#555">Your Wallet</span>
-  <span style="color:#dc2626;font-weight:700" id="insuf-avail">₹0</span>
-</div>
+    <!-- Wallet status -->
+    <div style="display:flex;justify-content:space-between;font-family:var(--fb);font-size:13px;margin-bottom:12px;padding:0 2px">
+      <span style="color:#555">Your Wallet</span>
+      <span style="color:#dc2626;font-weight:700" id="insuf-avail">₹0</span>
+    </div>
 
-<div class="insuf-note" style="margin-bottom:16px">
-  🚀 Order will be placed now. You'll get a WhatsApp button to send your UPI payment screenshot.
-</div>
+    <div class="insuf-note" style="margin-bottom:16px">
+      🚀 Order will be placed now. You'll get a WhatsApp button to send your UPI payment screenshot.
+    </div>
 
-<div class="insuf-btn-row">
-  <button class="btn-cancel" onclick="closeInsufPopup()">Cancel</button>
-  <button class="btn-yes" id="insuf-yes-btn" onclick="confirmInsufOrder()">Pay via UPI</button>
-</div>
-```
-
+    <div class="insuf-btn-row">
+      <button class="btn-cancel" onclick="closeInsufPopup()">Cancel</button>
+      <button class="btn-yes" id="insuf-yes-btn" onclick="confirmInsufOrder()">Pay via UPI</button>
+    </div>
   </div>
 </div>
 
@@ -2142,18 +2106,17 @@ function _getPlusCode(lat, lng) {
 }
 
 /* ── Nominatim nearby-landmark search (runs in parallel with reverse) ──
-   Fetches up to 8 named places within ~200 m of the pin.
+   Fetches named buildings within ~150 m of the pin, sorted by distance.
    Returns array of unique display names, filtered against already-known tokens. */
 async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
   try {
-    // viewbox ~0.0015 deg ≈ 150 m tight box — better for dense campus areas
+    // viewbox ~0.0015 deg ≈ 150 m tight box — better for dense campus/hostel areas
     const d = 0.0015;
     const box = `${lng-d},${lat-d},${lng+d},${lat+d}`;
     const seen = new Set(excludeSet);
     const out  = [];
 
-    // Run two parallel searches: buildings/amenities + generic named places
-    // Note: Nominatim /search with empty q= returns nothing — must use a real query
+    // Two parallel searches targeting buildings & amenities (empty q= returns nothing in Nominatim)
     const [rA, rB] = await Promise.allSettled([
       fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&namedetails=1&bounded=1&viewbox=${box}&amenity=university`,
@@ -2169,7 +2132,7 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
     if (rA.status === 'fulfilled') { try { lists.push(...(await rA.value.json())); } catch(e){} }
     if (rB.status === 'fulfilled') { try { lists.push(...(await rB.value.json())); } catch(e){} }
 
-    // Sort by proximity to pin (Nominatim returns lat/lon per result)
+    // Sort by proximity to pin
     lists.sort((a, b) => {
       const da = Math.hypot((+a.lat||0) - lat, (+a.lon||0) - lng);
       const db = Math.hypot((+b.lat||0) - lat, (+b.lon||0) - lng);
@@ -2204,16 +2167,16 @@ async function _nominatimReverseGeocode(lat, lng) {
     const x = data.extratags || {};
 
     // ── 1. Building / named place at pin ──
-    // Priority: namedetails.name > extratags.name > address fields
+    // Priority: namedetails.name > extratags.name > address amenity/leisure fields
+    // NOTE: a.building intentionally excluded — Nominatim fills it with generic OSM
+    // building types ('yes', 'dormitory', 'residential'), not actual place names.
     const namedPlace = (data.namedetails?.name || data.name || x.name || '').trim();
     const building = (
       namedPlace ||
       a.amenity || a.leisure || a.tourism ||
-      a.office  || a.shop    || a.historic || a.place_of_worship ||
+      a.office  || a.shop   || a.historic || a.place_of_worship ||
       a.allotments || a.man_made || ''
     ).trim();
-    // Note: a.building is intentionally excluded — Nominatim fills it with
-    // generic OSM building types ('yes', 'dormitory', 'residential') not names.
 
     // ── 2. Street / road ──
     const houseNo  = (a.house_number || '').trim();
@@ -2236,17 +2199,19 @@ async function _nominatimReverseGeocode(lat, lng) {
     const pincode = (a.postcode || '').trim();
 
     // ── 8. Nearby landmarks — two-source strategy ──
+    //   Source A: Nominatim address fields (fast, from reverse response)
+    //   Source B: Nominatim /search in viewbox (parallel, richer results)
     const usedLower = new Set([building, road, area, city, district, state, pincode]
       .map(s => s.toLowerCase()).filter(Boolean));
 
-    // Source A: address fields (fast, already available)
+    // Source A candidates from address fields
     const candidatesA = [
       a.amenity, a.leisure, a.tourism, a.shop, a.office,
       a.historic, a.place_of_worship, a.man_made,
       a.hamlet, a.locality, a.quarter
     ].map(s => (s || '').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
 
-    // Source B: parallel nearby building search
+    // Source B: parallel nearby building search (non-blocking)
     let candidatesB = [];
     try {
       candidatesB = await _fetchNearbyLandmarks(lat, lng, usedLower);
@@ -2261,8 +2226,8 @@ async function _nominatimReverseGeocode(lat, lng) {
       return true;
     });
 
-    // When building is detected: show up to 2 near + up to 2 nearby
-    // When no building: show up to 2 near (first result acts as main building label)
+    // When building found: show up to 2 Near + up to 2 Nearby (dense areas need more context)
+    // When no building:    show up to 2 Near (first acts as main landmark)
     const hasBuilding = Boolean(building);
     const nearFirst = nearAll.slice(0, hasBuilding ? 2 : 2);
     const nearExtra = nearAll.slice(hasBuilding ? 2 : 2, hasBuilding ? 4 : 4);
@@ -4284,787 +4249,782 @@ function generateKhataPDF() {
     '.footer{margin-top:18px;font-size:10px;color:#aaa;display:flex;justify-content:space-between}' +
     '@media print{button{display:none!important}}' +
     '</style></head><body>' +
-
-```
-'<div class="hdr"><div>' +
-  '<div class="brand">&#x1F372; Tiffo</div>' +
-  '<div class="sub">Ghar Ka Tiffin 😍<br>&#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'<br>Wallet Statement</div>' +
-'</div><div class="badge">&#x1F4C5; '+rangeLabel+'</div></div>' +
-'<hr>' +
-'<div class="info-box"><div><b>'+(user?.name||'—')+'</b><br>&#x260E; '+(user?.phone||'—')+'<br>&#x1F4CD; '+(user?.address||'—')+'</div>' +
-  '<div style="text-align:right"><small style="color:#aaa">Generated</small><br><b>'+now+'</b></div></div>' +
-'<div class="sumbox">' +
-  '<div class="sumcard green"><div class="lbl">Closing Balance</div><div class="val">\u20B9'+Math.round(bal)+'</div></div>' +
-  '<div class="sumcard orange"><div class="lbl">Transactions</div><div class="val">'+entries.length+'</div></div>' +
-'</div>' +
-'<button onclick="window.print()" style="background:#e63946;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin-bottom:14px;font-size:13px">&#x1F5A8; Print / Save PDF</button>' +
-'<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Items</th><th style="text-align:right">Real Price</th><th style="text-align:right">Charged</th><th style="text-align:right">Balance</th><th>Note</th></tr></thead>' +
-'<tbody>'+rows+'</tbody></table>' +
-'<div class="footer"><span>Powered by <b>Tiffo</b> &#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'</span><span>Generated: '+now+'</span></div>' +
-'</body></html>';
-```
-
-const w = window.open(’’,’_blank’,‘width=1000,height=700’);
-if (w) { w.document.write(html); w.document.close(); }
-else toast(‘Allow popups to generate PDF’);
+    '<div class="hdr"><div>' +
+      '<div class="brand">&#x1F372; Tiffo</div>' +
+      '<div class="sub">Ghar Ka Tiffin 😍<br>&#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'<br>Wallet Statement</div>' +
+    '</div><div class="badge">&#x1F4C5; '+rangeLabel+'</div></div>' +
+    '<hr>' +
+    '<div class="info-box"><div><b>'+(user?.name||'—')+'</b><br>&#x260E; '+(user?.phone||'—')+'<br>&#x1F4CD; '+(user?.address||'—')+'</div>' +
+      '<div style="text-align:right"><small style="color:#aaa">Generated</small><br><b>'+now+'</b></div></div>' +
+    '<div class="sumbox">' +
+      '<div class="sumcard green"><div class="lbl">Closing Balance</div><div class="val">\u20B9'+Math.round(bal)+'</div></div>' +
+      '<div class="sumcard orange"><div class="lbl">Transactions</div><div class="val">'+entries.length+'</div></div>' +
+    '</div>' +
+    '<button onclick="window.print()" style="background:#e63946;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin-bottom:14px;font-size:13px">&#x1F5A8; Print / Save PDF</button>' +
+    '<table><thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Items</th><th style="text-align:right">Real Price</th><th style="text-align:right">Charged</th><th style="text-align:right">Balance</th><th>Note</th></tr></thead>' +
+    '<tbody>'+rows+'</tbody></table>' +
+    '<div class="footer"><span>Powered by <b>Tiffo</b> &#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'</span><span>Generated: '+now+'</span></div>' +
+    '</body></html>';
+  const w = window.open('','_blank','width=1000,height=700');
+  if (w) { w.document.write(html); w.document.close(); }
+  else toast('Allow popups to generate PDF');
 }
 
 function exportKhataPDF() { generateKhataPDF(); }
 
 /* ═══════════════════════════════════════════
-PAUSE DELIVERY
+   PAUSE DELIVERY
 ═══════════════════════════════════════════ */
 function openPauseSheet() {
-document.getElementById(‘pause-sheet’).style.display = ‘block’;
-document.getElementById(‘pause-sheet’).classList.add(‘open’);
-document.getElementById(‘sheet-backdrop’).classList.add(‘show’);
+  document.getElementById('pause-sheet').style.display = 'block';
+  document.getElementById('pause-sheet').classList.add('open');
+  document.getElementById('sheet-backdrop').classList.add('show');
 }
 
 function closePauseSheet() {
-document.getElementById(‘pause-sheet’).classList.remove(‘open’);
-document.getElementById(‘sheet-backdrop’).classList.remove(‘show’);
-setTimeout(() => document.getElementById(‘pause-sheet’).style.display = ‘none’, 350);
-// Reset radio selections
-document.querySelectorAll(‘input[name=“pause-opt”]’).forEach(r => r.checked = false);
+  document.getElementById('pause-sheet').classList.remove('open');
+  document.getElementById('sheet-backdrop').classList.remove('show');
+  setTimeout(() => document.getElementById('pause-sheet').style.display = 'none', 350);
+  // Reset radio selections
+  document.querySelectorAll('input[name="pause-opt"]').forEach(r => r.checked = false);
 }
 
 function onPauseToggle(chk) {
-// Always keep toggle visually checked (right side); color indicates state
-chk.checked = true;
-if (_pauseMode === ‘none’) {
-// All sessions active → user wants to turn off one or both → show options
-openPauseSheet();
-} else {
-// Currently paused → user wants to resume all
-resumeDelivery();
-}
+  // Always keep toggle visually checked (right side); color indicates state
+  chk.checked = true;
+  if (_pauseMode === 'none') {
+    // All sessions active → user wants to turn off one or both → show options
+    openPauseSheet();
+  } else {
+    // Currently paused → user wants to resume all
+    resumeDelivery();
+  }
 }
 
 async function confirmPause() {
-const opt = document.querySelector(‘input[name=“pause-opt”]:checked’);
-if (!opt) { toast(‘Select an option’); return; }
-const mode = opt.value;
-try {
-await api(‘updatePauseDelivery’, { phone: Auth.get()?.phone, pauseMode: mode });
-applyPauseState(mode);
-_lastPauseMode = mode;
-closePauseSheet();
-toast(
-mode === ‘lunch’  ? ‘Morning tiffin paused ✓’ :
-mode === ‘dinner’ ? ‘Evening tiffin paused ✓’ :
-‘All tiffins paused ✓’
-);
-} catch(e) { toast(e.message || ‘Failed’); }
+  const opt = document.querySelector('input[name="pause-opt"]:checked');
+  if (!opt) { toast('Select an option'); return; }
+  const mode = opt.value;
+  try {
+    await api('updatePauseDelivery', { phone: Auth.get()?.phone, pauseMode: mode });
+    applyPauseState(mode);
+    _lastPauseMode = mode;
+    closePauseSheet();
+    toast(
+      mode === 'lunch'  ? 'Morning tiffin paused ✓' :
+      mode === 'dinner' ? 'Evening tiffin paused ✓' :
+                          'All tiffins paused ✓'
+    );
+  } catch(e) { toast(e.message || 'Failed'); }
 }
 
 async function resumeDelivery() {
-try {
-await api(‘updatePauseDelivery’, { phone: Auth.get()?.phone, pauseMode: ‘none’ });
-applyPauseState(‘none’);
-_lastPauseMode = ‘none’;
-closePauseSheet();
-toast(‘All tiffins resumed ✓’);
-} catch(e) { toast(e.message || ‘Failed’); }
+  try {
+    await api('updatePauseDelivery', { phone: Auth.get()?.phone, pauseMode: 'none' });
+    applyPauseState('none');
+    _lastPauseMode = 'none';
+    closePauseSheet();
+    toast('All tiffins resumed ✓');
+  } catch(e) { toast(e.message || 'Failed'); }
 }
 
 async function loadPauseState() {
-if (!_session?.is_subscriber) return;
-try {
-const res = await api(‘getSubscriberPauseStatus’, { phone: _session.phone });
-applyPauseState(res.pauseMode);
-} catch {}
+  if (!_session?.is_subscriber) return;
+  try {
+    const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
+    applyPauseState(res.pauseMode);
+  } catch {}
 }
 
 // loadAutoTiffinState is an alias — state is driven by pause_delivery
 async function loadAutoTiffinState() {
-await loadPauseState();
+  await loadPauseState();
 }
 
 /* ═══════════════════════════════════════════
-ACCOUNT PANEL
+   ACCOUNT PANEL
 ═══════════════════════════════════════════ */
 function openAccountPanel() {
-const u = Auth.get();
-if (!u) return;
-document.getElementById(‘panel-avatar’).textContent = getInitials(u.name);
-document.getElementById(‘panel-name’).textContent   = u.name || ‘—’;
-document.getElementById(‘panel-phone’).textContent  = u.phone || ‘—’;
-const planBadge = document.getElementById(‘panel-plan-badge’);
-if (u.is_subscriber) planBadge.style.display = ‘inline-block’;
-else planBadge.style.display = ‘none’;
-document.getElementById(‘account-panel’).style.display = ‘block’;
-document.getElementById(‘account-panel’).classList.add(‘open’);
-document.getElementById(‘sheet-backdrop’).classList.add(‘show’);
+  const u = Auth.get();
+  if (!u) return;
+  document.getElementById('panel-avatar').textContent = getInitials(u.name);
+  document.getElementById('panel-name').textContent   = u.name || '—';
+  document.getElementById('panel-phone').textContent  = u.phone || '—';
+  const planBadge = document.getElementById('panel-plan-badge');
+  if (u.is_subscriber) planBadge.style.display = 'inline-block';
+  else planBadge.style.display = 'none';
+  document.getElementById('account-panel').style.display = 'block';
+  document.getElementById('account-panel').classList.add('open');
+  document.getElementById('sheet-backdrop').classList.add('show');
 }
 
 function closeAccountPanel() {
-document.getElementById(‘account-panel’).classList.remove(‘open’);
-document.getElementById(‘sheet-backdrop’).classList.remove(‘show’);
-setTimeout(() => document.getElementById(‘account-panel’).style.display = ‘none’, 350);
+  document.getElementById('account-panel').classList.remove('open');
+  document.getElementById('sheet-backdrop').classList.remove('show');
+  setTimeout(() => document.getElementById('account-panel').style.display = 'none', 350);
 }
 
 function closeAllSheets() {
-closePauseSheet();
-closeAccountPanel();
+  closePauseSheet();
+  closeAccountPanel();
 }
 
 /* ═══════════════════════════════════════════
-POLLING
-Strategy:
-• Normal background = 240s (low server load)
-• No fast polling — order/khata data prefetched immediately after order,
-and poll tick keeps inactive-tab memory warm silently
-• PTR = always bypasses cache, always hits DB fresh (super powerful)
-• Subscriber status = PTR only (no auto watcher)
+   POLLING
+   Strategy:
+   • Normal background = 240s (low server load)
+   • No fast polling — order/khata data prefetched immediately after order,
+     and poll tick keeps inactive-tab memory warm silently
+   • PTR = always bypasses cache, always hits DB fresh (super powerful)
+   • Subscriber status = PTR only (no auto watcher)
 ═══════════════════════════════════════════ */
 function startPolling() {
-clearInterval(_pollTimer);
-_pollTimer = setInterval(_runPollTick, _POLL_NORMAL);
+  clearInterval(_pollTimer);
+  _pollTimer = setInterval(_runPollTick, _POLL_NORMAL);
 }
 
 /* ── Slot-transition auto-refresh ─────────────────────────────────────────
-Schedules a one-shot setTimeout to fire at the exact IST millisecond of
-each slot boundary: lunch-start, lunch-end, dinner-start, dinner-end.
-When triggered it does a silent menu refresh so the visible items flip
-from morning→evening (or vice versa) without the user needing to PTR.
-Called every time schedule/cutoff data is received so timers stay fresh.
+   Schedules a one-shot setTimeout to fire at the exact IST millisecond of
+   each slot boundary: lunch-start, lunch-end, dinner-start, dinner-end.
+   When triggered it does a silent menu refresh so the visible items flip
+   from morning→evening (or vice versa) without the user needing to PTR.
+   Called every time schedule/cutoff data is received so timers stay fresh.
 ─────────────────────────────────────────────────────────────────────────── */
 let _slotTimers = [];
 
 function scheduleSlotTransitions() {
-// Clear any previously scheduled timers
-_slotTimers.forEach(t => clearTimeout(t));
-_slotTimers = [];
+  // Clear any previously scheduled timers
+  _slotTimers.forEach(t => clearTimeout(t));
+  _slotTimers = [];
 
-if (!_lastSchedule && !_lastCutoff) return;
+  if (!_lastSchedule && !_lastCutoff) return;
 
-const day = _getDaySchedule(_lastSchedule, _lastCutoff);
-if (!day || day.closed) return;
+  const day = _getDaySchedule(_lastSchedule, _lastCutoff);
+  if (!day || day.closed) return;
 
-const ls = day.lunchStart,  lsm = day.lunchStartMin  || 0;
-const le = day.lunchEnd,    lem = day.lunchEndMin     || 0;
-const ds = day.dinnerStart, dsm = day.dinnerStartMin  || 0;
-const de = day.dinnerEnd,   dem = day.dinnerEndMin    || 0;
+  const ls = day.lunchStart,  lsm = day.lunchStartMin  || 0;
+  const le = day.lunchEnd,    lem = day.lunchEndMin     || 0;
+  const ds = day.dinnerStart, dsm = day.dinnerStartMin  || 0;
+  const de = day.dinnerEnd,   dem = day.dinnerEndMin    || 0;
 
-// Current IST time in minutes since midnight
-const ist     = new Date(Date.now() + 5.5 * 3600000);
-const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
-const nowSecs = ist.getUTCSeconds();
-const nowMs   = ist.getUTCMilliseconds();
+  // Current IST time in minutes since midnight
+  const ist     = new Date(Date.now() + 5.5 * 3600000);
+  const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  const nowSecs = ist.getUTCSeconds();
+  const nowMs   = ist.getUTCMilliseconds();
 
-// Remaining ms in the current minute
-const msIntoMin = nowSecs * 1000 + nowMs;
-const msToNextMin = 60000 - msIntoMin;
+  // Remaining ms in the current minute
+  const msIntoMin = nowSecs * 1000 + nowMs;
+  const msToNextMin = 60000 - msIntoMin;
 
-// Helper: returns ms from now until target minute-mark (0 if already past)
-function msUntil(targetMins) {
-const diffMins = targetMins - nowMins;
-if (diffMins <= 0) return -1; // already past
-return (diffMins - 1) * 60000 + msToNextMin; // land exactly at the start of that minute
-}
+  // Helper: returns ms from now until target minute-mark (0 if already past)
+  function msUntil(targetMins) {
+    const diffMins = targetMins - nowMins;
+    if (diffMins <= 0) return -1; // already past
+    return (diffMins - 1) * 60000 + msToNextMin; // land exactly at the start of that minute
+  }
 
-const transitions = [
-{ label: ‘Lunch Start’,  mins: ls  * 60 + lsm  },
-{ label: ‘Lunch End’,    mins: le  * 60 + lem + 1 }, // +1 so it fires right after the last open minute
-{ label: ‘Dinner Start’, mins: ds  * 60 + dsm  },
-{ label: ‘Dinner End’,   mins: de  * 60 + dem + 1 },
-];
+  const transitions = [
+    { label: 'Lunch Start',  mins: ls  * 60 + lsm  },
+    { label: 'Lunch End',    mins: le  * 60 + lem + 1 }, // +1 so it fires right after the last open minute
+    { label: 'Dinner Start', mins: ds  * 60 + dsm  },
+    { label: 'Dinner End',   mins: de  * 60 + dem + 1 },
+  ];
 
-transitions.forEach(({ label, mins }) => {
-const delay = msUntil(mins);
-if (delay < 0) return; // already past today
-const t = setTimeout(async () => {
-// Full silent refresh at slot boundary (lunch-start/end, dinner-start/end).
-// Runs regardless of which tab is visible so data is always ready.
-// Does NOT touch PTR spinners or any visible loading state.
-if (!_session) return; // user logged out — nothing to refresh
-try {
-await Promise.all([
-loadMenu(true, true).catch(() => {}),      // silent bypass — no skeleton on auto slot-change
-refreshPauseStatus(true).catch(() => {}),
-refreshSubscriberStatus(true).catch(() => {}), // picks up subscription changes at slot boundary
-(_session?.is_subscriber && _khataEnabled)
-? refreshWalletBalance(true).catch(() => {})
-: Promise.resolve()
-]);
-} catch {}
-// Re-arm for the next day (in case user keeps app open overnight)
-setTimeout(() => scheduleSlotTransitions(), 2000);
-}, delay);
-_slotTimers.push(t);
-});
+  transitions.forEach(({ label, mins }) => {
+    const delay = msUntil(mins);
+    if (delay < 0) return; // already past today
+    const t = setTimeout(async () => {
+      // Full silent refresh at slot boundary (lunch-start/end, dinner-start/end).
+      // Runs regardless of which tab is visible so data is always ready.
+      // Does NOT touch PTR spinners or any visible loading state.
+      if (!_session) return; // user logged out — nothing to refresh
+      try {
+        await Promise.all([
+          loadMenu(true, true).catch(() => {}),      // silent bypass — no skeleton on auto slot-change
+          refreshPauseStatus(true).catch(() => {}),
+          refreshSubscriberStatus(true).catch(() => {}), // picks up subscription changes at slot boundary
+          (_session?.is_subscriber && _khataEnabled)
+            ? refreshWalletBalance(true).catch(() => {})
+            : Promise.resolve()
+        ]);
+      } catch {}
+      // Re-arm for the next day (in case user keeps app open overnight)
+      setTimeout(() => scheduleSlotTransitions(), 2000);
+    }, delay);
+    _slotTimers.push(t);
+  });
 }
 
 function stopPolling() {
-clearInterval(_pollTimer);
-_pollTimer = null;
+  clearInterval(_pollTimer);
+  _pollTimer = null;
 }
 
 // Called right after order is placed — fetches orders + khata in parallel, silently.
 // When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
-// silent=true prevents spinner flash since user hasn’t opened those tabs yet.
+// silent=true prevents spinner flash since user hasn't opened those tabs yet.
 async function _prefetchAfterOrder() {
-try {
-await Promise.all([
-loadOrders(true, true).catch(() => {}),          // silent prefetch — no spinner
-_session?.is_subscriber && _khataEnabled
-? loadUserKhata(true, true).catch(() => {})    // silent prefetch — no spinner
-: Promise.resolve(),
-_session?.is_subscriber && _khataEnabled
-? refreshWalletBalance(true).catch(() => {})   // refresh wallet balance immediately after order
-: Promise.resolve()
-]);
-} catch {}
+  try {
+    await Promise.all([
+      loadOrders(true, true).catch(() => {}),          // silent prefetch — no spinner
+      _session?.is_subscriber && _khataEnabled
+        ? loadUserKhata(true, true).catch(() => {})    // silent prefetch — no spinner
+        : Promise.resolve(),
+      _session?.is_subscriber && _khataEnabled
+        ? refreshWalletBalance(true).catch(() => {})   // refresh wallet balance immediately after order
+        : Promise.resolve()
+    ]);
+  } catch {}
 }
 
 // Khata tab — no separate timer, shared _pollTimer handles it
 function startPollingKhata() {
-// Shared 240s timer already running. No override needed.
-// For fresh data: user opens tab (onEnter does forceRender=true) or does PTR.
+  // Shared 240s timer already running. No override needed.
+  // For fresh data: user opens tab (onEnter does forceRender=true) or does PTR.
 }
 
 async function _runPollTick() {
-if (document.hidden) return;
-// ── Opt 1: Merged subscriber call (was 2 separate: getSubscriberBalance + getSubscriberPauseStatus) ──
-refreshSubscriberStatusMerged().catch(() => {});
-const cur = document.querySelector(’.pg.here’)?.id;
-// ── Opt 2: Skip orders poll when there are no active orders (and user isn’t watching orders tab) ──
-if (_hasActiveOrders || cur === ‘pg-orders’) {
-if (cur === ‘pg-orders’) loadOrders(true, false).catch(() => {});
-else                     loadOrders(true, true).catch(() => {});  // keep memory warm silently
-}
-// ── Opt 3: Only poll khata if on khata tab, or subscriber has visited it before ──
-if (cur === ‘pg-khata’)  loadUserKhata(true, false).catch(() => {});
-else if (_session?.is_subscriber && _khataEnabled && _khataEverVisited) loadUserKhata(true, true).catch(() => {}); // warm only if visited
-// ── Opt 4: Skip menu re-poll if freshly fetched within _MENU_POLL_SKIP window ──
-if (cur === ‘pg-home’ && Date.now() - _menuFreshTs > _MENU_POLL_SKIP) {
-loadMenu(true, true).catch(() => {});
-}
+  if (document.hidden) return;
+  // ── Opt 1: Merged subscriber call (was 2 separate: getSubscriberBalance + getSubscriberPauseStatus) ──
+  refreshSubscriberStatusMerged().catch(() => {});
+  const cur = document.querySelector('.pg.here')?.id;
+  // ── Opt 2: Skip orders poll when there are no active orders (and user isn't watching orders tab) ──
+  if (_hasActiveOrders || cur === 'pg-orders') {
+    if (cur === 'pg-orders') loadOrders(true, false).catch(() => {});
+    else                     loadOrders(true, true).catch(() => {});  // keep memory warm silently
+  }
+  // ── Opt 3: Only poll khata if on khata tab, or subscriber has visited it before ──
+  if (cur === 'pg-khata')  loadUserKhata(true, false).catch(() => {});
+  else if (_session?.is_subscriber && _khataEnabled && _khataEverVisited) loadUserKhata(true, true).catch(() => {}); // warm only if visited
+  // ── Opt 4: Skip menu re-poll if freshly fetched within _MENU_POLL_SKIP window ──
+  if (cur === 'pg-home' && Date.now() - _menuFreshTs > _MENU_POLL_SKIP) {
+    loadMenu(true, true).catch(() => {});
+  }
 }
 
 // refreshSubscriberStatus is PTR-only — no auto watcher (saves Supabase calls)
 async function refreshSubscriberStatus(force = false) {
-if (!_session?.phone) return;
-try {
-const res = await api(‘checkSubscriber’, { phone: _session.phone });
-const nowSubscriber = !!res.isSubscriber;
-if (!force && nowSubscriber === !!_session.is_subscriber) return;
-_session.is_subscriber = nowSubscriber;
-_pauseMode = res.subscriber?.pause_delivery || ‘none’;
-_walletBal = nowSubscriber ? (_walletBal || 0) : 0;
-applyPauseState(_pauseMode);
-updateWalletUI(_walletBal);
-_applySubscriberUI();
-applyKhataVisibility();
-SessionCache.save({
-user:          _session,
-is_subscriber: nowSubscriber,
-walletBalance: _walletBal,
-pauseMode:     _pauseMode,
-khataEnabled:  _khataEnabled
-});
-} catch {}
+  if (!_session?.phone) return;
+  try {
+    const res = await api('checkSubscriber', { phone: _session.phone });
+    const nowSubscriber = !!res.isSubscriber;
+    if (!force && nowSubscriber === !!_session.is_subscriber) return;
+    _session.is_subscriber = nowSubscriber;
+    _pauseMode = res.subscriber?.pause_delivery || 'none';
+    _walletBal = nowSubscriber ? (_walletBal || 0) : 0;
+    applyPauseState(_pauseMode);
+    updateWalletUI(_walletBal);
+    _applySubscriberUI();
+    applyKhataVisibility();
+    SessionCache.save({
+      user:          _session,
+      is_subscriber: nowSubscriber,
+      walletBalance: _walletBal,
+      pauseMode:     _pauseMode,
+      khataEnabled:  _khataEnabled
+    });
+  } catch {}
 }
 
 async function refreshWalletBalance(force = false) {
-if (!_session?.is_subscriber || !_khataEnabled) return;
-try {
-const res = await api(‘getSubscriberBalance’, { phone: _session.phone });
-// On PTR (force=true): always update UI even if balance unchanged
-if (force || res.balance !== _lastBalance) {
-_lastBalance = res.balance;
-updateWalletUI(res.balance);
-}
-} catch {
-setTimeout(() => refreshWalletBalance().catch(() => {}), 3000);
-}
+  if (!_session?.is_subscriber || !_khataEnabled) return;
+  try {
+    const res = await api('getSubscriberBalance', { phone: _session.phone });
+    // On PTR (force=true): always update UI even if balance unchanged
+    if (force || res.balance !== _lastBalance) {
+      _lastBalance = res.balance;
+      updateWalletUI(res.balance);
+    }
+  } catch {
+    setTimeout(() => refreshWalletBalance().catch(() => {}), 3000);
+  }
 }
 
 async function refreshPauseStatus(force = false) {
-if (!_session?.is_subscriber) return;
-try {
-const res = await api(‘getSubscriberPauseStatus’, { phone: _session.phone });
-// On PTR (force=true): always re-apply UI even if pause mode unchanged
-if (force || res.pauseMode !== _lastPauseMode) {
-_lastPauseMode = res.pauseMode;
-applyPauseState(res.pauseMode);
-}
-} catch {}
+  if (!_session?.is_subscriber) return;
+  try {
+    const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
+    // On PTR (force=true): always re-apply UI even if pause mode unchanged
+    if (force || res.pauseMode !== _lastPauseMode) {
+      _lastPauseMode = res.pauseMode;
+      applyPauseState(res.pauseMode);
+    }
+  } catch {}
 }
 
 // ── Merged poll tick subscriber call: replaces separate refreshWalletBalance + refreshPauseStatus ──
 // Uses getSubscriberStatus (single DB round-trip for both balance and pause_delivery)
 async function refreshSubscriberStatusMerged() {
-if (!_session?.is_subscriber) return;
-try {
-const res = await api(‘getSubscriberStatus’, { phone: _session.phone });
-// Balance update
-if (_khataEnabled && res.balance !== _lastBalance) {
-_lastBalance = res.balance;
-updateWalletUI(res.balance);
-}
-// Pause mode update
-if (res.pauseMode !== _lastPauseMode) {
-_lastPauseMode = res.pauseMode;
-applyPauseState(res.pauseMode);
-}
-} catch {
-// On failure fall back to individual calls so UI isn’t left stale
-refreshWalletBalance().catch(() => {});
-refreshPauseStatus().catch(() => {});
-}
+  if (!_session?.is_subscriber) return;
+  try {
+    const res = await api('getSubscriberStatus', { phone: _session.phone });
+    // Balance update
+    if (_khataEnabled && res.balance !== _lastBalance) {
+      _lastBalance = res.balance;
+      updateWalletUI(res.balance);
+    }
+    // Pause mode update
+    if (res.pauseMode !== _lastPauseMode) {
+      _lastPauseMode = res.pauseMode;
+      applyPauseState(res.pauseMode);
+    }
+  } catch {
+    // On failure fall back to individual calls so UI isn't left stale
+    refreshWalletBalance().catch(() => {});
+    refreshPauseStatus().catch(() => {});
+  }
 }
 
-document.addEventListener(‘visibilitychange’, () => {
-if (document.hidden) {
-stopPolling();
-_hiddenAt = Date.now(); // record when app went to background
-} else {
-scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
-const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
-_hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopPolling();
+    _hiddenAt = Date.now(); // record when app went to background
+  } else {
+    scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
+    const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
+    _hiddenAt = 0;
 
-```
-// Immediately re-run slot filter so correct morning/evening items show right away
-// (time may have crossed a slot boundary while app was in background)
-if (_session && _fullMenu.length) filterAndRenderMenu();
+    // Immediately re-run slot filter so correct morning/evening items show right away
+    // (time may have crossed a slot boundary while app was in background)
+    if (_session && _fullMenu.length) filterAndRenderMenu();
 
-if (_session && awayMs >= _REVISIT_THRESHOLD) {
-  // User was away >= 60s — silently refresh everything like a PTR.
-  // Reset _postLoginRefreshDone so a fresh post-login refresh can run if needed.
-  _menuLoading = false; // unlock in case a stale lock is held
-  _postLoginRefreshDone = false;
-  // Clear menu cache so loadMenu always hits DB, not stale localStorage
-  Store.remove(_MENU_CACHE_KEY);
-  Promise.all([
-    loadMenu(true, true).catch(() => {}),      // bypassCache=true, silent=true → fresh DB hit, no skeleton
-    refreshPauseStatus(true).catch(() => {}),
-    refreshSubscriberStatus(true).catch(() => {}),
-    (_session?.is_subscriber && _khataEnabled)
-      ? refreshWalletBalance(true).catch(() => {})
-      : Promise.resolve()
-  ]).finally(() => { startPolling(); });
-} else {
-  // Short absence — just resume normal poll cycle
-  _runPollTick();
-  startPolling();
-}
-```
-
-}
+    if (_session && awayMs >= _REVISIT_THRESHOLD) {
+      // User was away >= 60s — silently refresh everything like a PTR.
+      // Reset _postLoginRefreshDone so a fresh post-login refresh can run if needed.
+      _menuLoading = false; // unlock in case a stale lock is held
+      _postLoginRefreshDone = false;
+      // Clear menu cache so loadMenu always hits DB, not stale localStorage
+      Store.remove(_MENU_CACHE_KEY);
+      Promise.all([
+        loadMenu(true, true).catch(() => {}),      // bypassCache=true, silent=true → fresh DB hit, no skeleton
+        refreshPauseStatus(true).catch(() => {}),
+        refreshSubscriberStatus(true).catch(() => {}),
+        (_session?.is_subscriber && _khataEnabled)
+          ? refreshWalletBalance(true).catch(() => {})
+          : Promise.resolve()
+      ]).finally(() => { startPolling(); });
+    } else {
+      // Short absence — just resume normal poll cycle
+      _runPollTick();
+      startPolling();
+    }
+  }
 });
 
 /* ═══════════════════════════════════════════
-HOME UI HELPERS
+   HOME UI HELPERS
 ═══════════════════════════════════════════ */
 function _applySubscriberUI() {
-const u = _session;
-if (!u) return;
-// Avatar
-const initials = getInitials(u.name);
-const avatarEl = document.getElementById(‘home-avatar-initials’);
-if (avatarEl) avatarEl.textContent = initials;
-const proBadge = document.getElementById(‘home-pro-badge’);
-if (proBadge) proBadge.classList.toggle(‘hidden’, !u.is_subscriber);
-// Sub-only rows
-document.querySelectorAll(’.sub-only’).forEach(el => {
-el.style.display = u.is_subscriber ? ‘’ : ‘none’;
-});
-// Pause card vs monthly plan card
-const _pauseRow = document.getElementById(‘pause-toggle-row’);
-const _planCard = document.getElementById(‘monthly-plan-card’);
-if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? ‘flex’ : ‘none’;
-if (_planCard) _planCard.style.display = u.is_subscriber ? ‘none’ : ‘flex’;
-// Sub plan banner removed — Auto Tiffin card is single source of truth
+  const u = _session;
+  if (!u) return;
+  // Avatar
+  const initials = getInitials(u.name);
+  const avatarEl = document.getElementById('home-avatar-initials');
+  if (avatarEl) avatarEl.textContent = initials;
+  const proBadge = document.getElementById('home-pro-badge');
+  if (proBadge) proBadge.classList.toggle('hidden', !u.is_subscriber);
+  // Sub-only rows
+  document.querySelectorAll('.sub-only').forEach(el => {
+    el.style.display = u.is_subscriber ? '' : 'none';
+  });
+  // Pause card vs monthly plan card
+  const _pauseRow = document.getElementById('pause-toggle-row');
+  const _planCard = document.getElementById('monthly-plan-card');
+  if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? 'flex' : 'none';
+  if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
+  // Sub plan banner removed — Auto Tiffin card is single source of truth
 }
 /* ── _wipeAndShowLogin ────────────────────────────────────────────
-Single source of truth for “something went wrong → clean slate”.
-Called whenever ANY mismatch, timeout, or auth error is detected.
-Wipes ALL local data so the user always starts completely fresh.
-No stale state, no confusion. Like a top-class app.
+   Single source of truth for "something went wrong → clean slate".
+   Called whenever ANY mismatch, timeout, or auth error is detected.
+   Wipes ALL local data so the user always starts completely fresh.
+   No stale state, no confusion. Like a top-class app.
 ─────────────────────────────────────────────────────────────────── */
 function _wipeAndShowLogin() {
-// Wipe every piece of local data
-Auth.clear();
-Creds.clear();
-SessionCache.clear();
-Store.remove(‘tf_menu_cache’);
-Store.remove(‘pb_cart’);
-Store.remove(‘pb_order_processing’);
-Store.remove(’_khata_cache’);
-Store.remove(‘tf_creds’);
-// Reset all in-memory state
-_session         = null;
-_fullMenu        = [];
-_walletBal       = 0;
-_pauseMode       = ‘none’;
-_khataEnabled    = false;
-_appliedCoupon   = null;
-_lastOrders      = null;
-_lastBalance     = null;
-_lastKhataStr    = null;
-_lastPauseMode   = null;
-_ordersFreshTs   = 0;
-_khataFreshTs    = 0;
-_menuLoading     = false;
-_placingOrder    = false;
-_khataAllEntries = [];
-_postLoginRefreshDone = false;
-_menuFreshTs     = 0;   // reset so stale guard recalculates fresh on next login
-_hasActiveOrders  = false; // reset so poll skips orders correctly for next user
-_khataEverVisited = false; // reset so khata prefetch doesn’t run until tab is opened
-// Go to login (signup tab = fresh start, no prefill)
-_transitionToLogin(false);
+  // Wipe every piece of local data
+  Auth.clear();
+  Creds.clear();
+  SessionCache.clear();
+  Store.remove('tf_menu_cache');
+  Store.remove('pb_cart');
+  Store.remove('pb_order_processing');
+  Store.remove('_khata_cache');
+  Store.remove('tf_creds');
+  // Reset all in-memory state
+  _session         = null;
+  _fullMenu        = [];
+  _walletBal       = 0;
+  _pauseMode       = 'none';
+  _khataEnabled    = false;
+  _appliedCoupon   = null;
+  _lastOrders      = null;
+  _lastBalance     = null;
+  _lastKhataStr    = null;
+  _lastPauseMode   = null;
+  _ordersFreshTs   = 0;
+  _khataFreshTs    = 0;
+  _menuLoading     = false;
+  _placingOrder    = false;
+  _khataAllEntries = [];
+  _postLoginRefreshDone = false;
+  _menuFreshTs     = 0;   // reset so stale guard recalculates fresh on next login
+  _hasActiveOrders  = false; // reset so poll skips orders correctly for next user
+  _khataEverVisited = false; // reset so khata prefetch doesn't run until tab is opened
+  // Go to login (signup tab = fresh start, no prefill)
+  _transitionToLogin(false);
 }
 
 async function bootApp() {
-// Register service worker silently (no await — don’t block boot)
-if (‘serviceWorker’ in navigator) {
-navigator.serviceWorker.register(’./sw.js’, { scope: ‘/’ }).then(reg => {
-// Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
-reg.addEventListener(‘updatefound’, () => {
-const newWorker = reg.installing;
-if (!newWorker) return;
-newWorker.addEventListener(‘statechange’, () => {
-if (newWorker.state === ‘installed’ && navigator.serviceWorker.controller) {
-// New version ready — reload silently to activate it
-newWorker.postMessage({ type: ‘SKIP_WAITING’ });
-}
-});
-});
-}).catch(() => {});
-// Reload page once the new SW takes control
-let swRefreshing = false;
-navigator.serviceWorker.addEventListener(‘controllerchange’, () => {
-if (!swRefreshing) { swRefreshing = true; location.reload(); }
-});
-}
-
-/* ══════════════════════════════════════════════════════════════
-FAST PATH: Valid cached session → restore instantly, no network.
-User is on home screen in <50ms. Background verify runs later.
-══════════════════════════════════════════════════════════════ */
-const cached = SessionCache.get();
-if (cached && cached.user) {
-_postLoginRefreshDone = false;
-Auth.set(cached.user);
-_session.is_subscriber = !!cached.is_subscriber;
-_walletBal    = cached.walletBalance || 0;
-_pauseMode    = cached.pauseMode    || ‘none’;
-_khataEnabled = cached.khataEnabled || false;
-
-```
-updateWalletUI(_walletBal);
-applyPauseState(_pauseMode);
-applyKhataVisibility();
-_transitionToHome();
-
-const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
-startPolling();
-_doPostLoginRefresh(_initMenuP);
-
-// BACKGROUND VERIFY — at most once every 48h.
-// On auth error → wipe + login. On network error → stay on home (offline tolerance).
-const creds = Creds.get();
-if (creds && SessionCache.shouldVerify()) {
-  setTimeout(() => {
-    api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
-      .then(res => {
-        SessionCache.markVerified();
-        Auth.set(res.user);
-        _session.is_subscriber = !!res.subscriber;
-        _walletBal = res.walletBalance || 0;
-        _pauseMode = res.subscriber?.pause_delivery || 'none';
-        updateWalletUI(_walletBal);
-        applyPauseState(_pauseMode);
-        _applySubscriberUI();
-        // _khataEnabled is already current from the live session's loadMenu/_fetchFreshMenu.
-        // Re-using it here avoids a redundant getKhataEnabled API call on every 48h verify.
-        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
-      })
-      .catch(e => {
-        const isAuthError = e.message?.includes('Session invalid') ||
-                            e.message?.includes('Unauthorized') ||
-                            e.message?.includes('not found') ||
-                            e.message?.includes('Invalid');
-        if (isAuthError) {
-          // Account deleted / password changed → wipe everything, force fresh login
-          stopPolling();
-          _wipeAndShowLogin();
-        }
-        // Pure network error → silently keep cached home. Retry next app-open.
+  // Register service worker silently (no await — don't block boot)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', { scope: '/' }).then(reg => {
+      // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version ready — reload silently to activate it
+            newWorker.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
       });
-  }, 3000);
-}
-return;
-```
+    }).catch(() => {});
+    // Reload page once the new SW takes control
+    let swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!swRefreshing) { swRefreshing = true; location.reload(); }
+    });
+  }
 
-}
+  /* ══════════════════════════════════════════════════════════════
+     FAST PATH: Valid cached session → restore instantly, no network.
+     User is on home screen in <50ms. Background verify runs later.
+  ══════════════════════════════════════════════════════════════ */
+  const cached = SessionCache.get();
+  if (cached && cached.user) {
+    _postLoginRefreshDone = false;
+    Auth.set(cached.user);
+    _session.is_subscriber = !!cached.is_subscriber;
+    _walletBal    = cached.walletBalance || 0;
+    _pauseMode    = cached.pauseMode    || 'none';
+    _khataEnabled = cached.khataEnabled || false;
 
-/* ══════════════════════════════════════════════════════════════
-SLOW PATH: No cached session.
-─ No creds at all       → signup screen instantly (new user)
-─ Creds exist           → show branded loader, attempt silent
-auto-login with hard 6s timeout.
-SUCCESS → home screen.
-ANY FAILURE → wipe all + clean login.
-No ambiguous states. No stuck screens.
-══════════════════════════════════════════════════════════════ */
-const creds = Creds.get();
+    updateWalletUI(_walletBal);
+    applyPauseState(_pauseMode);
+    applyKhataVisibility();
+    _transitionToHome();
 
-// Case: No credentials at all → new user, show signup instantly
-if (!creds || !creds.phone || !creds.pw) {
-_wipeAndShowLogin(); // ensures clean state even on first visit
-return;
-}
+    const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
+    startPolling();
+    _doPostLoginRefresh(_initMenuP);
 
-// Case: Credentials saved but no session cache → try silent auto-login
-// Show loader (already visible from page load) with branded message
-const loaderStatus = document.getElementById(‘loader-status’);
-if (loaderStatus) loaderStatus.textContent = ‘Signing you in…’;
+    // BACKGROUND VERIFY — at most once every 48h.
+    // On auth error → wipe + login. On network error → stay on home (offline tolerance).
+    const creds = Creds.get();
+    if (creds && SessionCache.shouldVerify()) {
+      setTimeout(() => {
+        api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
+          .then(res => {
+            SessionCache.markVerified();
+            Auth.set(res.user);
+            _session.is_subscriber = !!res.subscriber;
+            _walletBal = res.walletBalance || 0;
+            _pauseMode = res.subscriber?.pause_delivery || 'none';
+            updateWalletUI(_walletBal);
+            applyPauseState(_pauseMode);
+            _applySubscriberUI();
+            // _khataEnabled is already current from the live session's loadMenu/_fetchFreshMenu.
+            // Re-using it here avoids a redundant getKhataEnabled API call on every 48h verify.
+            SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+              walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+          })
+          .catch(e => {
+            const isAuthError = e.message?.includes('Session invalid') ||
+                                e.message?.includes('Unauthorized') ||
+                                e.message?.includes('not found') ||
+                                e.message?.includes('Invalid');
+            if (isAuthError) {
+              // Account deleted / password changed → wipe everything, force fresh login
+              stopPolling();
+              _wipeAndShowLogin();
+            }
+            // Pure network error → silently keep cached home. Retry next app-open.
+          });
+      }, 3000);
+    }
+    return;
+  }
 
-// Hard 6-second timeout — if server doesn’t respond (Render cold start etc.)
-// we WIPE everything and show clean login. No stuck loader ever.
-let _autoLoginDone = false;
-const _timeoutHandle = setTimeout(() => {
-if (_autoLoginDone) return;
-_autoLoginDone = true;
-_wipeAndShowLogin();
-}, 6000);
+  /* ══════════════════════════════════════════════════════════════
+     SLOW PATH: No cached session.
+     ─ No creds at all       → signup screen instantly (new user)
+     ─ Creds exist           → show branded loader, attempt silent
+                               auto-login with hard 6s timeout.
+                               SUCCESS → home screen.
+                               ANY FAILURE → wipe all + clean login.
+                               No ambiguous states. No stuck screens.
+  ══════════════════════════════════════════════════════════════ */
+  const creds = Creds.get();
 
-try {
-const res = await api(‘checkSession’, { phone: creds.phone, password: creds.pw }, 0);
-if (_autoLoginDone) return; // timeout already fired — don’t fight it
-_autoLoginDone = true;
-clearTimeout(_timeoutHandle);
+  // Case: No credentials at all → new user, show signup instantly
+  if (!creds || !creds.phone || !creds.pw) {
+    _wipeAndShowLogin(); // ensures clean state even on first visit
+    return;
+  }
 
-```
-// ✅ Auto-login succeeded → go straight home, no login screen shown at all
-Auth.set(res.user);
-_session.is_subscriber = !!res.subscriber;
-_walletBal = res.walletBalance || 0;
-_pauseMode = res.subscriber?.pause_delivery || 'none';
-updateWalletUI(_walletBal);
-applyPauseState(_pauseMode);
-// ── Show skeletons before transition so home never flashes empty ──
-showMenuSkeletons();
-_transitionToHome();
-const _initMenuP2 = loadMenu(true, false); // bypassCache=true — fresh login always hits DB, never stale cache
-// loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
-_initMenuP2.then(() => {
-  SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-    walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
-}).catch(() => {
-  SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-    walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
-});
-startPolling();
-_doPostLoginRefresh(_initMenuP2);
-```
+  // Case: Credentials saved but no session cache → try silent auto-login
+  // Show loader (already visible from page load) with branded message
+  const loaderStatus = document.getElementById('loader-status');
+  if (loaderStatus) loaderStatus.textContent = 'Signing you in…';
 
-} catch(e) {
-if (_autoLoginDone) return; // timeout already fired
-_autoLoginDone = true;
-clearTimeout(_timeoutHandle);
-// ❌ Any failure (auth error, network, server down) → wipe + clean login
-// No ambiguity. User fills in details fresh. New session starts clean.
-_wipeAndShowLogin();
-}
+  // Hard 6-second timeout — if server doesn't respond (Render cold start etc.)
+  // we WIPE everything and show clean login. No stuck loader ever.
+  let _autoLoginDone = false;
+  const _timeoutHandle = setTimeout(() => {
+    if (_autoLoginDone) return;
+    _autoLoginDone = true;
+    _wipeAndShowLogin();
+  }, 6000);
+
+  try {
+    const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
+    if (_autoLoginDone) return; // timeout already fired — don't fight it
+    _autoLoginDone = true;
+    clearTimeout(_timeoutHandle);
+
+    // ✅ Auto-login succeeded → go straight home, no login screen shown at all
+    Auth.set(res.user);
+    _session.is_subscriber = !!res.subscriber;
+    _walletBal = res.walletBalance || 0;
+    _pauseMode = res.subscriber?.pause_delivery || 'none';
+    updateWalletUI(_walletBal);
+    applyPauseState(_pauseMode);
+    // ── Show skeletons before transition so home never flashes empty ──
+    showMenuSkeletons();
+    _transitionToHome();
+    const _initMenuP2 = loadMenu(true, false); // bypassCache=true — fresh login always hits DB, never stale cache
+    // loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
+    _initMenuP2.then(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+    }).catch(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+    });
+    startPolling();
+    _doPostLoginRefresh(_initMenuP2);
+
+  } catch(e) {
+    if (_autoLoginDone) return; // timeout already fired
+    _autoLoginDone = true;
+    clearTimeout(_timeoutHandle);
+    // ❌ Any failure (auth error, network, server down) → wipe + clean login
+    // No ambiguity. User fills in details fresh. New session starts clean.
+    _wipeAndShowLogin();
+  }
 }
 
 function _transitionToHome() {
-document.body.classList.remove(‘auth-mode’);
-document.getElementById(‘app-loader’).style.display = ‘none’;
-document.querySelectorAll(’.pg’).forEach(p => { p.classList.remove(‘here’); p.style.transform = ‘’; });
-const home = document.getElementById(‘pg-home’);
-home.classList.add(‘here’);
-home.style.transform = ‘’;
-_stack = [‘pg-home’];
-history.replaceState({pg:‘pg-home’,stackLen:1},’’, location.pathname + location.search);
-updateBottomNav(‘pg-home’);
-updateCartBadge();
-_applySubscriberUI();
-applyKhataVisibility();
+  document.body.classList.remove('auth-mode');
+  document.getElementById('app-loader').style.display = 'none';
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
+  const home = document.getElementById('pg-home');
+  home.classList.add('here');
+  home.style.transform = '';
+  _stack = ['pg-home'];
+  history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
+  updateBottomNav('pg-home');
+  updateCartBadge();
+  _applySubscriberUI();
+  applyKhataVisibility();
 }
 
 function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
-document.body.classList.add(‘auth-mode’);
-document.getElementById(‘app-loader’).style.display = ‘none’;
-document.getElementById(‘retry-screen’).style.display = ‘none’;
-document.querySelectorAll(’.pg’).forEach(p => { p.classList.remove(‘here’); p.style.transform = ‘’; });
-const auth = document.getElementById(‘pg-auth’);
-auth.classList.add(‘here’);
-auth.style.transform = ‘’;
-_stack = [‘pg-auth’];
-history.replaceState({pg:‘pg-auth’,stackLen:1},’’, location.pathname + location.search);
-if (showLoginTab) {
-document.getElementById(‘tab-login’).click();
-setTimeout(() => prefillLoginForm(wrongCreds), 100);
-} else {
-document.getElementById(‘tab-signup’).click();
-}
+  document.body.classList.add('auth-mode');
+  document.getElementById('app-loader').style.display = 'none';
+  document.getElementById('retry-screen').style.display = 'none';
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
+  const auth = document.getElementById('pg-auth');
+  auth.classList.add('here');
+  auth.style.transform = '';
+  _stack = ['pg-auth'];
+  history.replaceState({pg:'pg-auth',stackLen:1},'', location.pathname + location.search);
+  if (showLoginTab) {
+    document.getElementById('tab-login').click();
+    setTimeout(() => prefillLoginForm(wrongCreds), 100);
+  } else {
+    document.getElementById('tab-signup').click();
+  }
 }
 
 function _showRetryUI(msg) {
-document.getElementById(‘app-loader’).style.display = ‘none’;
-const screen = document.getElementById(‘retry-screen’);
-screen.querySelector(’.retry-msg’).textContent = msg;
-screen.style.display = ‘flex’;
-screen.querySelector(’.retry-btn’).onclick = () => {
-screen.style.display = ‘none’;
-bootApp();
-};
+  document.getElementById('app-loader').style.display = 'none';
+  const screen = document.getElementById('retry-screen');
+  screen.querySelector('.retry-msg').textContent = msg;
+  screen.style.display = 'flex';
+  screen.querySelector('.retry-btn').onclick = () => {
+    screen.style.display = 'none';
+    bootApp();
+  };
 }
 
 /* ═══════════════════════════════════════════
-LOGOUT
+   LOGOUT
 ═══════════════════════════════════════════ */
 function doLogout() {
-stopPolling();
-_postLoginRefreshDone = false;
-Auth.clear();
-Creds.clear();
-SessionCache.clear();
-Store.remove(‘tf_menu_cache’);
-Store.remove(‘pb_cart’);
-Store.remove(‘pb_order_processing’);
-Store.remove(’_khata_cache’);
-_fullMenu        = [];
-_walletBal       = 0;
-_pauseMode       = ‘none’;
-_khataEnabled    = false;
-_appliedCoupon   = null;
-_lastOrders      = null;
-_lastBalance     = null;
-_lastKhataStr    = null;
-_lastPauseMode   = null;
-_ordersFreshTs   = 0;
-_khataFreshTs    = 0;
-_menuLoading     = false;
-_placingOrder    = false;
-_hiddenAt        = 0;
-_stack           = [];
-_lastSchedule    = null;
-_lastCutoff      = null;
-_hasActiveOrders  = false;
-_khataEverVisited = false;
-_khataAllEntries = [];
+  stopPolling();
+  _postLoginRefreshDone = false;
+  Auth.clear();
+  Creds.clear();
+  SessionCache.clear();
+  Store.remove('tf_menu_cache');
+  Store.remove('pb_cart');
+  Store.remove('pb_order_processing');
+  Store.remove('_khata_cache');
+  _fullMenu        = [];
+  _walletBal       = 0;
+  _pauseMode       = 'none';
+  _khataEnabled    = false;
+  _appliedCoupon   = null;
+  _lastOrders      = null;
+  _lastBalance     = null;
+  _lastKhataStr    = null;
+  _lastPauseMode   = null;
+  _ordersFreshTs   = 0;
+  _khataFreshTs    = 0;
+  _menuLoading     = false;
+  _placingOrder    = false;
+  _hiddenAt        = 0;
+  _stack           = [];
+  _lastSchedule    = null;
+  _lastCutoff      = null;
+  _hasActiveOrders  = false;
+  _khataEverVisited = false;
+  _khataAllEntries = [];
 
-// ── Reset all visible UI to a clean state ──
-// Cart
-const cartPill = document.getElementById(‘cart-pill’);
-if (cartPill) cartPill.style.display = ‘none’;
-updateCartBadge();
+  // ── Reset all visible UI to a clean state ──
+  // Cart
+  const cartPill = document.getElementById('cart-pill');
+  if (cartPill) cartPill.style.display = 'none';
+  updateCartBadge();
 
-// Wallet nav button
-const bnavWallet = document.getElementById(‘bnav-wallet’);
-if (bnavWallet) bnavWallet.style.display = ‘none’;
-const bnavBal = document.getElementById(‘bnav-bal’);
-if (bnavBal) bnavBal.textContent = ‘₹0’;
+  // Wallet nav button
+  const bnavWallet = document.getElementById('bnav-wallet');
+  if (bnavWallet) bnavWallet.style.display = 'none';
+  const bnavBal = document.getElementById('bnav-bal');
+  if (bnavBal) bnavBal.textContent = '₹0';
 
-// Home avatar
-const avatarInitials = document.getElementById(‘home-avatar-initials’);
-if (avatarInitials) avatarInitials.textContent = ‘?’;
-const proBadge = document.getElementById(‘home-pro-badge’);
-if (proBadge) proBadge.classList.add(‘hidden’);
+  // Home avatar
+  const avatarInitials = document.getElementById('home-avatar-initials');
+  if (avatarInitials) avatarInitials.textContent = '?';
+  const proBadge = document.getElementById('home-pro-badge');
+  if (proBadge) proBadge.classList.add('hidden');
 
-// Clear menu list so stale content isn’t visible on re-login
-const menuList = document.getElementById(‘menu-list’);
-if (menuList) menuList.innerHTML = ‘’;
+  // Clear menu list so stale content isn't visible on re-login
+  const menuList = document.getElementById('menu-list');
+  if (menuList) menuList.innerHTML = '';
 
-// Clear orders list
-const ordersList = document.getElementById(‘orders-list’);
-if (ordersList) ordersList.innerHTML = ‘’;
+  // Clear orders list
+  const ordersList = document.getElementById('orders-list');
+  if (ordersList) ordersList.innerHTML = '';
 
-// Reset all form fields to clean state
-[‘login-status’,‘signup-status’].forEach(id => {
-const el = document.getElementById(id);
-if (el) { el.style.display = ‘none’; el.textContent = ‘’; }
-});
-const loginCreds = document.getElementById(‘login-creds-hint’);
-if (loginCreds) loginCreds.style.display = ‘none’;
+  // Reset all form fields to clean state
+  ['login-status','signup-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'none'; el.textContent = ''; }
+  });
+  const loginCreds = document.getElementById('login-creds-hint');
+  if (loginCreds) loginCreds.style.display = 'none';
 
-// Clear login form
-[‘login-phone’,‘login-pw’].forEach(id => {
-const el = document.getElementById(id);
-if (el) el.value = ‘’;
-});
+  // Clear login form
+  ['login-phone','login-pw'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 
-// Clear signup form completely
-[‘su-name’,‘su-phone’,‘su-room’,‘su-addr’,‘su-pw’].forEach(id => {
-const el = document.getElementById(id);
-if (el) el.value = ‘’;
-});
-[‘su-name-err’,‘su-phone-err’,‘su-room-err’,‘su-addr-err’,‘su-pw-err’].forEach(id => {
-const el = document.getElementById(id);
-if (el) el.textContent = ‘’;
-});
-// Reset location state
-const suLocOk = document.getElementById(‘su-loc-ok’);
-if (suLocOk) suLocOk.value = ‘0’;
-const suLat = document.getElementById(‘su-lat’);
-if (suLat) suLat.value = ‘’;
-const suLng = document.getElementById(‘su-lng’);
-if (suLng) suLng.value = ‘’;
-const suLocStatus = document.getElementById(‘su-loc-status’);
-if (suLocStatus) { suLocStatus.textContent = ‘’; suLocStatus.className = ‘loc-status’; }
-const suMapArea = document.getElementById(‘su-map-pin-area’);
-if (suMapArea) suMapArea.style.display = ‘none’;
-const suLocBtnTxt = document.getElementById(‘su-loc-btn-txt’);
-if (suLocBtnTxt) suLocBtnTxt.textContent = ‘Detect My Location’;
+  // Clear signup form completely
+  ['su-name','su-phone','su-room','su-addr','su-pw'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['su-name-err','su-phone-err','su-room-err','su-addr-err','su-pw-err'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
+  // Reset location state
+  const suLocOk = document.getElementById('su-loc-ok');
+  if (suLocOk) suLocOk.value = '0';
+  const suLat = document.getElementById('su-lat');
+  if (suLat) suLat.value = '';
+  const suLng = document.getElementById('su-lng');
+  if (suLng) suLng.value = '';
+  const suLocStatus = document.getElementById('su-loc-status');
+  if (suLocStatus) { suLocStatus.textContent = ''; suLocStatus.className = 'loc-status'; }
+  const suMapArea = document.getElementById('su-map-pin-area');
+  if (suMapArea) suMapArea.style.display = 'none';
+  const suLocBtnTxt = document.getElementById('su-loc-btn-txt');
+  if (suLocBtnTxt) suLocBtnTxt.textContent = 'Detect My Location';
 
-closeAllSheets();
-_transitionToLogin(false);  // goes to signup tab (fresh start)
+  closeAllSheets();
+  _transitionToLogin(false);  // goes to signup tab (fresh start)
 }
 
 /* ═══════════════════════════════════════════
-GUARDS & LIFECYCLE
+   GUARDS & LIFECYCLE
 ═══════════════════════════════════════════ */
 // Absolute safety net — if nothing is showing after 8s, wipe all and go to login.
 // Covers any edge case: JS crash, render failure, unexpected state.
 setTimeout(() => {
-if (!document.querySelector(’.pg.here’)) {
-_wipeAndShowLogin();
-}
+  if (!document.querySelector('.pg.here')) {
+    _wipeAndShowLogin();
+  }
 }, 8000);
 
 // bfcache restore
-window.addEventListener(‘pageshow’, e => { if (e.persisted) bootApp(); });
+window.addEventListener('pageshow', e => { if (e.persisted) bootApp(); });
 
 // ─── ACCIDENTAL BACK PREVENTION (User) ───────────────────
 // Uses tf_user_token / tf_session presence to confirm exit at root
 function _showExitConfirm() {
-if (document.getElementById(’_exit-confirm-overlay’)) return;
-const overlay = document.createElement(‘div’);
-overlay.id = ‘_exit-confirm-overlay’;
-overlay.style.cssText = ‘position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:flex-end;justify-content:center;animation:_fadeIn .15s ease’;
-overlay.innerHTML = ` <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)"> <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Exit Tiffo?</p> <p style="font-size:14px;color:#64748b;margin:0 0 22px">Are you sure you want to leave the app?</p> <div style="display:flex;gap:10px"> <button id="_exit-stay-btn" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer;color:#334155">Stay</button> <button id="_exit-leave-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:var(--primary,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer">Exit App</button> </div> </div>`;
-document.body.appendChild(overlay);
-document.getElementById(’_exit-stay-btn’).onclick = () => { overlay.remove(); };
-document.getElementById(’_exit-leave-btn’).onclick = () => { overlay.remove(); history.go(-2); };
+  if (document.getElementById('_exit-confirm-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = '_exit-confirm-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:flex-end;justify-content:center;animation:_fadeIn .15s ease';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
+      <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Exit Tiffo?</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 22px">Are you sure you want to leave the app?</p>
+      <div style="display:flex;gap:10px">
+        <button id="_exit-stay-btn" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer;color:#334155">Stay</button>
+        <button id="_exit-leave-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:var(--primary,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer">Exit App</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_exit-stay-btn').onclick = () => { overlay.remove(); };
+  document.getElementById('_exit-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
 }
 
 // Handle hardware back button (Android)
-window.addEventListener(‘popstate’, () => {
-const isLoggedIn = !!(Store.get(‘tf_user_token’) || Store.get(‘tf_session’) || (_session));
-if (_stack.length < 2) {
-// At root page — push dummy state back to cancel the browser exit, then confirm
-history.pushState({ pg: _stack[0] || ‘pg-auth’, stackLen: 1 }, ‘’, location.href);
-if (isLoggedIn || _stack[0] === ‘pg-auth’) {
-_showExitConfirm();
-}
-} else {
-back();
-}
+window.addEventListener('popstate', () => {
+  const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || (_session));
+  if (_stack.length < 2) {
+    // At root page — push dummy state back to cancel the browser exit, then confirm
+    history.pushState({ pg: _stack[0] || 'pg-auth', stackLen: 1 }, '', location.href);
+    if (isLoggedIn || _stack[0] === 'pg-auth') {
+      _showExitConfirm();
+    }
+  } else {
+    back();
+  }
 });
 
 // Init on DOM ready
-document.addEventListener(‘DOMContentLoaded’, () => {
-bootApp();
-initPullToRefresh();
+document.addEventListener('DOMContentLoaded', () => {
+  bootApp();
+  initPullToRefresh();
 });
 </script>
-
 </body>
 </html>
