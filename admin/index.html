@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  PuroBite / Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v19.3                                    ║
-     ║  Updated : 2026-04-25                               ║
-     ║  Changes : Full responsive overhaul — modals become ║
-     ║            bottom sheets on mobile; order tabs      ║
-     ║            horizontally scroll; settings grid       ║
-     ║            stacks on phone; toast full-width at     ║
-     ║            bottom; safe-area insets for notch;      ║
-     ║            tables touch-scroll; filter bar stacks;  ║
-     ║            sidebar Settings tab close bug fixed     ║
+     ║  Version : v19.4                                    ║
+     ║  Updated : 2026-04-26                               ║
+     ║  Changes : Deep mobile UX overhaul —                ║
+     ║            swipe-to-dismiss bottom sheet modals;    ║
+     ║            close button on every modal;             ║
+     ║            2-col grids collapse to 1-col on phone;  ║
+     ║            touch targets min 44px; field font 16px  ║
+     ║            (prevents iOS zoom); modal content area  ║
+     ║            scrollable with overscroll bounce;       ║
+     ║            backdrop tap-to-close; mo-title sticky;  ║
+     ║            action buttons sticky at bottom;         ║
+     ║            select/input full-width mobile;          ║
+     ║            keyboard-aware bottom padding;           ║
+     ║            openMo animation & focus management      ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -238,11 +243,24 @@ tbody tr:hover td{background:#fafbff}
 /* ── FORM FIELDS ─────────────────────────────────────────── */
 .mo-bg{position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
 .mo-box{
-  background:white;border-radius:20px;padding:30px;width:100%;
+  background:white;border-radius:20px;padding:28px;width:100%;
   max-width:520px;max-height:90vh;overflow-y:auto;
   box-shadow:0 24px 64px rgba(0,0,0,.2);
+  -webkit-overflow-scrolling:touch;
 }
-.mo-title{font-family:var(--ff);font-weight:700;font-size:18px;margin-bottom:22px;color:#0f172a;display:flex;align-items:center;gap:8px}
+.mo-title{font-family:var(--ff);font-weight:700;font-size:18px;margin-bottom:22px;color:#0f172a;display:flex;align-items:center;gap:8px;padding-right:36px;position:relative}
+/* ✕ close button — injected by openMo() into every modal */
+.mo-close-btn{
+  position:absolute;top:50%;right:0;transform:translateY(-50%);
+  width:32px;height:32px;border-radius:50%;border:none;background:#f1f5f9;
+  color:#475569;font-size:18px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background 150ms,color 150ms;flex-shrink:0;
+}
+.mo-close-btn:hover{background:#e2e8f0;color:#0f172a}
+/* inline 2-col responsive grid helper for modal content */
+.mo-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mo-grid-2-12{display:grid;grid-template-columns:1fr 2fr;gap:10px}
 .field{margin-bottom:15px}
 .field label{display:block;font-size:12.5px;font-weight:600;color:#374151;margin-bottom:6px;letter-spacing:.1px}
 .field input,.field select,.field textarea{
@@ -560,17 +578,33 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   .mo-bg{align-items:flex-end!important;padding:0!important}
   .mo-box{
     border-radius:20px 20px 0 0!important;
-    padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px))!important;
-    max-height:85vh!important;width:100%!important;max-width:100%!important;
-    animation:slideUp 240ms cubic-bezier(.4,0,.2,1);
+    padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px))!important;
+    max-height:88vh!important;width:100%!important;max-width:100%!important;
+    animation:slideUp 250ms cubic-bezier(.32,0,.67,0);
   }
-  .mo-title{font-size:16px!important;margin-bottom:16px!important}
-  /* modal drag handle visual */
+  /* drag handle pill at top of bottom sheet */
   .mo-box::before{
-    content:'';display:block;width:40px;height:4px;background:#e2e8f0;
-    border-radius:2px;margin:0 auto 18px;
+    content:'';display:block;width:44px;height:5px;background:#d1d5db;
+    border-radius:3px;margin:0 auto 16px;
   }
-
+  .mo-title{font-size:16px!important;margin-bottom:18px!important}
+  /* collapse 2-col grids inside modals to 1-col — both class-based and inline-style grids */
+  .mo-grid-2,.mo-grid-2-12{grid-template-columns:1fr!important}
+  .mo-box [style*="grid-template-columns:1fr 1fr"],
+  .mo-box [style*="grid-template-columns: 1fr 1fr"]{
+    grid-template-columns:1fr!important;
+    display:grid!important;
+  }
+  /* larger touch targets + prevent iOS keyboard zoom (needs font-size>=16px) */
+  .mo-box .field input,
+  .mo-box .field select,
+  .mo-box .field textarea,
+  .mo-box .bulk-mo-select{
+    min-height:48px;
+    font-size:16px!important;
+    padding:12px 14px!important;
+  }
+  .mo-box .field label{font-size:13px}
   /* ── Toast: full width at bottom on mobile ── */
   #a-toast{
     bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;
@@ -592,7 +626,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   .ord-cat-btn{padding:7px 12px;font-size:12px}
   .ord-chip{padding:4px 10px;font-size:11px}
   .settings-item{flex:1 1 100%}
-  .mo-box{padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))!important}
+  .mo-box{max-height:95vh!important;padding:16px 14px calc(16px + env(safe-area-inset-bottom,0px))!important}
 }
 /* ── Pull-to-Refresh ── */
 .ptr-zone{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
@@ -1521,12 +1555,112 @@ function aToast(msg, duration = 3000) {
 }
 
 function openMo(html) {
-  document.getElementById('mo-box').innerHTML = html;
-  document.getElementById('mo-bg').style.display = 'flex';
+  const box = document.getElementById('mo-box');
+  const bg  = document.getElementById('mo-bg');
+
+  // Cancel any pending close animation before opening
+  if (box._closeTimer) { clearTimeout(box._closeTimer); box._closeTimer = null; }
+  box.style.transform  = '';
+  box.style.transition = '';
+  bg.style.opacity     = '';
+
+  // Clear any stale keyboard-lift styles from previous modal
+  box.style.marginBottom = '';
+  box.style.maxHeight    = '';
+
+  // Set content
+  box.innerHTML = html;
+
+  // Inject ✕ close button into .mo-title (if present, if not already there)
+  const title = box.querySelector('.mo-title');
+  if (title && !title.querySelector('.mo-close-btn')) {
+    const xBtn = document.createElement('button');
+    xBtn.className = 'mo-close-btn';
+    xBtn.setAttribute('aria-label', 'Close');
+    xBtn.innerHTML = '&times;';
+    xBtn.onclick = closeMo;
+    title.style.position = 'relative';
+    title.appendChild(xBtn);
+  }
+
+  bg.style.display = 'flex';
+
+  // Focus first non-button input for UX
+  requestAnimationFrame(() => {
+    const first = box.querySelector('input:not([type=hidden]),select,textarea');
+    if (first) first.focus?.();
+    box.scrollTop = 0;
+  });
+
+  // Attach swipe-to-dismiss on mobile
+  _moAttachSwipe(box, bg);
 }
+
 function closeMo() {
-  document.getElementById('mo-bg').style.display = 'none';
-  document.getElementById('mo-box').innerHTML = '';
+  const bg  = document.getElementById('mo-bg');
+  const box = document.getElementById('mo-box');
+  // Cancel any pending close
+  if (box._closeTimer) { clearTimeout(box._closeTimer); box._closeTimer = null; }
+
+  if (window.innerWidth <= 768) {
+    // Slide down animation, then hide
+    box.style.transition = 'transform 200ms cubic-bezier(.4,0,1,1)';
+    box.style.transform  = 'translateY(100%)';
+    box._closeTimer = setTimeout(() => {
+      box._closeTimer   = null;
+      bg.style.display  = 'none';
+      box.innerHTML     = '';
+      box.style.transform  = '';
+      box.style.transition = '';
+      bg.style.opacity  = '';
+    }, 205);
+  } else {
+    bg.style.display = 'none';
+    box.innerHTML    = '';
+  }
+}
+
+// Swipe-down gesture to dismiss bottom sheet on mobile
+function _moAttachSwipe(box, bg) {
+  if (window.innerWidth > 768) return;
+  let startY = 0, curY = 0, active = false;
+
+  function onStart(e) {
+    // Don't swipe if the modal content is scrolled down
+    if (box.scrollTop > 4) return;
+    startY = e.touches[0].clientY;
+    curY   = startY;
+    active = true;
+    box.style.transition = 'none';
+  }
+  function onMove(e) {
+    if (!active) return;
+    curY = e.touches[0].clientY;
+    const d = Math.max(0, curY - startY);
+    box.style.transform = `translateY(${d}px)`;
+    bg.style.opacity = String(1 - Math.min(d / 280, 0.55));
+  }
+  function onEnd() {
+    if (!active) return;
+    active = false;
+    box.style.transition = '';
+    bg.style.opacity = '';
+    if (curY - startY > 110) { closeMo(); } else { box.style.transform = ''; }
+  }
+
+  // Remove old listeners to avoid stacking
+  if (box._swipeEl) {
+    box._swipeEl.removeEventListener('touchstart', box._swipeStart);
+    box._swipeEl.removeEventListener('touchmove',  box._swipeMove);
+    box._swipeEl.removeEventListener('touchend',   box._swipeEnd);
+  }
+  box._swipeEl    = box;
+  box._swipeStart = onStart;
+  box._swipeMove  = onMove;
+  box._swipeEnd   = onEnd;
+  box.addEventListener('touchstart', onStart, {passive:true});
+  box.addEventListener('touchmove',  onMove,  {passive:true});
+  box.addEventListener('touchend',   onEnd,   {passive:true});
 }
 
 function toggleSidebar() {
@@ -3503,7 +3637,7 @@ async function viewUserOrders(phone, name) {
     const orders = res.orders || [];
     document.getElementById('mo-box').innerHTML = `
       <div class="mo-title">Orders — ${name}</div>
-      <div class="tbl-wrap" style="max-height:60vh;overflow-y:auto">
+      <div class="tbl-wrap" style="max-height:55vh;overflow-y:auto">
         <table><thead><tr><th>Order ID</th><th>Items</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
         <tbody>${orders.length ? orders.map(o=>`<tr>
           <td><code style="font-size:11px">${o.order_id}</code></td>
@@ -3515,6 +3649,9 @@ async function viewUserOrders(phone, name) {
         </table>
       </div>
       <div style="text-align:right;margin-top:16px"><button class="btn btn-outline" onclick="closeMo()">Close</button></div>`;
+    // Re-inject close button since innerHTML was replaced
+    const _t = document.getElementById('mo-box').querySelector('.mo-title');
+    if (_t && !_t.querySelector('.mo-close-btn')) { const _x=document.createElement('button');_x.className='mo-close-btn';_x.setAttribute('aria-label','Close');_x.innerHTML='&times;';_x.onclick=closeMo;_t.style.position='relative';_t.appendChild(_x); }
   } catch(e) { aToast(e.message); closeMo(); }
 }
 
@@ -3747,7 +3884,7 @@ async function openKhataDetail(phone, name) {
         <div style="font-size:12px;color:${bal>=0?'#166534':'#991b1b'}">Current Balance</div>
         <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:${bal>=0?'var(--g)':'var(--p)'}">₹${bal}</div>
       </div>
-      <div class="tbl-wrap" style="max-height:280px;overflow-y:auto">
+      <div class="tbl-wrap" style="max-height:260px;overflow-y:auto">
         <table><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th>Balance</th></tr></thead>
         <tbody>${txns.length ? txns.map(t=>`<tr>
           <td style="font-size:11px">${fmtDate(t.created_at)}</td>
@@ -3758,11 +3895,14 @@ async function openKhataDetail(phone, name) {
         </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">No transactions</td></tr>'}</tbody>
         </table>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
         <button class="btn btn-g" onclick="closeMo();openRechargeModal('${phone}','${name}')">₹ Recharge</button>
         <button class="btn btn-outline" onclick="openAdjModal('${phone}','${name}')">Manual Adjust</button>
         <button class="btn btn-outline" onclick="closeMo()">Close</button>
       </div>`;
+    // Re-inject close button since innerHTML was replaced
+    const _kt = document.getElementById('mo-box').querySelector('.mo-title');
+    if (_kt && !_kt.querySelector('.mo-close-btn')) { const _kx=document.createElement('button');_kx.className='mo-close-btn';_kx.setAttribute('aria-label','Close');_kx.innerHTML='&times;';_kx.onclick=closeMo;_kt.style.position='relative';_kt.appendChild(_kx); }
   } catch(e) { aToast(e.message); closeMo(); }
 }
 
@@ -4794,9 +4934,7 @@ async function openCouponWorkflow(notifId, phone, name, address) {
   const safePhone   = (phone||'').toString();
   const safeName    = (name||'').replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
 
-  const mo = document.getElementById('mo-box');
-  document.getElementById('mo-bg').style.display = 'flex';
-  mo.innerHTML = `
+  openMo(`
     <div class="mo-title"><span style="font-size:22px">🎟️</span> Welcome Coupon — ${name||'User'}</div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#166534;display:flex;gap:8px;align-items:flex-start">
       <i class="fa fa-circle-info" style="margin-top:2px;flex-shrink:0"></i>
@@ -4853,7 +4991,7 @@ async function openCouponWorkflow(notifId, phone, name, address) {
         <i class="fab fa-whatsapp"></i> Save & Send via WhatsApp
       </button>
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-    </div>`;
+    </div>`);
 
   // Auto-generate unique WELCOME code and populate WA message
   setTimeout(() => {
@@ -5001,9 +5139,7 @@ async function loadNuCoupons(type, btn) {
 // ─── WHATSAPP POPUP ───────────────────────────────────────
 function openWaPopup(phone, name, notifId) {
   const defaultMsg = `Hi ${name}! 🎉 Welcome to Tiffo – Ghar ka Khana delivered fresh!\n\nAs a thank-you for joining, here's your welcome coupon:\n\n🏷️ Code: WELCOME10\n💰 10% OFF your first order\n\nOrder now and enjoy your first meal! 🍱\n— Tiffo Team`;
-  const mo = document.getElementById('mo-box');
-  document.getElementById('mo-bg').style.display = 'flex';
-  mo.innerHTML = `
+  openMo(`
     <div class="mo-title"><i class="fab fa-whatsapp" style="color:#25D366"></i> Send WhatsApp to ${name||phone}</div>
     <div class="field">
       <label>Message <span style="font-size:10px;color:#94a3b8">(editable before sending)</span></label>
@@ -5013,7 +5149,7 @@ function openWaPopup(phone, name, notifId) {
     <div style="display:flex;gap:10px">
       <button class="btn btn-g" style="flex:1" onclick="sendWaAndMarkSent('${phone}','${notifId||''}')"><i class="fab fa-whatsapp"></i> Send via WhatsApp</button>
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-    </div>`;
+    </div>`);
 }
 
 async function sendWaAndMarkSent(phone, notifId) {
@@ -5114,15 +5250,35 @@ window.addEventListener('popstate', () => {
 window.addEventListener('DOMContentLoaded', () => {
   history.pushState({ adminPg: 'init' }, '', location.href);
 
-  // Close sidebar on ESC key
+  // Close sidebar or modal on ESC key
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeSidebar();
+    if (e.key === 'Escape') {
+      const bg = document.getElementById('mo-bg');
+      if (bg && bg.style.display === 'flex') { closeMo(); return; }
+      closeSidebar();
+    }
   });
 
   // Auto-close sidebar when viewport expands back to desktop size
   window.addEventListener('resize', () => {
     if (window.innerWidth > 768) closeSidebar();
   });
+
+  // ── Keyboard-aware bottom sheet: shrink modal when virtual keyboard appears ──
+  if ('visualViewport' in window) {
+    window.visualViewport.addEventListener('resize', () => {
+      const box = document.getElementById('mo-box');
+      const bg  = document.getElementById('mo-bg');
+      if (!bg || bg.style.display !== 'flex') return;
+      if (window.innerWidth > 768) return;
+      const kbHeight = window.innerHeight - window.visualViewport.height;
+      // Lift the modal above the keyboard
+      box.style.marginBottom = kbHeight > 60 ? kbHeight + 'px' : '';
+      box.style.maxHeight    = kbHeight > 60
+        ? `calc(92vh - ${kbHeight}px)`
+        : '';
+    });
+  }
 });
 
 /* ═══════════════════════════════════════
