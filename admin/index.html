@@ -1487,7 +1487,7 @@ function startPolling() {
         const cur = document.querySelector('.pg-v.act')?.id;
         if (cur === 'p-orders')  loadOrders().catch(()=>{});
         if (cur === 'p-notifs')  loadNotifications().catch(()=>{});
-        loadDashboard().catch(()=>{});
+        if (cur === 'p-dash')    loadDashboard().catch(()=>{});   // only poll dashboard when it's visible
         fetchNotifCount().catch(()=>{});
         _pollSeconds = _getPollSeconds();
       }
@@ -1509,7 +1509,14 @@ function _onTabChange() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopPolling(); else if (AdminAuth.get()) startPolling();
+  if (document.hidden) { stopPolling(); }
+  else if (AdminAuth.get()) {
+    const cur = document.querySelector('.pg-v.act')?.id;
+    if (cur === 'p-dash')    loadDashboard().catch(()=>{});
+    if (cur === 'p-orders')  loadOrders().catch(()=>{});
+    if (cur === 'p-notifs')  loadNotifications().catch(()=>{});
+    startPolling();
+  }
 });
 
 async function fetchNotifCount() {
