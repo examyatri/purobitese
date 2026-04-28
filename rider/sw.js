@@ -1,24 +1,22 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v4.0  |  Updated : 2026-04-24
+   Version : v5.0  |  Updated : 2026-04-28
 
    Lives at /rider/sw.js so its scope is ONLY /rider/
    — completely isolated from the main Tiffo PWA at /
    and the admin PWA at /admin/.
 
-   v4.0 changes:
-   - Bumped cache name → tiffo-rider-v4 (forces fresh
-     index.html after OSRM routing + marker updates)
-   - Added router.project-osrm.org to NETWORK_ONLY
-     (routing responses must always be live, never cached)
-   - Added tile.openstreetmap.org to TILE_CACHE with
-     aggressive 30-day caching (rider re-uses same roads daily)
-   - Added TILE_CACHE cleanup on activate
+   v5.0 changes:
+   - Bumped cache → tiffo-rider-v5 (forces fresh install)
+   - Added supabase origins to NETWORK_ONLY
+   - Improved activate: scoped cleanup (only tiffo-rider-* keys)
+   - Non-GET requests now explicitly ignored
+   - Cleaner error handling in all fetch strategies
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v4';   // ← bumped from v3
+const CACHE      = 'tiffo-rider-v5';   /* ← bumped from v4 */
 const FONT_CACHE = 'tiffo-fonts-v1';
-const TILE_CACHE = 'tiffo-osm-tiles-v1'; // NEW: OSM map tiles
+const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
 /* Only rider assets */
 const PRECACHE = ['./index.html', './manifest.json'];
@@ -36,15 +34,17 @@ const TILE_ORIGINS = [
   'https://b.tile.openstreetmap.org',
   'https://c.tile.openstreetmap.org'
 ];
-const TILE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const TILE_MAX_AGE_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days
 const TILE_CACHE_LIMIT = 500; // max tiles to store
 
 /* Network-only: never cache these */
 const NETWORK_ONLY_ORIGINS = [
-  'purobitese-api.onrender.com',        // Render backend API
-  'router.project-osrm.org',            // OSRM routing — must be live
-  'maps.googleapis.com',                // Google Maps API calls
-  'maps.google.com'
+  'purobitese-api.onrender.com',
+  'router.project-osrm.org',
+  'maps.googleapis.com',
+  'maps.google.com',
+  'supabase.co',
+  'supabase.com'
 ];
 
 const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -52,12 +52,12 @@ const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const OFFLINE_HTML = `<!DOCTYPE html>
 <html><head><title>Tiffo Rider Offline</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f4f6f9}
-h1{color:#2a9d8f;font-size:24px}p{color:#6b7280}button{background:#2a9d8f;color:white;border:none;border-radius:12px;padding:12px 24px;font-size:16px;cursor:pointer;margin-top:16px}</style>
+<style>*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f4f6f9;padding:24px;text-align:center}
+h1{color:#2a9d8f;font-size:22px;margin:12px 0 8px}p{color:#6b7280;font-size:14px;margin:0 0 20px}button{background:#2a9d8f;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}button:active{opacity:.85}</style>
 </head><body>
-<div style="font-size:48px">🛵</div>
+<div style="font-size:52px">🛵</div>
 <h1>Tiffo Rider Offline</h1>
-<p>Check your internet connection</p>
+<p>Check your internet connection and try again.</p>
 <button onclick="location.reload()">Try Again</button>
 </body></html>`;
 
@@ -76,23 +76,33 @@ self.addEventListener('install', e => {
 /* ─── ACTIVATE ───────────────────────────────────────────── */
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== CACHE && k !== FONT_CACHE && k !== TILE_CACHE)
-          .map(k => caches.delete(k))
-      )
-    )
+    Promise.all([
+      // Scoped cleanup: only delete OLD rider/tile caches — never touch main or admin
+      caches.keys().then(keys =>
+        Promise.all(
+          keys
+            .filter(k =>
+              (k.startsWith('tiffo-rider-') && k !== CACHE) ||
+              (k.startsWith('tiffo-osm-tiles-') && k !== TILE_CACHE)
+            )
+            .map(k => caches.delete(k))
+        )
+      ),
+      self.clients.claim()
+    ])
   );
-  self.clients.claim();
 });
 
 /* ─── FETCH ──────────────────────────────────────────────── */
 self.addEventListener('fetch', e => {
   const { request } = e;
+
+  // Ignore non-GET requests (POST for API calls, etc.)
+  if (request.method !== 'GET') return;
+
   const url = new URL(request.url);
 
-  /* ── Network-only: API + OSRM routing + Google Maps ── */
+  /* ── Network-only: API + OSRM routing + Google Maps + Supabase ── */
   if (NETWORK_ONLY_ORIGINS.some(o => url.hostname.includes(o))) return;
   if (url.pathname.startsWith('/api/')) return;
 
@@ -104,9 +114,8 @@ self.addEventListener('fetch', e => {
         if (cached) {
           const cachedDate = cached.headers.get('date');
           const ageMs = cachedDate ? Date.now() - new Date(cachedDate).getTime() : 0;
-          if (ageMs < TILE_MAX_AGE_MS) return cached; // fresh tile — serve from cache
+          if (ageMs < TILE_MAX_AGE_MS) return cached; // fresh tile
         }
-        // Fetch fresh tile
         try {
           const res = await fetch(request);
           if (res && res.status === 200) {
@@ -133,9 +142,13 @@ self.addEventListener('fetch', e => {
       caches.open(FONT_CACHE).then(async cache => {
         const cached = await cache.match(request);
         if (cached) return cached;
-        const res = await fetch(request);
-        if (res && res.status === 200) cache.put(request, res.clone());
-        return res;
+        try {
+          const res = await fetch(request);
+          if (res && res.status === 200) cache.put(request, res.clone());
+          return res;
+        } catch {
+          return cached || new Response('', { status: 503 });
+        }
       })
     );
     return;
@@ -144,9 +157,11 @@ self.addEventListener('fetch', e => {
   /* ── HTML navigation — network-first, offline fallback ── */
   if (request.mode === 'navigate') {
     e.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then(res => {
-          caches.open(CACHE).then(cache => cache.put(request, res.clone()));
+          if (res && res.status === 200) {
+            caches.open(CACHE).then(cache => cache.put(request, res.clone()));
+          }
           return res;
         })
         .catch(async () => {

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
-     ║  PuroBite / Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.0                                    ║
-     ║  Updated : 2026-04-25                               ║
+     ║  Tiffo — Rider App (rider.html)          ║
+     ║  Version : v35.1                                    ║
+     ║  Updated : 2026-04-28                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -712,11 +712,18 @@ let _appliedSlot    = 'all';
 let _appliedQuery   = '';
 
 /* ─── CREDENTIAL MANAGEMENT (key: tf_rider_creds) ───── */
+// FIX #17: Password stored obfuscated (base64 + XOR) — not raw plaintext
+function _riderEncPw(pw) { try { return btoa(Array.from(pw).map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(81+i%5))).join('')); } catch{ return btoa(pw); } }
+function _riderDecPw(ep) { try { const r=atob(ep); return Array.from(r).map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(81+i%5))).join(''); } catch{ try{return atob(ep);}catch{return ep;} } }
 function saveRiderCreds(riderId, pw) {
-  localStorage.setItem('tf_rider_creds', JSON.stringify({ riderId, pw }));
+  localStorage.setItem('tf_rider_creds', JSON.stringify({ riderId, ep: _riderEncPw(pw) }));
 }
 function getRiderCreds() {
-  try { return JSON.parse(localStorage.getItem('tf_rider_creds')); } catch { return null; }
+  try {
+    const c = JSON.parse(localStorage.getItem('tf_rider_creds'));
+    if (!c) return null;
+    return { riderId: c.riderId, pw: c.pw ? c.pw : _riderDecPw(c.ep) };
+  } catch { return null; }
 }
 function clearRiderCreds() {
   localStorage.removeItem('tf_rider_creds');
@@ -907,7 +914,7 @@ function renderOrderCard(o) {
     <div class="o-addr" style="margin-bottom:6px">📍 ${o.address || 'No address'}</div>
     <div class="o-card-row">
       <div class="o-items" style="flex:1">${items || '—'}</div>
-      <div class="o-amount">₹${o.final_amount || 0}</div>
+      
     </div>
     <div class="o-actions">
       <button class="o-btn o-btn-call" onclick="window.location.href='tel:${safePhone}'">📞 Call</button>
@@ -1145,7 +1152,6 @@ function generateRiderPDF() {
   const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
   const slotLabel = { all:'All Sessions', morning:'Morning Orders', evening:'Evening Orders' }[_appliedSlot];
   const tabLabel  = _activeTab === 'pending' ? 'Pending' : 'Delivered';
-  const totalAmt  = filtered.reduce((s,o) => s+(+o.final_amount||0), 0);
 
   const rows = filtered.map((o,i) => {
     const items = (o.items||[]).map(it=>`${it.name}${it.qty>1?` ×${it.qty}`:''}`).join(', ');
@@ -1170,7 +1176,7 @@ function generateRiderPDF() {
       <td><b>${o.name||'—'}</b><br><span style="color:#64748b">${o.phone||''}</span></td>
       <td style="font-size:11px;color:#334155">${_dispAddr}</td>
       <td style="font-size:12px">${items||'—'}</td>
-      <td style="text-align:right;font-weight:700">₹${o.final_amount||0}</td>
+      <td></td>
       <td>${pay}</td>
       <td>${slot}</td>
       <td style="font-size:11px">${o.date||'—'}<br>${o.time||''}</td>
@@ -1185,19 +1191,28 @@ function generateRiderPDF() {
   <style>
     body{font-family:'Segoe UI',sans-serif;padding:20px;color:#1e293b;background:#fff}
     h1{font-size:18px;font-weight:800;margin-bottom:3px}
-    .meta{font-size:12px;color:#64748b;margin-bottom:14px}
+    .meta{font-size:12px;color:#64748b;margin-bottom:10px}
+    .summary-bar{display:flex;gap:16px;margin-bottom:14px;padding:12px 16px;background:#f0fdf4;border:2px solid #16a34a;border-radius:10px;align-items:center}
+    .summary-bar .s-item{display:flex;flex-direction:column;align-items:center;min-width:90px}
+    .summary-bar .s-val{font-size:20px;font-weight:800;color:#15803d}
+    .summary-bar .s-lbl{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
     table{width:100%;border-collapse:collapse;font-size:12px}
     th{background:#1e293b;color:white;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
     td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
-    .total-row{background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0}
+    .total-row td{background:#f0fdf4;font-weight:800;border-top:3px solid #16a34a;font-size:13px;color:#15803d}
     footer{margin-top:14px;font-size:11px;color:#94a3b8;text-align:right}
+    @media print{.summary-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}.total-row td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>
   <h1>🛵 Tiffo Rider — ${tabLabel} Orders</h1>
   <div class="meta">Rider: ${_rider?.name||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_appliedQuery+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
+  <div class="summary-bar">
+    <div class="s-item"><div class="s-val">${filtered.length}</div><div class="s-lbl">Orders</div></div>
+
+  </div>
   <table>
-    <thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Address</th><th>Items</th><th>Amount</th><th>Payment</th><th>Session</th><th>Date/Time</th><th>Status</th><th>Map</th></tr></thead>
+    <thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Address</th><th>Items</th><th>Payment</th><th>Session</th><th>Date/Time</th><th>Status</th><th>Map</th></tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="total-row"><td colspan="5" style="text-align:right;padding:10px">Total (${filtered.length} orders):</td><td style="padding:10px;font-size:14px">₹${totalAmt}</td><td colspan="5"></td></tr></tfoot>
+    <tfoot><tr class="total-row"><td colspan="10" style="text-align:right;padding:10px">Total Orders: ${filtered.length}</td></tr></tfoot>
   </table>
   <footer>Tiffo Rider Panel © 2026</footer>
   <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200)}<\/script>
@@ -1249,18 +1264,20 @@ function _haversine(lat1, lng1, lat2, lng2) {
 // so riders see only the human-readable part in cards and popups.
 function _shortAddr(addr) {
   if (!addr) return '—';
+  // Process line-by-line: drop metadata lines, keep everything else.
+  // This avoids the over-aggressive regex that could eat user-typed content.
+  const META = [
+    /^Coordinates\s*:/i,                          // Coordinates: 25.31, 82.97
+    /^Plus Code\s*:/i,                            // Plus Code: 8Q4M+C2
+    /^[\w\s]+,\s*India\s*$/i,                  // Uttar Pradesh, India  (exact line)
+    /^\s*\(latitude=[^)]+\)\s*$/i,             // OLD: (latitude=x, longitude=y)
+  ];
   return addr
-    // Strip coordinates line
-    .replace(/\n?Coordinates\s*:\s*[+-]?\d+\.?\d*\s*,\s*[+-]?\d+\.?\d*/gi, '')
-    // Strip Plus Code line
-    .replace(/\n?Plus Code\s*:\s*\S+/gi, '')
-    // Strip state/country line (Uttar Pradesh, India etc.)
-    .replace(/\n?[A-Za-z\s]+,\s*India\s*/gi, '')
-    // OLD format: strip " (latitude=x, longitude=y)" suffix
-    .replace(/\s*\(latitude=[^)]+\)/gi, '')
-    // Collapse multiple blank lines
-    .replace(/\n{2,}/g, '\n')
-    .trim();
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !META.some(re => re.test(l)))
+    .join('\n')
+    .trim() || '—';
 }
 
 // ── Build filter-aware stop list (same logic as renderOrders) ─
@@ -1504,7 +1521,7 @@ function _renderStopList() {
     const activeClass= isActive ? 'active-stop' : '';
     const delivClass = s.delivered ? 'delivered-stop' : s.skipped ? 'skipped-stop' : '';
     const noClass    = !hasCoords ? 'no-coords-stop' : '';
-    const amount     = s.order.final_amount ? `<span style="font-family:var(--ff);font-size:11px;color:#22c55e;font-weight:700">₹${s.order.final_amount}</span>` : '';
+    const amount     = '';
     // "NEAREST" badge only on active stop during delivery
     const nearestBadge = isActive ? `<span style="font-size:9px;font-weight:800;background:#f59e0b;color:#1a1f2e;border-radius:6px;padding:2px 6px;letter-spacing:.4px">NEAREST</span>` : '';
 
@@ -1901,7 +1918,7 @@ function _updateDeliveryBar() {
     document.getElementById('dbc-name').textContent = cur.order.name || '—';
     document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address);
     const payLabel = cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
-    document.getElementById('dbc-amount').textContent = '₹' + (cur.order.final_amount || 0);
+    document.getElementById('dbc-amount').textContent = '';
     document.getElementById('dbc-pay').textContent = payLabel;
     const items = (cur.order.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
     document.getElementById('dbc-items').textContent = items || '—';
@@ -2486,7 +2503,7 @@ function startPolling() {
   _pollTimer = setInterval(() => {
     if (document.hidden) return;
     loadOrders();
-  }, 60_000);
+  }, 1000_000);
 }
 
 function stopPolling() {
