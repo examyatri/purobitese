@@ -1,6 +1,6 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
-// ║  PuroBite / Tiffo — Backend API (server.js)         ║
+// ║  Tiffo — Backend API (server.js)         ║
 // ║  Version : v21.0 (v47 release)                      ║
 // ║  Updated : 2026-04-26                               ║
 // ║  Changes : bulkGenerateOrders — fetch subscriber    ║
@@ -18,8 +18,27 @@ const bcrypt      = require('bcryptjs');
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 const app = express();
 
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+// ALLOWED_ORIGINS env var: comma-separated list, e.g.:
+//   https://tiffo.online,https://www.tiffo.online
+// Falls back to '*' only when unset (local dev).
+const _allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin || '';
+  if (_allowedOrigins.length === 0) {
+    // Dev mode — no restriction
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (_allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else {
+    // Origin not whitelisted — block preflight, let real request proceed
+    // without ACAO header (browser will block it)
+    if (req.method === 'OPTIONS') return res.status(403).end();
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -46,7 +65,7 @@ if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 const SALT_ROUNDS = 10;
 
 // ─── SELF-PING ────────────────────────────────────────────────────────────────
-// Pings own /ping every 10 minutes to prevent Render free-tier sleep.
+// Pings own /ping every 12 minutes to prevent Render free-tier sleep.
 // Only runs if RENDER_EXTERNAL_URL is set (i.e. on Render, not local).
 if (process.env.RENDER_EXTERNAL_URL) {
   const PING_URL = process.env.RENDER_EXTERNAL_URL + '/ping';
@@ -56,8 +75,33 @@ if (process.env.RENDER_EXTERNAL_URL) {
     }).on('error', (err) => {
       console.error('[self-ping] error:', err.message);
     });
-  }, 12 * 60 * 1000); // every 12 minutes
+  }, 12 * 60 * 1000); // every 12 minutes  (comment fix: was incorrectly labelled "10 minutes")
   console.log('[self-ping] active →', PING_URL);
+}
+
+// ─── IN-MEMORY CACHES ────────────────────────────────────────────────────────
+// Analytics cache — dashboard numbers (8 parallel queries) cached for 90s
+let _analyticsCache   = null;
+let _analyticsCacheTs = 0;
+const _ANALYTICS_TTL  = 90_000; // 90 seconds
+
+// Settings cache — admin_settings rows cached for 5 minutes
+const _settingsCache  = {};
+const _SETTINGS_TTL   = 5 * 60_000; // 5 minutes
+
+async function getCachedSetting(key) {
+  const entry = _settingsCache[key];
+  if (entry && (Date.now() - entry.ts) < _SETTINGS_TTL) return entry.val;
+  const { data } = await supabase.from('admin_settings').select('value').eq('key', key).single();
+  const val = data?.value ?? null;
+  _settingsCache[key] = { val, ts: Date.now() };
+  return val;
+}
+
+function _invalidateSettingsCache() {
+  delete _settingsCache['weekly_schedule'];
+  delete _settingsCache['order_cutoff_config'];
+  delete _settingsCache['khata_enabled'];
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -319,7 +363,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
       }
     } catch(_) {}
   }
-  const finalAmount = subtotal + deliveryCharge - discount;
+  const finalAmount = Math.max(0, subtotal + deliveryCharge - discount); // FIX #5: never negative
   const orderId  = generateOrderId(ist);
   const dateStr  = istDateStr(ist);
   const timeStr  = istTimeStr(ist);
@@ -392,7 +436,7 @@ app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toI
 // Cleared automatically — Map never grows unboundedly on free-tier Render.
 const _recentMutations = new Map();
 const _MUTATION_TTL = 30_000; // 30 seconds
-const _MUTATION_ACTIONS = new Set(['createOrder', 'bulkGenerateOrders', 'forceUdharOrder', 'rechargeWallet', 'manualRefund']);
+const _MUTATION_ACTIONS = new Set(['createOrder', 'bulkGenerateOrders', 'forceUdharOrder', 'rechargeWallet', 'manualRefund', 'rejectOrder']);
 
 function _mutationKey(action, data) {
   // Key = action + phone + total_amount (enough to catch accidental double-submit)
@@ -489,6 +533,12 @@ app.post('/api', async (req, res) => {
 
       case 'updateProfile': {
         const phone = cleanPhone(data.phone);
+        // FIX #8: Require password verification — prevent unauthenticated profile updates
+        if (!data.password) return res.json({ success: false, error: 'Password required to update profile' });
+        const { data: userRow } = await supabase.from('users').select('password_hash').eq('phone', phone).single();
+        if (!userRow) return res.json({ success: false, error: 'User not found' });
+        const validPw = await bcrypt.compare(data.password, userRow.password_hash);
+        if (!validPw) return res.json({ success: false, error: 'Incorrect password' });
         const updates = {};
         if (data.name    !== undefined) updates.name    = data.name;
         if (data.email   !== undefined) updates.email   = data.email;
@@ -522,16 +572,16 @@ app.post('/api', async (req, res) => {
 
       // ── MERGED: replaces 4 separate calls (getMenu + getWeeklySchedule + getOrderCutoff + getKhataEnabled) ──
       case 'getHomeData': {
-        const [menuRes, scheduleRes, cutoffRes, khataRes] = await Promise.all([
+        const [menuRes, scheduleVal, cutoffVal, khataVal] = await Promise.all([
           supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
-          supabase.from('admin_settings').select('value').eq('key', 'weekly_schedule').single(),
-          supabase.from('admin_settings').select('value').eq('key', 'order_cutoff_config').single(),
-          supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single()
+          getCachedSetting('weekly_schedule'),
+          getCachedSetting('order_cutoff_config'),
+          getCachedSetting('khata_enabled')
         ]);
         let schedule = null, config = null;
-        if (scheduleRes.data?.value)  { try { schedule = JSON.parse(scheduleRes.data.value); } catch { schedule = null; } }
-        if (cutoffRes.data?.value)    { try { config   = JSON.parse(cutoffRes.data.value);   } catch { config   = null; } }
-        const enabled = JSON.parse(khataRes.data?.value || 'false') === true;
+        if (scheduleVal)  { try { schedule = JSON.parse(scheduleVal); } catch { schedule = null; } }
+        if (cutoffVal)    { try { config   = JSON.parse(cutoffVal);   } catch { config   = null; } }
+        const enabled = JSON.parse(khataVal || 'false') === true;
         return res.json({ success: true, items: (menuRes.data || []).map(formatMenuItem), schedule, config, enabled });
       }
 
@@ -608,38 +658,56 @@ app.post('/api', async (req, res) => {
         if (!user) return res.json({ success: false, error: 'User not found' });
         const address = data.address || user.address;
         if (!address) return res.json({ success: false, error: 'Delivery address required' });
-        const { data: khataRow } = await supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single();
-        const khataEnabled = JSON.parse(khataRow?.value || 'false');
+        const khataEnabledRaw = await getCachedSetting('khata_enabled');
+        const khataEnabled = JSON.parse(khataEnabledRaw || 'false');
         const { data: subRow } = await supabase.from('subscribers').select('*').eq('phone', phone).single();
         user.is_subscriber = !!subRow;
         user.address = address;
         if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
           return res.json({ success: false, error: 'Order items required' });
         }
-        // Skip balance check for upi_insuf orders — subscriber chose to pay via UPI instead
-        if (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') {
-          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-          const currentBal = balRow?.balance || 0;
-          const subtotal   = data.items.reduce((s, i) => s + i.price * i.qty, 0);
-          const dc         = data.deliveryCharge || 0;
-          let disc = 0;
-          if (data.coupon) {
-            if (data.coupon.discount_type === 'percent' || data.coupon.discount_type === 'percent_cap') {
-              disc = Math.round(subtotal * data.coupon.discount_value / 100);
-              const cap = data.coupon.cap_amount ?? data.coupon.max_cap ?? null;
-              if (cap != null && disc > cap) disc = cap;
-            } else {
-              disc = data.coupon.discount_value;
+
+        // ── FIX #3: Re-fetch item prices from DB — never trust client-supplied prices ──
+        const clientItemIds = data.items.map(i => i.item_id).filter(Boolean);
+        let verifiedItems = data.items;
+        if (clientItemIds.length > 0) {
+          const { data: dbMenuItems } = await supabase.from('menu_items').select('item_id, price, name').in('item_id', clientItemIds);
+          if (dbMenuItems && dbMenuItems.length > 0) {
+            const dbPriceMap = {};
+            for (const m of dbMenuItems) dbPriceMap[m.item_id] = m.price;
+            verifiedItems = data.items.map(i => ({
+              ...i,
+              price: dbPriceMap[i.item_id] !== undefined ? dbPriceMap[i.item_id] : i.price
+            }));
+          }
+        }
+
+        // ── FIX #4: Re-fetch coupon from DB — never trust client-supplied coupon values ──
+        let verifiedCoupon = null;
+        if (data.coupon && data.coupon.code) {
+          const cpnCode = (data.coupon.code || '').toUpperCase();
+          const { data: dbCoupon } = await supabase.from('coupons').select('*').eq('code', cpnCode).single();
+          const today = istDateStr(ist);
+          if (dbCoupon && dbCoupon.is_active && !(dbCoupon.expiry_date && dbCoupon.expiry_date < today)) {
+            const maxUse = dbCoupon.max_usage ?? dbCoupon.total_usage_limit ?? null;
+            if (maxUse == null || (dbCoupon.used_count || 0) < maxUse) {
+              const capAmt = dbCoupon.cap_amount ?? dbCoupon.max_cap ?? null;
+              verifiedCoupon = {
+                code:           dbCoupon.code,
+                discount_type:  dbCoupon.discount_type,
+                discount_value: dbCoupon.discount_value,
+                cap_amount:     capAmt
+              };
             }
           }
-          const finalEst = subtotal + dc - disc;
-          if (currentBal < finalEst) return res.json({ success: false, error: 'Insufficient wallet balance' });
         }
-        // Auto-detect morning/evening slot from IST time of order placement
+
+        // ── FIX #9: Duplicate order check — prevent two orders for same slot/day ──
+        // Auto-detect slot first so the duplicate check uses the correct slot
         let autoSlot = 'morning';
         try {
-          const { data: schRow } = await supabase.from('admin_settings').select('value').eq('key', 'weekly_schedule').single();
-          const sch = JSON.parse(schRow?.value || '[]');
+          const schVal = await getCachedSetting('weekly_schedule');
+          const sch = JSON.parse(schVal || '[]');
           const dayIdx = ist.getUTCDay();
           const d = Array.isArray(sch) && sch.length === 7 ? sch[dayIdx] : null;
           const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
@@ -652,9 +720,39 @@ app.post('/api', async (req, res) => {
           }
         } catch { autoSlot = (ist.getUTCHours() * 60 + ist.getUTCMinutes()) >= 17 * 60 ? 'evening' : 'morning'; }
 
+        const today = istDateStr(ist);
+        const { data: dupCheck } = await supabase.from('orders')
+          .select('order_id').eq('phone', phone).eq('date', today).eq('slot', autoSlot)
+          .not('order_status', 'eq', 'cancelled').limit(1);
+        if (dupCheck && dupCheck.length > 0) {
+          return res.json({ success: false, error: 'You already have an order for this slot today' });
+        }
+
+        // ── FIX #3: Compute delivery charge server-side — never trust client value ──
+        // Subscribers with khata enabled: free delivery. All others: ₹20.
+        const serverDeliveryCharge = (user.is_subscriber && khataEnabled) ? 0 : 20;
+
+        // Skip balance check for upi_insuf orders — subscriber chose to pay via UPI instead
+        if (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') {
+          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+          const currentBal = balRow?.balance || 0;
+          const subtotal   = verifiedItems.reduce((s, i) => s + i.price * i.qty, 0);
+          let disc = 0;
+          if (verifiedCoupon) {
+            if (verifiedCoupon.discount_type === 'percent' || verifiedCoupon.discount_type === 'percent_cap') {
+              disc = Math.round(subtotal * verifiedCoupon.discount_value / 100);
+              if (verifiedCoupon.cap_amount != null && disc > verifiedCoupon.cap_amount) disc = verifiedCoupon.cap_amount;
+            } else {
+              disc = verifiedCoupon.discount_value;
+            }
+          }
+          const finalEst = Math.max(0, subtotal + serverDeliveryCharge - disc);
+          if (currentBal < finalEst) return res.json({ success: false, error: 'Insufficient wallet balance' });
+        }
+
         const result = await _createSingleOrder({
-          user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
-          khataEnabled, ist, coupon: data.coupon || null, source: 'user',
+          user, items: verifiedItems, deliveryCharge: serverDeliveryCharge,
+          khataEnabled, ist, coupon: verifiedCoupon, source: 'user',
           paymentMode: data.paymentMode || null, slot: autoSlot
         });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
@@ -717,6 +815,16 @@ app.post('/api', async (req, res) => {
       case 'rejectOrder': {
         const { data: order } = await supabase.from('orders').select('*').eq('order_id', data.orderId).single();
         if (!order) return res.json({ success: false, error: 'Order not found' });
+
+        // FIX #2: Idempotency — reject if already rejected (prevents double-refund on retry)
+        if (order.order_status === 'rejected') {
+          return res.json({ success: false, error: 'Order is already rejected' });
+        }
+        // FIX #6: Status guard — only allow rejection on active (non-final) orders
+        const rejectableStatuses = ['pending', 'confirmed', 'preparing'];
+        if (!rejectableStatuses.includes(order.order_status)) {
+          return res.json({ success: false, error: `Cannot reject an order with status: ${order.order_status}` });
+        }
 
         // Check if customer is a subscriber (wallet user)
         const { data: subRow } = await supabase.from('subscribers').select('phone').eq('phone', order.phone).single();
@@ -809,8 +917,8 @@ app.post('/api', async (req, res) => {
         const orderFor   = data.orderFor || 'subscribers'; // 'subscribers' | 'all'
 
         // Fetch khata setting to know if balance matters for eligibility
-        const { data: khataSettingForBulk } = await supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single();
-        const khataEnabledForBulk = JSON.parse(khataSettingForBulk?.value || 'false');
+        const khataSettingRawForBulk = await getCachedSetting('khata_enabled');
+        const khataEnabledForBulk = JSON.parse(khataSettingRawForBulk || 'false');
         const bulkPrice = parseFloat(data.price) || 0;  // price for balance eligibility check
 
         // Fetch all subscribers (no expiry — subscriptions are now infinite)
@@ -916,18 +1024,18 @@ app.post('/api', async (req, res) => {
         // ─── STEP 1: Pre-fetch all data in parallel ──────────────────────────
         const cleanPhones = phones.map(cleanPhone);
         const [
-          { data: khataSettingRow },
+          khataSettingVal,
           { data: existingOrders },
           { data: bulkUserRows },
           { data: bulkSubRows }
         ] = await Promise.all([
-          supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single(),
+          getCachedSetting('khata_enabled'),
           supabase.from('orders').select('phone').eq('date', today).or(`slot.eq.${bulkSlot},slot.is.null`).not('order_status', 'eq', 'cancelled'),
           supabase.from('users').select('*').in('phone', cleanPhones),
           supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_evening, is_delivery_off').in('phone', cleanPhones)
         ]);
 
-        const bulkKhataEnabled = JSON.parse(khataSettingRow?.value || 'false');
+        const bulkKhataEnabled = JSON.parse(khataSettingVal || 'false');
         const alreadyOrderedSet = new Set((existingOrders || []).map(o => o.phone));
         const bulkUserMap = {};
         for (const u of (bulkUserRows || [])) bulkUserMap[u.phone] = u;
@@ -1088,6 +1196,27 @@ app.post('/api', async (req, res) => {
         const phone = cleanPhone(data.phone);
         const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
         if (!user) return res.json({ success: false, error: 'User not found' });
+        // FIX #12: Check actual subscriber status — don't hardcode is_subscriber = true
+        const { data: udharSubRow } = await supabase.from('subscribers').select('phone').eq('phone', phone).single();
+        if (!udharSubRow) {
+          // Auto-create subscriber row so wallet deduction works correctly
+          await supabase.from('subscribers').insert({
+            phone,
+            plan:            data.plan || 'morning',
+            plan_start:      istDateStr(ist),
+            notes:           'Auto-created by forceUdharOrder',
+            pause_delivery:  'none',
+            pause_morning:   false,
+            pause_evening:   false,
+            is_delivery_off: false,
+            created_at:      new Date().toISOString()
+          });
+          // Ensure wallet row exists
+          try {
+            await supabase.from('khata_summary')
+              .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
+          } catch(_) {}
+        }
         user.is_subscriber = true;
         const result = await _createSingleOrder({
           user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
@@ -1661,6 +1790,7 @@ app.post('/api', async (req, res) => {
 
       case 'setOrderCutoff': {
         await supabase.from('admin_settings').upsert({ key: 'order_cutoff_config', value: JSON.stringify(data.config), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache(); _analyticsCache = null;
         return res.json({ success: true });
       }
 
@@ -1673,6 +1803,7 @@ app.post('/api', async (req, res) => {
 
       case 'setWeeklySchedule': {
         await supabase.from('admin_settings').upsert({ key: 'weekly_schedule', value: JSON.stringify(data.schedule), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache(); _analyticsCache = null;
         return res.json({ success: true });
       }
 
@@ -1683,6 +1814,7 @@ app.post('/api', async (req, res) => {
 
       case 'setKhataEnabled': {
         await supabase.from('admin_settings').upsert({ key: 'khata_enabled', value: JSON.stringify(!!data.enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache(); _analyticsCache = null;
         return res.json({ success: true });
       }
 
@@ -1705,6 +1837,10 @@ app.post('/api', async (req, res) => {
       // ── ANALYTICS ─────────────────────────────────────────────────────────
 
       case 'getAnalytics': {
+        const now = Date.now();
+        if (_analyticsCache && (now - _analyticsCacheTs) < _ANALYTICS_TTL) {
+          return res.json(_analyticsCache);
+        }
         const today      = istDateStr(ist);
         const monthStart = today.slice(0, 7) + '-01';
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
@@ -1723,7 +1859,7 @@ app.post('/api', async (req, res) => {
         const todayRevenue = (r2.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
         const monthRevenue = (r3.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
         const totalWalletBalance = (r7.data || []).reduce((s, k) => s + (k.balance || 0), 0);
-        return res.json({
+        const analyticsResult = {
           success: true,
           todayOrders:         r1.count || 0,
           todayRevenue,
@@ -1733,7 +1869,10 @@ app.post('/api', async (req, res) => {
           subscriberCount:     r6.count || 0,
           totalWalletBalance,
           newUsers30d:         r8.count || 0
-        });
+        };
+        _analyticsCache   = analyticsResult;
+        _analyticsCacheTs = Date.now();
+        return res.json(analyticsResult);
       }
 
       case 'getUsers': {
@@ -1930,7 +2069,14 @@ app.post('/api', async (req, res) => {
         { const allowed = ['none', 'lunch', 'dinner', 'both'];
           const mode = data.pauseMode || data.mode;
           if (!allowed.includes(mode)) return res.json({ success: false, error: 'Invalid mode' });
-          await supabase.from('subscribers').update({ pause_delivery: mode }).eq('phone', cleanPhone(data.phone));
+          // FIX #14: Sync granular pause fields to match legacy pause_delivery
+          const pm = (mode === 'lunch' || mode === 'both');
+          const pe = (mode === 'dinner' || mode === 'both');
+          await supabase.from('subscribers').update({
+            pause_delivery: mode,
+            pause_morning:  pm,
+            pause_evening:  pe
+          }).eq('phone', cleanPhone(data.phone));
           return res.json({ success: true, pauseMode: mode }); }
 
       case 'changePassword':
@@ -2143,6 +2289,8 @@ app.post('/api', async (req, res) => {
       // Delete user account completely (admin action)
       case 'adminDeleteUser': {
         const phone = cleanPhone(data.phone);
+        // FIX #16: Also delete the user's orders to prevent orphaned records
+        await supabase.from('orders').delete().eq('phone', phone);
         // Remove subscriber record, wallet, ledger entries, then user
         await supabase.from('subscribers').delete().eq('phone', phone);
         await supabase.from('khata_summary').delete().eq('phone', phone);
