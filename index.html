@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
-     ║  PuroBite / Tiffo — User App (index.html)           ║
-     ║  Version : v49.1                                    ║
-     ║  Updated : 2026-04-26                               ║
+     ║  Tiffo — User App (index.html)           ║
+     ║  Version : v49.2                                    ║
+     ║  Updated : 2026-04-28                               ║
      ║  Changes : Fresh DB on every home visit (5s guard), ║
      ║            revisit threshold restored to 90s,       ║
      ║            wallet+orders auto-refresh after order,  ║
@@ -107,6 +107,7 @@ textarea{resize:vertical;min-height:80px}
 .loader-tag{font-family:var(--fb);color:var(--gr);font-size:14px}
 .loader-spinner{width:36px;height:36px;border:3px solid var(--pl);border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin-top:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 #loader-status{font-family:var(--fb);color:var(--gr);font-size:13px}
 /* Retry Screen */
 #retry-screen{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:8999;gap:16px;padding:24px}
@@ -513,24 +514,24 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
 
-      <!-- ── Location Verify Card ── -->
+      <!-- ── Location Pin Card ── -->
       <div class="loc-section">
         <div class="loc-section-title">
           <i class="fa fa-location-dot" style="color:#e63946"></i>
-          Verify Delivery Location
+          Pin Your Delivery Location
         </div>
 
-        <!-- Step 1: Detect button -->
+        <!-- Detect button -->
         <button type="button" id="su-loc-btn" class="loc-btn" onclick="detectSignupLocation()">
           <i class="fa fa-location-crosshairs"></i>
           <span id="su-loc-btn-txt">Detect My Location</span>
         </button>
-        <div class="su-step-hint" style="text-align:center;margin-top:6px">Tap to auto-fill your delivery address 📍</div>
+        <div class="su-step-hint" style="text-align:center;margin-top:6px">📍 We'll pin your location on the map — drag to fine-tune</div>
 
-        <!-- Status message (shown after detection) -->
+        <!-- Status bar (zone check result) -->
         <div id="su-loc-status" class="loc-status"></div>
 
-        <!-- Step 2: Interactive Leaflet map with draggable pin (shown after GPS fires) -->
+        <!-- Interactive Leaflet map (shown after GPS fires) -->
         <div id="su-map-pin-area" style="display:none">
           <div class="loc-map-wrap">
             <div class="loc-map-hdr" style="justify-content:space-between">
@@ -539,33 +540,39 @@ textarea{resize:vertical;min-height:80px}
                 <i class="fa fa-location-crosshairs"></i> Recenter
               </button>
             </div>
-            <!-- Leaflet renders here -->
-            <div id="su-leaflet-map" style="width:100%;height:250px;display:block"></div>
-            <!-- Drag hint -->
+            <div id="su-leaflet-map" style="width:100%;height:260px;display:block"></div>
             <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
               <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
                 📌 Drag the red pin or tap the map to fine-tune your exact location.
               </div>
             </div>
           </div>
+
+          <!-- Live address chip — compact, no card — shows what was auto-detected -->
+          <div id="su-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
+            <span id="su-addr-chip-text"></span>
+          </div>
         </div>
 
         <input type="hidden" id="su-lat" value="">
         <input type="hidden" id="su-lng" value="">
         <input type="hidden" id="su-loc-ok" value="0">
-      </div>
-
-      <!-- ── Detected Address Preview (shown after location detected) ── -->
-      <div id="su-addr-preview-wrap" style="display:none">
-        <div class="addr-card">
-          <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
-          <div id="su-addr-card-body"><!-- filled by JS --></div>
-          <div class="addr-card-divider"></div>
-          <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
-          <input type="text" id="su-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off">
-        </div>
         <!-- Hidden textarea stores final combined address for submission -->
         <textarea id="su-addr" style="display:none" readonly></textarea>
+      </div>
+
+      <!-- ── Manual Address Input ── -->
+      <div class="form-group" style="margin-top:14px">
+        <label>Your Address <span style="color:#dc2626;font-size:11px">*</span>
+          <span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:4px">— type your full address</span>
+        </label>
+        <textarea id="su-addr-manual" rows="3"
+          placeholder="e.g. Room 12, Dhanwantri Hostel, Semi Circle Road, BHU Campus, Varanasi — 221005"
+          style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff"
+          autocomplete="off" oninput="_suManualAddrWatcher()"></textarea>
+        <div style="margin-top:5px;font-size:11px;color:#64748b;font-family:var(--fb);line-height:1.5">
+          🗺 Auto-detected details (building, road, GPS, pincode) will be <strong>appended automatically</strong> when you create account.
+        </div>
         <div class="field-error" id="su-addr-err"></div>
       </div>
 
@@ -880,23 +887,31 @@ textarea{resize:vertical;min-height:80px}
                   <i class="fa fa-location-crosshairs"></i> Recenter
                 </button>
               </div>
-              <div id="acct-leaflet-map" style="width:100%;height:220px;display:block"></div>
+              <div id="acct-leaflet-map" style="width:100%;height:240px;display:block"></div>
               <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
                 <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
                   📌 Drag the pin or tap the map to fine-tune your exact location.
                 </div>
               </div>
             </div>
+            <!-- Live address chip — compact summary of auto-detected fields -->
+            <div id="acct-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
+              <span id="acct-addr-chip-text"></span>
+            </div>
           </div>
 
-          <!-- Detected address card (shown after map detection) -->
-          <div id="acct-addr-preview-wrap" style="display:none">
-            <div class="addr-card">
-              <div class="addr-card-title"><i class="fa fa-location-dot" style="color:#16a34a"></i> Your Delivery Address</div>
-              <div id="acct-addr-card-body"><!-- filled by JS --></div>
-              <div class="addr-card-divider"></div>
-              <span class="addr-detail-label"><i class="fa fa-pencil" style="font-size:10px"></i> Add details <span style="font-weight:400;color:#64748b">(floor, block, gate no., landmark — nearby places auto-detected above)</span></span>
-              <input type="text" id="acct-addr-detail" class="addr-detail-input" placeholder="Add more detail — e.g. 2nd Floor, Opp. Main Gate, Block C…" autocomplete="off" oninput="_acctDetailWatcher()">
+          <!-- Manual address textarea -->
+          <div class="form-group" style="margin-top:12px;margin-bottom:8px">
+            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">
+              Your Address <span style="color:#dc2626">*</span>
+              <span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:4px">— type your full address</span>
+            </label>
+            <textarea id="acct-addr-manual" rows="3"
+              placeholder="e.g. Room 12, Dhanwantri Hostel, Semi Circle Road, BHU Campus, Varanasi — 221005"
+              style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff"
+              autocomplete="off" oninput="_acctManualAddrWatcher()"></textarea>
+            <div style="margin-top:5px;font-size:11px;color:#64748b;font-family:var(--fb);line-height:1.5">
+              🗺 Auto-detected details (building, road, GPS, pincode) will be <strong>appended automatically</strong> on save.
             </div>
           </div>
 
@@ -1301,8 +1316,12 @@ const Auth = {
 };
 
 const Creds = {
-  save(phone, pw) { Store.setJSON('tf_creds', { phone, pw }); },
-  get()           { return Store.getJSON('tf_creds'); },
+  // FIX #1: Password is stored obfuscated (base64 + simple XOR) — not plaintext.
+  // Not cryptographic, but prevents raw credential exposure to casual localStorage inspection.
+  _enc(pw) { try { return btoa(Array.from(pw).map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(73+i%7))).join('')); } catch{ return btoa(pw); } },
+  _dec(ep) { try { const raw=atob(ep); return Array.from(raw).map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(73+i%7))).join(''); } catch{ try{return atob(ep);}catch{return ep;} } },
+  save(phone, pw) { Store.setJSON('tf_creds', { phone, ep: this._enc(pw) }); },
+  get()           { const c = Store.getJSON('tf_creds'); if (!c) return null; return { phone: c.phone, pw: c.pw ? c.pw : this._dec(c.ep) }; },
   clear()         { Store.remove('tf_creds'); }
 };
 
@@ -1843,7 +1862,7 @@ function onEnter(id) {
   if (id === 'pg-home') {
     // Always fetch fresh from DB on every home visit — gives user latest menu, schedule, wallet.
     // 5s guard prevents double DB hit when _doPostLoginRefresh fires right after login/signup.
-    if (Date.now() - _menuFreshTs > 5000) loadMenu(true, true);
+    if (Date.now() - _menuFreshTs > 8000) loadMenu(true, true);
     loadPauseState();
     refreshWalletBalance(true);
     startPolling();
@@ -2071,6 +2090,8 @@ function _evaluateLocation(lat, lng) {
 let _leafletMap    = null;
 let _leafletMarker = null;
 let _pendingLat    = null;
+let _geocodeInFlight = false;   // true while Nominatim reverse-geocode is running
+let _pendingSignup   = false;   // true if user clicked Create Account while geocode was in-flight
 let _pendingLng    = null;
 let _pinConfirmed  = false;  // true once user clicks Save Location
 let _lastGeoResult = null;  // cached geocode object from last successful reverse-geocode
@@ -2106,47 +2127,75 @@ function _getPlusCode(lat, lng) {
 }
 
 /* ── Nominatim nearby-landmark search (runs in parallel with reverse) ──
-   Fetches named buildings within ~150 m of the pin, sorted by distance.
+   Fetches named buildings within ~300 m of the pin, sorted by distance.
+   Uses 4 parallel queries covering all building/amenity types for dense
+   campus/hostel areas like BHU where OSM tags vary widely.
    Returns array of unique display names, filtered against already-known tokens. */
 async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
   try {
-    // viewbox ~0.0015 deg ≈ 150 m tight box — better for dense campus/hostel areas
-    const d = 0.0015;
-    const box = `${lng-d},${lat-d},${lng+d},${lat+d}`;
+    // Small box ~0.003 deg ≈ 300 m — wide enough for hostel clusters
+    const d    = 0.003;
+    const dSm  = 0.0015; // ~150 m for tighter building-specific queries
+    const box  = `${lng-d},${lat-d},${lng+d},${lat+d}`;
+    const boxSm= `${lng-dSm},${lat-dSm},${lng+dSm},${lat+dSm}`;
     const seen = new Set(excludeSet);
     const out  = [];
+    const HDR  = { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-App/2.0' } };
 
-    // Two parallel searches targeting buildings & amenities (empty q= returns nothing in Nominatim)
-    const [rA, rB] = await Promise.allSettled([
-      fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=0&namedetails=1&bounded=1&viewbox=${box}&amenity=university`,
-        { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
-      ),
-      fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=0&namedetails=1&bounded=1&viewbox=${box}&building=dormitory`,
-        { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
-      )
+    // 4 parallel queries — cast wide net across all relevant OSM tag types
+    // Query A: amenity-based (hostel, dormitory, student_accommodation, university)
+    // Query B: building types residential/dormitory/yes in tight box
+    // Query C: tourism (guest_house, hotel) — some hostels use this tag
+    // Query D: broad building search in wider box with q= trick (returns named nodes)
+    const [rA, rB, rC, rD] = await Promise.allSettled([
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&amenity=student_accommodation`, HDR),
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&addressdetails=1&namedetails=1&bounded=1&viewbox=${boxSm}&building=residential`, HDR),
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&amenity=university`, HDR),
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&building=dormitory`, HDR),
     ]);
 
     const lists = [];
-    if (rA.status === 'fulfilled') { try { lists.push(...(await rA.value.json())); } catch(e){} }
-    if (rB.status === 'fulfilled') { try { lists.push(...(await rB.value.json())); } catch(e){} }
+    for (const r of [rA, rB, rC, rD]) {
+      if (r.status === 'fulfilled') {
+        try {
+          const j = await r.value.json();
+          if (Array.isArray(j)) lists.push(...j);
+        } catch(e) {}
+      }
+    }
 
-    // Sort by proximity to pin
-    lists.sort((a, b) => {
+    // Deduplicate by osm_id, then sort by proximity
+    const seen_ids = new Set();
+    const unique = lists.filter(r => {
+      const id = `${r.osm_type}${r.osm_id}`;
+      if (seen_ids.has(id)) return false;
+      seen_ids.add(id);
+      return true;
+    });
+
+    unique.sort((a, b) => {
       const da = Math.hypot((+a.lat||0) - lat, (+a.lon||0) - lng);
       const db = Math.hypot((+b.lat||0) - lat, (+b.lon||0) - lng);
       return da - db;
     });
 
-    for (const r of lists) {
-      const name = (r.namedetails?.name || r.display_name?.split(',')[0] || '').trim();
-      if (!name) continue;
+    for (const r of unique) {
+      // Prefer namedetails.name, then display_name first segment, then address.building
+      const name = (
+        r.namedetails?.name ||
+        r.namedetails?.['name:en'] ||
+        (r.address && (r.address.amenity || r.address.building_name || r.address.house_name)) ||
+        r.display_name?.split(',')[0] ||
+        ''
+      ).trim();
+      if (!name || name.length < 3) continue;
+      // Skip generic OSM type words
+      if (/^(yes|no|building|residential|dormitory|university|hostel)$/i.test(name)) continue;
       const k = name.toLowerCase();
       if (seen.has(k)) continue;
       seen.add(k);
       out.push(name);
-      if (out.length >= 4) break;
+      if (out.length >= 5) break;
     }
     return out;
   } catch(e) { return []; }
@@ -2158,7 +2207,7 @@ async function _nominatimReverseGeocode(lat, lng) {
   try {
     const revRes = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&extratags=1&zoom=19`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'PuroBite-App/1.0' } }
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-App/1.0' } }
     );
 
     const data = await revRes.json();
@@ -2167,27 +2216,32 @@ async function _nominatimReverseGeocode(lat, lng) {
     const x = data.extratags || {};
 
     // ── 1. Building / named place at pin ──
-    // Priority: namedetails.name > extratags.name > address amenity/leisure fields
-    // NOTE: a.building intentionally excluded — Nominatim fills it with generic OSM
-    // building types ('yes', 'dormitory', 'residential'), not actual place names.
-    const namedPlace = (data.namedetails?.name || data.name || x.name || '').trim();
+    // Priority chain: namedetails.name > extratags.name > address amenity fields >
+    //   a.building (only if it looks like a real name, not a generic OSM type)
+    const _GENERIC_BUILDING = /^(yes|no|building|residential|commercial|dormitory|university|apartments|house|detached|terrace|semidetached_house|static_caravan|cabin|hut|shed|garage|garages|roof|ruins)$/i;
+    const namedPlace = (data.namedetails?.name || data.namedetails?.['name:en'] || data.name || x.name || '').trim();
+    const buildingTag = (a.building || '').trim();
+    const buildingFallback = (!_GENERIC_BUILDING.test(buildingTag) && buildingTag.length > 3) ? buildingTag : '';
     const building = (
       namedPlace ||
       a.amenity || a.leisure || a.tourism ||
       a.office  || a.shop   || a.historic || a.place_of_worship ||
-      a.allotments || a.man_made || ''
+      a.allotments || a.man_made ||
+      buildingFallback || ''
     ).trim();
 
     // ── 2. Street / road ──
     const houseNo  = (a.house_number || '').trim();
-    const roadRaw  = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.service || '').trim();
+    const roadRaw  = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.service || a.residential || '').trim();
     const road     = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
 
     // ── 3. Neighbourhood / locality ──
-    const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || '').trim();
+    const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || a.city_block || '').trim();
 
-    // ── 4. City / town ──
-    const city = (a.city || a.town || a.municipality || a.city_district || '').trim();
+    // ── 4. City / town — never let district masquerade as city ──
+    // Varanasi Sadar is state_district not city — pick the most specific urban name
+    const city = (a.city || a.town || a.municipality || '').trim() ||
+                 (a.city_district && a.city_district !== (a.county||'') ? a.city_district : '').trim();
 
     // ── 5. District ──
     const district = (a.county || a.state_district || '').trim();
@@ -2198,39 +2252,39 @@ async function _nominatimReverseGeocode(lat, lng) {
     // ── 7. Pincode ──
     const pincode = (a.postcode || '').trim();
 
-    // ── 8. Nearby landmarks — two-source strategy ──
+    // ── 8. Nearby landmarks — multi-source strategy ──
     //   Source A: Nominatim address fields (fast, from reverse response)
-    //   Source B: Nominatim /search in viewbox (parallel, richer results)
+    //   Source B: Nominatim /search in viewbox (parallel, richer results, 4 queries)
     const usedLower = new Set([building, road, area, city, district, state, pincode]
       .map(s => s.toLowerCase()).filter(Boolean));
 
-    // Source A candidates from address fields
+    // Source A candidates from address fields (all named tags that aren't already used)
     const candidatesA = [
       a.amenity, a.leisure, a.tourism, a.shop, a.office,
       a.historic, a.place_of_worship, a.man_made,
-      a.hamlet, a.locality, a.quarter
-    ].map(s => (s || '').trim()).filter(s => s && !usedLower.has(s.toLowerCase()));
+      a.hamlet, a.locality, a.quarter, a.house_name
+    ].map(s => (s || '').trim()).filter(s => s && s.length > 2 && !_GENERIC_BUILDING.test(s) && !usedLower.has(s.toLowerCase()));
 
-    // Source B: parallel nearby building search (non-blocking)
+    // Source B: parallel nearby building search (non-blocking, expanded queries)
     let candidatesB = [];
     try {
       candidatesB = await _fetchNearbyLandmarks(lat, lng, usedLower);
     } catch(e) { /* silent fallback */ }
 
-    // Merge A + B, deduplicate
+    // Merge A + B, deduplicate, prefer B (richer named results) over A
     const nearSeen = new Set(usedLower);
-    const nearAll = [...candidatesA, ...candidatesB].filter(s => {
+    const nearAll = [...candidatesB, ...candidatesA].filter(s => {
       const k = s.toLowerCase();
       if (nearSeen.has(k)) return false;
       nearSeen.add(k);
       return true;
     });
 
-    // When building found: show up to 2 Near + up to 2 Nearby (dense areas need more context)
-    // When no building:    show up to 2 Near (first acts as main landmark)
+    // When building found: first 1 = Near, next 2 = Nearby
+    // When no building:    first 1 = Near (acts as main building), next 2 = Nearby
     const hasBuilding = Boolean(building);
-    const nearFirst = nearAll.slice(0, hasBuilding ? 2 : 2);
-    const nearExtra = nearAll.slice(hasBuilding ? 2 : 2, hasBuilding ? 4 : 4);
+    const nearFirst = nearAll.slice(0, hasBuilding ? 1 : 1);
+    const nearExtra = nearAll.slice(hasBuilding ? 1 : 1, hasBuilding ? 3 : 3);
 
     // Compose full address string (for storage)
     const parts = [building, road, area, city, district, state, pincode]
@@ -2286,7 +2340,8 @@ function _buildAddress(roomVal, geoOrStr, lat, lng, extraDetail) {
 
     const line3Parts = [nearLine, extra].filter(Boolean);
     const line3 = line3Parts.join(' / ');
-    const cityPin = [geo.city, geo.district ? `${geo.district}` : ''].filter(Boolean).join(', ') +
+    const _districtPart = (geo.district && geo.district.toLowerCase() !== (geo.city||'').toLowerCase()) ? geo.district : '';
+    const cityPin = [geo.city, _districtPart].filter(Boolean).join(', ') +
                     (geo.pincode ? ` - ${geo.pincode}` : '');
     const line5 = geo.state ? `${geo.state}, India` : 'India';
     const coordStr = (finalLat !== null && finalLng !== null)
@@ -2425,27 +2480,158 @@ function _renderSavedAddrDisplay(containerEl, rawAddr) {
     </div>`;
 }
 
+/* ── Build combined address: manual typed text + auto-detected geo string ──
+   manual = what the user typed in the textarea
+   geoStr = structured string from _buildAddress (contains road, city, coords, etc.)
+   Result is stored in hidden #su-addr / #acct-addr-box for submission. */
+function _buildCombinedAddress(manual, geoStr) {
+  const m = (manual || '').trim();
+  const g = (geoStr || '').trim();
+  if (!m && !g) return '';
+  if (!m) return g;
+  if (!g) return m;
+
+  // Build a token set from the geo block (excluding metadata lines).
+  // Any manual line whose every token already exists in geo is redundant — drop it.
+  const GEO_META = /^(Coordinates:|Plus Code:|India$)/i;
+  const geoTokens = new Set(
+    g.split('\n')
+     .filter(l => !GEO_META.test(l.trim()))
+     .join(' ')
+     .toLowerCase()
+     .split(/[\s,\-\/\.]+/)
+     .filter(t => t.length >= 3)
+  );
+
+  const cleanManual = m.split('\n')
+    .map(l => l.trim())
+    .filter(l => {
+      if (!l) return false;
+      const tokens = l.toLowerCase().split(/[\s,\-\/\.]+/).filter(t => t.length >= 3);
+      // Keep line if it has at least one token NOT already in geo
+      return !tokens.length || !tokens.every(t => geoTokens.has(t));
+    })
+    .join('\n')
+    .trim();
+
+  if (!cleanManual) return g;
+  return cleanManual + '\n' + g;
+}
+
+/* ── Render compact address "chip" from geo object ──
+   Shows: Building · Road · City – PIN · Coords
+   Much lighter than full card — just a green info strip. */
+function _updateAddrChip(chipId, textId, geo, lat, lng) {
+  const chip     = document.getElementById(chipId);
+  const chipText = document.getElementById(textId);
+  if (!chip || !chipText) return;
+
+  if (!geo || !geo.full) {
+    chip.style.display = 'none';
+    return;
+  }
+
+  const parts = [];
+  if (geo.building) parts.push('📌 ' + geo.building);
+  if (geo.nearFirst && geo.nearFirst.length) parts.push('🏫 Near: ' + geo.nearFirst[0]);
+  if (geo.nearExtra && geo.nearExtra.length) parts.push('🏫 Nearby: ' + geo.nearExtra.join(', '));
+  if (geo.road || geo.area) parts.push('🛣 ' + [geo.road, geo.area].filter(Boolean).join(', '));
+  if (geo.city) parts.push('📍 ' + geo.city);
+  if (geo.district) parts.push('🏙 ' + geo.district);
+  if (geo.state) parts.push('🗺 ' + geo.state);
+  if (geo.pincode) parts.push('📮 ' + geo.pincode);
+  if (lat !== null && lng !== null) {
+    parts.push(`🌍 ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
+    const pc = _getPlusCode(parseFloat(lat), parseFloat(lng));
+    if (pc) parts.push('🧭 ' + pc);
+  }
+
+  chipText.innerHTML = parts.join('<br>');
+  chip.style.display = 'block';
+}
+
+/* ── Watcher: manual address input in signup form ── */
+function _suManualAddrWatcher() {
+  if (_pendingLat === null || _pendingLng === null) return; // map not shown yet
+  const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
+  const room    = document.getElementById('su-room')?.value || '';
+  const geoAddr = _buildAddress(room, _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`, _pendingLat, _pendingLng, '');
+  const addrBox = document.getElementById('su-addr');
+  if (addrBox) addrBox.value = _buildCombinedAddress(manual, geoAddr);
+}
+
 /* Update the su-addr textarea from current pin position */
+/* ── Geocoding-in-progress banner ─────────────────────────────────────────
+   Shows/hides a smart banner above Create Account button while Nominatim
+   is running in the background. Automatically hides when done. */
+function _showGeocodingBanner(show) {
+  let banner = document.getElementById('su-geocode-banner');
+  const btn  = document.getElementById('su-btn');
+
+  if (show) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'su-geocode-banner';
+      banner.style.cssText = [
+        'display:flex', 'align-items:center', 'gap:10px',
+        'background:#eff6ff', 'border:1.5px solid #93c5fd',
+        'border-radius:12px', 'padding:11px 14px',
+        'font-family:var(--fb)', 'font-size:13px', 'color:#1d4ed8',
+        'line-height:1.5', 'margin-bottom:10px',
+        'animation:fadeIn .25s ease'
+      ].join(';');
+      banner.innerHTML = `
+        <span style="font-size:20px;animation:spin 1s linear infinite;display:inline-block">🔄</span>
+        <span>
+          <strong>Saving your location…</strong><br>
+          <span style="font-size:12px;color:#3b82f6">
+            Just a second — we're pinning your exact address.
+            <br>Your account will be created automatically once done!
+          </span>
+        </span>`;
+      // Insert banner just before the Create Account button
+      if (btn && btn.parentNode) {
+        btn.parentNode.insertBefore(banner, btn);
+      }
+    }
+    banner.style.display = 'flex';
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.55'; }
+  } else {
+    if (banner) banner.style.display = 'none';
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+
 async function _updateAddressFromPin(lat, lng) {
   const hint = document.getElementById('su-geocode-hint');
   if (hint) hint.textContent = '⏳ Fetching address from map…';
 
-  const geo = await _nominatimReverseGeocode(lat, lng);
+  // Mark geocode as in-flight so Create Account knows to wait
+  _geocodeInFlight = true;
+  _showGeocodingBanner(true);
+
+  let geo;
+  try {
+    geo = await _nominatimReverseGeocode(lat, lng);
+  } finally {
+    _geocodeInFlight = false;
+    _showGeocodingBanner(false);
+  }
+
   _lastGeoResult = geo; // cache for room-watcher rebuilds
 
   const room     = document.getElementById('su-room')?.value || '';
-  const extra    = document.getElementById('su-addr-detail')?.value || '';
+  const manual   = (document.getElementById('su-addr-manual')?.value || '').trim();
   const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  const fullAddr = _buildAddress(room, geo || fallback, lat, lng, extra);
+  const geoAddr  = _buildAddress(room, geo || fallback, lat, lng, '');
+  const fullAddr = _buildCombinedAddress(manual, geoAddr);
 
   // Update hidden textarea
   const addrBox = document.getElementById('su-addr');
   if (addrBox) { addrBox.removeAttribute('readonly'); addrBox.value = fullAddr; }
 
-  // Show address card preview
-  const previewWrap = document.getElementById('su-addr-preview-wrap');
-  if (previewWrap) previewWrap.style.display = 'block';
-  _renderAddrCard(document.getElementById('su-addr-card-body'), geo, room, lat, lng, extra);
+  // Show compact address chip
+  _updateAddrChip('su-addr-chip', 'su-addr-chip-text', geo, lat, lng);
 
   if (hint) {
     if (geo?.full) {
@@ -2460,10 +2646,16 @@ async function _updateAddressFromPin(lat, lng) {
     }
   }
 
-  // Auto-confirm the pin silently (no button click needed in signup flow)
-  _autoConfirmSignupPin(lat, lng);
-}
+  // Auto-confirm the pin silently
+  await _autoConfirmSignupPin(lat, lng);
 
+  // If user already tapped Create Account while geocoding was running,
+  // now proceed automatically — no second tap needed
+  if (_pendingSignup) {
+    _pendingSignup = false;
+    doSignup();
+  }
+}
 /* Init or move the Leaflet map to given coords */
 function _showMapPin(lat, lng) {
   const wrap = document.getElementById('su-map-pin-area');
@@ -2620,17 +2812,12 @@ async function _confirmLeafletPin() {
   }
 
   // Rebuild full address from cached geo + confirmed pin coords
-  const room  = document.getElementById('su-room')?.value.trim() || '';
-  const extra = document.getElementById('su-addr-detail')?.value.trim() || '';
+  const room   = document.getElementById('su-room')?.value.trim() || '';
+  const manual = (document.getElementById('su-addr-manual')?.value || '').trim();
   const addrBox = document.getElementById('su-addr');
   if (addrBox) {
-    addrBox.value = _buildAddress(
-      room,
-      _lastGeoResult || addrBox.value,
-      _pendingLat,
-      _pendingLng,
-      extra
-    );
+    const geoAddr = _buildAddress(room, _lastGeoResult || '', _pendingLat, _pendingLng, '');
+    addrBox.value = _buildCombinedAddress(manual, geoAddr);
   }
 
   _pinConfirmed = true;
@@ -2703,46 +2890,24 @@ document.addEventListener('DOMContentLoaded', () => {
       roomInput.style.borderColor = '';
 
       if (_pendingLat === null) return; // map not shown yet — nothing to rebuild
-      const extra   = document.getElementById('su-addr-detail')?.value || '';
+      const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
       const addrBox = document.getElementById('su-addr');
       if (!addrBox) return;
-      addrBox.value = _buildAddress(
+      const geoAddr = _buildAddress(
         roomInput.value,
         _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`,
-        _pendingLat,
-        _pendingLng,
-        extra
+        _pendingLat, _pendingLng, ''
       );
-      _renderAddrCard(document.getElementById('su-addr-card-body'), _lastGeoResult, roomInput.value, _pendingLat, _pendingLng, extra);
-    });
-  }
-
-  // Watch detail field — live-update address
-  const detailInput = document.getElementById('su-addr-detail');
-  if (detailInput) {
-    detailInput.addEventListener('input', () => {
-      if (_pendingLat === null) return;
-      const room    = document.getElementById('su-room')?.value || '';
-      const extra   = detailInput.value;
-      const addrBox = document.getElementById('su-addr');
-      if (!addrBox) return;
-      addrBox.value = _buildAddress(
-        room,
-        _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`,
-        _pendingLat,
-        _pendingLng,
-        extra
-      );
-      _renderAddrCard(document.getElementById('su-addr-card-body'), _lastGeoResult, room, _pendingLat, _pendingLng, extra);
+      addrBox.value = _buildCombinedAddress(manual, geoAddr);
     });
   }
 
   // Live-clear errors on all signup fields as user types/changes
   const fieldErrMap = {
-    'su-name':  'su-name-err',
-    'su-phone': 'su-phone-err',
-    'su-addr':  'su-addr-err',
-    'su-pw':    'su-pw-err',
+    'su-name':        'su-name-err',
+    'su-phone':       'su-phone-err',
+    'su-addr-manual': 'su-addr-err',
+    'su-pw':          'su-pw-err',
   };
   Object.entries(fieldErrMap).forEach(([inputId, errId]) => {
     const input = document.getElementById(inputId);
@@ -2798,21 +2963,35 @@ async function detectSignupLocation() {
 }
 
 async function doSignup() {
+  // ── If GPS address is still being fetched in the background, queue this
+  //    attempt and let _updateAddressFromPin fire it automatically when done.
+  //    Show the user a smart banner — no confusing error, no manual retry. ──
+  if (_geocodeInFlight) {
+    _pendingSignup = true;
+    _showGeocodingBanner(true); // ensure banner is visible (may have been dismissed)
+    // Scroll banner into view
+    setTimeout(() => {
+      const b = document.getElementById('su-geocode-banner');
+      if (b) b.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    return;
+  }
+
   let valid = true;
   const name    = document.getElementById('su-name').value.trim();
   const phone   = document.getElementById('su-phone').value.replace(/\D/g,'');
   const email   = '';
   const room    = document.getElementById('su-room')?.value.trim() || '';
-  const addrRaw = document.getElementById('su-addr').value.trim();
-  const extra   = document.getElementById('su-addr-detail')?.value.trim() || '';
+  const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
   const pw      = document.getElementById('su-pw').value;
 
-  // Final address: always rebuild from cache so lat/lng + plus code are embedded.
+  // Final address: manual typed text + geo-detected block (road, city, coords, plus code)
   let address;
   if (_pendingLat !== null && _pendingLng !== null) {
-    address = _buildAddress(room, _lastGeoResult || addrRaw, _pendingLat, _pendingLng, extra);
+    const geoAddr = _buildAddress(room, _lastGeoResult || '', _pendingLat, _pendingLng, '');
+    address = _buildCombinedAddress(manual, geoAddr);
   } else {
-    address = addrRaw;
+    address = manual;
   }
 
   const setErr = (id, msg) => {
@@ -2844,7 +3023,7 @@ async function doSignup() {
   // Validate each field with clear human-readable messages
   if (!name) setErr('su-name-err', '👤 Please enter your full name');
   if (!phone || phone.length !== 10) setErr('su-phone-err', '📱 Enter a valid 10-digit WhatsApp number');
-  if (!address) setErr('su-addr-err', '📍 Address is required — please detect your location first');
+  if (!address) setErr('su-addr-err', '📍 Please type your address in the address box above');
   if (!pw || pw.length < 6) setErr('su-pw-err', '🔒 Password must be at least 6 characters');
 
   if (!locOk) {
@@ -3165,6 +3344,14 @@ function addItemToCart(item, event) {
 function adjustQty(itemId, key, delta, event) {
   event && event.stopPropagation();
   Cart.qty(key, delta === -1 || delta === '−1' ? -1 : parseInt(delta));
+  // FIX #7: Clear applied coupon when cart changes — prevents stale discount if min_order no longer met
+  if (_appliedCoupon) {
+    _appliedCoupon = null;
+    const msg = document.getElementById('cpn-msg');
+    const inp = document.getElementById('cpn-input');
+    if (msg) { msg.textContent = ''; msg.style.display = 'none'; }
+    if (inp) inp.value = '';
+  }
   const item = _fullMenu.find(i => String(i.item_id) === String(itemId));
   if (item) refreshMenuItemControl(item);
   if (document.querySelector('.pg.here')?.id === 'pg-cart') renderCart();
@@ -3338,6 +3525,14 @@ function renderCart() {
 
 function cartAdjust(key, delta) {
   Cart.qty(key, delta);
+  // FIX #7: Clear applied coupon when cart changes
+  if (_appliedCoupon) {
+    _appliedCoupon = null;
+    const msg = document.getElementById('cpn-msg');
+    const inp = document.getElementById('cpn-input');
+    if (msg) { msg.textContent = ''; msg.style.display = 'none'; }
+    if (inp) inp.value = '';
+  }
   renderCart();
   updateCartBadge();
   // also refresh home page controls
@@ -3349,6 +3544,14 @@ function cartAdjust(key, delta) {
 function cartRemove(key) {
   const cart = Cart.get().filter(c => c.key !== key);
   Cart.save(cart);
+  // FIX #7: Clear applied coupon when cart changes
+  if (_appliedCoupon) {
+    _appliedCoupon = null;
+    const msg = document.getElementById('cpn-msg');
+    const inp = document.getElementById('cpn-input');
+    if (msg) { msg.textContent = ''; msg.style.display = 'none'; }
+    if (inp) inp.value = '';
+  }
   renderCart();
   updateCartBadge();
   const [itemId] = key.split('::');
@@ -3924,17 +4127,16 @@ async function _acctUpdateAddress(lat, lng) {
   if (hint) hint.textContent = '⏳ Fetching address from map…';
   const geo = await _nominatimReverseGeocode(lat, lng);
   _acctGeoResult = geo;
-  const room  = document.getElementById('acct-room')?.value || '';
-  const extra = document.getElementById('acct-addr-detail')?.value || '';
+  const room    = document.getElementById('acct-room')?.value || '';
+  const manual  = (document.getElementById('acct-addr-manual')?.value || '').trim();
   const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  const fullAddr = _buildAddress(room, geo || fallback, lat, lng, extra);
+  const geoAddr = _buildAddress(room, geo || fallback, lat, lng, '');
+  const fullAddr = _buildCombinedAddress(manual, geoAddr);
   const box = document.getElementById('acct-addr-box');
   if (box) { box.removeAttribute('readonly'); box.value = fullAddr; }
 
-  // Show/update address card
-  const previewWrap = document.getElementById('acct-addr-preview-wrap');
-  if (previewWrap) previewWrap.style.display = 'block';
-  _renderAddrCard(document.getElementById('acct-addr-card-body'), geo, room, lat, lng, extra);
+  // Show compact chip
+  _updateAddrChip('acct-addr-chip', 'acct-addr-chip-text', geo, lat, lng);
 
   if (hint) {
     if (geo?.full) {
@@ -3955,33 +4157,39 @@ async function _acctUpdateAddress(lat, lng) {
 
 function _acctRoomWatcher() {
   if (_acctPendingLat === null) return;
-  const room  = document.getElementById('acct-room')?.value || '';
-  const extra = document.getElementById('acct-addr-detail')?.value || '';
-  const box   = document.getElementById('acct-addr-box');
+  const room   = document.getElementById('acct-room')?.value || '';
+  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
+  const box    = document.getElementById('acct-addr-box');
   if (!box) return;
-  box.value = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng, extra);
-  _renderAddrCard(document.getElementById('acct-addr-card-body'), _acctGeoResult, room, _acctPendingLat, _acctPendingLng, extra);
+  const geoAddr = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng, '');
+  box.value = _buildCombinedAddress(manual, geoAddr);
+}
+
+function _acctManualAddrWatcher() {
+  if (_acctPendingLat === null) return;
+  const room   = document.getElementById('acct-room')?.value || '';
+  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
+  const box    = document.getElementById('acct-addr-box');
+  if (!box) return;
+  const geoAddr = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng, '');
+  box.value = _buildCombinedAddress(manual, geoAddr);
 }
 
 function _acctDetailWatcher() {
-  if (_acctPendingLat === null) return;
-  const room  = document.getElementById('acct-room')?.value || '';
-  const extra = document.getElementById('acct-addr-detail')?.value || '';
-  const box   = document.getElementById('acct-addr-box');
-  if (!box) return;
-  box.value = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng, extra);
-  _renderAddrCard(document.getElementById('acct-addr-card-body'), _acctGeoResult, room, _acctPendingLat, _acctPendingLng, extra);
+  // Legacy stub — kept for backward compat, now routes to manual watcher
+  _acctManualAddrWatcher();
 }
 
 async function _confirmAcctPin() {
   if (_acctPendingLat === null || _acctPendingLng === null) { toast('No pin placed yet'); return; }
   const btn = document.getElementById('acct-confirm-pin-btn');
   if (btn) { btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>&nbsp;Verifying…'; btn.disabled = true; }
-  const room  = document.getElementById('acct-room')?.value.trim() || '';
-  const extra = document.getElementById('acct-addr-detail')?.value.trim() || '';
-  const box   = document.getElementById('acct-addr-box');
+  const room   = document.getElementById('acct-room')?.value.trim() || '';
+  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
+  const box    = document.getElementById('acct-addr-box');
   if (box) {
-    box.value = _buildAddress(room, _acctGeoResult || box.value, _acctPendingLat, _acctPendingLng, extra);
+    const geoAddr = _buildAddress(room, _acctGeoResult || '', _acctPendingLat, _acctPendingLng, '');
+    box.value = _buildCombinedAddress(manual, geoAddr);
   }
   document.getElementById('acct-lat').value = _acctPendingLat;
   document.getElementById('acct-lng').value = _acctPendingLng;
@@ -3991,27 +4199,29 @@ async function _confirmAcctPin() {
 }
 
 async function saveAddress() {
-  // New flow: always get address from the map-picker box if it's shown
-  const box   = document.getElementById('acct-addr-box');
-  const locOk = document.getElementById('acct-loc-ok')?.value === '1';
+  const box    = document.getElementById('acct-addr-box');
+  const locOk  = document.getElementById('acct-loc-ok')?.value === '1';
+  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
 
-  let addr;
-  if (box && _acctPendingLat !== null) {
-    // Always rebuild fresh to guarantee coords are embedded
-    const room  = document.getElementById('acct-room')?.value.trim() || '';
-    const extra = document.getElementById('acct-addr-detail')?.value.trim() || '';
-    addr = _buildAddress(room, _acctGeoResult || box.value.trim(), _acctPendingLat, _acctPendingLng, extra);
-  } else if (box && box.value.trim()) {
-    addr = box.value.trim();
-  } else {
-    toast('Please detect and pin your location first.');
+  if (!manual && !locOk) {
+    toast('Please type your address and/or detect your location first.');
     return;
   }
 
-  if (!addr) { toast('Address is empty — please try again'); return; }
+  let addr;
+  if (_acctPendingLat !== null) {
+    // Always rebuild fresh to guarantee coords are embedded
+    const room = document.getElementById('acct-room')?.value.trim() || '';
+    const geoAddr = _buildAddress(room, _acctGeoResult || '', _acctPendingLat, _acctPendingLng, '');
+    addr = _buildCombinedAddress(manual, geoAddr);
+  } else {
+    addr = manual || (box ? box.value.trim() : '');
+  }
+
+  if (!addr) { toast('Address is empty — please type your address.'); return; }
 
   try {
-    await api('updateProfile', { phone: Auth.get()?.phone, address: addr });
+    await api('updateProfile', { phone: Auth.get()?.phone, address: addr, password: Creds.get()?.pw });
     Auth.patch({ address: addr });
     // Refresh display
     const addrDisplay = document.getElementById('acct-addr-display');
@@ -4024,8 +4234,8 @@ async function saveAddress() {
     if (toggleBtn) toggleBtn.textContent = '📍 Update Address with Map';
     // Reset state
     _acctPendingLat = null; _acctPendingLng = null; _acctGeoResult = null; _acctPinConfirmed = false;
-    const pw = document.getElementById('acct-addr-preview-wrap');
-    if (pw) pw.style.display = 'none';
+    const chip = document.getElementById('acct-addr-chip');
+    if (chip) chip.style.display = 'none';
     toast('✅ Address saved with GPS coordinates!');
   } catch(e) { toast(e.message || 'Save failed'); }
 }
@@ -4034,7 +4244,7 @@ async function saveEmail() {
   const email = document.getElementById('acct-email').value.trim();
   if (!email) { toast('Enter email'); return; }
   try {
-    await api('updateProfile', { phone: Auth.get()?.phone, email });
+    await api('updateProfile', { phone: Auth.get()?.phone, email, password: Creds.get()?.pw });
     Auth.patch({ email });
     toast('Email saved ✓');
   } catch(e) { toast(e.message || 'Save failed'); }
