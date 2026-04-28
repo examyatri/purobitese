@@ -1,13 +1,13 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v3.0  |  Updated : 2026-04-23
+   Version : v4.0  |  Updated : 2026-04-28
 
    Lives at /admin/sw.js so its scope is ONLY /admin/
    — completely isolated from the main Tiffo PWA at /
    and the rider PWA at /rider/.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v3';
+const CACHE      = 'tiffo-admin-v4';  /* ← bumped: forces fresh install */
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
@@ -19,17 +19,24 @@ const CDN_ORIGINS = [
   'https://cdnjs.cloudflare.com'
 ];
 
+/* Network-only: API + Supabase — never cache */
+const NETWORK_ONLY_ORIGINS = [
+  'purobitese-api.onrender.com',
+  'supabase.co',
+  'supabase.com'
+];
+
 const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const OFFLINE_HTML = `<!DOCTYPE html>
 <html><head><title>Tiffo Admin Offline</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0f172a}
-h1{color:#e63946;font-size:24px}p{color:#94a3b8}button{background:#e63946;color:white;border:none;border-radius:12px;padding:12px 24px;font-size:16px;cursor:pointer;margin-top:16px}</style>
+<style>*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0f172a;padding:24px;text-align:center}
+h1{color:#e63946;font-size:22px;margin:12px 0 8px}p{color:#94a3b8;font-size:14px;margin:0 0 20px}button{background:#e63946;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}button:active{opacity:.85}</style>
 </head><body>
-<div style="font-size:48px">⚙️</div>
+<div style="font-size:52px">⚙️</div>
 <h1 style="color:#e63946">Tiffo Admin Offline</h1>
-<p>Check your internet connection</p>
+<p>Check your internet connection and try again.</p>
 <button onclick="location.reload()">Try Again</button>
 </body></html>`;
 
@@ -48,28 +55,31 @@ self.addEventListener('install', e => {
 /* ─── ACTIVATE ───────────────────────────────────────────── */
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== CACHE && k !== FONT_CACHE)
-          .map(k => caches.delete(k))
-      )
-    )
+    Promise.all([
+      caches.keys().then(keys =>
+        Promise.all(
+          keys
+            .filter(k => k.startsWith('tiffo-admin-') && k !== CACHE)
+            .map(k => caches.delete(k))
+        )
+      ),
+      self.clients.claim()
+    ])
   );
-  // clients.claim() only affects /admin/* clients — safe now
-  self.clients.claim();
 });
 
 /* ─── FETCH ──────────────────────────────────────────────── */
 self.addEventListener('fetch', e => {
   const { request } = e;
+
+  // Ignore non-GET requests
+  if (request.method !== 'GET') return;
+
   const url = new URL(request.url);
 
-  /* API — network only */
-  if (
-    url.hostname === 'purobitese-api.onrender.com' ||
-    url.pathname.startsWith('/api/')
-  ) return;
+  /* Network-only: API + Supabase */
+  if (NETWORK_ONLY_ORIGINS.some(o => url.hostname.includes(o)) ||
+      url.pathname.startsWith('/api/')) return;
 
   /* CDN — cache first */
   if (CDN_ORIGINS.some(o => url.href.startsWith(o))) {
@@ -77,9 +87,13 @@ self.addEventListener('fetch', e => {
       caches.open(FONT_CACHE).then(async cache => {
         const cached = await cache.match(request);
         if (cached) return cached;
-        const res = await fetch(request);
-        if (res && res.status === 200) cache.put(request, res.clone());
-        return res;
+        try {
+          const res = await fetch(request);
+          if (res && res.status === 200) cache.put(request, res.clone());
+          return res;
+        } catch {
+          return cached || new Response('', { status: 503 });
+        }
       })
     );
     return;
@@ -88,9 +102,11 @@ self.addEventListener('fetch', e => {
   /* HTML navigation — network first, offline fallback */
   if (request.mode === 'navigate') {
     e.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then(res => {
-          caches.open(CACHE).then(cache => cache.put(request, res.clone()));
+          if (res && res.status === 200) {
+            caches.open(CACHE).then(cache => cache.put(request, res.clone()));
+          }
           return res;
         })
         .catch(async () => {
