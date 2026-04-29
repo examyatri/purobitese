@@ -667,18 +667,52 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Order items required' });
         }
 
-        // ── FIX #3: Re-fetch item prices from DB — never trust client-supplied prices ──
+        // ── Price verification: fetch DB prices — never blindly trust client values ──
+        // Strategy:
+        //   1. Item has variants in DB + client sent a matching variantLabel → use that variant price
+        //   2. Item has variants in DB + label missing/not matched → use closest variant by price,
+        //      or first variant as safe default (never fall back to base item price)
+        //   3. Item has NO variants in DB → use base item price
         const clientItemIds = data.items.map(i => i.item_id).filter(Boolean);
         let verifiedItems = data.items;
         if (clientItemIds.length > 0) {
-          const { data: dbMenuItems } = await supabase.from('menu_items').select('item_id, price, name').in('item_id', clientItemIds);
+          const { data: dbMenuItems } = await supabase.from('menu_items').select('item_id, price, name, variants').in('item_id', clientItemIds);
           if (dbMenuItems && dbMenuItems.length > 0) {
-            const dbPriceMap = {};
-            for (const m of dbMenuItems) dbPriceMap[m.item_id] = m.price;
-            verifiedItems = data.items.map(i => ({
-              ...i,
-              price: dbPriceMap[i.item_id] !== undefined ? dbPriceMap[i.item_id] : i.price
-            }));
+            const dbItemMap = {};
+            for (const m of dbMenuItems) dbItemMap[m.item_id] = m;
+            verifiedItems = data.items.map(i => {
+              const dbItem = dbItemMap[i.item_id];
+              if (!dbItem) return i; // item not in DB — pass through as-is
+
+              // Parse DB variants
+              let dbVariants = [];
+              try { dbVariants = typeof dbItem.variants === 'string' ? JSON.parse(dbItem.variants) : (Array.isArray(dbItem.variants) ? dbItem.variants : []); } catch(_) {}
+              // Filter out any malformed variant entries
+              dbVariants = dbVariants.filter(v => v && v.label && v.price != null);
+
+              if (dbVariants.length > 0) {
+                // Item has variants — NEVER use base item price
+                // Step 1: exact label match (normal happy path)
+                if (i.variantLabel) {
+                  const exact = dbVariants.find(v => v.label === i.variantLabel);
+                  if (exact) return { ...i, price: exact.price };
+                  // Step 2: case-insensitive match (handles minor label casing differences)
+                  const loose = dbVariants.find(v => v.label.toLowerCase() === i.variantLabel.toLowerCase());
+                  if (loose) return { ...i, price: loose.price, variantLabel: loose.label };
+                }
+                // Step 3: client sent a price — find the closest variant price in DB
+                // This prevents price manipulation while gracefully handling label mismatches
+                if (i.price != null) {
+                  const byPrice = dbVariants.find(v => v.price === i.price);
+                  if (byPrice) return { ...i, price: byPrice.price, variantLabel: byPrice.label };
+                }
+                // Step 4: safe fallback — use first (cheapest or default) variant
+                return { ...i, price: dbVariants[0].price, variantLabel: dbVariants[0].label };
+              }
+
+              // Item has no variants — use DB base price
+              return { ...i, price: dbItem.price != null ? dbItem.price : i.price };
+            });
           }
         }
 
