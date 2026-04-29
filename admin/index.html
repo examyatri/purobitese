@@ -772,16 +772,26 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           </div>
         </div>
 
-        <!-- Category Filter Tabs (All / Today / Morning / Evening) -->
+        <!-- 2-Layer Filter: Layer1 = Day, Layer2 = Session + Status chips -->
         <div style="background:white;border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.05);border:1px solid rgba(226,232,240,.6);margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-            <!-- Category tabs -->
+          <!-- Layer 1: Day selector -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="ord-day-tabs">
+            <button class="ord-cat-btn act" data-day="today" onclick="setOrdDay('today',this)">
+              <i class="fa fa-calendar-day"></i> Today
+            </button>
+            <button class="ord-cat-btn" data-day="yesterday" onclick="setOrdDay('yesterday',this)">
+              <i class="fa fa-calendar-minus"></i> Yesterday
+            </button>
+            <button class="ord-cat-btn" data-day="all" onclick="setOrdDay('all',this)">
+              <i class="fa fa-list"></i> All Orders
+            </button>
+          </div>
+          <!-- Layer 2 row: Session + Status -->
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding-top:10px;border-top:1px solid #f1f5f9">
+            <!-- Session filter (layer 2) -->
             <div style="display:flex;gap:6px;flex-wrap:wrap" id="ord-cat-tabs">
-              <button class="ord-cat-btn act" data-cat="today" onclick="setOrdCat('today',this)">
-                <i class="fa fa-calendar-day"></i> Today
-              </button>
-              <button class="ord-cat-btn" data-cat="all" onclick="setOrdCat('all',this)">
-                <i class="fa fa-list"></i> All Orders
+              <button class="ord-cat-btn act" data-cat="all" onclick="setOrdCat('all',this)">
+                <i class="fa fa-border-all"></i> All Sessions
               </button>
               <button class="ord-cat-btn" data-cat="morning" onclick="setOrdCat('morning',this)">
                 ☀️ Morning
@@ -1849,7 +1859,7 @@ async function _loadStatDetail(type) {
 
 // ─── ORDERS v2 ────────────────────────────────────────────
 let _allOrders = [], _ordersStr = '', _ridersCache = [], _weeklySchedule = [];
-let _ordCat = 'today', _ordStatus = 'all'; // active category & status filters
+let _ordDay = 'today', _ordCat = 'all', _ordStatus = 'all'; // 2-layer filters: day + session + status
 
 // ── Time helpers ──
 function _getMorningCutoff(dateStr) {
@@ -1887,7 +1897,14 @@ function _isEvening(o) {
   return om!==null && om>mc && om<=ec;
 }
 
-// ── Filter tab setters ──
+// ── Layer-1 day setter ──
+function setOrdDay(day, btn) {
+  _ordDay = day;
+  document.querySelectorAll('#ord-day-tabs .ord-cat-btn').forEach(b => b.classList.remove('act'));
+  btn.classList.add('act');
+  renderOrdersTable(_allOrders);
+}
+// ── Layer-2 session setter ──
 function setOrdCat(cat, btn) {
   _ordCat = cat;
   document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b => b.classList.remove('act'));
@@ -1903,17 +1920,19 @@ function setOrdStatus(status, btn) {
 // Legacy compat (called from setOrderFilter if needed)
 function setOrderFilter(filter, btn) { setOrdStatus(filter, btn); }
 
-// ── Load orders ──
+// ── Load orders (last 2 days only for minimal API load) ──
 async function loadOrders(forceRender = false) {
   try {
     npStart();
+    const istNow = new Date(Date.now() + 5.5 * 3600000);
+    const todayIST = istNow.toISOString().slice(0, 10);
+    const yesterdayIST = new Date(istNow - 86400000).toISOString().slice(0, 10);
     const [oRes, rRes, sRes] = await Promise.all([
-      api('adminGetOrders'),
-      api('getRiders').catch(()=>({riders:[]})),
-      api('getSettings').catch(()=>({}))
+      api('adminGetOrders', { fromDate: yesterdayIST }),
+      api('getRiders').catch(() => ({ riders: [] })),
+      api('getSettings').catch(() => ({}))
     ]);
     const newStr = JSON.stringify(oRes.orders);
-    // On PTR (forceRender=true): always re-render even if data unchanged
     if (!forceRender && newStr === _ordersStr) { npDone(); return; }
     _ordersStr = newStr;
     _allOrders = oRes.orders || [];
@@ -1928,15 +1947,21 @@ async function loadOrders(forceRender = false) {
 function renderOrdersTable(orders) {
   const search = (document.getElementById('order-search')?.value||'').toLowerCase().trim();
   const sort   = document.getElementById('order-sort')?.value||'newest';
-  const todayIST = new Date(Date.now()+5.5*3600000).toISOString().slice(0,10);
 
   let filtered = [...orders];
 
-  // Category filter
-  if (_ordCat === 'today')   filtered = filtered.filter(o=>(o.date||'').startsWith(todayIST));
-  else if (_ordCat === 'morning') filtered = filtered.filter(_isMorning);
+  // Layer 1: Day filter
+  const istNow = new Date(Date.now() + 5.5 * 3600000);
+  const todayIST = istNow.toISOString().slice(0, 10);
+  const yesterdayIST = new Date(istNow - 86400000).toISOString().slice(0, 10);
+  if (_ordDay === 'today')     filtered = filtered.filter(o => (o.date || '').startsWith(todayIST));
+  else if (_ordDay === 'yesterday') filtered = filtered.filter(o => (o.date || '').startsWith(yesterdayIST));
+  // 'all' = no day filter
+
+  // Layer 2: Session filter
+  if (_ordCat === 'morning') filtered = filtered.filter(_isMorning);
   else if (_ordCat === 'evening') filtered = filtered.filter(_isEvening);
-  // 'all' = no category filter
+  // 'all' = no session filter
 
   // Status filter
   if (_ordStatus !== 'all') filtered = filtered.filter(o=>o.order_status===_ordStatus);
@@ -1956,8 +1981,9 @@ function renderOrdersTable(orders) {
   // Update subtitle
   const sub = document.getElementById('orders-subtitle');
   if (sub) {
-    const catLabel = {today:"Today's orders",all:"All orders",morning:"Morning orders",evening:"Evening orders"}[_ordCat]||'Orders';
-    sub.textContent = `${catLabel} • ${filtered.length} result${filtered.length!==1?'s':''}`;
+    const dayLabel = {today:"Today",yesterday:"Yesterday",all:"All"}[_ordDay]||'Orders';
+    const sessLabel = {all:'',morning:' · Morning',evening:' · Evening'}[_ordCat]||'';
+    sub.textContent = `${dayLabel}${sessLabel} orders • ${filtered.length} result${filtered.length!==1?'s':''}`;
   }
   const cntBadge = document.getElementById('ord-count-badge');
   if (cntBadge) cntBadge.textContent = `${filtered.length} order${filtered.length!==1?'s':''}`;
@@ -2297,7 +2323,9 @@ async function doBulkUpdate(orderId) {
 
 // ── PDF Export ──
 function generateOrderPDF() {
-  const catLabel = {today:"Today's Orders",all:"All Orders",morning:"Morning Orders",evening:"Evening Orders"}[_ordCat]||'Orders';
+  const _dayLabel = {today:"Today's Orders",yesterday:"Yesterday's Orders",all:"All Orders"}[_ordDay]||'Orders';
+  const _sessLabel = {all:'',morning:' – Morning',evening:' – Evening'}[_ordCat]||'';
+  const catLabel = _dayLabel + _sessLabel;
   const statusLabel = _ordStatus!=='all'?' — '+_ordStatus:'';
   // Build a print-friendly page
   const rows = document.querySelectorAll('#orders-tbody tr');
@@ -4827,7 +4855,9 @@ async function gotoOrderById(searchTerm) {
   if (typeof closeSidebar === 'function') closeSidebar();
 
   // Set filter to ALL so any order date is visible
-  _ordCat = 'all'; _ordStatus = 'all';
+  _ordDay = 'all'; _ordCat = 'all'; _ordStatus = 'all';
+  document.querySelectorAll('#ord-day-tabs .ord-cat-btn').forEach(b =>
+    b.classList.toggle('act', b.dataset.day === 'all'));
   document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b =>
     b.classList.toggle('act', b.dataset.cat === 'all'));
   document.querySelectorAll('#ord-status-chips .ord-chip').forEach(b =>
@@ -5186,8 +5216,9 @@ function showPage(id) {
   history.pushState({ adminPg: id }, '', location.href);
   // When opening Orders page, always reset to Today filter
   if (id === 'p-orders') {
-    _ordCat = 'today'; _ordStatus = 'all';
-    document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b=>b.classList.toggle('act',b.dataset.cat==='today'));
+    _ordDay = 'today'; _ordCat = 'all'; _ordStatus = 'all';
+    document.querySelectorAll('#ord-day-tabs .ord-cat-btn').forEach(b=>b.classList.toggle('act',b.dataset.day==='today'));
+    document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b=>b.classList.toggle('act',b.dataset.cat==='all'));
     document.querySelectorAll('#ord-status-chips .ord-chip').forEach(b=>b.classList.toggle('act',b.dataset.status==='all'));
   }
   const loaders = {

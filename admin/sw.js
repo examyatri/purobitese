@@ -1,13 +1,13 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v4.0  |  Updated : 2026-04-28
+   Version : v5.0  |  Updated : 2026-04-29
 
    Lives at /admin/sw.js so its scope is ONLY /admin/
    — completely isolated from the main Tiffo PWA at /
    and the rider PWA at /rider/.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v4';  /* ← bumped: forces fresh install */
+const CACHE      = 'tiffo-admin-v5';  /* ← bumped from v4 */
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
