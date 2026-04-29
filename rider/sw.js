@@ -1,20 +1,20 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v5.0  |  Updated : 2026-04-28
+   Version : v6.0  |  Updated : 2026-04-29
 
    Lives at /rider/sw.js so its scope is ONLY /rider/
    — completely isolated from the main Tiffo PWA at /
    and the admin PWA at /admin/.
 
-   v5.0 changes:
-   - Bumped cache → tiffo-rider-v5 (forces fresh install)
+   v6.0 changes:
+   - Bumped cache → tiffo-rider-v6 (forces fresh install)
    - Added supabase origins to NETWORK_ONLY
    - Improved activate: scoped cleanup (only tiffo-rider-* keys)
    - Non-GET requests now explicitly ignored
    - Cleaner error handling in all fetch strategies
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v5';   /* ← bumped from v4 */
+const CACHE      = 'tiffo-rider-v6';   /* ← bumped from v5 */
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
