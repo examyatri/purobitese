@@ -1,11 +1,11 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)         ║
-// ║  Version : v21.0 (v47 release)                      ║
-// ║  Updated : 2026-04-26                               ║
-// ║  Changes : bulkGenerateOrders — fetch subscriber    ║
-// ║            pause status in Step 1, enforce pause    ║
-// ║            check in Step 2 (skips paused/off subs). ║
+// ║  Version : v22.0 (v50 release)                      ║
+// ║  Updated : 2026-04-29                               ║
+// ║  Changes : Allow multiple orders per slot (removed  ║
+// ║            per-slot duplicate block). 30s idempotency║
+// ║            guard still blocks accidental re-clicks. ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -702,8 +702,7 @@ app.post('/api', async (req, res) => {
           }
         }
 
-        // ── FIX #9: Duplicate order check — prevent two orders for same slot/day ──
-        // Auto-detect slot first so the duplicate check uses the correct slot
+        // ── Auto-detect slot for order ──
         let autoSlot = 'morning';
         try {
           const schVal = await getCachedSetting('weekly_schedule');
@@ -720,17 +719,16 @@ app.post('/api', async (req, res) => {
           }
         } catch { autoSlot = (ist.getUTCHours() * 60 + ist.getUTCMinutes()) >= 17 * 60 ? 'evening' : 'morning'; }
 
-        const today = istDateStr(ist);
-        const { data: dupCheck } = await supabase.from('orders')
-          .select('order_id').eq('phone', phone).eq('date', today).eq('slot', autoSlot)
-          .not('order_status', 'eq', 'cancelled').limit(1);
-        if (dupCheck && dupCheck.length > 0) {
-          return res.json({ success: false, error: 'You already have an order for this slot today' });
-        }
+        // NOTE: Multiple orders per slot are now allowed (users may order 2nd/3rd tiffin).
+        // The idempotency guard (30s window above) still prevents accidental double-click duplicates.
+        // Bulk order eligibility: if user has already ordered this slot today, they are
+        // ineligible for admin bulk generation (handled in bulkGenerateOrders, unchanged).
 
         // ── FIX #3: Compute delivery charge server-side — never trust client value ──
-        // Subscribers with khata enabled: free delivery. All others: ₹20.
-        const serverDeliveryCharge = (user.is_subscriber && khataEnabled) ? 0 : 20;
+        // upi_insuf: subscriber has insufficient wallet, pays via UPI — delivery is charged (₹20)
+        // wallet:    subscriber has sufficient balance — free delivery
+        // daily:     non-subscriber — always ₹20 delivery
+        const serverDeliveryCharge = (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') ? 0 : 20;
 
         // Skip balance check for upi_insuf orders — subscriber chose to pay via UPI instead
         if (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') {
