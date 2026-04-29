@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v25.0  |  Updated : 2026-04-28
+   Version : v26.0  |  Updated : 2026-04-29
 
    ARCHITECTURE:
    ┌──────────────────────────────────────────────────────────┐
@@ -41,7 +41,7 @@
    NOTE: /ping kept alive by self-ping (12 min) + UptimeRobot (5 min).
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v15';        /* ← bumped: forces fresh install */
+const CACHE      = 'tiffo-v16';        /* ← bumped: forces fresh install */
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install.

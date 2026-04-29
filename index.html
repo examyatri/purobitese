@@ -548,9 +548,9 @@ textarea{resize:vertical;min-height:80px}
             </div>
           </div>
 
-          <!-- Live address chip — compact, no card — shows what was auto-detected -->
+          <!-- Location detection success indicator (no raw geo details shown to user) -->
           <div id="su-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
-            <span id="su-addr-chip-text"></span>
+            <span id="su-addr-chip-text">✅ Location detected — your address will be saved with GPS coordinates.</span>
           </div>
         </div>
 
@@ -894,9 +894,9 @@ textarea{resize:vertical;min-height:80px}
                 </div>
               </div>
             </div>
-            <!-- Live address chip — compact summary of auto-detected fields -->
+            <!-- Location detection success indicator (no raw geo details shown to user) -->
             <div id="acct-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
-              <span id="acct-addr-chip-text"></span>
+              <span id="acct-addr-chip-text">✅ Location detected — your address will be saved with GPS coordinates.</span>
             </div>
           </div>
 
@@ -2518,9 +2518,7 @@ function _buildCombinedAddress(manual, geoStr) {
   return cleanManual + '\n' + g;
 }
 
-/* ── Render compact address "chip" from geo object ──
-   Shows: Building · Road · City – PIN · Coords
-   Much lighter than full card — just a green info strip. */
+/* ── Render compact address "chip" — shows only a simple confirmation, no raw geo details ── */
 function _updateAddrChip(chipId, textId, geo, lat, lng) {
   const chip     = document.getElementById(chipId);
   const chipText = document.getElementById(textId);
@@ -2531,22 +2529,8 @@ function _updateAddrChip(chipId, textId, geo, lat, lng) {
     return;
   }
 
-  const parts = [];
-  if (geo.building) parts.push('📌 ' + geo.building);
-  if (geo.nearFirst && geo.nearFirst.length) parts.push('🏫 Near: ' + geo.nearFirst[0]);
-  if (geo.nearExtra && geo.nearExtra.length) parts.push('🏫 Nearby: ' + geo.nearExtra.join(', '));
-  if (geo.road || geo.area) parts.push('🛣 ' + [geo.road, geo.area].filter(Boolean).join(', '));
-  if (geo.city) parts.push('📍 ' + geo.city);
-  if (geo.district) parts.push('🏙 ' + geo.district);
-  if (geo.state) parts.push('🗺 ' + geo.state);
-  if (geo.pincode) parts.push('📮 ' + geo.pincode);
-  if (lat !== null && lng !== null) {
-    parts.push(`🌍 ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
-    const pc = _getPlusCode(parseFloat(lat), parseFloat(lng));
-    if (pc) parts.push('🧭 ' + pc);
-  }
-
-  chipText.innerHTML = parts.join('<br>');
+  // Only show a simple confirmation — all geo details are used silently in the address
+  chipText.innerHTML = '✅ Location detected — your address will be saved with GPS coordinates.';
   chip.style.display = 'block';
 }
 
