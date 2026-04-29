@@ -1415,7 +1415,7 @@ const Cart = {
       existing.qty++;
     } else {
       cart.push({ key, item_id: item.item_id, name: item.name,
-        price: variantPrice || item.price, variantLabel,
+        price: (variantPrice != null && variantPrice !== '') ? variantPrice : item.price, variantLabel,
         qty: 1, stock_grams: item.stock_grams });
     }
     Cart.save(cart);
@@ -3331,10 +3331,15 @@ function addItemToCart(item, event) {
   const variants = item.variants ? (typeof item.variants === 'string' ? JSON.parse(item.variants) : item.variants) : [];
   let label = '', price = item.price;
   if (variants.length) {
+    // Read whichever variant pill is currently active in the DOM
     const activeBtn = document.querySelector(`#vrow-${item.item_id} .variant-pill.active`);
-    const idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : 0;
-    label = variants[idx]?.label || '';
-    price = variants[idx]?.price || item.price;
+    // Use _variantState as the ground-truth index (set by selectVariant), fall back to 0
+    const stateIdx = _variantState[String(item.item_id)] ?? 0;
+    const idx = activeBtn ? [...activeBtn.parentNode.children].indexOf(activeBtn) : stateIdx;
+    const safeIdx = (idx >= 0 && idx < variants.length) ? idx : 0;
+    label = variants[safeIdx]?.label || variants[0]?.label || '';
+    // If variant has a price use it; NEVER fall back to base item.price when variants exist
+    price = variants[safeIdx]?.price ?? variants[0]?.price ?? item.price;
   }
   Cart.add(item, label, price);
   refreshMenuItemControl(item);
@@ -3684,17 +3689,19 @@ async function placeOrder() {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = calcCouponDiscount(_appliedCoupon, subtotal);
-  const isPro = !!(user.is_subscriber && _khataEnabled);
+  const isSubscriber = !!(user.is_subscriber && _khataEnabled);
+  // Free delivery only when subscriber wallet covers items total (same logic as updateBillSummary)
+  const estimatedItemTotal = subtotal - discount;
+  const walletCoversOrder = isSubscriber && (_walletBal >= estimatedItemTotal);
+  const isPro = isSubscriber && walletCoversOrder;
   const deliveryCharge = isPro ? 0 : 20;
   const total = subtotal + deliveryCharge - discount;
 
-  if (user.is_subscriber && _khataEnabled) {
-    if (_walletBal < total) {
-      // UPI insuf path always has ₹20 delivery (no wallet deduction), so recalc for popup display
-      const insufDelivery = 20;
-      const insufTotal = subtotal + insufDelivery - discount;
-      showInsufPopup(_walletBal, insufTotal, subtotal, discount, insufDelivery); return;
-    }
+  if (isSubscriber && !walletCoversOrder) {
+    // Subscriber but wallet insufficient — must pay via UPI with ₹20 delivery
+    const insufDelivery = 20;
+    const insufTotal = subtotal + insufDelivery - discount;
+    showInsufPopup(_walletBal, insufTotal, subtotal, discount, insufDelivery); return;
   }
 
   _placingOrder = true;
