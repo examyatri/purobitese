@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v49.2                                    ║
-     ║  Updated : 2026-04-28                               ║
-     ║  Changes : Fresh DB on every home visit (5s guard), ║
-     ║            revisit threshold restored to 90s,       ║
-     ║            wallet+orders auto-refresh after order,  ║
-     ║            _visibleSession clean dsm/dem lookups.   ║
+     ║  Version : v50.1                                    ║
+     ║  Updated : 2026-04-29                               ║
+     ║  Changes : Auth hardened — session+creds=instant   ║
+     ║            home; creds-only=login shown instantly  ║
+     ║            + silent bg auto-login attempt;         ║
+     ║            session-only=instant wipe+login;        ║
+     ║            cooldown banner cleanup on logout/wipe; ║
+     ║            delivery charge fix insuf path.         ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -725,6 +727,15 @@ textarea{resize:vertical;min-height:80px}
         <div class="mt4">
           <button class="btn-primary" id="place-order-btn" onclick="placeOrder()">Place Order 🚀</button>
         </div>
+        <!-- 30-second cooldown banner (shown after each successful order) -->
+        <div id="order-cooldown-banner" style="display:none;margin-top:10px;background:#fff8e1;border:1.5px solid #ffc107;border-radius:14px;padding:12px 16px;text-align:center;font-family:var(--fb);font-size:13px;color:#7c4a00;line-height:1.6">
+          <div style="font-size:18px;margin-bottom:4px">⏳</div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:14px;margin-bottom:3px">Order placed successfully!</div>
+          <div>Aap <strong id="cooldown-secs">30</strong> second mein doosra order de sakte hain.</div>
+          <div style="margin-top:6px;height:6px;background:#ffe082;border-radius:6px;overflow:hidden">
+            <div id="cooldown-bar" style="height:100%;background:#f9a825;border-radius:6px;width:100%;transition:width 1s linear"></div>
+          </div>
+        </div>
         <div style="height:20px"></div>
       </div>
     </div>
@@ -1232,6 +1243,8 @@ function calcCouponDiscount(coupon, subtotal) {
 let _menuLoading  = false;
 let _menuFreshTs  = 0;   // epoch ms of last successful DB fetch — used by placeOrder stale-data guard
 let _placingOrder = false;
+let _lastOrderPlacedTs = 0;   // epoch ms of last successful order — for 30s cooldown banner
+let _cooldownTimer = null;    // interval handle for countdown UI
 let _lastOrders   = null;
 let _lastBalance  = null;
 let _lastKhataStr = null;
@@ -1953,6 +1966,8 @@ function setAuthStatus(statusId, btnId, msg, type /* 'info'|'error'|'' */, disab
 }
 
 async function doLogin() {
+  // If background silent auto-login is running, let this manual attempt take over
+  // (the background promise will check _session and bail out if we succeed here)
   const phone = document.getElementById('login-phone').value.replace(/\D/g, '');
   const pw    = document.getElementById('login-pw').value;
   if (!phone || phone.length !== 10) { toast('Enter 10-digit phone number'); return; }
@@ -3546,9 +3561,14 @@ function cartRemove(key) {
 function updateBillSummary() {
   const cart = Cart.get();
   const user = Auth.get();
-  const isPro = !!(user?.is_subscriber && _khataEnabled);
+  const isSubscriber = !!(user?.is_subscriber && _khataEnabled);
+  // Free delivery only when subscriber has enough balance to cover the order
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = calcCouponDiscount(_appliedCoupon, subtotal);
+  // Check if subscriber would need to go UPI-insuf path (insufficient wallet)
+  const estimatedTotal = subtotal - discount; // without delivery, used for balance check
+  const walletCoversOrder = isSubscriber && (_walletBal >= estimatedTotal);
+  const isPro = isSubscriber && walletCoversOrder; // free delivery only if wallet covers
   const deliveryCharge = isPro ? 0 : 20;
   const total = subtotal + deliveryCharge - discount;
   document.getElementById('bill-subtotal').textContent = '₹' + subtotal;
@@ -3562,9 +3582,16 @@ function updateBillSummary() {
   }
   const delEl = document.getElementById('bill-delivery');
   if (delEl) {
-    delEl.textContent = isPro ? '₹0' : '₹20';
-    delEl.style.color = isPro ? 'var(--g)' : 'var(--dk)';
-    delEl.innerHTML = isPro ? '<span style="color:var(--g)">FREE 🎉 PRO</span>' : '₹20';
+    if (isPro) {
+      delEl.innerHTML = '<span style="color:var(--g)">FREE 🎉 PRO</span>';
+    } else if (isSubscriber && !walletCoversOrder) {
+      // Subscriber but wallet insufficient — UPI path applies delivery charge
+      delEl.innerHTML = '₹20 <span style="font-size:10px;color:#b45309">(UPI pay)</span>';
+      delEl.style.color = 'var(--dk)';
+    } else {
+      delEl.textContent = '₹20';
+      delEl.style.color = 'var(--dk)';
+    }
   }
 }
 
@@ -3616,6 +3643,16 @@ function launchCouponCelebration() {
 async function placeOrder() {
   if (_placingOrder) return;
   if (Store.get('pb_order_processing')) return;
+
+  // ── 30-second cooldown between orders — show clear in-screen message ──
+  const _COOLDOWN_MS = 30000;
+  const elapsed = Date.now() - _lastOrderPlacedTs;
+  if (_lastOrderPlacedTs > 0 && elapsed < _COOLDOWN_MS) {
+    const remaining = Math.ceil((_COOLDOWN_MS - elapsed) / 1000);
+    _showCooldownBanner(remaining);
+    return;
+  }
+
   const cart = Cart.get();
   if (!cart.length) { toast('Cart is empty'); return; }
   const user = Auth.get();
@@ -3702,6 +3739,8 @@ async function placeOrder() {
       }, 500);
     }
     // Prefetch orders + khata in background so tabs are ready instantly when user opens them
+    _lastOrderPlacedTs = Date.now();
+    _startCooldownBanner();
     _prefetchAfterOrder();
   } catch(e) {
     toast(e.message || 'Order failed. Try again.');
@@ -3786,6 +3825,8 @@ async function confirmInsufOrder() {
     launchConfetti();
 
     // Prefetch orders in background so My Orders tab is ready
+    _lastOrderPlacedTs = Date.now();
+    _startCooldownBanner();
     _prefetchAfterOrder();
   } catch(e) {
     toast(e.message || 'Order failed. Try again.');
@@ -3798,21 +3839,86 @@ async function confirmInsufOrder() {
   }
 }
 
-/* ═══════════════════════════════════════════
-   ORDERS
-═══════════════════════════════════════════ */
+/* ─── 30-second order cooldown banner ────────────────────────────────────────
+   Shows an in-screen countdown after every successful order.
+   User can still interact with cart/menu; just the Place Order btn is guarded.
+─────────────────────────────────────────────────────────────────────────── */
+function _showCooldownBanner(remainingSecs) {
+  const banner = document.getElementById('order-cooldown-banner');
+  const secsEl = document.getElementById('cooldown-secs');
+  const bar    = document.getElementById('cooldown-bar');
+  if (!banner) return;
+  if (secsEl) secsEl.textContent = remainingSecs;
+  if (bar) bar.style.width = Math.round((remainingSecs / 30) * 100) + '%';
+  banner.style.display = 'block';
+  // Scroll banner into view if on cart page
+  if (document.querySelector('.pg.here')?.id === 'pg-cart') {
+    setTimeout(() => banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+  }
+}
+
+function _startCooldownBanner() {
+  // Clear any running timer
+  if (_cooldownTimer) { clearInterval(_cooldownTimer); _cooldownTimer = null; }
+  const banner = document.getElementById('order-cooldown-banner');
+  const secsEl = document.getElementById('cooldown-secs');
+  const bar    = document.getElementById('cooldown-bar');
+  if (!banner) return;
+  banner.style.display = 'block';
+
+  const TOTAL = 30;
+  let remaining = TOTAL;
+  if (secsEl) secsEl.textContent = remaining;
+  if (bar) bar.style.width = '100%';
+
+  _cooldownTimer = setInterval(() => {
+    remaining--;
+    if (secsEl) secsEl.textContent = Math.max(0, remaining);
+    if (bar) bar.style.width = Math.round((remaining / TOTAL) * 100) + '%';
+    if (remaining <= 0) {
+      clearInterval(_cooldownTimer);
+      _cooldownTimer = null;
+      if (banner) banner.style.display = 'none';
+    }
+  }, 1000);
+}
+
+function _clearCooldownBanner() {
+  if (_cooldownTimer) { clearInterval(_cooldownTimer); _cooldownTimer = null; }
+  const banner = document.getElementById('order-cooldown-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+
 async function loadOrders(forceRender = false, silent = false) {
   const phone = Auth.get()?.phone;
   if (!phone) return;
-  // silent=true → background prefetch, no spinner (avoids flicker when user hasn't opened the tab yet)
+
+  // ── Instant render from cache — user sees data immediately, no wait ──
+  const _ORDERS_CACHE_KEY = '_orders_cache_' + phone;
+  const cachedOrders = Store.getJSON(_ORDERS_CACHE_KEY);
+  if (cachedOrders && cachedOrders.length >= 0 && !forceRender) {
+    // Render stale-but-instant data right away (no spinner)
+    const cachedStr = JSON.stringify(cachedOrders);
+    if (cachedStr !== _lastOrders) {
+      _lastOrders = cachedStr;
+      renderOrderList(cachedOrders);
+    }
+    // Then fetch fresh in background — no spinner since user already has data
+    silent = true;
+  }
+
+  // silent=true → background prefetch, no spinner (avoids flicker)
   if (!silent) document.getElementById('orders-loading').style.display = 'block';
   try {
     const res = await api('getUserOrders', { phone });
-    _ordersFreshTs = Date.now(); // stamp freshness regardless of render decision
+    _ordersFreshTs = Date.now();
     // ── Update active-orders flag so poll tick skips orders DB call when nothing to watch ──
     const activeStatuses = new Set(['pending','verified','preparing','out_for_delivery','out for delivery']);
     _hasActiveOrders = (res.orders || []).some(o => activeStatuses.has((o.order_status||'').toLowerCase().replace(/\s+/g,'_')));
     const newStr = JSON.stringify(res.orders);
+    // Save to local cache for instant-load on next open
+    Store.setJSON(_ORDERS_CACHE_KEY, res.orders || []);
     if (!forceRender && newStr === _lastOrders) { return; }
     _lastOrders = newStr;
     renderOrderList(res.orders);
@@ -4836,6 +4942,8 @@ function _applySubscriberUI() {
    No stale state, no confusion. Like a top-class app.
 ─────────────────────────────────────────────────────────────────── */
 function _wipeAndShowLogin() {
+  // Stop cooldown timer if running
+  _clearCooldownBanner();
   // Wipe every piece of local data
   Auth.clear();
   Creds.clear();
@@ -4845,6 +4953,15 @@ function _wipeAndShowLogin() {
   Store.remove('pb_order_processing');
   Store.remove('_khata_cache');
   Store.remove('tf_creds');
+  // Clear per-user orders cache (prevents stale data on next login)
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('_orders_cache_')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch(_) {}
   // Reset all in-memory state
   _session         = null;
   _fullMenu        = [];
@@ -4862,9 +4979,10 @@ function _wipeAndShowLogin() {
   _placingOrder    = false;
   _khataAllEntries = [];
   _postLoginRefreshDone = false;
-  _menuFreshTs     = 0;   // reset so stale guard recalculates fresh on next login
-  _hasActiveOrders  = false; // reset so poll skips orders correctly for next user
-  _khataEverVisited = false; // reset so khata prefetch doesn't run until tab is opened
+  _menuFreshTs     = 0;
+  _hasActiveOrders  = false;
+  _khataEverVisited = false;
+  _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
   // Go to login (signup tab = fresh start, no prefill)
   _transitionToLogin(false);
 }
@@ -4897,7 +5015,18 @@ async function bootApp() {
      User is on home screen in <50ms. Background verify runs later.
   ══════════════════════════════════════════════════════════════ */
   const cached = SessionCache.get();
+  const creds  = Creds.get();
+
   if (cached && cached.user) {
+    // ── Case A: Session + Creds both present → instant home, no loader at all ──
+    // ── Case B: Session present, Creds absent → wipe instantly, go to login ──
+    if (!creds || !creds.phone || !creds.pw) {
+      // Session exists but creds were cleared (e.g. user cleared app data partially).
+      // Wipe immediately — no loader, no delay, no confusion.
+      _wipeAndShowLogin();
+      return;
+    }
+
     _postLoginRefreshDone = false;
     Auth.set(cached.user);
     _session.is_subscriber = !!cached.is_subscriber;
@@ -4916,8 +5045,7 @@ async function bootApp() {
 
     // BACKGROUND VERIFY — at most once every 48h.
     // On auth error → wipe + login. On network error → stay on home (offline tolerance).
-    const creds = Creds.get();
-    if (creds && SessionCache.shouldVerify()) {
+    if (SessionCache.shouldVerify()) {
       setTimeout(() => {
         api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
           .then(res => {
@@ -4929,8 +5057,6 @@ async function bootApp() {
             updateWalletUI(_walletBal);
             applyPauseState(_pauseMode);
             _applySubscriberUI();
-            // _khataEnabled is already current from the live session's loadMenu/_fetchFreshMenu.
-            // Re-using it here avoids a redundant getKhataEnabled API call on every 48h verify.
             SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
               walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
           })
@@ -4940,7 +5066,6 @@ async function bootApp() {
                                 e.message?.includes('not found') ||
                                 e.message?.includes('Invalid');
             if (isAuthError) {
-              // Account deleted / password changed → wipe everything, force fresh login
               stopPolling();
               _wipeAndShowLogin();
             }
@@ -4954,13 +5079,11 @@ async function bootApp() {
   /* ══════════════════════════════════════════════════════════════
      SLOW PATH: No cached session.
      ─ No creds at all       → signup screen instantly (new user)
-     ─ Creds exist           → show branded loader, attempt silent
-                               auto-login with hard 6s timeout.
-                               SUCCESS → home screen.
-                               ANY FAILURE → wipe all + clean login.
+     ─ Creds exist           → attempt silent auto-login.
+                               SUCCESS → home screen instantly.
+                               FAILURE → wipe all + clean login.
                                No ambiguous states. No stuck screens.
   ══════════════════════════════════════════════════════════════ */
-  const creds = Creds.get();
 
   // Case: No credentials at all → new user, show signup instantly
   if (!creds || !creds.phone || !creds.pw) {
@@ -4968,56 +5091,62 @@ async function bootApp() {
     return;
   }
 
-  // Case: Credentials saved but no session cache → try silent auto-login
-  // Show loader (already visible from page load) with branded message
-  const loaderStatus = document.getElementById('loader-status');
-  if (loaderStatus) loaderStatus.textContent = 'Signing you in…';
+  // Case: Credentials saved but no session cache → show login instantly (prefilled),
+  // AND simultaneously attempt silent auto-login in background.
+  // If auto-login succeeds before user submits → jump to home (seamless).
+  // If it fails → user sees login form already visible, just taps Login.
+  // No stuck loader. No waiting. Maximum speed + maximum reliability.
+  _transitionToLogin(true, false); // show login tab with prefilled phone + password
 
-  // Hard 6-second timeout — if server doesn't respond (Render cold start etc.)
-  // we WIPE everything and show clean login. No stuck loader ever.
-  let _autoLoginDone = false;
-  const _timeoutHandle = setTimeout(() => {
-    if (_autoLoginDone) return;
-    _autoLoginDone = true;
-    _wipeAndShowLogin();
-  }, 6000);
+  // Silent background auto-login attempt (no loader, no blocking)
+  let _silentDone = false;
+  const _silentTimeout = setTimeout(() => { _silentDone = true; }, 8000); // give up after 8s
 
-  try {
-    const res = await api('checkSession', { phone: creds.phone, password: creds.pw }, 0);
-    if (_autoLoginDone) return; // timeout already fired — don't fight it
-    _autoLoginDone = true;
-    clearTimeout(_timeoutHandle);
-
-    // ✅ Auto-login succeeded → go straight home, no login screen shown at all
-    Auth.set(res.user);
-    _session.is_subscriber = !!res.subscriber;
-    _walletBal = res.walletBalance || 0;
-    _pauseMode = res.subscriber?.pause_delivery || 'none';
-    updateWalletUI(_walletBal);
-    applyPauseState(_pauseMode);
-    // ── Show skeletons before transition so home never flashes empty ──
-    showMenuSkeletons();
-    _transitionToHome();
-    const _initMenuP2 = loadMenu(true, false); // bypassCache=true — fresh login always hits DB, never stale cache
-    // loadMenu → _fetchFreshMenu sets _khataEnabled; persist session after it resolves
-    _initMenuP2.then(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
-    }).catch(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+  api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
+    .then(res => {
+      if (_silentDone) return; // user already submitted form manually — don't fight it
+      if (_session) return;    // user already logged in via manual submit
+      clearTimeout(_silentTimeout);
+      _silentDone = true;
+      // ✅ Silent auto-login succeeded → jump home instantly
+      Auth.set(res.user);
+      _session.is_subscriber = !!res.subscriber;
+      _walletBal = res.walletBalance || 0;
+      _pauseMode = res.subscriber?.pause_delivery || 'none';
+      updateWalletUI(_walletBal);
+      applyPauseState(_pauseMode);
+      showMenuSkeletons();
+      _transitionToHome();
+      const _p = loadMenu(true, false);
+      _p.then(() => {
+        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+      }).catch(() => {
+        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+      });
+      startPolling();
+      _doPostLoginRefresh(_p);
+    })
+    .catch(e => {
+      if (_silentDone) return;
+      clearTimeout(_silentTimeout);
+      _silentDone = true;
+      // Auth error → clear stale creds so login form doesn't mislead user
+      const isAuthError = e.message?.includes('Session invalid') ||
+                          e.message?.includes('Unauthorized') ||
+                          e.message?.includes('not found') ||
+                          e.message?.includes('Invalid') ||
+                          e.message?.includes('password');
+      if (isAuthError) {
+        Creds.clear();
+        SessionCache.clear();
+        // Clear prefilled phone since creds are now invalid
+        const phoneEl = document.getElementById('login-phone');
+        if (phoneEl) phoneEl.value = '';
+      }
+      // Network error → just leave the login form as-is (already visible)
     });
-    startPolling();
-    _doPostLoginRefresh(_initMenuP2);
-
-  } catch(e) {
-    if (_autoLoginDone) return; // timeout already fired
-    _autoLoginDone = true;
-    clearTimeout(_timeoutHandle);
-    // ❌ Any failure (auth error, network, server down) → wipe + clean login
-    // No ambiguity. User fills in details fresh. New session starts clean.
-    _wipeAndShowLogin();
-  }
 }
 
 function _transitionToHome() {
@@ -5069,6 +5198,7 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
+  _clearCooldownBanner(); // stop any running 30s countdown
   _postLoginRefreshDone = false;
   Auth.clear();
   Creds.clear();
@@ -5077,6 +5207,15 @@ function doLogout() {
   Store.remove('pb_cart');
   Store.remove('pb_order_processing');
   Store.remove('_khata_cache');
+  // Clear per-user orders cache
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('_orders_cache_')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch(_) {}
   _fullMenu        = [];
   _walletBal       = 0;
   _pauseMode       = 'none';
@@ -5097,6 +5236,8 @@ function doLogout() {
   _hasActiveOrders  = false;
   _khataEverVisited = false;
   _khataAllEntries = [];
+  _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
+  _menuFreshTs       = 0; // reset so stale-menu guard triggers on next login
 
   // ── Reset all visible UI to a clean state ──
   // Cart
