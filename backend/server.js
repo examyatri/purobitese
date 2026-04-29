@@ -769,6 +769,7 @@ app.post('/api', async (req, res) => {
       case 'adminGetOrders': {
         let query = supabase.from('orders').select('*');
         if (data.date) query = query.eq('date', data.date);
+        else if (data.fromDate) query = query.gte('date', data.fromDate);
         query = query.order('created_at', { ascending: false });
         const { data: rows } = await query;
         const formatted = (rows || []).map(formatOrder);
