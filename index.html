@@ -22,6 +22,8 @@
 </script>
 <!-- Google Search Console Verification -->
 <meta name="google-site-verification" content="3s30FS-HdMbS0VAqMKsMIGNZqp2nOk-n7JrlxeDudOs" />
+<!-- Sitemap -->
+<link rel="sitemap" type="application/xml" href="/sitemap.xml" />
 <!-- GoatCounter Analytics -->
 <script data-goatcounter="https://tiffo.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
@@ -209,6 +211,7 @@ textarea{resize:vertical;min-height:80px}
 .tab-btn.active{background:#fff;color:var(--p);box-shadow:var(--sh)}
 .form-group{margin-bottom:14px;position:relative}
 .form-group label{display:block;font-family:var(--ff);font-size:12px;font-weight:600;color:var(--gr);margin-bottom:5px}
+.form-group input:focus,.form-group select:focus{border-color:#e63946!important;outline:none}
 .err-msg{font-family:var(--fb);font-size:11px;color:var(--pd);margin-top:3px;display:none}
 .pw-wrap{position:relative}
 .pw-wrap input{padding-right:44px}
@@ -517,14 +520,13 @@ textarea{resize:vertical;min-height:80px}
 
       <div class="form-group">
         <label>Full Name <span style="color:#dc2626;font-size:11px">*</span></label>
-        <input type="text" id="su-name" placeholder="Your full name" autocomplete="name">
+        <input type="text" id="su-name" placeholder="Your full name" autocomplete="name" style="text-transform:capitalize">
         <div class="field-error" id="su-name-err"></div>
       </div>
 
       <div class="form-group">
         <label>WhatsApp Number <span style="color:#dc2626;font-size:11px">*</span></label>
         <input type="tel" id="su-phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel">
-        <div class="wa-hint"><i class="fa-brands fa-whatsapp"></i> We'll send your order updates here</div>
         <div class="field-error" id="su-phone-err"></div>
       </div>
 
@@ -532,16 +534,14 @@ textarea{resize:vertical;min-height:80px}
         <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
         <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
         <div class="field-error" id="su-room-err"></div>
-        <div style="margin-top:4px;font-size:11.5px;font-weight:600;color:#475569;font-family:var(--fb)">
-          📌 Room Number नहीं है तो <span style="color:#dc2626">0</span> भरें &nbsp;·&nbsp; <span style="font-weight:400;color:#64748b">No room number? Enter 0</span>
-        </div>
+        <div style="margin-top:4px;font-size:11px;color:#94a3b8;font-family:var(--fb)">No room number? Enter 0</div>
       </div>
 
       <!-- ── Location Pin Card ── -->
       <div class="loc-section">
         <div class="loc-section-title">
           <i class="fa fa-location-dot" style="color:#e63946"></i>
-          Pin Your Delivery Location
+          Click "Detect My Location" to pin your delivery spot
         </div>
 
         <!-- Detect button -->
@@ -549,7 +549,6 @@ textarea{resize:vertical;min-height:80px}
           <i class="fa fa-location-crosshairs"></i>
           <span id="su-loc-btn-txt">Detect My Location</span>
         </button>
-        <div class="su-step-hint" style="text-align:center;margin-top:6px">📍 We'll pin your location on the map — drag to fine-tune</div>
 
         <!-- Status bar (zone check result) -->
         <div id="su-loc-status" class="loc-status"></div>
@@ -591,9 +590,11 @@ textarea{resize:vertical;min-height:80px}
         </label>
         <textarea id="su-addr-manual" rows="3"
           placeholder="e.g. Your Hostel Name, Near by, Varanasi — 221005"
-          style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff"
-          autocomplete="off" oninput="_suManualAddrWatcher()"></textarea>
-        <div style="margin-top:5px;font-size:11px;color:#64748b;font-family:var(--fb);line-height:1.5">.
+          style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff;transition:border-color 200ms"
+          autocomplete="off" oninput="_suManualAddrWatcher()"
+          onfocus="this.style.borderColor='#e63946'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+        <div style="margin-top:5px;font-size:11px;color:#94a3b8;font-family:var(--fb);line-height:1.5">
+          ✏️ Include hostel/colony name, nearby landmark &amp; PIN code
         </div>
         <div class="field-error" id="su-addr-err"></div>
       </div>
@@ -609,11 +610,11 @@ textarea{resize:vertical;min-height:80px}
 
       <div style="margin-top:12px;padding-bottom:16px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
-        <button class="btn-primary" id="su-btn" onclick="doSignup()">
+        <button class="btn-primary" id="su-btn" onclick="doSignup()" style="letter-spacing:0.3px;font-size:15px">
           <i class="fa-solid fa-user-plus" style="margin-right:6px"></i>Create Account
         </button>
-        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);text-align:center;margin-top:10px;line-height:1.5">
-          By creating an account you agree to receive order updates on WhatsApp
+        <div style="font-family:var(--fb);font-size:11px;color:var(--gr);text-align:center;margin-top:10px;line-height:1.6">
+          🔒 Your data is safe &amp; secure
         </div>
       </div>
 
