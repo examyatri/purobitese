@@ -41,7 +41,7 @@
    NOTE: /ping kept alive by self-ping (12 min) + UptimeRobot (5 min).
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v16';        /* ← bumped: forces fresh install */
+const CACHE      = 'tiffo-v17';        /* ← bumped: SEO + manifest improvements */
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install.
@@ -72,16 +72,30 @@ const NETWORK_ONLY_ORIGINS = [
 const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const OFFLINE_HTML = `<!DOCTYPE html>
-<html><head><title>Tiffo Offline</title>
+<html lang="en">
+<head>
+<title>Tiffo – Fresh Tiffin in Varanasi | Offline</title>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8f5f2;padding:24px;text-align:center}
-h1{color:#e63946;font-size:22px;margin:12px 0 8px}p{color:#6b7280;font-size:14px;margin:0 0 20px}button{background:#e63946;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}button:active{opacity:.85}</style>
-</head><body>
+<meta name="description" content="Tiffo – Daily home-cooked tiffin delivery in Varanasi. Mess alternative for BHU students and hostellers.">
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8f5f2;padding:24px;text-align:center}
+h1{color:#e63946;font-size:22px;margin:12px 0 6px}
+p{color:#6b7280;font-size:14px;margin:0 0 8px;line-height:1.5}
+.tag{font-size:12px;color:#94a3b8;margin-bottom:20px}
+button{background:#e63946;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:active{opacity:.85}
+</style>
+</head>
+<body>
 <div style="font-size:52px">🍱</div>
 <h1>Tiffo is offline</h1>
 <p>Check your internet connection and try again.</p>
+<div class="tag">Fresh tiffin delivery · Varanasi · BHU · Hostels</div>
 <button onclick="location.reload()">Try Again</button>
-</body></html>`;
+</body>
+</html>`;
 
 /* ─── MESSAGE (SKIP_WAITING for instant deploy) ─────────────────────────── */
 self.addEventListener('message', e => {
