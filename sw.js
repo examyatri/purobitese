@@ -60,7 +60,12 @@ const CDN_ORIGINS = [
 const NETWORK_ONLY_ORIGINS = [
   'purobitese-api.onrender.com',
   'supabase.co',
-  'supabase.com'
+  'supabase.com',
+  'googletagmanager.com',
+  'google-analytics.com',
+  'gc.zgo.at',
+  'goatcounter.com',
+  'clarity.ms'
 ];
 
 /* Max age for stale-while-revalidate assets (non-HTML, non-CDN). */
