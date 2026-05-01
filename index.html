@@ -476,7 +476,6 @@ textarea{resize:vertical;min-height:80px}
 .ord-foot{display:flex;align-items:center;justify-content:space-between}
 .ord-total{font-family:var(--ff);font-weight:700;font-size:15px}
 .ord-pay-badge{border-radius:8px;padding:3px 8px;font-family:var(--ff);font-size:11px;font-weight:600;background:#f5f5f5;color:var(--gr)}
-.ord-help-btn{border:none;background:none;color:var(--g);font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer}
 /* Account */
 .account-hero{background:var(--grad);padding:32px var(--pg-pad) 24px;text-align:center}
 .acct-avatar{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.25);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;font-size:28px;color:#fff;border:3px solid rgba(255,255,255,.5)}
@@ -638,7 +637,7 @@ textarea{resize:vertical;min-height:80px}
   <!-- Tab switcher -->
   <div style="display:flex;background:#f1f5f9;border-radius:12px;padding:3px;margin-bottom:16px;gap:3px">
     <button id="gas-tab-login" onclick="_gasTab('login')" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:700;cursor:pointer;transition:all 200ms;background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1)">Login</button>
-    <button id="gas-tab-signup" onclick="_gasTab('signup')" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;transition:all 200ms;background:transparent;color:#64748b">Sign Up</button>
+    <button id="gas-tab-signup" onclick="_gasGoFullSignup()" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;transition:all 200ms;background:transparent;color:#64748b">Sign Up</button>
   </div>
 
   <!-- Login panel -->
@@ -662,15 +661,21 @@ textarea{resize:vertical;min-height:80px}
     <button onclick="forgotPw()" style="width:100%;border:none;background:none;color:var(--p);font-size:13px;font-family:var(--ff);font-weight:600;cursor:pointer;margin-top:10px;padding:4px">Forgot password?</button>
   </div>
 
-  <!-- Signup panel -->
-  <div id="gas-signup-panel" style="display:none">
-    <div style="font-size:12px;color:#64748b;margin-bottom:12px;font-family:var(--ff);background:#fef9c3;padding:10px 12px;border-radius:10px;line-height:1.5">
-      📍 For full signup with address & location, use the <strong>Sign Up tab</strong> on the main screen. Quick account creation below is for returning area residents.
-    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     EXIT CONFIRM DIALOG (pre-built, stable)
+     Shown on second back-press at root screen.
+     Controlled by _showExitConfirm / _hideExitConfirm.
+══════════════════════════════════════════════ -->
+<div id="_exit-confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;align-items:flex-end;justify-content:center" onclick="_hideExitConfirm()">
+  <div class="_exit-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
+    <p style="font-size:18px;font-weight:800;margin:0 0 6px;color:#0f172a">Exit Tiffo?</p>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.5">You're about to leave the app. Your cart and session will be saved.</p>
     <div style="display:flex;gap:10px">
-      <button onclick="_closeGuestAuthSheet(false,true)" style="flex:1;padding:13px;background:#f1f5f9;color:#334155;border:none;border-radius:12px;font-size:14px;font-weight:700;font-family:var(--ff);cursor:pointer">
-        Full Sign Up ↗
-      </button>
+      <button onclick="_hideExitConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer;color:#334155">Stay</button>
+      <button onclick="_doExitApp()" style="flex:1;padding:14px;border-radius:13px;border:none;background:var(--p,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer">Exit App</button>
     </div>
   </div>
 </div>
@@ -4312,9 +4317,6 @@ function renderOrderList(orders) {
           <span class="ord-total">₹${o.final_amount || o.total_amount || 0}</span>
           ${payBadge}
         </div>
-        <button class="ord-help-btn" onclick="openWA(CFG.WA,'🆘 *Help Required*\n\n📋 Order ID: *#${o.order_id||o.id}*\n\nHi Tiffo Team! Mujhe is order mein kuch problem hai.\nKripaya help karein. 🙏')">
-          Help 💬
-        </button>
       </div>
     </div>`;
   }).join('');
@@ -5507,14 +5509,19 @@ function _closeGuestAuthSheet(clearPending = true, goFullSignup = false) {
   }
 }
 
+function _gasGoFullSignup() {
+  // Close the sheet and immediately navigate to the full signup page — no intermediate step
+  _closeGuestAuthSheet(false, true);
+}
+
 function _gasTab(tab) {
+  // Only 'login' tab is used in the guest auth sheet now.
+  // Sign Up button directly calls _gasGoFullSignup() → full page instantly.
   const loginTab  = document.getElementById('gas-login-panel');
-  const signupTab = document.getElementById('gas-signup-panel');
   const btnLogin  = document.getElementById('gas-tab-login');
   const btnSignup = document.getElementById('gas-tab-signup');
   if (tab === 'login') {
     loginTab.style.display  = 'block';
-    signupTab.style.display = 'none';
     btnLogin.style.background = '#fff';
     btnLogin.style.color = '#0f172a';
     btnLogin.style.fontWeight = '700';
@@ -5523,17 +5530,6 @@ function _gasTab(tab) {
     btnSignup.style.color = '#64748b';
     btnSignup.style.fontWeight = '600';
     btnSignup.style.boxShadow = 'none';
-  } else {
-    loginTab.style.display  = 'none';
-    signupTab.style.display = 'block';
-    btnSignup.style.background = '#fff';
-    btnSignup.style.color = '#0f172a';
-    btnSignup.style.fontWeight = '700';
-    btnSignup.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
-    btnLogin.style.background = 'transparent';
-    btnLogin.style.color = '#64748b';
-    btnLogin.style.fontWeight = '600';
-    btnLogin.style.boxShadow = 'none';
   }
 }
 
@@ -5745,33 +5741,81 @@ window.addEventListener('pageshow', e => { if (e.persisted) bootApp(); });
 
 // ─── ACCIDENTAL BACK PREVENTION (User) ───────────────────
 // Uses tf_user_token / tf_session presence to confirm exit at root
+/* ═══════════════════════════════════════════
+   EXIT CONFIRMATION — double-back-to-exit
+   First back at root  → toast hint (2 s window)
+   Second back within 2 s → show confirm dialog
+   Fully debounced; dialog is pre-built in DOM (stable, no createElement races)
+═══════════════════════════════════════════ */
+let _exitBackTs = 0;        // timestamp of last back-at-root press
+let _exitDialogOpen = false; // guard against double-open
+
 function _showExitConfirm() {
-  if (document.getElementById('_exit-confirm-overlay')) return;
-  const overlay = document.createElement('div');
-  overlay.id = '_exit-confirm-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:flex-end;justify-content:center;animation:_fadeIn .15s ease';
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
-      <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Exit Tiffo?</p>
-      <p style="font-size:14px;color:#64748b;margin:0 0 22px">Are you sure you want to leave the app?</p>
-      <div style="display:flex;gap:10px">
-        <button id="_exit-stay-btn" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer;color:#334155">Stay</button>
-        <button id="_exit-leave-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:var(--primary,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:600;cursor:pointer">Exit App</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.getElementById('_exit-stay-btn').onclick = () => { overlay.remove(); };
-  document.getElementById('_exit-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
+  if (_exitDialogOpen) return;
+  _exitDialogOpen = true;
+  const overlay = document.getElementById('_exit-confirm-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  // Trigger slide-up animation
+  requestAnimationFrame(() => {
+    const card = overlay.querySelector('._exit-card');
+    if (card) card.style.transform = 'translateY(0)';
+  });
+}
+
+function _hideExitConfirm() {
+  _exitDialogOpen = false;
+  _exitBackTs = 0;
+  const overlay = document.getElementById('_exit-confirm-overlay');
+  if (!overlay) return;
+  const card = overlay.querySelector('._exit-card');
+  if (card) card.style.transform = 'translateY(100%)';
+  setTimeout(() => { overlay.style.display = 'none'; }, 320);
+}
+
+function _doExitApp() {
+  _hideExitConfirm();
+  // Belt-and-suspenders exit for Android WebView / PWA standalone
+  setTimeout(() => {
+    try { window.close(); } catch(e) {}
+    // Fallback: navigate away far enough that browser goes to background
+    history.go(-(history.length));
+  }, 200);
 }
 
 // Handle hardware back button (Android)
 window.addEventListener('popstate', () => {
-  const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || (_session));
-  if (_stack.length < 2) {
-    // At root page — push dummy state back to cancel the browser exit, then confirm
+  // If exit dialog is showing, close it (treat back as "Stay")
+  if (_exitDialogOpen) {
     history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+    _hideExitConfirm();
+    return;
+  }
+
+  // If any open sheet/modal is visible, close it first
+  const sheet = document.querySelector('.sheet.open');
+  if (sheet) {
+    history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+    // Close whichever sheet is open
+    const backdrop = document.querySelector('.sheet-backdrop.show, #guest-auth-backdrop.show');
+    if (backdrop) backdrop.click();
+    return;
+  }
+
+  if (_stack.length < 2) {
+    // At root — push a dummy state so browser doesn't navigate away
+    history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+    const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || _session);
     if (isLoggedIn || _isGuestMode || _stack[0] === 'pg-auth') {
-      _showExitConfirm();
+      const now = Date.now();
+      if (now - _exitBackTs < 2000) {
+        // Second back within 2 s → show exit confirm
+        _showExitConfirm();
+      } else {
+        // First back → hint toast, start 2 s window
+        _exitBackTs = now;
+        toast('Press back again to exit', 2000);
+      }
     }
   } else {
     back();

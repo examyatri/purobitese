@@ -41,7 +41,7 @@
    NOTE: /ping kept alive by self-ping (12 min) + UptimeRobot (5 min).
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v17';        /* ← bumped: SEO + manifest improvements */
+const CACHE      = 'tiffo-v19';        /* ← bumped: double-back-to-exit, stable exit dialog */
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install.
