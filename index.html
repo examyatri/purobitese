@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.1                                    ║
-     ║  Updated : 2026-04-29                               ║
-     ║  Changes : Auth hardened — session+creds=instant   ║
-     ║            home; creds-only=login shown instantly  ║
-     ║            + silent bg auto-login attempt;         ║
-     ║            session-only=instant wipe+login;        ║
-     ║            cooldown banner cleanup on logout/wipe; ║
-     ║            delivery charge fix insuf path.         ║
+     ║  Version : v50.2                                    ║
+     ║  Updated : 2026-05-01                               ║
+     ║  Changes : Bug fixes — 'confirmed' status added to  ║
+     ║            getStatusClass, getStatusLabel, progress ║
+     ║            bar & _hasActiveOrders; slot timers      ║
+     ║            cleared on logout & wipe.                ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -536,6 +534,12 @@ textarea{resize:vertical;min-height:80px}
 /* Backdrop */
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:none}
 .backdrop.show{display:block}
+/* ── Guest Auth Sheet ── */
+#guest-auth-sheet{z-index:1010;max-height:92vh;overflow-y:auto;overscroll-behavior:contain}
+#guest-auth-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1009;display:none}
+#guest-auth-backdrop.show{display:block}
+#guest-home-avatar{background:#f1f5f9;border:1.5px dashed #cbd5e1}
+#guest-home-avatar span{color:#94a3b8;font-size:15px;font-weight:600}
 /* Wallet nav button */
 #bnav-wallet{transition:background 300ms}
 /* ── RESPONSIVE: flexible layout for all screen sizes ── */
@@ -616,6 +620,60 @@ textarea{resize:vertical;min-height:80px}
 <div id="coupon-celebrate"></div>
 <div id="cart-pill"></div>
 <div id="sheet-backdrop" class="backdrop" onclick="closeAllSheets()"></div>
+
+<!-- ══════════════════════════════════════════════
+     GUEST AUTH SHEET — shown when guest taps cart / orders / account
+     Reuses existing pg-auth tab UI logic (switchTab / doLogin / doSignup)
+     ══════════════════════════════════════════════ -->
+<div id="guest-auth-backdrop" onclick="_closeGuestAuthSheet()"></div>
+<div id="guest-auth-sheet" class="sheet" style="padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div>
+      <div style="font-size:17px;font-weight:800;color:#0f172a;font-family:var(--ff)">Sign in to continue</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:2px;font-family:var(--ff)" id="gas-subtitle">Login or create your account</div>
+    </div>
+    <button onclick="_closeGuestAuthSheet()" style="border:none;background:#f1f5f9;border-radius:10px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#64748b">✕</button>
+  </div>
+
+  <!-- Tab switcher -->
+  <div style="display:flex;background:#f1f5f9;border-radius:12px;padding:3px;margin-bottom:16px;gap:3px">
+    <button id="gas-tab-login" onclick="_gasTab('login')" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:700;cursor:pointer;transition:all 200ms;background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1)">Login</button>
+    <button id="gas-tab-signup" onclick="_gasTab('signup')" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;transition:all 200ms;background:transparent;color:#64748b">Sign Up</button>
+  </div>
+
+  <!-- Login panel -->
+  <div id="gas-login-panel">
+    <div style="margin-bottom:12px">
+      <input id="gas-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="WhatsApp number (10 digits)"
+        style="width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:var(--ff);box-sizing:border-box;outline:none"
+        onkeydown="if(event.key==='Enter')document.getElementById('gas-pw').focus()">
+    </div>
+    <div style="margin-bottom:4px;position:relative">
+      <input id="gas-pw" type="password" placeholder="Password"
+        style="width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:var(--ff);box-sizing:border-box;outline:none;padding-right:46px"
+        onkeydown="if(event.key==='Enter')_gasDoLogin()">
+      <button onclick="togglePw('gas-pw',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:4px">👁</button>
+    </div>
+    <div id="gas-login-status" style="font-size:13px;color:#dc2626;min-height:18px;margin-bottom:8px;padding-left:2px;font-family:var(--ff)"></div>
+    <button id="gas-login-btn" onclick="_gasDoLogin()"
+      style="width:100%;padding:14px;background:var(--p);color:#fff;border:none;border-radius:13px;font-size:15px;font-weight:700;font-family:var(--ff);cursor:pointer">
+      Login &amp; Continue →
+    </button>
+    <button onclick="forgotPw()" style="width:100%;border:none;background:none;color:var(--p);font-size:13px;font-family:var(--ff);font-weight:600;cursor:pointer;margin-top:10px;padding:4px">Forgot password?</button>
+  </div>
+
+  <!-- Signup panel -->
+  <div id="gas-signup-panel" style="display:none">
+    <div style="font-size:12px;color:#64748b;margin-bottom:12px;font-family:var(--ff);background:#fef9c3;padding:10px 12px;border-radius:10px;line-height:1.5">
+      📍 For full signup with address & location, use the <strong>Sign Up tab</strong> on the main screen. Quick account creation below is for returning area residents.
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_closeGuestAuthSheet(false,true)" style="flex:1;padding:13px;background:#f1f5f9;color:#334155;border:none;border-radius:12px;font-size:14px;font-weight:700;font-family:var(--ff);cursor:pointer">
+        Full Sign Up ↗
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: AUTH
@@ -774,7 +832,7 @@ textarea{resize:vertical;min-height:80px}
         <i class="fa-solid fa-bag-shopping"></i>
         <span id="header-cart-badge" class="badge" style="display:none">0</span>
       </button>
-      <button class="avatar-btn" id="home-avatar" onclick="openAccountPanel()">
+      <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
         <span id="home-avatar-initials">?</span>
         <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
       </button>
@@ -1439,6 +1497,8 @@ let _khataEverVisited = false; // true once user opens the Khata tab this sessio
    or any other re-entry while the session is still active.
 ─────────────────────────────────────────────────────────────────────────── */
 let _postLoginRefreshDone = false;
+let _pendingCartNav  = false;   // true = user tapped cart/orders while guest → go to cart after login
+let _isGuestMode     = false;   // true = user is browsing as guest (not logged in, but on home)
 
 function _doPostLoginRefresh(initialMenuPromise) {
   // Guard: only once per login session
@@ -1997,6 +2057,12 @@ function _pgHash(id) {
 }
 
 function nav(id) {
+  // ── GUEST GUARD: cart / orders / account require login ──
+  if (_isGuestMode && (id === 'pg-cart' || id === 'pg-orders' || id === 'pg-account' || id === 'pg-khata')) {
+    _pendingCartNav = (id === 'pg-cart');
+    _showGuestAuthSheet(id === 'pg-cart' ? 'cart' : 'orders');
+    return;
+  }
   // Prevent duplicate stack entry for same page
   if (_stack.length && _stack[_stack.length - 1] === id) return;
   const cur = document.querySelector('.pg.here');
@@ -2156,6 +2222,8 @@ async function doLogin() {
 
     // ── Transition immediately — user sees skeleton, not blank screen ──
     _transitionToHome();
+    // If user came from guest cart tap → open cart tab after home loads
+    if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
 
     // ── loadMenu sets _khataEnabled via _fetchFreshMenu, then we persist session ──
     const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
@@ -3226,6 +3294,7 @@ async function doSignup() {
     SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
     showMenuSkeletons();
     _transitionToHome();
+    if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
     const _initMenuP4 = loadMenu(true, false); // bypassCache=true — fresh signup always hits DB, never stale cache
     startPolling();
     _doPostLoginRefresh(_initMenuP4);
@@ -3820,7 +3889,12 @@ async function placeOrder() {
   const cart = Cart.get();
   if (!cart.length) { toast('Cart is empty'); return; }
   const user = Auth.get();
-  if (!user) { toast('Please login first'); return; }
+  if (!user) {
+    // Guest somehow reached order — show auth sheet
+    _pendingCartNav = true;
+    _showGuestAuthSheet('cart');
+    return;
+  }
   if (!user.address) { toast('Add delivery address in Account → Edit Address'); return; }
 
   // ── Stale-data guard: block order if menu data is older than 15 minutes ──
@@ -4080,7 +4154,7 @@ async function loadOrders(forceRender = false, silent = false) {
     const res = await api('getUserOrders', { phone });
     _ordersFreshTs = Date.now();
     // ── Update active-orders flag so poll tick skips orders DB call when nothing to watch ──
-    const activeStatuses = new Set(['pending','verified','preparing','out_for_delivery','out for delivery']);
+    const activeStatuses = new Set(['pending','confirmed','verified','preparing','out_for_delivery','out for delivery']);
     _hasActiveOrders = (res.orders || []).some(o => activeStatuses.has((o.order_status||'').toLowerCase().replace(/\s+/g,'_')));
     const newStr = JSON.stringify(res.orders);
     // Save to local cache for instant-load on next open
@@ -4098,6 +4172,7 @@ function getStatusClass(s) {
   const norm = (s||'').toLowerCase().replace(/\s+/g,'_');
   const map = {
     pending:          'status-pending',
+    confirmed:        'status-verified',
     verified:         'status-verified',
     preparing:        'status-preparing',
     out_for_delivery: 'status-out_for_delivery',
@@ -4112,6 +4187,7 @@ function getStatusLabel(s) {
   const norm = (s||'pending').toLowerCase();
   const labels = {
     pending:          '🕐 Pending',
+    confirmed:        '✅ Confirmed',
     verified:         '✅ Verified',
     preparing:        '👨‍🍳 Preparing',
     'out for delivery':'🛵 Out for Delivery',
@@ -4201,7 +4277,7 @@ function renderOrderList(orders) {
       : '';
 
     // Status progress bar
-    const statuses = ['pending','preparing','out for delivery','delivered'];
+    const statuses = ['pending','confirmed','preparing','out for delivery','delivered'];
     const normStatus = (o.order_status||'').toLowerCase();
     const curIdx = statuses.indexOf(normStatus);
     const rejected = normStatus === 'rejected' || normStatus === 'cancelled';
@@ -5110,6 +5186,8 @@ function _applySubscriberUI() {
 function _wipeAndShowLogin() {
   // Stop cooldown timer if running
   _clearCooldownBanner();
+  // Stop slot transition timers
+  _slotTimers.forEach(t => clearTimeout(t)); _slotTimers = [];
   // Wipe every piece of local data
   Auth.clear();
   Creds.clear();
@@ -5149,6 +5227,8 @@ function _wipeAndShowLogin() {
   _hasActiveOrders  = false;
   _khataEverVisited = false;
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
+  _isGuestMode = false;
+  _pendingCartNav = false;
   // Go to login (signup tab = fresh start, no prefill)
   _transitionToLogin(false);
 }
@@ -5251,9 +5331,9 @@ async function bootApp() {
                                No ambiguous states. No stuck screens.
   ══════════════════════════════════════════════════════════════ */
 
-  // Case: No credentials at all → new user, show signup instantly
+  // Case: No credentials at all → new user, show home with menu (guest mode)
   if (!creds || !creds.phone || !creds.pw) {
-    _wipeAndShowLogin(); // ensures clean state even on first visit
+    _transitionToGuestHome();
     return;
   }
 
@@ -5316,6 +5396,7 @@ async function bootApp() {
 }
 
 function _transitionToHome() {
+  _isGuestMode = false; // now logged in — clear guest flag
   document.body.classList.remove('auth-mode');
   document.getElementById('app-loader').style.display = 'none';
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
@@ -5331,6 +5412,7 @@ function _transitionToHome() {
 }
 
 function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
+  _isGuestMode = false;
   document.body.classList.add('auth-mode');
   document.getElementById('app-loader').style.display = 'none';
   document.getElementById('retry-screen').style.display = 'none';
@@ -5345,6 +5427,179 @@ function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
     setTimeout(() => prefillLoginForm(wrongCreds), 100);
   } else {
     document.getElementById('tab-signup').click();
+  }
+}
+
+/* ═══════════════════════════════════════════
+   GUEST MODE — Browse without account
+   New visitors land on home, see menu, can add to cart.
+   Auth is only required when they try to place an order (nav to cart).
+═══════════════════════════════════════════ */
+function _transitionToGuestHome() {
+  _isGuestMode = true;
+  document.body.classList.remove('auth-mode');
+  document.getElementById('app-loader').style.display = 'none';
+  document.getElementById('retry-screen').style.display = 'none';
+  document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
+  const home = document.getElementById('pg-home');
+  home.classList.add('here');
+  home.style.transform = '';
+  _stack = ['pg-home'];
+  history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
+  updateBottomNav('pg-home');
+  updateCartBadge();
+  // Show guest avatar state
+  const avatarEl = document.getElementById('home-avatar-initials');
+  if (avatarEl) avatarEl.textContent = '?';
+  const proBadge = document.getElementById('home-pro-badge');
+  if (proBadge) proBadge.classList.add('hidden');
+  // Hide subscriber-only elements
+  document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
+  const _pauseRow = document.getElementById('pause-toggle-row');
+  const _planCard = document.getElementById('monthly-plan-card');
+  if (_pauseRow) _pauseRow.style.display = 'none';
+  if (_planCard) _planCard.style.display = 'flex';
+  // Load menu and schedule for guest (no auth required — getHomeData is public)
+  loadMenu(true, false);
+}
+
+function _showGuestAuthSheet(context) {
+  // context: 'cart' | 'orders'
+  const subtitle = document.getElementById('gas-subtitle');
+  if (subtitle) {
+    subtitle.textContent = context === 'cart'
+      ? 'Login to place your order'
+      : 'Login to view your orders';
+  }
+  // Default to login tab (most guests are returning users or just need quick login)
+  _gasTab('login');
+  // Clear any previous status
+  const statusEl = document.getElementById('gas-login-status');
+  if (statusEl) statusEl.textContent = '';
+  // Pre-fill phone if we have stale creds lying around (edge case: user cleared session)
+  const creds = Creds.get();
+  if (creds && creds.phone) {
+    const phoneEl = document.getElementById('gas-phone');
+    if (phoneEl) phoneEl.value = creds.phone;
+  }
+  document.getElementById('guest-auth-backdrop').classList.add('show');
+  const sheet = document.getElementById('guest-auth-sheet');
+  sheet.classList.add('open');
+  // Focus phone field after animation
+  setTimeout(() => {
+    const phoneEl = document.getElementById('gas-phone');
+    if (phoneEl && !phoneEl.value) phoneEl.focus();
+    else {
+      const pwEl = document.getElementById('gas-pw');
+      if (pwEl) pwEl.focus();
+    }
+  }, 360);
+}
+
+function _closeGuestAuthSheet(clearPending = true, goFullSignup = false) {
+  if (clearPending) _pendingCartNav = false;
+  document.getElementById('guest-auth-backdrop').classList.remove('show');
+  document.getElementById('guest-auth-sheet').classList.remove('open');
+  if (goFullSignup) {
+    // User wants full signup → go to auth page signup tab
+    _isGuestMode = false;
+    _transitionToLogin(false, false); // signup tab
+  }
+}
+
+function _gasTab(tab) {
+  const loginTab  = document.getElementById('gas-login-panel');
+  const signupTab = document.getElementById('gas-signup-panel');
+  const btnLogin  = document.getElementById('gas-tab-login');
+  const btnSignup = document.getElementById('gas-tab-signup');
+  if (tab === 'login') {
+    loginTab.style.display  = 'block';
+    signupTab.style.display = 'none';
+    btnLogin.style.background = '#fff';
+    btnLogin.style.color = '#0f172a';
+    btnLogin.style.fontWeight = '700';
+    btnLogin.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
+    btnSignup.style.background = 'transparent';
+    btnSignup.style.color = '#64748b';
+    btnSignup.style.fontWeight = '600';
+    btnSignup.style.boxShadow = 'none';
+  } else {
+    loginTab.style.display  = 'none';
+    signupTab.style.display = 'block';
+    btnSignup.style.background = '#fff';
+    btnSignup.style.color = '#0f172a';
+    btnSignup.style.fontWeight = '700';
+    btnSignup.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
+    btnLogin.style.background = 'transparent';
+    btnLogin.style.color = '#64748b';
+    btnLogin.style.fontWeight = '600';
+    btnLogin.style.boxShadow = 'none';
+  }
+}
+
+async function _gasDoLogin() {
+  const phone = document.getElementById('gas-phone').value.replace(/\D/g, '');
+  const pw    = document.getElementById('gas-pw').value;
+  const statusEl = document.getElementById('gas-login-status');
+  const btn   = document.getElementById('gas-login-btn');
+
+  if (!phone || phone.length !== 10) { statusEl.textContent = '📱 Enter 10-digit WhatsApp number'; return; }
+  if (!pw) { statusEl.textContent = '🔒 Enter your password'; return; }
+
+  statusEl.textContent = 'Signing you in...';
+  statusEl.style.color = '#3b82f6';
+  btn.disabled = true;
+
+  try {
+    const res = await api('login', { phone, password: pw });
+    // ✅ Success
+    _closeGuestAuthSheet(false); // keep _pendingCartNav intact
+    _isGuestMode = false;
+    Creds.save(phone, pw);
+    Auth.set(res.user);
+    _session.is_subscriber = !!res.subscriber;
+    _walletBal = res.walletBalance || 0;
+    _pauseMode = res.subscriber?.pause_delivery || 'none';
+    updateWalletUI(_walletBal);
+    if (res.subscriber) { applyPauseState(_pauseMode); }
+    showMenuSkeletons();
+    _transitionToHome();
+    // If user was going to cart → open it right away
+    if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
+    const _p = loadMenu(true, false);
+    _p.then(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+    }).catch(() => {
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+    });
+    startPolling();
+    _doPostLoginRefresh(_p);
+  } catch(e) {
+    btn.disabled = false;
+    const isAuthError = e.message?.includes('Session invalid') ||
+                        e.message?.includes('Unauthorized') ||
+                        e.message?.includes('not found') ||
+                        e.message?.includes('Invalid');
+    statusEl.style.color = '#dc2626';
+    if (isAuthError) {
+      statusEl.textContent = '⚠️ Incorrect details — please try again';
+      document.getElementById('gas-pw').value = '';
+      document.getElementById('gas-pw').focus();
+    } else {
+      statusEl.textContent = '⚠️ No internet. Check connection and retry.';
+    }
+  }
+}
+
+function _onAvatarTap() {
+  if (_isGuestMode || !_session) {
+    // Guest → show auth sheet with login (treated like account access)
+    _pendingCartNav = false; // avatar tap → just login, no cart redirect
+    _showGuestAuthSheet('orders');
+  } else {
+    openAccountPanel();
   }
 }
 
@@ -5364,6 +5619,7 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
+  _slotTimers.forEach(t => clearTimeout(t)); _slotTimers = []; // clear slot transition timers
   _clearCooldownBanner(); // stop any running 30s countdown
   _postLoginRefreshDone = false;
   Auth.clear();
@@ -5469,7 +5725,8 @@ function doLogout() {
   if (suLocBtnTxt) suLocBtnTxt.textContent = 'Detect My Location';
 
   closeAllSheets();
-  _transitionToLogin(false);  // goes to signup tab (fresh start)
+  _pendingCartNav = false;
+  _transitionToGuestHome();  // show home for browsing; auth sheet appears when they tap cart
 }
 
 /* ═══════════════════════════════════════════
@@ -5512,8 +5769,8 @@ window.addEventListener('popstate', () => {
   const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || (_session));
   if (_stack.length < 2) {
     // At root page — push dummy state back to cancel the browser exit, then confirm
-    history.pushState({ pg: _stack[0] || 'pg-auth', stackLen: 1 }, '', location.href);
-    if (isLoggedIn || _stack[0] === 'pg-auth') {
+    history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+    if (isLoggedIn || _isGuestMode || _stack[0] === 'pg-auth') {
       _showExitConfirm();
     }
   } else {
