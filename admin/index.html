@@ -1607,10 +1607,10 @@ function openMo(html) {
 
   bg.style.display = 'flex';
 
-  // Focus first non-button input for UX
+  // Focus first non-button input for UX (skip coupon modal inputs — auto-focus triggers virtual keyboard on mobile)
   requestAnimationFrame(() => {
     const first = box.querySelector('input:not([type=hidden]),select,textarea');
-    if (first) first.focus?.();
+    if (first && !first.id?.startsWith('cf-nu-')) first.focus?.();
     box.scrollTop = 0;
   });
 
@@ -4980,22 +4980,22 @@ function gotoOrdersForPhone(phone) {
 
 // ─── OPEN NU COUPON PANEL AND HIGHLIGHT USER ──────────────
 function openNuCouponPanelForUser(phone, name, address, notifId) {
-  // Navigate to notifications page (already there), open panel, switch to pending
-  showPage('p-notifs');
+  // Only navigate if not already on notifications page
+  const alreadyHere = document.getElementById('p-notifs')?.classList.contains('act');
+  if (!alreadyHere) showPage('p-notifs');
+
+  const panel = document.getElementById('nu-coupon-panel');
+  const card  = document.getElementById('nu-coupon-toggle-card');
+  if (panel && panel.style.display === 'none') {
+    panel.style.display = 'block';
+    if (card) { card.style.borderColor = '#6ee7b7'; card.style.boxShadow = '0 0 0 3px rgba(16,185,129,.15)'; }
+    _nuPanelOpen = true;
+  }
+  loadNuCoupons('pending', document.getElementById('nu-tab-pending'));
+  // Scroll to panel so admin can see it and click Create Coupon
   setTimeout(() => {
-    const panel = document.getElementById('nu-coupon-panel');
-    const card  = document.getElementById('nu-coupon-toggle-card');
-    if (panel && panel.style.display === 'none') {
-      panel.style.display = 'block';
-      if (card) card.style.borderColor = '#6ee7b7';
-      _nuPanelOpen = true;
-    }
-    loadNuCoupons('pending', document.getElementById('nu-tab-pending'));
-    // After loading, open the coupon creation form for this user
-    setTimeout(() => {
-      openCouponWorkflow(notifId, phone, name, address);
-    }, 500);
-  }, 200);
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 150);
 }
 
 async function gotoKhataForPhone(phone) {
