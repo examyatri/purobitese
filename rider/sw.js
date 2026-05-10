@@ -1,25 +1,20 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v6.0  |  Updated : 2026-04-29
+   Version : v7.0  |  Updated : 2026-05-10
 
-   Lives at /rider/sw.js so its scope is ONLY /rider/
-   — completely isolated from the main Tiffo PWA at /
-   and the admin PWA at /admin/.
-
-   v6.0 changes:
-   - Bumped cache → tiffo-rider-v6 (forces fresh install)
-   - Added supabase origins to NETWORK_ONLY
-   - Improved activate: scoped cleanup (only tiffo-rider-* keys)
-   - Non-GET requests now explicitly ignored
-   - Cleaner error handling in all fetch strategies
+   CHANGES v7.0:
+   - Cache bumped → tiffo-rider-v7
+   - skipWaiting() called immediately in install (faster PWA launch)
+   - Fixed fire-and-forget fetchPromise (was silently dropped)
+   - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v6';   /* ← bumped from v5 */
+const CACHE      = 'tiffo-rider-v7';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
 /* Only rider assets */
-const PRECACHE = ['./index.html', './manifest.json'];
+const PRECACHE = ['./index.html', './manifest.json', './sw.js'];
 
 /* CDN assets — cache-first (fonts, leaflet JS/CSS) */
 const CDN_ORIGINS = [
@@ -69,7 +64,9 @@ self.addEventListener('message', e => {
 /* ─── INSTALL ────────────────────────────────────────────── */
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
+    caches.open(CACHE)
+      .then(cache => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting()) // activate immediately — faster PWA launch
   );
 });
 
@@ -97,7 +94,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const { request } = e;
 
-  // Ignore non-GET requests (POST for API calls, etc.)
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
@@ -196,7 +192,7 @@ self.addEventListener('fetch', e => {
         if (ageMs > ASSET_MAX_AGE_MS) return fetchPromise.catch(() => cached);
       }
 
-      fetchPromise; // background revalidate
+      fetchPromise.catch(() => {}); // background revalidate, prevent unhandled rejection
       return cached;
     })
   );

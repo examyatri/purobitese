@@ -13,6 +13,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Tiffo Rider">
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
 <title>Tiffo Rider</title>
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="../icons/icon-rider-192.png">
@@ -359,8 +361,8 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   position:absolute;inset:0;
   background:#0f172a;z-index:100;
   display:none;
-  flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:32px;
+  flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;
 }
 #map-celebration.show{display:flex}
 .celeb-emoji{font-size:72px;animation:bounceIn .6s cubic-bezier(.36,0,.66,-.56) forwards}
@@ -639,13 +641,8 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     <div id="map-stop-list"></div>
   </div>
 
-  <!-- Celebration -->
-  <div id="map-celebration">
-    <div class="celeb-emoji">🎉</div>
-    <div class="celeb-title">All Delivered!</div>
-    <div class="celeb-sub" id="celeb-sub">Great work today, rider!</div>
-    <button class="celeb-close" onclick="closeRiderMap()">Close Map</button>
-  </div>
+  <!-- Celebration — content injected dynamically by _showCelebration() -->
+  <div id="map-celebration"></div>
 </div>
 
 <!-- Delivery action floating bar -->
@@ -880,8 +877,6 @@ function renderOrderCard(o) {
   const items     = (o.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
   const payClass  = o.user_type === 'subscriber' ? 'pay-wallet' : 'pay-cash';
   const payLabel  = o.user_type === 'subscriber' ? '💳 Wallet'  : '💵 Cash';
-  const safeAddr  = (o.address || '').replace(/'/g, "\\'");
-  const safeName  = (o.name    || '').replace(/'/g, "\\'");
   const safePhone = o.phone || '';
   const slotBadge = o.slot
     ? `<span style="background:${o.slot==='morning'?'#fffbeb':'#eef2ff'};color:${o.slot==='morning'?'#d97706':'#4f46e5'};border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">${o.slot==='morning'?'☀️ Morning':'🌙 Evening'}</span>`
@@ -917,9 +912,9 @@ function renderOrderCard(o) {
       
     </div>
     <div class="o-actions">
-      <button class="o-btn o-btn-call" onclick="window.location.href='tel:${safePhone}'">📞 Call</button>
-      <button class="o-btn o-btn-map"  onclick="openMaps('${safeAddr}')">🗺 Maps</button>
-      <button class="o-btn o-btn-wa"   onclick="openWA('91${safePhone}','Hi ${safeName}, your Tiffo order is on the way!')">💬 WA</button>
+      <button class="o-btn o-btn-call" onclick="orderCall('${o.order_id}')">📞 Call</button>
+      <button class="o-btn o-btn-map"  onclick="orderMap('${o.order_id}')">🗺 Maps</button>
+      <button class="o-btn o-btn-wa"   onclick="orderWA('${o.order_id}')">💬 WA</button>
       ${actionBtns}
     </div>
   </div>`;
@@ -1249,6 +1244,7 @@ let _allPinsMap      = null;     // separate Leaflet instance for All Pins view
 let _lastRouteRedrawPos  = null; // GPS position at last OSRM redraw
 let _routeRedrawTimer    = null; // debounce timer for live redraw
 let _liveTrackingActive  = false;// true when delivery mode running
+let _deliveryStartTime   = null; // timestamp when delivery mode started (for duration calc)
 const _REDRAW_DIST_M     = 25;   // redraw if moved > 25m (tighter = smoother live updates)
 const _AUTOPAN_DIST_M    = 80;   // auto-pan threshold
 
@@ -1527,16 +1523,14 @@ function _renderStopList() {
 
     // Quick action buttons on each stop card
     const phone = s.order.phone || '';
-    const safePhone = phone.replace(/'/g,"");
-    const safeName  = (s.order.name||'').replace(/'/g,"");
     // View button: always shown when coords exist (works on delivered stops too)
     const viewBtn = hasCoords
       ? `<button onclick="openStreetView(${i})" style="flex:1;min-width:44px;background:#0f766e;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Street View">👁 View</button>`
       : '';
     // Communication + nav buttons: only for active (non-delivered) stops with a phone
     const commBtns = (!s.delivered && phone) ? `
-        <a href="tel:${safePhone}" style="flex:1;min-width:44px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px">📞</a>
-        <button onclick="openWA('91${safePhone}','Hi ${safeName}, your Tiffo order is on the way!')" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
+        <a href="tel:${phone}" style="flex:1;min-width:44px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px">📞</a>
+        <button onclick="stopWA(${i})" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
         <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>
         <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>` : '';
     const actionBtns = (viewBtn || commBtns) ? `
@@ -1709,6 +1703,7 @@ function closeRiderMap() {
   document.getElementById('delivery-bar').classList.remove('show');
   _stopGPS();
   _mapModalOpen = false;
+  _deliveryStartTime = null; // reset for next delivery session
   // Clean up markers
   _mapStops.forEach(s => { if (s.marker && _map) _map.removeLayer(s.marker); s.marker = null; });
   if (_gpsMarker && _map)  { _map.removeLayer(_gpsMarker); _gpsMarker = null; }
@@ -1858,6 +1853,7 @@ async function _startDeliveryMode() {
 
   _deliveryActive = true;
   _liveTrackingActive = true;
+  _deliveryStartTime = _deliveryStartTime || Date.now(); // only set on first start, not resume
   _lastRouteRedrawPos = _gpsPos ? { ..._gpsPos } : null;
   const lbadge = document.getElementById('live-track-badge');
   if (lbadge) lbadge.style.display = 'block';
@@ -2075,11 +2071,99 @@ function deliveryWA() {
 function _showCelebration() {
   _deliveryActive = false;
   document.getElementById('delivery-bar').classList.remove('show');
-  const delivered = _mapStops.filter(s => s.delivered).length;
-  const skipped   = _mapStops.filter(s => s.skipped).length;
-  document.getElementById('celeb-sub').textContent =
-    `${delivered} delivered · ${skipped} skipped · Great job today!`;
-  document.getElementById('map-celebration').classList.add('show');
+
+  const delivered = _mapStops.filter(s => s.delivered);
+  const skipped   = _mapStops.filter(s => s.skipped);
+  const total     = _mapStops.length;
+
+  // ── Duration ──
+  let durationTxt = '';
+  if (_deliveryStartTime) {
+    const mins = Math.round((Date.now() - _deliveryStartTime) / 60000);
+    if (mins < 60) durationTxt = `${mins} min`;
+    else durationTxt = `${Math.floor(mins/60)}h ${mins%60}m`;
+  }
+
+  // ── Total distance: sum distKm of all delivered stops ──
+  const totalKm = delivered.reduce((sum, s) => sum + (s.distKm || 0), 0);
+  const distTxt = totalKm > 0 ? totalKm.toFixed(1) + ' km' : '—';
+
+  // ── Delivered list rows ──
+  const deliveredRows = delivered.map((s, i) => {
+    const o = s.order;
+    const items = (o.items||[]).map(i => i.name).join(', ') || '—';
+    const pay = o.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+      <div style="width:26px;height:26px;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;color:white">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;color:#f1f5f9">${o.name||'—'}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${items}</div>
+      </div>
+      <div style="font-size:11px;color:#6ee7b7;font-weight:600;white-space:nowrap">${pay}</div>
+    </div>`;
+  }).join('');
+
+  const skippedRows = skipped.length ? skipped.map(s => {
+    const o = s.order;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+      <div style="width:26px;height:26px;background:#f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⏭</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px;color:#fbbf24">${o.name||'—'}</div>
+        <div style="font-size:11px;color:#94a3b8">${o.phone||''}</div>
+      </div>
+    </div>`;
+  }).join('') : '';
+
+  // ── Build celebration HTML ──
+  const celebEl = document.getElementById('map-celebration');
+  celebEl.innerHTML = `
+    <div style="width:100%;max-width:420px;overflow-y:auto;max-height:100vh;padding:28px 20px;box-sizing:border-box">
+      <!-- Header -->
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:64px;animation:bounceIn .6s cubic-bezier(.36,0,.66,-.56) forwards">🎉</div>
+        <div style="font-family:var(--ff);font-weight:800;font-size:24px;color:#f1f5f9;margin:12px 0 4px">Delivery Complete!</div>
+        <div style="color:#94a3b8;font-size:13px">Great work today, rider!</div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+        <div style="background:rgba(16,185,129,.15);border:1.5px solid rgba(16,185,129,.3);border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-family:var(--ff);font-size:26px;font-weight:800;color:#6ee7b7">${delivered.length}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">Delivered</div>
+        </div>
+        <div style="background:rgba(245,158,11,.12);border:1.5px solid rgba(245,158,11,.25);border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-family:var(--ff);font-size:26px;font-weight:800;color:#fbbf24">${skipped.length}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">Skipped</div>
+        </div>
+        <div style="background:rgba(99,102,241,.15);border:1.5px solid rgba(99,102,241,.3);border-radius:12px;padding:14px 10px;text-align:center">
+          <div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#a5b4fc">${distTxt}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">Distance</div>
+        </div>
+      </div>
+
+      ${durationTxt ? `<div style="background:rgba(255,255,255,.06);border-radius:10px;padding:10px 14px;text-align:center;margin-bottom:18px;font-size:13px;color:#cbd5e1"><i class="fa fa-clock" style="margin-right:6px;color:#94a3b8"></i>Total time: <b style="color:#f1f5f9">${durationTxt}</b></div>` : ''}
+
+      <!-- Delivered list -->
+      ${delivered.length ? `
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#6ee7b7;letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase"><i class="fa fa-check-circle" style="margin-right:5px"></i>Delivered (${delivered.length})</div>
+        ${deliveredRows}
+      </div>` : ''}
+
+      <!-- Skipped list -->
+      ${skipped.length ? `
+      <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#fbbf24;letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase"><i class="fa fa-triangle-exclamation" style="margin-right:5px"></i>Skipped / Pending (${skipped.length})</div>
+        ${skippedRows}
+      </div>` : ''}
+
+      <!-- Close button -->
+      <button class="celeb-close" style="width:100%;margin-top:4px" onclick="closeRiderMap();_deliveryStartTime=null;">
+        <i class="fa fa-check" style="margin-right:8px"></i>Done — Close Map
+      </button>
+    </div>`;
+
+  celebEl.classList.add('show');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2470,6 +2554,28 @@ function openAllStopsInGMaps() {
   if (!remaining.some(s => s.coords)) { rToast('No GPS coords — cannot build route'); return; }
   const result = _gMapsMultiStopUrl(remaining, _gpsPos || null, 0);
   if (result) _gMapsOpen(result.url);
+}
+
+/* ── Order card button helpers — use order_id lookup to avoid
+   inline string escaping bugs with quotes/newlines in addresses  */
+function _findOrder(id) {
+  return [..._pending, ..._delivered].find(o => o.order_id === id);
+}
+function orderCall(id) {
+  const o = _findOrder(id); if (!o) return;
+  window.location.href = 'tel:' + (o.phone || '');
+}
+function orderMap(id) {
+  const o = _findOrder(id); if (!o) return;
+  openMaps(o.address || '');
+}
+function orderWA(id) {
+  const o = _findOrder(id); if (!o) return;
+  openWA('91' + (o.phone || ''), `Hi ${o.name || ''}, your Tiffo order is on the way!`);
+}
+function stopWA(idx) {
+  const s = _mapStops[idx]; if (!s) return;
+  openWA('91' + (s.order.phone || ''), `Hi ${s.order.name || ''}, your Tiffo order is on the way!`);
 }
 
 /* ── openMaps — called from order card "🗺 Maps" button ─────────
