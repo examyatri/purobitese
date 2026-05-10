@@ -1,53 +1,20 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v26.0  |  Updated : 2026-04-29
+   Version : v27.0  |  Updated : 2026-05-10
 
-   ARCHITECTURE:
-   ┌──────────────────────────────────────────────────────────┐
-   │  Single GitHub repo — two consumers                      │
-   │                                                          │
-   │  tiffo.online (GitHub repo)                              │
-   │   ├── index.html  ─┐                                     │
-   │   ├── admin.html   ├── GitHub Pages (auto on push)       │
-   │   ├── rider.html   │   https://examyatri.github.io/      │
-   │   ├── sw.js      ──┘         tiffo/                      │
-   │   │                                                      │
-   │   └── server.js ────── Render (auto-deploy backend)      │
-   │                        Node.js + Express + Supabase      │
-   └──────────────────────────────────────────────────────────┘
-
-   IMPORTANT — GitHub Pages subfolder scope:
-   All paths in PRECACHE and SW registration MUST be relative
-   ('./sw.js', './index.html') NOT absolute ('/sw.js', '/index.html')
-   because the site lives at /, not at root /.
-
-   DEPLOY FLOW (frontend — GitHub Pages):
-   1. git push → GitHub Pages serves new files within ~1 min
-   2. Browser always re-fetches sw.js (browser spec: SW bypasses cache)
-   3. New byte in sw.js → new SW installs in background
-   4. install: precaches ./index.html, ./manifest.json
-   5. SKIP_WAITING message → new SW activates immediately
-   6. activate: deletes old tiffo-* caches
-   7. clients.claim() → takes control of all open pages
-   8. controllerchange → location.reload()
-   9. Users get fresh code — no manual cache clear needed ✅
-
-   DEPLOY FLOW (backend — Render):
-   1. git push → Render detects server.js change, redeploys
-   2. All API calls (purobitese-api.onrender.com) are network-only
-      — SW never caches them — clients always hit live backend ✅
-   3. No frontend change needed for backend-only deploys
-
-   NOTE: /ping kept alive by self-ping (12 min) + UptimeRobot (5 min).
+   CHANGES v27.0:
+   - Cache bumped → tiffo-v20 (force fresh install for all fixes)
+   - Added sw.js itself to PRECACHE for offline reliability
+   - skipWaiting() called immediately in install (faster PWA launch)
+   - Fixed fire-and-forget fetchPromise (was silently dropped)
+   - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v19';        /* ← bumped: double-back-to-exit, stable exit dialog */
+const CACHE      = 'tiffo-v20';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
-/* Core app shell — cached on install.
-   NOTE: rider/ and admin/ are separate PWA scopes with their own SWs.
-   Do NOT add rider.html / admin.html here. */
-const PRECACHE = ['./', './index.html', './manifest.json'];
+/* Core app shell — cached on install. */
+const PRECACHE = ['./', './index.html', './manifest.json', './sw.js'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
@@ -105,9 +72,9 @@ self.addEventListener('message', e => {
 /* ─── INSTALL ────────────────────────────────────────────────────────────── */
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
-    // skipWaiting intentionally deferred — triggered by SKIP_WAITING message
-    // after precache completes, avoiding race conditions.
+    caches.open(CACHE)
+      .then(cache => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting()) // activate immediately — faster PWA launch
   );
 });
 
@@ -212,8 +179,8 @@ self.addEventListener('fetch', e => {
         if (ageMs > ASSET_MAX_AGE_MS) return fetchPromise.catch(() => cached);
       }
 
-      // Serve stale, revalidate in background
-      fetchPromise; // fire-and-forget
+      // Serve stale, revalidate in background (fire-and-forget correctly)
+      fetchPromise.catch(() => {}); // prevent unhandled rejection
       return cached;
     })
   );
