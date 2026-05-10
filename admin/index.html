@@ -4758,11 +4758,12 @@ function renderNotifCard(n) {
   let actionBtns = '';
 
   if (isUser) {
-    // Card Type 2 — New User: single button → open coupon panel & scroll to user
-    const safeName    = (n.meta?.name || n.title || '').replace(/'/g, "\\'");
-    const safeAddress = (n.meta?.address || '').replace(/'/g, "\\'");
+    // Card Type 2 — New User: single button → directly open coupon creation modal
+    // Use &#39; escaping for HTML onclick attribute context (not \' which breaks HTML parser)
+    const safeName    = (n.meta?.name || n.title || '').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
+    const safeAddress = (n.meta?.address || '').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
     actionBtns = `
-      <button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px" onclick="openNuCouponPanelForUser('${phone}','${safeName}','${safeAddress}','${n.id}')">
+      <button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px" onclick="openCouponWorkflow('${n.id}','${phone}','${safeName}','${safeAddress}')">
         <i class="fa fa-ticket"></i> Send Coupon
       </button>`;
 
@@ -5263,7 +5264,7 @@ async function loadNuCoupons(type, btn) {
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           ${type==='pending'
-            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openCouponWorkflow('${u.notif_id||''}','${u.phone}','${(u.name||'').replace(/'/g,"\\\'")}','${(u.address||'').replace(/'/g,"\\\'")}')"><i class="fa fa-ticket"></i> Create Coupon</button>`
+            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openCouponWorkflow('${u.notif_id||''}','${u.phone}','${(u.name||'').replace(/'/g,'&#39;')}','${(u.address||'').replace(/'/g,'&#39;')}') "><i class="fa fa-ticket"></i> Create Coupon</button>`
             : `<span style="background:#f0fdf4;color:#16a34a;padding:4px 10px;border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700"><i class="fa fa-check"></i> Sent</span>`
           }
         </div>
