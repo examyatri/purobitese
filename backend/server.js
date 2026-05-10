@@ -1878,7 +1878,7 @@ app.post('/api', async (req, res) => {
         const monthStart = today.slice(0, 7) + '-01';
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
         const [
-          r1, r2, r3, r4, r5, r6, r7, r8
+          r1, r2, r3, r4, r5, r6, r7, r8, r9
         ] = await Promise.all([
           supabase.from('orders').select('*', { count: 'exact', head: true }).eq('date', today),
           supabase.from('orders').select('final_amount').eq('date', today).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
@@ -1887,7 +1887,8 @@ app.post('/api', async (req, res) => {
           supabase.from('users').select('*', { count: 'exact', head: true }),
           supabase.from('subscribers').select('*', { count: 'exact', head: true }),
           supabase.from('khata_summary').select('balance'),
-          supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo)
+          supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
+          supabase.from('orders').select('order_id, name, phone, final_amount, order_status, date, time').order('created_at', { ascending: false }).limit(10)
         ]);
         const todayRevenue = (r2.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
         const monthRevenue = (r3.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
@@ -1901,7 +1902,8 @@ app.post('/api', async (req, res) => {
           totalUsers:          r5.count || 0,
           subscriberCount:     r6.count || 0,
           totalWalletBalance,
-          newUsers30d:         r8.count || 0
+          newUsers30d:         r8.count || 0,
+          recentOrders:        r9.data  || []
         };
         _analyticsCache   = analyticsResult;
         _analyticsCacheTs = Date.now();
