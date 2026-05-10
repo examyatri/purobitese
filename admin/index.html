@@ -2547,7 +2547,7 @@ function renderBulkSubsList() {
       <div style="color:#64748b">${planLabel}</div>
       <div style="font-weight:700;color:${balColor}">₹${bal.toFixed(0)}</div>
       <div>${statusTag}</div>
-      <div style="color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${s.address||'—'}</div>
+      <div style="color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${_adminShortAddr(s.address)||'—'}</div>
     </div>`;
   }).join('');
   updateBulkSelectedCount();
@@ -3316,7 +3316,7 @@ function renderSubsTable() {
     const bal    = s.balance||0;
     const balColor = bal < 0 ? 'var(--p)' : (lowBal ? '#b45309' : 'var(--g)');
     const lowWarn = lowBal ? ' <i class="fa fa-triangle-exclamation" style="color:#f59e0b;font-size:10px" title="Low balance"></i>' : '';
-    const addr = (s.address||'—').length > 28 ? (s.address||'').substring(0,28)+'…' : (s.address||'—');
+    const addr = (_adminShortAddr(s.address)||'—').length > 28 ? (_adminShortAddr(s.address)||'').substring(0,28)+'…' : (_adminShortAddr(s.address)||'—');
     return `
     <tr class="${rowCls}">
       <td style="font-size:13px">${s.phone||'—'}</td>
@@ -3630,7 +3630,7 @@ function renderUsersTable(users) {
       </td>
       <td style="font-size:13px;font-weight:600">${u.phone||'\u2014'}</td>
       <td style="font-size:12px;color:#475569">${u.email||'<span style="color:#cbd5e1">\u2014</span>'}</td>
-      <td style="font-size:12px;color:#475569;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${u.address||''}">${u.address||'<span style="color:#cbd5e1">\u2014</span>'}</td>
+      <td style="font-size:12px;color:#475569;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${u.address||''}">${_adminShortAddr(u.address)||'<span style="color:#cbd5e1">\u2014</span>'}</td>
       <td>${subBadge(u)}</td>
       <td style="text-align:center"><span style="font-weight:700;font-size:13px;color:${(u.total_orders||0)>0?'#0f172a':'#cbd5e1'}">${u.total_orders||0}</span></td>
       <td style="font-size:12px">${fmtLastActive(u.last_order_date)}</td>
@@ -4760,8 +4760,8 @@ function renderNotifCard(n) {
   if (isUser) {
     // Card Type 2 — New User: single button → directly open coupon creation modal
     // Use &#39; escaping for HTML onclick attribute context (not \' which breaks HTML parser)
-    const safeName    = (n.meta?.name || n.title || '').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
-    const safeAddress = (n.meta?.address || '').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
+    const safeName    = (n.meta?.name || n.title || '').replace(/[\r\n]/g,' ').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
+    const safeAddress = (n.meta?.address || '').replace(/[\r\n]/g,' ').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
     actionBtns = `
       <button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px" onclick="openCouponWorkflow('${n.id}','${phone}','${safeName}','${safeAddress}')">
         <i class="fa fa-ticket"></i> Send Coupon
@@ -5185,6 +5185,18 @@ async function markCouponSentAndNotifRead(phone, notifId, name, couponCode) {
   } catch(_) {}
 }
 
+// ── Clean address for display: strips Coordinates/Plus Code/state-India lines ─
+function _adminShortAddr(addr) {
+  if (!addr) return '';
+  const META = [
+    /^Coordinates\s*:/i,
+    /^Plus Code\s*:/i,
+    /^[\w\s]+,\s*India\s*$/i,
+    /^\s*\(latitude=[^)]+\)\s*$/i,
+  ];
+  return addr.split('\n').map(l => l.trim()).filter(l => l && !META.some(re => re.test(l))).join(', ').trim();
+}
+
 function relTime(ts) {
   const diff = Date.now() - new Date(ts).getTime();
   const m = Math.floor(diff/60000);
@@ -5255,7 +5267,7 @@ async function loadNuCoupons(type, btn) {
         <div style="flex:1">
           <div style="font-weight:700;font-size:13.5px;color:#0f172a">${u.name||'—'}</div>
           <div style="font-size:12px;color:#64748b;margin-top:2px"><i class="fa fa-phone" style="font-size:10px"></i> ${u.phone}</div>
-          ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${u.address}</div>`:''}
+          ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${_adminShortAddr(u.address)}</div>`:''}
           ${type==='sent' && u.sent_at
             ? `<div style="font-size:10px;color:#10b981;margin-top:3px;font-weight:600"><i class="fa fa-check-circle" style="font-size:9px"></i> Sent ${relTime(u.sent_at)}</div>
                ${u.coupon_code ? `<div style="font-size:10px;color:#64748b;margin-top:2px"><i class="fa fa-tag" style="font-size:9px"></i> Code: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${u.coupon_code}</code></div>` : ''}`
@@ -5264,7 +5276,7 @@ async function loadNuCoupons(type, btn) {
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           ${type==='pending'
-            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openCouponWorkflow('${u.notif_id||''}','${u.phone}','${(u.name||'').replace(/'/g,'&#39;')}','${(u.address||'').replace(/'/g,'&#39;')}') "><i class="fa fa-ticket"></i> Create Coupon</button>`
+            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openCouponWorkflow('${u.notif_id||''}','${u.phone}','${(u.name||'').replace(/[\r\n]/g,' ').replace(/'/g,'&#39;').replace(/&(?!amp;|#)/g,'&amp;')}','${(u.address||'').replace(/[\r\n]/g,' ').replace(/'/g,'&#39;').replace(/&(?!amp;|#)/g,'&amp;')}') "><i class="fa fa-ticket"></i> Create Coupon</button>`
             : `<span style="background:#f0fdf4;color:#16a34a;padding:4px 10px;border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700"><i class="fa fa-check"></i> Sent</span>`
           }
         </div>
