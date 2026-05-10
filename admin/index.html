@@ -25,6 +25,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tiffo Admin">
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
 <title>Tiffo Admin</title>
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="../icons/icon-admin-192.png">
@@ -763,6 +765,9 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <p style="color:#94a3b8;font-size:13px;margin-top:2px" id="orders-subtitle">Today's orders — loading…</p>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button id="ord-batch-btn" onclick="openBatchStatusModal()" style="display:flex;align-items:center;gap:7px;padding:9px 14px;background:white;color:#7c3aed;border:1.5px solid #ddd6fe;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;transition:all 180ms" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='white'">
+              <i class="fa fa-bolt"></i> Batch Update
+            </button>
             <button id="ord-pdf-btn" onclick="generateOrderPDF()" style="display:flex;align-items:center;gap:7px;padding:9px 16px;background:linear-gradient(135deg,#e63946,#c1121f);color:white;border:none;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 3px 12px rgba(230,57,70,.3);transition:all 180ms" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='translateY(0)'">
               <i class="fa fa-file-pdf"></i> Export PDF
             </button>
@@ -2225,6 +2230,99 @@ async function updateStatus(orderId, status) {
     aToast('Status updated → '+status);
     renderOrdersTable(_allOrders);
   } catch(e) { aToast(e.message); }
+}
+
+// ── Batch Status Update ───────────────────────────────────────
+function openBatchStatusModal() {
+  // Build a preview of what's currently visible (filtered) in the orders table
+  const istNow = new Date(Date.now() + 5.5 * 3600000);
+  const todayIST = istNow.toISOString().slice(0, 10);
+  const yesterdayIST = new Date(istNow - 86400000).toISOString().slice(0, 10);
+  let filtered = [..._allOrders];
+  if (_ordDay === 'today')     filtered = filtered.filter(o => (o.date||'').startsWith(todayIST));
+  else if (_ordDay === 'yesterday') filtered = filtered.filter(o => (o.date||'').startsWith(yesterdayIST));
+  if (_ordCat === 'morning')  filtered = filtered.filter(_isMorning);
+  else if (_ordCat === 'evening') filtered = filtered.filter(_isEvening);
+
+  const pending   = filtered.filter(o => o.order_status === 'pending').length;
+  const preparing = filtered.filter(o => o.order_status === 'preparing').length;
+  const outForDel = filtered.filter(o => o.order_status === 'out for delivery').length;
+
+  const dayLabel = {today:'Today',yesterday:'Yesterday',all:'All'}[_ordDay]||'Shown';
+  const sessLabel = {all:'',morning:' · Morning',evening:' · Evening'}[_ordCat]||'';
+  const scopeLabel = `${dayLabel}${sessLabel} orders`;
+
+  openMo(`
+    <div class="mo-title"><i class="fa fa-bolt" style="color:#7c3aed"></i> Batch Status Update</div>
+    <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:12.5px;color:#5b21b6">
+      <i class="fa fa-circle-info" style="margin-right:5px"></i>
+      Scope: <b>${scopeLabel}</b> &nbsp;·&nbsp; Updates all orders of the selected <b>current status</b> to the new status.
+    </div>
+    <div style="display:grid;gap:10px;margin-bottom:18px">
+      <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:13.5px;color:#9a3412">🕐 Pending <span style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:20px;font-size:11px;margin-left:6px">${pending}</span></div>
+          <div style="font-size:11.5px;color:#c2410c;margin-top:3px">→ Mark all as <b>Preparing</b></div>
+        </div>
+        <button onclick="executeBatchStatus('pending','preparing','${scopeLabel}')" style="padding:9px 16px;background:#ea580c;color:white;border:none;border-radius:9px;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;opacity:${pending?1:0.4};pointer-events:${pending?'auto':'none'}">
+          <i class="fa fa-fire"></i> Start Cooking
+        </button>
+      </div>
+      <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:13.5px;color:#854d0e">👨‍🍳 Preparing <span style="background:#fde68a;color:#854d0e;padding:2px 8px;border-radius:20px;font-size:11px;margin-left:6px">${preparing}</span></div>
+          <div style="font-size:11.5px;color:#a16207;margin-top:3px">→ Mark all as <b>Out for Delivery</b></div>
+        </div>
+        <button onclick="executeBatchStatus('preparing','out for delivery','${scopeLabel}')" style="padding:9px 16px;background:#d97706;color:white;border:none;border-radius:9px;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;opacity:${preparing?1:0.4};pointer-events:${preparing?'auto':'none'}">
+          <i class="fa fa-motorcycle"></i> Dispatch All
+        </button>
+      </div>
+      <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:13.5px;color:#166534">🛵 Out for Delivery <span style="background:#bbf7d0;color:#166534;padding:2px 8px;border-radius:20px;font-size:11px;margin-left:6px">${outForDel}</span></div>
+          <div style="font-size:11.5px;color:#15803d;margin-top:3px">→ Mark all as <b>Delivered</b></div>
+        </div>
+        <button onclick="executeBatchStatus('out for delivery','delivered','${scopeLabel}')" style="padding:9px 16px;background:#16a34a;color:white;border:none;border-radius:9px;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;opacity:${outForDel?1:0.4};pointer-events:${outForDel?'auto':'none'}">
+          <i class="fa fa-check-double"></i> Mark Delivered
+        </button>
+      </div>
+    </div>
+    <button class="btn btn-outline" onclick="closeMo()">Cancel</button>`);
+}
+
+async function executeBatchStatus(fromStatus, toStatus, scopeLabel) {
+  // Gather matching orders from current filtered view
+  const istNow = new Date(Date.now() + 5.5 * 3600000);
+  const todayIST = istNow.toISOString().slice(0, 10);
+  const yesterdayIST = new Date(istNow - 86400000).toISOString().slice(0, 10);
+  let filtered = [..._allOrders];
+  if (_ordDay === 'today')     filtered = filtered.filter(o => (o.date||'').startsWith(todayIST));
+  else if (_ordDay === 'yesterday') filtered = filtered.filter(o => (o.date||'').startsWith(yesterdayIST));
+  if (_ordCat === 'morning')   filtered = filtered.filter(_isMorning);
+  else if (_ordCat === 'evening') filtered = filtered.filter(_isEvening);
+  const targets = filtered.filter(o => o.order_status === fromStatus);
+  if (!targets.length) { aToast('No orders to update'); return; }
+
+  const statusLabel = { 'preparing': 'Preparing', 'out for delivery': 'Out for Delivery', 'delivered': 'Delivered' }[toStatus] || toStatus;
+  closeMo();
+
+  // Show progress toast
+  aToast(`Updating ${targets.length} orders…`);
+
+  let done = 0, failed = 0;
+  await Promise.all(targets.map(async o => {
+    try {
+      await api('bulkUpdateOrder', { orderId: o.order_id, orderStatus: toStatus });
+      o.order_status = toStatus;
+      done++;
+    } catch(_) { failed++; }
+  }));
+
+  _ordersStr = JSON.stringify(_allOrders);
+  renderOrdersTable(_allOrders);
+
+  if (failed === 0) aToast(`✅ ${done} orders → ${statusLabel}`);
+  else aToast(`✅ ${done} updated · ⚠️ ${failed} failed`);
 }
 
 async function assignRider(orderId, riderId) {
@@ -5055,11 +5153,11 @@ async function saveAndSendCoupon(notifId, phone, name) {
     code,
     discount_type:    discountType,
     discount_value:   discountValue,
-    max_discount:     discountType === 'percent_cap' ? maxDiscount : null,
+    cap_amount:       discountType === 'percent_cap' ? maxDiscount : null,
     min_order:        minOrder,
     expiry_date:      expiryDate,
     restriction_type: 'specific_phone',
-    allowed_phones:   phone,
+    allowed_phones:   [phone],
     usage_limit:      1,          // 1-time use
     auto_delete:      true,       // delete from DB after use
     is_active:        true

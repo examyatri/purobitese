@@ -1,17 +1,19 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v5.0  |  Updated : 2026-04-29
+   Version : v6.0  |  Updated : 2026-05-10
 
-   Lives at /admin/sw.js so its scope is ONLY /admin/
-   — completely isolated from the main Tiffo PWA at /
-   and the rider PWA at /rider/.
+   CHANGES v6.0:
+   - Cache bumped → tiffo-admin-v6
+   - skipWaiting() called immediately in install (faster PWA launch)
+   - Fixed fire-and-forget fetchPromise (was silently dropped)
+   - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v5';  /* ← bumped from v4 */
+const CACHE      = 'tiffo-admin-v6';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
-const PRECACHE = ['./index.html', './manifest.json'];
+const PRECACHE = ['./index.html', './manifest.json', './sw.js'];
 
 const CDN_ORIGINS = [
   'https://fonts.googleapis.com',
@@ -48,7 +50,9 @@ self.addEventListener('message', e => {
 /* ─── INSTALL ────────────────────────────────────────────── */
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE))
+    caches.open(CACHE)
+      .then(cache => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting()) // activate immediately — faster PWA launch
   );
 });
 
@@ -72,7 +76,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const { request } = e;
 
-  // Ignore non-GET requests
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
@@ -141,7 +144,7 @@ self.addEventListener('fetch', e => {
         if (ageMs > ASSET_MAX_AGE_MS) return fetchPromise.catch(() => cached);
       }
 
-      fetchPromise; // background revalidate
+      fetchPromise.catch(() => {}); // background revalidate, prevent unhandled rejection
       return cached;
     })
   );
