@@ -1232,6 +1232,7 @@ let _routePolyline   = null;   // Fallback straight-line polyline
 let _routeLayer      = null;   // OSRM road-following GeoJSON layer
 let _routeDrawing    = false;  // Prevent concurrent OSRM fetches
 let _routeOptimized  = false;
+let _autoOptimizeOnGpsFix = false; // true while waiting for first GPS fix to auto-sort
 let _deliveryActive  = false;
 let _deliveryIdx     = 0;      // current stop index in _mapStops
 let _mapModalOpen    = false;
@@ -1328,6 +1329,11 @@ function _startGPS() {
       const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       const acc    = pos.coords.accuracy;
       _gpsPos = newPos;
+      // ── Auto-optimize on first GPS fix ──────────────────────
+      if (_autoOptimizeOnGpsFix) {
+        _autoOptimizeOnGpsFix = false; // fire once only
+        setTimeout(() => optimizeRoute(), 200); // small delay so map is ready
+      }
       if (!_map) return;
 
       // 1. Move blue dot & accuracy circle
@@ -1655,6 +1661,7 @@ function openRiderMap(ordersParam) {
 
   // Reset state
   _routeOptimized  = false;
+  _autoOptimizeOnGpsFix = false;
   _deliveryActive  = false;
   _deliveryIdx     = 0;
   _resetGMapsBatch();
@@ -1690,6 +1697,12 @@ function openRiderMap(ordersParam) {
     _placeMarkers();
     _updateMapTitle(orders);
     _renderStopList();
+    // Auto-sort route once first GPS fix arrives (if 2+ stops have coords)
+    const _stopsWithCoords = _mapStops.filter(s => s.coords);
+    if (_stopsWithCoords.length >= 2) {
+      _autoOptimizeOnGpsFix = true;
+      rToast('📍 Getting GPS — route will auto-sort…');
+    }
     _startGPS();
 
     // Fit bounds after GPS first fix or immediately
