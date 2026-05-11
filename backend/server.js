@@ -2345,12 +2345,13 @@ app.post('/api', async (req, res) => {
         const toDate   = data.toDate   || fromDate;
         const slot     = (data.slot || 'all').toLowerCase();
 
-        // 1. Fetch all locked order_ids from cooking_sessions in this range
+        // 1. Fetch all locked order_ids from cooking_sessions that OVERLAP this date range
+        //    A session overlaps if its from_date <= toDate AND its to_date >= fromDate
         const { data: sessions } = await supabase
           .from('cooking_sessions')
           .select('locked_order_ids')
-          .gte('session_date', fromDate)
-          .lte('session_date', toDate);
+          .lte('from_date', toDate)
+          .gte('to_date', fromDate);
 
         const lockedIds = new Set();
         (sessions || []).forEach(s => {
@@ -2374,7 +2375,12 @@ app.post('/api', async (req, res) => {
         (orders || []).forEach(ord => {
           if (lockedIds.has(ord.order_id)) return;
           includedOrderIds.push(ord.order_id);
-          const items = Array.isArray(ord.items) ? ord.items : [];
+          // items is stored as JSON string in DB — parse it first
+          let rawItems = ord.items;
+          if (typeof rawItems === 'string') {
+            try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
+          }
+          const items = Array.isArray(rawItems) ? rawItems : [];
           items.forEach(item => {
             const key = (item.name || item.item_name || 'Unknown').trim();
             const qty = parseFloat(item.quantity || item.qty || 1);
@@ -2432,8 +2438,8 @@ app.post('/api', async (req, res) => {
         const { data: sessions, error } = await supabase
           .from('cooking_sessions')
           .select('*')
-          .gte('session_date', fromDate)
-          .lte('session_date', toDate)
+          .lte('from_date', toDate)
+          .gte('to_date', fromDate)
           .order('created_at', { ascending: false });
         if (error) return res.json({ success: false, error: error.message });
         return res.json({ success: true, sessions: sessions || [] });
