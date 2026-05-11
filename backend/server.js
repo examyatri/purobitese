@@ -2335,6 +2335,110 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
+      // ─── KITCHEN / COOKING SUMMARY ───────────────────────────────────────
+      // getCookingSummary: aggregate item quantities from orders in a time range,
+      // excluding orders already locked in a cooking session.
+      case 'getCookingSummary': {
+        // data.slot = 'morning' | 'evening' | 'all'
+        // data.fromDate, data.toDate  (YYYY-MM-DD)
+        const fromDate = data.fromDate || new Date().toISOString().slice(0, 10);
+        const toDate   = data.toDate   || fromDate;
+        const slot     = (data.slot || 'all').toLowerCase();
+
+        // 1. Fetch all locked order_ids from cooking_sessions in this range
+        const { data: sessions } = await supabase
+          .from('cooking_sessions')
+          .select('locked_order_ids')
+          .gte('session_date', fromDate)
+          .lte('session_date', toDate);
+
+        const lockedIds = new Set();
+        (sessions || []).forEach(s => {
+          (s.locked_order_ids || []).forEach(id => lockedIds.add(id));
+        });
+
+        // 2. Fetch orders in date range (non-cancelled)
+        let q = supabase.from('orders').select('order_id,items,slot,order_status')
+          .gte('date', fromDate)
+          .lte('date', toDate)
+          .not('order_status', 'eq', 'cancelled');
+
+        if (slot === 'morning') q = q.eq('slot', 'morning');
+        else if (slot === 'evening') q = q.eq('slot', 'evening');
+
+        const { data: orders } = await q;
+
+        // 3. Aggregate quantities, skip locked orders
+        const summary = {};
+        let includedOrderIds = [];
+        (orders || []).forEach(ord => {
+          if (lockedIds.has(ord.order_id)) return;
+          includedOrderIds.push(ord.order_id);
+          const items = Array.isArray(ord.items) ? ord.items : [];
+          items.forEach(item => {
+            const key = (item.name || item.item_name || 'Unknown').trim();
+            const qty = parseFloat(item.quantity || item.qty || 1);
+            const unit = (item.unit || item.variant || '').trim();
+            if (!summary[key]) summary[key] = { name: key, totalQty: 0, unit, orders: 0 };
+            summary[key].totalQty += qty;
+            summary[key].orders   += 1;
+          });
+        });
+
+        const summaryArr = Object.values(summary).sort((a, b) => a.name.localeCompare(b.name));
+        return res.json({
+          success: true,
+          summary: summaryArr,
+          orderCount: includedOrderIds.length,
+          includedOrderIds,
+          fromDate, toDate, slot
+        });
+      }
+
+      // startCookingSession: lock the current includedOrderIds so they won't be
+      // counted again in future getCookingSummary calls.
+      case 'startCookingSession': {
+        const sessionDate = data.sessionDate || new Date().toISOString().slice(0, 10);
+        const slot        = (data.slot || 'all').toLowerCase();
+        const orderIds    = data.orderIds || [];
+        const label       = data.label || '';
+        const fromDate    = data.fromDate || sessionDate;
+        const toDate      = data.toDate   || sessionDate;
+
+        if (!orderIds.length) {
+          return res.json({ success: false, error: 'No orders to lock' });
+        }
+
+        const sessionId = 'cs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        const { error } = await supabase.from('cooking_sessions').insert({
+          session_id:       sessionId,
+          session_date:     sessionDate,
+          slot,
+          from_date:        fromDate,
+          to_date:          toDate,
+          label,
+          locked_order_ids: orderIds,
+          created_at:       new Date().toISOString()
+        });
+
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true, sessionId });
+      }
+
+      // getCookingSessions: return past cooking sessions for audit/history
+      case 'getCookingSessions': {
+        const fromDate = data.fromDate || new Date().toISOString().slice(0, 10);
+        const toDate   = data.toDate   || fromDate;
+        const { data: sessions, error } = await supabase
+          .from('cooking_sessions')
+          .select('*')
+          .gte('session_date', fromDate)
+          .lte('session_date', toDate)
+          .order('created_at', { ascending: false });
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true, sessions: sessions || [] });
+      }
+
       // ─────────────────────────────────────────────────────────────────────
       default:
         return res.status(400).json({ success: false, error: 'Unknown action: ' + action });
