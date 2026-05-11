@@ -79,6 +79,65 @@ if (process.env.RENDER_EXTERNAL_URL) {
   console.log('[self-ping] active →', PING_URL);
 }
 
+// ─── AUTO CLEANUP SCHEDULER ──────────────────────────────────────────────────
+// Runs daily at midnight IST to silently purge stale data.
+// Retention rules (all dates in IST):
+//   orders           → older than 5 days
+//   khata_entries    → older than 35 days
+//   notifications    → older than 1 day
+//   cooking_sessions → older than 5 days  (done sessions have no business value)
+//   nu_coupon_sent   → older than 5 days  (sent record no longer needed)
+//
+// NEVER touches: users, subscribers, riders, staff, menu_items, thalis,
+//                thali_items, admin_settings, coupons, khata_summary
+//
+async function runAutoCleanup() {
+  try {
+    const ist = getIST();
+    const dateCutoff = (days) => {
+      const d = new Date(ist.getTime() - days * 86_400_000);
+      return istDateStr(d);
+    };
+    const isoCutoff = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
+
+    const [r1, r2, r3, r4, r5] = await Promise.allSettled([
+      supabase.from('orders').delete({ count: 'exact' }).lte('date', dateCutoff(5)),
+      supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', dateCutoff(35)),
+      supabase.from('notifications').delete({ count: 'exact' }).lt('created_at', isoCutoff(1)),
+      supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', dateCutoff(5)),
+      supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', isoCutoff(5)),
+    ]);
+
+    const counts = {
+      orders:           r1.status === 'fulfilled' ? (r1.value.count || 0) : 'err',
+      khata_entries:    r2.status === 'fulfilled' ? (r2.value.count || 0) : 'err',
+      notifications:    r3.status === 'fulfilled' ? (r3.value.count || 0) : 'err',
+      cooking_sessions: r4.status === 'fulfilled' ? (r4.value.count || 0) : 'err',
+      nu_coupon_sent:   r5.status === 'fulfilled' ? (r5.value.count || 0) : 'err',
+    };
+    console.log('[auto-cleanup]', new Date().toISOString(), JSON.stringify(counts));
+  } catch (err) {
+    console.error('[auto-cleanup] fatal:', err.message);
+  }
+}
+
+// Fires at next midnight IST, then every 24h
+function scheduleMidnightCleanup() {
+  const now = getIST();
+  // Next midnight IST: advance to next UTC day start, subtract IST offset (5h30m)
+  const nextMidnightUTC = Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0
+  ) - 5.5 * 3_600_000;
+  const msUntil = nextMidnightUTC - Date.now();
+  console.log(`[auto-cleanup] next run in ${Math.round(msUntil / 60000)} min`);
+  setTimeout(() => {
+    runAutoCleanup();
+    setInterval(runAutoCleanup, 24 * 3_600_000);
+  }, msUntil);
+}
+scheduleMidnightCleanup();
+
+
 // ─── IN-MEMORY CACHES ────────────────────────────────────────────────────────
 // Analytics cache — dashboard numbers (8 parallel queries) cached for 90s
 let _analyticsCache   = null;
@@ -1130,7 +1189,21 @@ app.post('/api', async (req, res) => {
         // ─── STEP 4: Build all rows in JS — zero DB calls ───────────────────
         // IDs use a zero-padded batch index (B0001…B0999) instead of rand5() to
         // guarantee uniqueness within the batch regardless of how fast it runs.
-        const itemsJson  = JSON.stringify([{ name: itemName, description: itemDesc || '', qty: 1, price: priceNum }]);
+
+        // Auto-extract variantLabel from itemName for kitchen qty aggregation.
+        // If itemName starts with a number + unit (e.g. "100 Gram Bhindi", "6 Roti Sabji"),
+        // store that leading "100 Gram" / "6 Roti" as variantLabel so getCookingSummary
+        // can compute real quantities (100 Gram × 2 orders = 200 Gram, not 2).
+        // Accept explicit variantLabel from payload too (future-proof).
+        let bulkVariantLabel = data.variantLabel || null;
+        if (!bulkVariantLabel) {
+          const vm = String(itemName).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
+          if (vm) bulkVariantLabel = `${vm[1]} ${vm[2]}`;  // e.g. "100 Gram"
+        }
+
+        const bulkItem = { name: itemName, description: itemDesc || '', qty: 1, price: priceNum };
+        if (bulkVariantLabel) bulkItem.variantLabel = bulkVariantLabel;
+        const itemsJson  = JSON.stringify([bulkItem]);
         const nowIso     = new Date().toISOString();
         const timeStr    = istTimeStr(ist);
         const datePart   = `${ist.getUTCFullYear()}${String(ist.getUTCMonth()+1).padStart(2,'0')}${String(ist.getUTCDate()).padStart(2,'0')}`;
@@ -1957,6 +2030,33 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
+      // Returns row counts that WOULD be deleted by auto-cleanup (for admin info display)
+      case 'autoCleanupStatus': {
+        const ist2 = getIST();
+        const dc = (days) => istDateStr(new Date(ist2.getTime() - days * 86_400_000));
+        const ic = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
+
+        const [c1, c2, c3, c4, c5] = await Promise.all([
+          supabase.from('orders').select('order_id', { count: 'exact', head: true }).lte('date', dc(5)),
+          supabase.from('khata_entries').select('id', { count: 'exact', head: true }).lte('date', dc(35)),
+          supabase.from('notifications').select('id', { count: 'exact', head: true }).lt('created_at', ic(1)),
+          supabase.from('cooking_sessions').select('session_id', { count: 'exact', head: true }).lte('session_date', dc(5)),
+          supabase.from('nu_coupon_sent').select('phone', { count: 'exact', head: true }).lt('sent_at', ic(5)),
+        ]);
+
+        return res.json({
+          success: true,
+          pending: {
+            orders:           c1.count || 0,
+            khata_entries:    c2.count || 0,
+            notifications:    c3.count || 0,
+            cooking_sessions: c4.count || 0,
+            nu_coupon_sent:   c5.count || 0,
+          },
+          retention: { orders: 5, khata_entries: 35, notifications: 1, cooking_sessions: 5, nu_coupon_sent: 5 }
+        });
+      }
+
       // ── NEW USER COUPON ───────────────────────────────────────────────────
 
       case 'getNuCouponPending': {
@@ -2083,19 +2183,26 @@ app.post('/api', async (req, res) => {
         const txnsCutoff    = dateCutoff(35);  // transactions older than 35 days
         const notifsCutoff  = dateCutoff(1);   // notifications older than 1 day
 
-        const [r1, r2, r3] = await Promise.all([
+        const sessionsCutoff = dateCutoff(5);  // cooking_sessions older than 5 days
+        const nuCouponCutoff  = new Date(Date.now() - 5 * 86_400_000).toISOString(); // nu_coupon_sent older than 5 days
+
+        const [r1, r2, r3, r4, r5] = await Promise.all([
           supabase.from('orders').delete({ count: 'exact' }).lte('date', ordersCutoff),
           supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', txnsCutoff),
-          supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', notifsCutoff + 'T23:59:59Z')
+          supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', notifsCutoff + 'T23:59:59Z'),
+          supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', sessionsCutoff),
+          supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', nuCouponCutoff),
         ]);
 
         return res.json({
           success: true,
           message: 'Master delete completed (retention rules applied)',
-          ordersDeleted:  r1.count || 0,
-          txnsDeleted:    r2.count || 0,
-          notifsDeleted:  r3.count || 0,
-          cutoffs: { orders: ordersCutoff, transactions: txnsCutoff, notifications: notifsCutoff }
+          ordersDeleted:          r1.count || 0,
+          txnsDeleted:            r2.count || 0,
+          notifsDeleted:          r3.count || 0,
+          cookingSessionsDeleted: r4.count || 0,
+          nuCouponSentDeleted:    r5.count || 0,
+          cutoffs: { orders: ordersCutoff, transactions: txnsCutoff, notifications: notifsCutoff, cookingSessions: sessionsCutoff }
         });
       }
 
@@ -2370,6 +2477,26 @@ app.post('/api', async (req, res) => {
         const { data: orders } = await q;
 
         // 3. Aggregate quantities, skip locked orders
+        //
+        // variantLabel parsing: extract numeric quantity and unit text from labels like:
+        //   "100 Gram"        → numQty=100, unit="Gram"
+        //   "50 Gram"         → numQty=50,  unit="Gram"
+        //   "6 Roti ₹30"     → numQty=6,   unit="Roti"
+        //   "4 Roti ₹22"     → numQty=4,   unit="Roti"
+        //   "2 piece ₹60"    → numQty=2,   unit="piece"
+        //   "1 piece ₹40"    → numQty=1,   unit="piece"
+        // If no variant label or no leading number, fall back to item.qty (cart quantity).
+        function _parseVariantQtyUnit(variantLabel) {
+          if (!variantLabel) return null;
+          // Match leading number (int or decimal) followed by a word unit, optionally followed by price/extra text
+          // e.g. "100 Gram ₹100" → ["100", "Gram"]
+          //      "6 Roti ₹30"   → ["6",   "Roti"]
+          //      "4 piece ₹22"  → ["4",   "piece"]
+          const m = String(variantLabel).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
+          if (!m) return null;
+          return { numQty: parseFloat(m[1]), unit: m[2] };
+        }
+
         const summary = {};
         let includedOrderIds = [];
         (orders || []).forEach(ord => {
@@ -2382,12 +2509,21 @@ app.post('/api', async (req, res) => {
           }
           const items = Array.isArray(rawItems) ? rawItems : [];
           items.forEach(item => {
-            const key = (item.name || item.item_name || 'Unknown').trim();
-            const qty = parseFloat(item.quantity || item.qty || 1);
-            const unit = (item.unit || item.variant || '').trim();
+            const key      = (item.name || item.item_name || 'Unknown').trim();
+            // Cart quantity (how many of this variant the user added to cart, usually 1)
+            const cartQty  = parseFloat(item.quantity || item.qty || 1);
+            // Try to parse real numeric quantity from variantLabel first
+            const parsed   = _parseVariantQtyUnit(item.variantLabel || item.variant_label || '');
+            // realQty = variant numeric amount × cart qty (e.g. "100 Gram" × 1 = 100)
+            const realQty  = parsed ? parsed.numQty * cartQty : cartQty;
+            // Unit from variant label (e.g. "Gram", "Roti", "piece"); fall back to stored unit field
+            const unit     = parsed ? parsed.unit : (item.unit || item.variant || '').trim();
+
             if (!summary[key]) summary[key] = { name: key, totalQty: 0, unit, orders: 0 };
-            summary[key].totalQty += qty;
+            summary[key].totalQty += realQty;
             summary[key].orders   += 1;
+            // Ensure unit is set (first variant's unit wins; subsequent same-unit items won't overwrite)
+            if (!summary[key].unit && unit) summary[key].unit = unit;
           });
         });
 
@@ -2443,6 +2579,116 @@ app.post('/api', async (req, res) => {
           .order('created_at', { ascending: false });
         if (error) return res.json({ success: false, error: error.message });
         return res.json({ success: true, sessions: sessions || [] });
+      }
+
+      // getCookingSessionDetail: fetch orders for a specific cooking session
+      // so admin can see what items / quantities were locked.
+      case 'getCookingSessionDetail': {
+        const orderIds = data.orderIds || [];
+        if (!orderIds.length) return res.json({ success: true, orders: [], summary: [] });
+
+        const { data: rows, error } = await supabase
+          .from('orders')
+          .select('order_id,name,phone,address,items,slot,order_status,payment_mode,final_amount,date')
+          .in('order_id', orderIds);
+
+        if (error) return res.json({ success: false, error: error.message });
+
+        const orders = (rows || []).map(o => ({
+          ...o,
+          items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
+        }));
+
+        // Build item summary (same logic as getCookingSummary)
+        const itemMap = {};
+        orders.forEach(o => {
+          (o.items || []).forEach(i => {
+            const key = (i.name || i.item_id || 'Unknown') + '|' + (i.variant || '');
+            if (!itemMap[key]) itemMap[key] = { name: i.name || 'Unknown', variant: i.variant || '', qty: 0, orders: 0 };
+            itemMap[key].qty += Number(i.qty) || 0;
+            itemMap[key].orders += 1;
+          });
+        });
+        const summary = Object.values(itemMap).sort((a, b) => b.qty - a.qty);
+
+        return res.json({ success: true, orders, summary });
+      }
+
+      // getKitchenDashboard: single call replacing getCookingSummary + getCookingSessions.
+      // Runs both DB queries in parallel (Promise.all) — one HTTP round trip, less server load.
+      // getCookingSummary and getCookingSessions remain untouched for backwards compatibility.
+      case 'getKitchenDashboard': {
+        const fromDate = data.fromDate || new Date().toISOString().slice(0, 10);
+        const toDate   = data.toDate   || fromDate;
+        const slot     = (data.slot || 'all').toLowerCase();
+
+        // ── Run both queries in parallel ──────────────────────────────────
+        let summaryQuery = supabase.from('orders').select('order_id,items,slot,order_status')
+          .gte('date', fromDate)
+          .lte('date', toDate)
+          .not('order_status', 'eq', 'cancelled');
+        if (slot === 'morning') summaryQuery = summaryQuery.eq('slot', 'morning');
+        else if (slot === 'evening') summaryQuery = summaryQuery.eq('slot', 'evening');
+
+        const [
+          { data: lockSessions },
+          { data: orders },
+          { data: allSessions, error: sesErr }
+        ] = await Promise.all([
+          supabase.from('cooking_sessions').select('locked_order_ids').lte('from_date', toDate).gte('to_date', fromDate),
+          summaryQuery,
+          supabase.from('cooking_sessions').select('*').lte('from_date', toDate).gte('to_date', fromDate).order('created_at', { ascending: false })
+        ]);
+
+        // ── Build locked set ──────────────────────────────────────────────
+        const lockedIds = new Set();
+        (lockSessions || []).forEach(s => {
+          (s.locked_order_ids || []).forEach(id => lockedIds.add(id));
+        });
+
+        // ── Aggregate quantities (same logic as getCookingSummary) ─────────
+        function _parseVQU(variantLabel) {
+          if (!variantLabel) return null;
+          const m = String(variantLabel).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
+          if (!m) return null;
+          return { numQty: parseFloat(m[1]), unit: m[2] };
+        }
+
+        const summary = {};
+        const includedOrderIds = [];
+        (orders || []).forEach(ord => {
+          if (lockedIds.has(ord.order_id)) return;
+          includedOrderIds.push(ord.order_id);
+          let rawItems = ord.items;
+          if (typeof rawItems === 'string') {
+            try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
+          }
+          const items = Array.isArray(rawItems) ? rawItems : [];
+          items.forEach(item => {
+            const key     = (item.name || item.item_name || 'Unknown').trim();
+            const cartQty = parseFloat(item.quantity || item.qty || 1);
+            const parsed  = _parseVQU(item.variantLabel || item.variant_label || '');
+            const realQty = parsed ? parsed.numQty * cartQty : cartQty;
+            const unit    = parsed ? parsed.unit : (item.unit || item.variant || '').trim();
+            if (!summary[key]) summary[key] = { name: key, totalQty: 0, unit, orders: 0 };
+            summary[key].totalQty += realQty;
+            summary[key].orders   += 1;
+            if (!summary[key].unit && unit) summary[key].unit = unit;
+          });
+        });
+
+        const summaryArr = Object.values(summary).sort((a, b) => a.name.localeCompare(b.name));
+
+        return res.json({
+          success:          true,
+          // summary fields (matches getCookingSummary response exactly)
+          summary:          summaryArr,
+          orderCount:       includedOrderIds.length,
+          includedOrderIds,
+          fromDate, toDate, slot,
+          // sessions field (matches getCookingSessions response exactly)
+          sessions:         allSessions || []
+        });
       }
 
       // ─────────────────────────────────────────────────────────────────────
