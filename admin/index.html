@@ -4542,6 +4542,8 @@ function renderMasterDelPanel(area) {
           <div>🛒 <b>Orders</b> — data newer than <b>5 days</b> is preserved</div>
           <div>💳 <b>Transaction Details</b> — data newer than <b>35 days</b> is preserved</div>
           <div>🔔 <b>Notifications</b> — data newer than <b>1 day</b> is preserved</div>
+          <div>🍳 <b>Cooking Sessions</b> — data newer than <b>5 days</b> is preserved</div>
+          <div>🎟️ <b>New User Coupon Log</b> — data newer than <b>5 days</b> is preserved</div>
         </div>
       </div>
       <div class="field">
@@ -4569,12 +4571,14 @@ async function doMasterDelete() {
       <li>🛒 Orders older than <b>5 days</b></li>
       <li>💳 Transactions older than <b>35 days</b></li>
       <li>🔔 Notifications older than <b>1 day</b></li>
+      <li>🍳 Cooking Sessions older than <b>5 days</b></li>
+      <li>🎟️ New User Coupon Log older than <b>5 days</b></li>
     </ul>
     <div style="margin-top:8px;font-size:12px;color:#dc2626">Data within retention periods is NOT deleted. This cannot be undone.</div>`,
     async function() {
       try {
         const res = await api('masterDelete', { confirm: 'DELETE_ALL_TIFFO_DATA' });
-        aToast(`Master delete done ✅ — Orders: ${res.ordersDeleted||0}, Transactions: ${res.txnsDeleted||0}, Notifications: ${res.notifsDeleted||0}`);
+        aToast(`Master delete done ✅ — Orders: ${res.ordersDeleted||0}, Txns: ${res.txnsDeleted||0}, Notifs: ${res.notifsDeleted||0}, Sessions: ${res.cookingSessionsDeleted||0}, CouponLog: ${res.nuCouponSentDeleted||0}`);
         document.getElementById('master-del-input').value = '';
         checkMasterDelInput();
       } catch(e) { aToast(e.message); }
@@ -5679,10 +5683,9 @@ async function loadKitchen() {
   document.getElementById('kitchen-stats').innerHTML = '';
 
   try {
-    const [sumRes, sesRes] = await Promise.all([
-      api('getCookingSummary', { slot: _kitchenSlot, fromDate, toDate }),
-      api('getCookingSessions', { fromDate, toDate })
-    ]);
+    // Single call — replaces getCookingSummary + getCookingSessions (parallel DB queries server-side)
+    const sumRes = await api('getKitchenDashboard', { slot: _kitchenSlot, fromDate, toDate });
+    const sesRes = sumRes; // sessions are included in the same response
 
     if (!sumRes.success) throw new Error(sumRes.error || 'Failed');
 
@@ -5718,7 +5721,7 @@ async function loadKitchen() {
         <tr style="border-bottom:1px solid #f1f5f9">
           <td style="padding:12px 18px;font-size:13px;color:#64748b;font-weight:700">${i + 1}</td>
           <td style="padding:12px 18px;font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">${item.name}</td>
-          <td style="padding:12px 18px;font-family:var(--ff);font-weight:800;font-size:16px;color:#1e40af">${item.totalQty}${item.unit ? ' <span style="font-size:11px;color:#94a3b8;font-weight:600">' + item.unit + '</span>' : ''}</td>
+          <td style="padding:12px 18px;font-family:var(--ff);font-weight:800;font-size:16px;color:#1e40af">${Number.isInteger(item.totalQty) ? item.totalQty : parseFloat(item.totalQty.toFixed(2))}${item.unit ? ' <span style="font-size:11px;color:#94a3b8;font-weight:600">' + item.unit + '</span>' : ''}</td>
           <td style="padding:12px 18px;font-size:12px;color:#64748b">${item.orders} order${item.orders !== 1 ? 's' : ''}</td>
         </tr>`).join('');
       document.getElementById('kitchen-table-wrap').innerHTML = `
@@ -5756,6 +5759,7 @@ function _renderKitchenSessions(sessions) {
     const dt = new Date(s.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
     const slot = s.slot === 'morning' ? '🌅 Morning' : s.slot === 'evening' ? '🌙 Evening' : 'All';
     const range = s.from_date === s.to_date ? s.from_date : `${s.from_date} → ${s.to_date}`;
+    const idsJson = JSON.stringify(s.locked_order_ids || []).replace(/"/g, '&quot;');
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f8fafc;border-radius:10px;margin-bottom:8px;flex-wrap:wrap">
         <div style="width:36px;height:36px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -5765,7 +5769,10 @@ function _renderKitchenSessions(sessions) {
           <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">${slot} · ${range}</div>
           <div style="font-size:11px;color:#94a3b8;margin-top:1px">${dt} · ${(s.locked_order_ids||[]).length} orders locked</div>
         </div>
-        <div style="font-family:var(--ff);font-weight:700;font-size:11px;color:#64748b;background:#e2e8f0;padding:3px 10px;border-radius:20px">COOKED ✓</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="viewCookingSession('${s.session_id}','${slot} · ${range}','${dt}',${(s.locked_order_ids||[]).length},'${idsJson}')" style="font-family:var(--ff);font-weight:700;font-size:11px;color:#1e40af;background:#dbeafe;padding:3px 12px;border-radius:20px;border:none;cursor:pointer">👁 View</button>
+          <div style="font-family:var(--ff);font-weight:700;font-size:11px;color:#64748b;background:#e2e8f0;padding:3px 10px;border-radius:20px">COOKED ✓</div>
+        </div>
       </div>`;
   }).join('');
 }
@@ -5782,7 +5789,7 @@ function kitchenStartCooking() {
   const slot      = _kitchenSlot;
   const slotLabel = slot === 'morning' ? '🌅 Morning' : slot === 'evening' ? '🌙 Evening' : 'All Sessions';
   const range     = fromDate === toDate ? fromDate : `${fromDate} → ${toDate}`;
-  const itemList  = _kitchenSummary.map(i => `• ${i.name}: ${i.totalQty}${i.unit ? ' ' + i.unit : ''}`).join('<br>');
+  const itemList  = _kitchenSummary.map(i => `• ${i.name}: ${Number.isInteger(i.totalQty) ? i.totalQty : parseFloat(i.totalQty.toFixed(2))}${i.unit ? ' ' + i.unit : ''}`).join('<br>');
 
   // Use the existing confirmAction pattern — no interval, no leaks, consistent UX
   confirmAction(
@@ -5812,6 +5819,92 @@ function kitchenStartCooking() {
   );
 }
 
+// ── Cooking Session Detail Modal ────────────────────────────────────────────
+async function viewCookingSession(sessionId, label, dt, orderCount, idsJson) {
+  // Parse the order IDs
+  let orderIds;
+  try { orderIds = JSON.parse(idsJson.replace(/&quot;/g, '"')); } catch(e) { orderIds = []; }
+
+  // Show modal immediately with loading state
+  let modal = document.getElementById('cs-detail-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'cs-detail-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)';
+    modal.innerHTML = `
+      <div id="cs-detail-sheet" style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:640px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 -8px 40px rgba(0,0,0,.18)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid #f1f5f9;flex-shrink:0">
+          <div>
+            <div id="cs-detail-title" style="font-family:var(--ff);font-weight:800;font-size:15px;color:#0f172a"></div>
+            <div id="cs-detail-sub" style="font-size:11px;color:#94a3b8;margin-top:2px"></div>
+          </div>
+          <button onclick="document.getElementById('cs-detail-modal').remove()" style="width:32px;height:32px;border-radius:50%;border:none;background:#f1f5f9;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#64748b">✕</button>
+        </div>
+        <div id="cs-detail-body" style="overflow-y:auto;padding:16px 20px 24px;flex:1"></div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  }
+
+  document.getElementById('cs-detail-title').textContent = `🔥 ${label}`;
+  document.getElementById('cs-detail-sub').textContent   = `${dt} · ${orderCount} orders locked`;
+  document.getElementById('cs-detail-body').innerHTML    = '<div style="text-align:center;padding:30px;color:#94a3b8"><i class="fa fa-spinner fa-spin"></i> Loading...</div>';
+
+  try {
+    const res = await api('getCookingSessionDetail', { orderIds });
+    if (!res.success) throw new Error(res.error || 'Failed');
+
+    const { summary, orders } = res;
+
+    // Build item summary table
+    const summaryRows = summary.map((it, i) => `
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 10px;color:#94a3b8;font-weight:700;font-size:12px">${i+1}</td>
+        <td style="padding:8px 10px;font-weight:700;color:#0f172a;font-size:13px">${it.name}${it.variant ? `<span style="font-size:11px;color:#64748b;font-weight:400;margin-left:4px">${it.variant}</span>` : ''}</td>
+        <td style="padding:8px 10px;font-weight:800;color:#1e40af;font-size:15px;text-align:right">${Number.isInteger(it.qty) ? it.qty : parseFloat(it.qty.toFixed(2))}</td>
+        <td style="padding:8px 10px;color:#94a3b8;font-size:11px;text-align:right">${it.orders} order${it.orders!==1?'s':''}</td>
+      </tr>`).join('');
+
+    // Build orders list
+    const orderRows = orders.map(o => {
+      const itemList = (o.items||[]).map(i => `${i.name}${i.variant?' ('+i.variant+')':''} ×${i.qty}`).join(', ');
+      return `
+        <div style="padding:10px 0;border-bottom:1px solid #f8fafc">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-weight:700;font-size:13px;color:#0f172a">${o.name || 'Customer'}</div>
+              <div style="font-size:11px;color:#64748b;margin-top:2px">${o.phone || ''} · ${o.slot||''}</div>
+              <div style="font-size:12px;color:#475569;margin-top:4px">${itemList}</div>
+            </div>
+            <div style="font-weight:800;color:#1e40af;font-size:13px;white-space:nowrap;margin-left:8px">₹${o.final_amount||0}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('cs-detail-body').innerHTML = `
+      <!-- Item Summary -->
+      <div style="font-family:var(--ff);font-weight:800;font-size:13px;color:#0f172a;margin-bottom:8px">📦 Item Summary</div>
+      <div style="background:#f8fafc;border-radius:12px;overflow:hidden;margin-bottom:20px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:#f1f5f9">
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">#</th>
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">Item</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11px;color:#64748b;font-weight:700">Qty</th>
+              <th style="padding:8px 10px;text-align:right;font-size:11px;color:#64748b;font-weight:700">Orders</th>
+            </tr>
+          </thead>
+          <tbody>${summaryRows || '<tr><td colspan="4" style="padding:12px;text-align:center;color:#94a3b8">No items found</td></tr>'}</tbody>
+        </table>
+      </div>
+      <!-- Order List -->
+      <div style="font-family:var(--ff);font-weight:800;font-size:13px;color:#0f172a;margin-bottom:8px">🧾 Orders (${orders.length})</div>
+      <div style="background:#f8fafc;border-radius:12px;padding:4px 14px">${orderRows || '<div style="padding:12px;text-align:center;color:#94a3b8">No orders found</div>'}</div>`;
+  } catch(e) {
+    document.getElementById('cs-detail-body').innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444">❌ ${e.message}</div>`;
+  }
+}
+
 function kitchenExportPDF() {
   if (!_kitchenSummary) { aToast('⚠️ Load the kitchen summary first'); return; }
   const { from: fromDate, to: toDate } = _syncResolvedDates();
@@ -5823,7 +5916,7 @@ function kitchenExportPDF() {
     `<tr>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#64748b;font-weight:700">${i + 1}</td>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f172a">${item.name}</td>
-      <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:800;color:#1e40af;font-size:16px">${item.totalQty}${item.unit ? ' <span style="font-size:11px;color:#94a3b8">' + item.unit + '</span>' : ''}</td>
+      <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:800;color:#1e40af;font-size:16px">${Number.isInteger(item.totalQty) ? item.totalQty : parseFloat(item.totalQty.toFixed(2))}${item.unit ? ' <span style="font-size:11px;color:#94a3b8">' + item.unit + '</span>' : ''}</td>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#64748b">${item.orders} order${item.orders !== 1 ? 's' : ''}</td>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#22c55e;font-size:18px">☐</td>
     </tr>`
