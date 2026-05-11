@@ -290,8 +290,8 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS refund_type  TEXT    DEFAULT NULL;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode TEXT    DEFAULT NULL;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS source       TEXT    NOT NULL DEFAULT 'user';
 
--- khata_entries: rename order_source → source (same name as orders.source)
-ALTER TABLE khata_entries RENAME COLUMN order_source TO source;
+-- khata_entries: 'source' column already exists in CREATE TABLE above (no rename needed)
+-- RENAME COLUMN order_source TO source — SKIPPED: column is already named 'source'
 
 -- menu_items: add missing columns
 ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS veg_type     TEXT        NOT NULL DEFAULT 'veg';
@@ -350,7 +350,9 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'user';
 
 -- 2. Rename khata_entries.order_source → source
 --    (Makes both tables use the same column name)
-ALTER TABLE khata_entries RENAME COLUMN order_source TO source;
+--    SKIPPED: After a fresh reset, 'source' is already the correct column name.
+--    This RENAME is only relevant for very old pre-reset databases.
+--    ALTER TABLE khata_entries RENAME COLUMN order_source TO source;
 
 -- 3. Backfill any NULL source values in orders
 UPDATE orders SET source = 'user'
@@ -616,3 +618,47 @@ GRANT EXECUTE ON FUNCTION bulk_increment_balance(TEXT[], NUMERIC) TO authenticat
 -- Expected: two rows each showing (phone, <current_balance − 50>)
 -- Clean up test rows afterwards:
 -- DELETE FROM khata_summary WHERE phone IN ('0000000001', '0000000002');
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 6: v3 Migration (Tiffo_v3_final)                      ║
+-- ║  Added: cooking_sessions table (Kitchen Dashboard lock)      ║
+-- ║                                                              ║
+-- ║  NOTE: bulk_increment_balance and increment_balance from v3  ║
+-- ║  are NOT added here — both already exist (in this file,      ║
+-- ║  File 5 above) with a SUPERIOR implementation:               ║
+-- ║    • v3 bulk_increment_balance wrongly targets users.wallet_balance  ║
+-- ║      (that column does NOT exist) — would fail at runtime.  ║
+-- ║    • v3 increment_balance lacks INSERT ON CONFLICT (upsert), ║
+-- ║      SECURITY DEFINER, and GRANT statements.                 ║
+-- ║  The v2 versions (File 5) are correct and kept as-is.        ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ────────────────────────────────────────────────────────────
+-- cooking_sessions table
+--    Required for Kitchen Dashboard "Start Cooking" lock feature.
+--    Stores which order_ids have been locked per cooking session
+--    so they are excluded from future getCookingSummary /
+--    getKitchenDashboard counts.
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS cooking_sessions (
+  session_id       TEXT PRIMARY KEY,
+  session_date     DATE NOT NULL,
+  slot             TEXT NOT NULL DEFAULT 'all',
+  from_date        DATE NOT NULL,
+  to_date          DATE NOT NULL,
+  label            TEXT,
+  locked_order_ids JSONB DEFAULT '[]'::jsonb,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index used by getCookingSummary / getKitchenDashboard overlap queries
+CREATE INDEX IF NOT EXISTS idx_cooking_sessions_dates
+  ON cooking_sessions (from_date, to_date);
+
+-- ────────────────────────────────────────────────────────────
+-- Done. Verify with:
+--   SELECT * FROM cooking_sessions LIMIT 1;
+--   SELECT routine_name FROM information_schema.routines
+--    WHERE routine_name IN ('bulk_increment_balance','increment_balance');
+-- ────────────────────────────────────────────────────────────
