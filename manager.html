@@ -1,0 +1,2556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🍱 Tiffin Manager — Tiffo v16</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:      #0b0f1a;
+  --bg2:     #0f1424;
+  --bg3:     #141929;
+  --bg4:     #1a2035;
+  --border:  #1f2d45;
+  --border2: #2a3d5c;
+  --text:    #e2ecf8;
+  --muted:   #5a7a9a;
+  --muted2:  #3d5a78;
+  --green:   #00d68f;
+  --amber:   #f59e0b;
+  --blue:    #3b9eff;
+  --red:     #f43f5e;
+  --purple:  #a855f7;
+  --teal:    #06b6d4;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ─── GLOBAL BAR ─── */
+.global-bar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.global-bar-inner {
+  max-width: 1150px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 54px;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+.global-bar-logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.logo-title { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.logo-sub { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+.global-params { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.param-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg4);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.param-group label { color: var(--muted); font-size: 11px; white-space: nowrap; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+.param-group .param-derived { font-size: 11px; color: var(--green); font-family: 'DM Mono', monospace; white-space: nowrap; padding-left: 4px; border-left: 1px solid var(--border2); margin-left: 2px; }
+.tpm-inp { width: 64px; background: transparent; border: none; color: var(--text); font-size: 13px; font-family: 'DM Mono', monospace; outline: none; text-align: center; -moz-appearance: textfield; }
+.tpm-inp::-webkit-outer-spin-button,
+.tpm-inp::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tpm-inp:focus { color: var(--green); }
+.refresh-flash { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--green); font-weight: 600; opacity: 0; transition: opacity 0.2s; letter-spacing: 0.3px; margin-left: 4px; }
+.refresh-flash.show { opacity: 1; }
+.refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+/* ─── TABS ─── */
+.tabbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.tabbar::-webkit-scrollbar { display: none; }
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+
+/* ─── CONTENT ─── */
+.content { max-width: 1150px; margin: 0 auto; padding: 20px 16px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ─── SECTION HEADER ─── */
+.section-title { font-size: clamp(16px, 4vw, 19px); font-weight: 700; color: #fff; letter-spacing: -0.3px; margin-bottom: 4px; }
+.section-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+/* ─── CARDS ─── */
+.card { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.card-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+
+/* ─── GRIDS ─── */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-bottom: 14px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; margin-bottom: 14px; }
+.grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(45%, 148px), 1fr)); gap: 10px; margin-bottom: 14px; }
+.grid5 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(45%, 130px), 1fr)); gap: 8px; margin-bottom: 14px; }
+
+.mb16 { margin-bottom: 16px; } .mb12 { margin-bottom: 12px; } .mb8 { margin-bottom: 8px; } .mb4 { margin-bottom: 4px; }
+.mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; }
+
+/* ─── STAT TILE ─── */
+.stat-tile { display: flex; flex-direction: column; padding: 14px; }
+.stat-num { font-size: clamp(18px, 4vw, 22px); font-weight: 700; font-family: 'DM Mono', monospace; letter-spacing: -0.5px; line-height: 1; margin-bottom: 4px; word-break: break-all; }
+.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.stat-formula { display: none; }
+
+/* ─── TABLE WRAPPER — scroll on mobile ─── */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 420px; }
+th { text-align: left; padding: 8px 10px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border2); white-space: nowrap; }
+td { padding: 10px 10px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: 'DM Mono', monospace; }
+.fw7 { font-weight: 700; }
+
+/* ─── PROGRESS BAR ─── */
+.prog-track { background: var(--border); border-radius: 4px; height: 5px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+
+/* ─── BUTTONS ─── */
+.btn-primary {
+  background: var(--green); color: #000; border: none; border-radius: 8px;
+  padding: 9px 16px; font-weight: 700; cursor: pointer; font-size: 13px;
+  font-family: 'DM Sans', sans-serif; transition: opacity 0.15s; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  min-height: 38px;
+}
+.btn-primary:hover { opacity: 0.85; }
+.btn-secondary {
+  background: transparent; color: var(--muted); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 9px 16px; font-weight: 600; cursor: pointer;
+  font-size: 13px; font-family: 'DM Sans', sans-serif;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  min-height: 38px;
+}
+.btn-edit {
+  background: transparent; color: var(--blue); border: 1px solid #1e4d7a;
+  border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+  font-family: 'DM Sans', sans-serif; font-weight: 600; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  min-height: 32px;
+}
+.btn-edit:hover { background: #1e3a5f; }
+.btn-delete {
+  background: transparent; color: var(--red); border: 1px solid #7f1d1d;
+  border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+  font-family: 'DM Sans', sans-serif; font-weight: 600; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  min-height: 32px;
+}
+.btn-delete:hover { background: #3f1d1d; }
+
+/* ─── INPUTS ─── */
+.inp {
+  width: 100%; background: var(--bg4); border: 1px solid var(--border2);
+  border-radius: 8px; color: var(--text); padding: 10px 12px;
+  font-size: 16px; /* 16px prevents iOS zoom */
+  font-family: 'DM Sans', sans-serif; outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+.inp:focus { border-color: var(--green); }
+select.inp { cursor: pointer; }
+.inp-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+.form-row { margin-bottom: 12px; }
+.form-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+/* ─── EXPENSE ROW ─── */
+.exp-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.exp-row:last-child { border-bottom: none; }
+.exp-name { flex: 1; font-size: 13px; font-weight: 500; min-width: 80px; }
+.exp-amt { font-family: 'DM Mono', monospace; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.exp-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ─── BADGE ─── */
+.badge { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; border-radius: 5px; padding: 2px 7px; border: 1px solid; }
+
+/* ─── KG HINT ─── */
+.kg-hint { background: #091a0e; border: 1px solid #00d68f22; border-radius: 7px; padding: 8px 12px; font-size: 12px; color: #00d68f88; margin-top: 6px; font-family: 'DM Mono', monospace; word-break: break-all; }
+
+/* ─── ITEM TOGGLE ─── */
+.item-toggle {
+  padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted); cursor: pointer; font-weight: 600;
+  font-size: 13px; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+
+/* ─── PROFIT PILL ─── */
+.profit-pill {
+  padding: 7px 14px; border-radius: 7px; border: 1px solid var(--border2);
+  background: transparent; color: var(--muted); cursor: pointer; font-weight: 700;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.profit-pill.on { background: rgba(0,214,143,0.12); border-color: var(--green); color: var(--green); }
+
+/* ─── RESULT BLOCK ─── */
+.result-block { display: flex; flex-direction: column; gap: 3px; }
+.result-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.result-value { font-size: clamp(24px, 6vw, 32px); font-weight: 700; font-family: 'DM Mono', monospace; letter-spacing: -1px; line-height: 1.1; }
+.result-note { font-size: 12px; color: var(--muted2); margin-top: 2px; }
+
+/* ─── HEALTH CARD ─── */
+.health-input-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.health-result { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(45%, 120px), 1fr)); gap: 8px; }
+.health-tile { background: var(--bg4); border-radius: 9px; padding: 12px 10px; text-align: center; }
+.health-tile .num { font-size: clamp(16px, 4vw, 20px); font-weight: 700; font-family: 'DM Mono', monospace; margin: 4px 0; }
+.health-tile .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ─── INFO BOX ─── */
+.info-box { background: var(--bg4); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+.info-box .hl { color: var(--text); font-weight: 600; }
+.info-box .mono-sm { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--green); }
+
+/* ─── DIVIDER ─── */
+.dvdr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+/* ─── UTILS ─── */
+.flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.text-muted { color: var(--muted); }
+.text-sm { font-size: 12px; }
+.border-top { border-top: 1px solid var(--border); }
+.border-top2 { border-top: 2px solid var(--border2); }
+.pt8 { padding-top: 8px; } .pt12 { padding-top: 12px; }
+.empty-state { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
+
+/* ─── MODAL ─── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.78); z-index: 1000;
+  align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 14px; padding: 22px; width: 100%; max-width: 380px;
+  box-shadow: 0 20px 60px #000c; max-height: 90dvh; overflow-y: auto;
+}
+.modal-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+.confirm-modal {
+  background: var(--bg3); border: 1px solid #7f1d1d;
+  border-radius: 14px; padding: 24px; width: 100%; max-width: 320px;
+  box-shadow: 0 20px 60px #000c; text-align: center;
+}
+.confirm-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.confirm-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+.confirm-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* ─── STUDENTS INPUT ─── */
+#students-per-day:focus { color: var(--purple) !important; }
+
+/* ─── AUTO/MANUAL TOGGLE ─── */
+.mode-toggle {
+  display: flex; align-items: center; gap: 0;
+  background: var(--bg4); border: 1px solid var(--border2);
+  border-radius: 8px; overflow: hidden; flex-shrink: 0;
+}
+.mode-btn {
+  padding: 5px 12px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.3px; border: none; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; transition: all 0.18s;
+  white-space: nowrap; min-height: 30px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.mode-btn.auto  { background: transparent; color: var(--muted); }
+.mode-btn.manual{ background: transparent; color: var(--muted); }
+.mode-btn.active.auto   { background: var(--green); color: #000; }
+.mode-btn.active.manual { background: var(--amber);  color: #000; }
+
+/* ─── AUTO MODE BANNER ─── */
+.auto-banner {
+  background: linear-gradient(90deg,#00d68f0d,#00d68f05);
+  border: 1px solid #00d68f22; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.auto-banner-dot { width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 1.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.manual-banner {
+  background: linear-gradient(90deg,#f59e0b0d,#f59e0b05);
+  border: 1px solid #f59e0b33; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+
+/* ─── AUTO CALCULATED EXPENSE ROWS ─── */
+.exp-row.auto-row { background: #00d68f06; border-radius: 6px; padding: 10px 8px; margin: 2px 0; }
+.exp-row.auto-row .exp-name { color: var(--text); }
+.auto-badge { font-size:9px;font-weight:700;letter-spacing:0.4px;border-radius:4px;padding:1px 5px;border:1px solid var(--green)44;color:var(--green);background:var(--green)11;margin-right:4px;text-transform:uppercase; }
+
+/* ─── SCALING INFO ─── */
+.scaling-card {
+  background: var(--bg4); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 14px; margin-top: 12px;
+}
+.scale-row { display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px; }
+.scale-row:last-child { border-bottom:none; }
+.scale-val { font-family:'DM Mono',monospace;font-weight:600;color:var(--green);font-size:12px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+/* ─── OVERRIDE BADGE ─── */
+.override-badge { font-size:9px;font-weight:700;letter-spacing:0.4px;border-radius:4px;padding:1px 5px;border:1px solid var(--amber)44;color:var(--amber);background:var(--amber)11;margin-right:4px;text-transform:uppercase; }
+.btn-reset { background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:6px;padding:4px 7px;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:600;white-space:nowrap;min-height:28px;-webkit-tap-highlight-color:transparent;touch-action:manipulation; }
+.btn-reset:hover { color:var(--green);border-color:var(--green)44; }
+
+/* ─── ANALYTICS BARS ─── */
+.analytics-bar-row { display:flex;align-items:center;gap:8px;margin-bottom:10px; }
+.analytics-bar-label { width:130px;font-size:11px;color:var(--muted);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.analytics-bar-track { flex:1;background:var(--border);border-radius:4px;height:8px;overflow:hidden;min-width:40px; }
+.analytics-bar-fill { height:100%;border-radius:4px;transition:width 0.4s; }
+.analytics-bar-val { font-family:'DM Mono',monospace;font-size:11px;font-weight:600;white-space:nowrap;min-width:60px;text-align:right; }
+
+/* ─── GRAND TOTAL CARD ─── */
+.grand-total-card { background:linear-gradient(135deg,#0f1f10,#0a1520);border:1px solid var(--green)33;border-radius:12px;padding:16px;margin-top:12px; }
+.grand-total-row { display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px; }
+.grand-total-row.main { border-top:1px solid var(--border);margin-top:6px;padding-top:10px; }
+
+/* ─── NOTES FIELD ─── */
+.exp-note-text { font-size:10px;color:var(--muted2);margin-top:1px;font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+
+
+/* Tablet: 641–900px */
+@media (min-width: 641px) {
+  .global-bar { padding: 0 20px; }
+  .content { padding: 20px; }
+  .tabbar { padding: 0 16px; }
+  .tab-btn { padding: 12px 18px; }
+  .card { padding: 18px; }
+}
+
+/* Desktop: 901px+ */
+@media (min-width: 901px) {
+  .global-bar { padding: 0 24px; }
+  .content { padding: 24px; }
+  .tabbar { padding: 0 24px; }
+  .tab-btn { padding: 13px 20px; font-size: 13px; }
+  .card { padding: 20px; }
+  .grid4 { grid-template-columns: repeat(4, 1fr); }
+  .grid5 { grid-template-columns: repeat(5, 1fr); }
+}
+
+/* Mobile: up to 640px */
+@media (max-width: 640px) {
+  .global-bar-inner { padding: 6px 0; gap: 8px; }
+  .logo-sub { display: none; }
+  .param-group label { display: none; }
+  .param-group { padding: 5px 8px; gap: 4px; }
+  .tpm-inp { width: 52px; font-size: 14px; }
+
+  .tabbar { padding: 0 4px; }
+  .tab-btn { padding: 10px 10px; font-size: 12px; gap: 3px; }
+
+  .content { padding: 12px; }
+
+  .grid2, .grid3 { grid-template-columns: 1fr; }
+  .grid4 { grid-template-columns: 1fr 1fr; }
+  .grid5 { grid-template-columns: 1fr 1fr; }
+
+  .section-title { font-size: 17px; }
+
+  .stat-tile { padding: 12px; }
+
+  .health-result { grid-template-columns: repeat(3, 1fr); }
+
+  .flex-between.wrap-mobile { flex-wrap: wrap; gap: 8px; }
+
+  .result-value { font-size: 26px; }
+
+  table { min-width: 360px; }
+  th, td { padding: 8px 8px; }
+
+  .exp-row { flex-wrap: nowrap; }
+  .exp-name { font-size: 12px; }
+  .exp-amt { font-size: 12px; }
+
+  .form-actions { gap: 8px; }
+  .form-actions .btn-primary,
+  .form-actions .btn-secondary { flex: 1; text-align: center; }
+
+  .modal { padding: 18px; }
+  .confirm-actions { flex-direction: column; }
+  .confirm-actions button { width: 100%; padding: 10px; }
+
+  .health-input-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
+
+/* Very small screens: up to 380px */
+@media (max-width: 380px) {
+  .tab-btn { font-size: 11px; padding: 9px 8px; }
+  .grid4, .grid5 { grid-template-columns: 1fr 1fr; }
+  .health-result { grid-template-columns: 1fr 1fr; }
+  .stat-num { font-size: 16px; }
+  .tpm-inp { width: 44px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── EXPENSE MODAL ─── -->
+<div class="modal-overlay" id="exp-modal-overlay" onclick="closeExpModal(event)">
+  <div class="modal">
+    <div class="modal-title" id="exp-modal-title">Add Expense</div>
+    <div class="form-row">
+      <label class="inp-label">Expense Name</label>
+      <input class="inp" id="exp-modal-name" placeholder="e.g. Room Rent" onkeydown="if(event.key==='Enter')saveExpModal()"/>
+    </div>
+    <div class="form-row">
+      <label class="inp-label">Amount (₹)</label>
+      <input type="number" class="inp" id="exp-modal-amount" placeholder="e.g. 5000" inputmode="decimal" onkeydown="if(event.key==='Enter')saveExpModal()"/>
+    </div>
+    <div class="form-row" id="exp-modal-type-row" style="display:none;">
+      <label class="inp-label">Expense Type</label>
+      <select class="inp" id="exp-modal-type">
+        <option value="fixed">Fixed Daily — same cost every day (gas, petrol, labour)</option>
+        <option value="pertiffin">Per Tiffin — scales with each tiffin (packaging box)</option>
+      </select>
+      <div class="info-box" style="margin-top:6px;font-size:11px;" id="exp-modal-type-hint">
+        Fixed daily: enter total daily cost (e.g. ₹200 for gas per day). Divided by tiffins/day automatically.
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="inp-label">Notes / Remarks <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+      <input class="inp" id="exp-modal-notes" placeholder="e.g. Paid to Ramesh, includes cylinder deposit" onkeydown="if(event.key==='Enter')saveExpModal()"/>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="saveExpModal()">Save</button>
+      <button class="btn-secondary" onclick="closeExpModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── CONFIRM MODAL ─── -->
+<div class="modal-overlay" id="confirm-overlay" onclick="closeConfirm(event)">
+  <div class="confirm-modal">
+    <div class="confirm-title">Delete this item?</div>
+    <div class="confirm-sub" id="confirm-sub-text">This cannot be undone.</div>
+    <div class="confirm-actions">
+      <button class="btn-delete" style="padding:8px 20px;font-size:13px;" onclick="confirmDeleteYes()">Delete</button>
+      <button class="btn-secondary" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── GLOBAL BAR ─── -->
+<div class="global-bar">
+  <div class="global-bar-inner">
+    <div class="global-bar-logo">
+      <span style="font-size:24px;">🍱</span>
+      <div>
+        <div class="logo-title">Tiffo</div>
+        <div class="logo-sub">Tiffin Business Portal v16</div>
+      </div>
+    </div>
+    <div class="global-params">
+      <div class="param-group">
+        <label>📦 Tiffins/month</label>
+        <input type="number" id="tiffins-per-month" class="tpm-inp" value="600" min="1" inputmode="numeric" oninput="onTpmInput()"/>
+      </div>
+      <div class="param-group">
+        <label>📅 Working days</label>
+        <input type="number" id="working-days" class="tpm-inp" value="26" min="1" max="31" inputmode="numeric" oninput="onWorkingDaysInput()"/>
+        <span class="param-derived" id="derived-tpd">≈23/day</span>
+      </div>
+      <div class="param-group" style="border-color:var(--purple)44;">
+        <label style="color:var(--purple)99;">🎓 Students/day</label>
+        <input type="number" id="students-per-day" class="tpm-inp" style="color:var(--purple);width:52px;" min="1" inputmode="numeric" oninput="onStudentsInput()"/>
+      </div>
+      <div class="param-group" style="border-color:var(--red)44;" title="Raw material wastage — spillage, over-cooking, spoilage (typically 5–6%)">
+        <label style="color:var(--red)99;">🗑️ Wastage %</label>
+        <input type="number" id="wastage-pct" class="tpm-inp" style="color:var(--red);width:44px;" value="5" min="0" max="30" step="0.5" inputmode="decimal" oninput="debouncedRefresh(); saveData();"/>
+      </div>
+      <div class="mode-toggle" title="Auto: expenses auto-calculated | Manual: set everything yourself">
+        <button class="mode-btn auto active" id="btn-mode-auto"   onclick="setMode('auto')">⚡ Auto</button>
+        <button class="mode-btn manual"      id="btn-mode-manual" onclick="setMode('manual')">✏️ Manual</button>
+      </div>
+      <span class="refresh-flash" id="refresh-flash"><span class="refresh-dot" id="refresh-dot"></span> Saved</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TABS ─── -->
+<div class="tabbar">
+  <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
+  <button class="tab-btn" data-tab="menu" onclick="switchTab('menu')">🍱 Menu & Rates</button>
+  <button class="tab-btn" data-tab="expenses" onclick="switchTab('expenses')">💸 Expenses</button>
+  <button class="tab-btn" data-tab="pricing" onclick="switchTab('pricing')">💰 Price Calculator</button>
+  <button class="tab-btn" data-tab="bep" onclick="switchTab('bep')">📐 BEP & Goals</button>
+</div>
+
+<!-- ─── CONTENT ─── -->
+<div class="content">
+
+  <!-- ═══ DASHBOARD ═══ -->
+  <div id="tab-dashboard" class="tab-panel active">
+    <div class="flex-between mb4">
+      <div>
+        <div class="section-title">Business Dashboard</div>
+        <div class="section-sub">All numbers update live when you change parameters above.</div>
+      </div>
+    </div>
+
+    <!-- Row 1: 5 key stats -->
+    <div class="grid5" id="dash-stats"></div>
+
+    <!-- Row 2: Cost breakdown table + composition -->
+    <div class="grid2 mb16">
+      <div class="card">
+        <div class="card-title">Cost per Tiffin — Full Breakdown</div>
+        <div id="dash-cost-breakdown"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Suggested Pricing at Different Margins</div>
+        <div class="table-scroll">
+          <table id="dash-pricing-table">
+            <thead><tr><th>Markup on Cost</th><th>Sell Price</th><th>Monthly Rev</th><th>Monthly Profit</th><th>True Margin</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: ingredient bars + composition -->
+    <div class="grid2 mb16">
+      <div class="card">
+        <div class="card-title">Ingredient Cost Breakdown</div>
+        <div id="dash-menu-summary"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Cost Composition</div>
+        <div id="dash-composition"></div>
+      </div>
+    </div>
+
+    <!-- Row 4: Business Health -->
+    <div class="card" style="border-color:var(--green)22;">
+      <div class="card-title" style="color:var(--green);">Business Health — Actual Selling Price</div>
+      <div class="health-input-row">
+        <div>
+          <label class="inp-label">Your selling price (₹ / tiffin)</label>
+          <input type="number" id="health-price" class="inp" style="width:min(140px,100%);" placeholder="e.g. 120" oninput="renderHealth(); saveData();"/>
+        </div>
+        <span class="text-muted text-sm" style="padding-top:16px;">Enter what you actually charge →</span>
+      </div>
+      <div id="health-result"></div>
+    </div>
+  </div>
+
+  <!-- ═══ MENU ═══ -->
+  <div id="tab-menu" class="tab-panel">
+    <div class="section-title">Menu Items & Rates</div>
+    <div class="section-sub">Set serving size and cost per KG/100pcs. Cost per tiffin is calculated automatically.</div>
+
+    <div class="flex-between mb16" style="flex-wrap:wrap;gap:10px;">
+      <span class="text-muted text-sm">Formula: <span class="mono" style="color:var(--green);">45g ÷ 1000 × ₹60/kg = ₹2.70/tiffin</span></span>
+      <button class="btn-primary" onclick="startAddItem()">+ Add Item</button>
+    </div>
+
+    <div id="add-item-form" style="display:none;border-color:var(--green)44;" class="card mb16">
+      <div class="card-title" style="color:var(--green);">New Item</div>
+      <div id="add-item-fields"></div>
+    </div>
+
+    <div class="card">
+      <div class="table-scroll">
+        <div id="menu-table-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ EXPENSES ═══ -->
+  <div id="tab-expenses" class="tab-panel">
+    <div class="section-title">Expenses</div>
+    <div class="section-sub">Monthly fixed costs + daily variable costs. Working days/tiffins affect per-tiffin calculations.</div>
+
+    <!-- Mode banner -->
+    <div id="exp-mode-banner"></div>
+
+    <!-- 4 stat tiles using working days -->
+    <div class="grid4 mb16" id="exp-stats"></div>
+
+    <!-- Formula explanation -->
+    <div class="info-box mb16" id="exp-formula-box"></div>
+
+    <!-- Two columns -->
+    <div class="grid2">
+      <div class="card">
+        <div class="flex-between mb16">
+          <div class="card-title" style="color:var(--amber);margin-bottom:0;">Monthly Fixed Expenses</div>
+          <button class="btn-primary" id="btn-add-monthly" onclick="showAddMonthly()">+ Add</button>
+        </div>
+        <div id="monthly-expense-list"></div>
+        <div class="flex-between border-top mt12 pt8">
+          <span class="text-muted fw7" style="font-size:13px;">Total</span>
+          <span class="mono fw7" style="color:var(--amber);font-size:16px;" id="monthly-total-label">₹0</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex-between mb16">
+          <div class="card-title" style="color:var(--blue);margin-bottom:0;">Daily Variable Expenses <span style="font-weight:400;font-size:11px;color:var(--muted);">(per-day amounts)</span></div>
+          <button class="btn-primary" id="btn-add-daily" onclick="showAddDaily()">+ Add</button>
+        </div>
+        <div id="daily-expense-list"></div>
+        <div class="flex-between border-top mt12 pt8">
+          <span class="text-muted fw7" style="font-size:13px;">Fixed / day</span>
+          <span class="mono fw7" style="color:var(--blue);font-size:16px;" id="daily-total-label">₹0</span>
+        </div>
+        <div class="flex-between pt8">
+          <span class="text-muted fw7" style="font-size:13px;">Per-tiffin rate</span>
+          <span class="mono fw7" style="color:var(--teal);font-size:16px;" id="pertiffin-total-label">₹0</span>
+        </div>
+        <div class="flex-between" style="padding-top:4px;">
+          <span style="font-size:11px;color:var(--muted);">Monthly total</span>
+          <span class="mono" style="color:var(--teal);font-size:12px;opacity:0.75;" id="pertiffin-monthly-label">₹0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics Section -->
+    <div class="card mt16" style="border-color:var(--purple)22;">
+      <div class="flex-between mb16">
+        <div class="card-title" style="color:var(--purple);margin-bottom:0;">📊 Expense Analytics — Cost Drivers</div>
+        <span style="font-size:11px;color:var(--muted);">% of total monthly spend</span>
+      </div>
+      <div id="expense-analytics"></div>
+      <div id="expense-grand-total"></div>
+    </div>
+  </div>
+
+  <!-- ═══ PRICING ═══ -->
+  <div id="tab-pricing" class="tab-panel">
+    <div class="section-title">Price Calculator</div>
+    <div class="section-sub">Select today's items, set your markup, get your sell price instantly.</div>
+
+    <div class="card mb16">
+      <div class="card-title">Step 1 — Today's Items</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;" id="item-toggles"></div>
+    </div>
+
+    <div class="card mb16">
+      <div class="card-title">Step 2 — Markup % <span style="font-weight:400;font-size:11px;color:var(--muted);">(added on top of total cost)</span></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="profit-pills"></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="number" id="custom-profit" class="inp" style="width:70px;font-size:14px;" value="50" oninput="setCustomProfit(this.value)"/>
+          <span class="text-muted text-sm">% custom</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title" style="color:var(--blue);">Cost Breakdown</div>
+        <div id="pricing-breakdown"></div>
+      </div>
+      <div class="card" style="border-color:var(--green)33;">
+        <div class="card-title" style="color:var(--green);">Result</div>
+        <div id="pricing-result"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ BEP & GOALS ═══ -->
+  <div id="tab-bep" class="tab-panel">
+    <div class="section-title">📐 Break-Even & Business Goals</div>
+    <div class="section-sub">How many tiffins do you need to sell? What price gives you your target income?</div>
+
+    <!-- ── BEP CALCULATOR ── -->
+    <div class="card mb16" style="border-color:var(--red)33;">
+      <div class="card-title" style="color:var(--red);">Break-Even Volume Calculator</div>
+      <p class="text-muted text-sm mb12">At a given sell price, how many tiffins per month must you sell to cover ALL costs (including wastage)?</p>
+      <div class="grid2 mb12">
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Your Sell Price (₹ / tiffin)</label>
+          <input type="number" id="bep-price" class="inp" placeholder="e.g. 120" inputmode="decimal" oninput="renderBEP(); saveData();"/>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Avg Spoilage / day (unsold tiffins)</label>
+          <input type="number" id="bep-spoilage" class="inp" placeholder="e.g. 2" value="0" min="0" inputmode="decimal" oninput="renderBEP(); saveData();"/>
+        </div>
+      </div>
+      <div id="bep-result"></div>
+    </div>
+
+    <!-- ── TARGET INCOME CALCULATOR ── -->
+    <div class="card mb16" style="border-color:var(--green)33;">
+      <div class="card-title" style="color:var(--green);">🎯 Target Income — What Price Do I Need?</div>
+      <p class="text-muted text-sm mb12">Set your desired monthly take-home profit. We'll tell you exactly what sell price to charge.</p>
+      <div class="grid2 mb12">
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Target Monthly Profit (₹)</label>
+          <input type="number" id="ti-target" class="inp" placeholder="e.g. 15000" inputmode="decimal" oninput="renderTargetIncome(); saveData();"/>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Expected Tiffins / Month</label>
+          <input type="number" id="ti-volume" class="inp" placeholder="auto-filled from global" inputmode="numeric" oninput="renderTargetIncome(); saveData();"/>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">Leave blank to use global setting</div>
+        </div>
+      </div>
+      <div id="ti-result"></div>
+    </div>
+
+    <!-- ── SUBSCRIPTION MIX IMPACT ── -->
+    <div class="card mb16" style="border-color:var(--teal)33;">
+      <div class="card-title" style="color:var(--teal);">📋 Subscriber vs Walk-In Mix</div>
+      <p class="text-muted text-sm mb12">Subscribers give guaranteed revenue; walk-ins are uncertain. See how your revenue stability changes with the mix.</p>
+      <div class="grid2 mb12">
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Subscriber Tiffins / Month</label>
+          <input type="number" id="mix-sub" class="inp" placeholder="e.g. 400" inputmode="numeric" oninput="renderMix(); saveData();"/>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Walk-In Tiffins / Month (avg)</label>
+          <input type="number" id="mix-walkin" class="inp" placeholder="e.g. 150" inputmode="numeric" oninput="renderMix(); saveData();"/>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Subscriber Sell Price (₹)</label>
+          <input type="number" id="mix-sub-price" class="inp" placeholder="e.g. 110" inputmode="decimal" oninput="renderMix(); saveData();"/>
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label class="inp-label">Walk-In Sell Price (₹)</label>
+          <input type="number" id="mix-walkin-price" class="inp" placeholder="e.g. 130" inputmode="decimal" oninput="renderMix(); saveData();"/>
+        </div>
+      </div>
+      <div id="mix-result"></div>
+    </div>
+
+    <!-- ── WASTAGE IMPACT SUMMARY ── -->
+    <div class="card" style="border-color:var(--amber)33;">
+      <div class="card-title" style="color:var(--amber);">🗑️ Wastage Cost Summary</div>
+      <div id="wastage-summary"></div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA STORE
+// ═══════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'tiffin_mgr_v5';
+
+// ═══════════════════════════════════════════════════════
+// AUTO OVERRIDES — admin can override individual auto rows
+// Key: expense id (e.g. 'a1'), Value: { amount, notes }
+// Overridden rows show amber "override" badge + Reset button
+// ═══════════════════════════════════════════════════════
+let autoOverrides = {}; // { 'a1': { amount: 6000, notes: 'Higher rent area' }, ... }
+
+// Expenses added via "+ Add" WHILE in Auto mode — stored separately
+// so they appear alongside auto rows without polluting manual mode
+let autoAddedMonthly = [];
+let autoAddedDaily   = [];
+
+// ═══════════════════════════════════════════════════════
+// AUTO / MANUAL MODE ENGINE
+// ═══════════════════════════════════════════════════════
+
+let appMode = 'auto'; // 'auto' | 'manual'
+
+function setMode(m) {
+  appMode = m;
+  document.getElementById('btn-mode-auto').classList.toggle('active', m === 'auto');
+  document.getElementById('btn-mode-manual').classList.toggle('active', m === 'manual');
+  refreshAll();
+  showRefreshFlash();
+}
+
+/*
+  AUTO-SCALING ENGINE
+  ───────────────────
+  Based on Indian Tier-2 city tiffin operations (Varanasi context).
+  Uses:
+  - Economies of scale  : fixed costs spread over more tiffins → lower per-unit cost
+  - Step-based labour   : helpers added in thresholds (1→20s, 2→50s, 3→100s students)
+  - Power-law scaling   : semi-variable costs grow sub-linearly (gas, electricity)
+  - Delivery routing    : petrol grows slower than tiffin count due to route density
+  - Packaging           : purely variable, scales 1:1 with tiffins
+  - Wastage factor      : small batches have higher % wastage; large batches slightly better
+  - Kitchen utilisation : a single kitchen handles up to ~120 students; rent is fixed
+*/
+
+/*
+  ═══════════════════════════════════════════════════════
+  BASE PARAMETERS — calibrated to Vishal's actual numbers
+  Reference point: 10 students = 20 tiffins/day = 520 tiffins/month (26 days)
+  ═══════════════════════════════════════════════════════
+
+  EXPENSE          BASE(10 students)   SCALING TYPE
+  ─────────────────────────────────────────────────────
+  Rent             ₹5,000              Fixed (never changes)
+  Labour           ₹10,000             Step-based (thresholds)
+  Petrol/Bike      ₹1,500              Semi-variable (power 0.70)
+  Miscellaneous    ₹1,000              Semi-variable (power 0.50)
+  Gas/LPG          ₹2,000/cylinder     Cylinder-count based
+  Electricity      ₹1,000              Semi-variable (power 0.55)
+  Packaging        ₹10/tiffin          Purely variable (bulk discount at scale)
+
+  GAS LOGIC:
+  - 1 cylinder = ₹2,000
+  - 10 students (20 tiffins/day) → 1 cylinder/month
+  - Each cylinder handles ~20 tiffins/day comfortably
+  - So cylinders needed = ceil(tiffins_per_day / 20)
+  - At scale >60 tiffins/day, bulk commercial connection saves ~15%
+
+  LABOUR STEPS (realistic for Varanasi):
+  - 1–15 students  → 1 helper  @ ₹10,000
+  - 16–35 students → 2 helpers @ ₹18,000
+  - 36–60 students → 3 helpers @ ₹25,000
+  - 61–100 students→ 4 helpers @ ₹32,000
+  - 100+ students  → 5 helpers @ ₹38,000
+
+  PACKAGING BULK DISCOUNT:
+  - ≤20 tiffins/day  → ₹10/tiffin (base)
+  - 21–50 tiffins/day → ₹9/tiffin  (small bulk)
+  - 51–100 tiffins/day→ ₹8/tiffin  (medium bulk)
+  - 100+ tiffins/day  → ₹7/tiffin  (large bulk)
+*/
+
+const AUTO_BASE = {
+  students:     10,       // YOUR actual base
+  tiffins_pd:   20,       // tiffins/day at base (10 students × 2)
+  working_days: 26,
+
+  // Fixed
+  rent:         5000,
+
+  // Step-based labour — [min_students, monthly_cost]
+  labour_steps: [
+    [0,   10000],   // 1 helper
+    [16,  18000],   // 2 helpers
+    [36,  25000],   // 3 helpers
+    [61,  32000],   // 4 helpers
+    [101, 38000],   // 5 helpers
+  ],
+
+  // Gas: ₹2000/cylinder, 1 cylinder per 20 tiffins/day
+  gas_cyl_cost:     2000,
+  gas_tiffins_pcyl: 20,   // tiffins per day per cylinder
+
+  // Electricity base ₹1000 @ 10 students, power 0.55
+  electricity_base: 1000,
+
+  // Petrol base ₹1500 @ 10 students, power 0.70
+  petrol_base:      1500,
+
+  // Misc base ₹1000 @ 10 students, power 0.50
+  misc_base:        1000,
+
+  // Packaging per tiffin with bulk breaks
+  pkg_tiers: [
+    [0,   10],   // ≤20 tiffins/day → ₹10
+    [21,   9],   // 21–50           → ₹9
+    [51,   8],   // 51–100          → ₹8
+    [101,  7],   // 100+            → ₹7
+  ],
+};
+
+/**
+ * Auto-calculate all expenses based on student count.
+ * Every formula is anchored to the real base of 10 students.
+ */
+function autoCalcExpenses(students, tiffinsPerMonth) {
+  const s   = Math.max(1, students);
+  const wd  = AUTO_BASE.working_days;
+  const tpd = tiffinsPerMonth / wd;                      // tiffins per day
+  const ratio = s / AUTO_BASE.students;                  // scale vs. base (10 students)
+
+  // ── 1. RENT — purely fixed ──
+  const rent = AUTO_BASE.rent;
+
+  // ── 2. LABOUR — step-based by student count ──
+  let labour = AUTO_BASE.labour_steps[0][1];
+  let helpers = 1;
+  AUTO_BASE.labour_steps.forEach(([minS, cost], idx) => {
+    if (s >= minS) { labour = cost; helpers = idx + 1; }
+  });
+
+  // ── 3. GAS — cylinder count × ₹2000 ──
+  // cylinders needed = how many sets of 20 tiffins/day we cook
+  // At large scale (>60 tpd), commercial gas saves ~15%
+  const cylRaw  = Math.ceil(tpd / AUTO_BASE.gas_tiffins_pcyl);
+  const gasSave = tpd > 60 ? 0.85 : 1.0;
+  const gas     = Math.round(cylRaw * AUTO_BASE.gas_cyl_cost * gasSave);
+  const cylCount = cylRaw;
+
+  // ── 4. ELECTRICITY — semi-variable, power 0.55 ──
+  const electricity = Math.round(AUTO_BASE.electricity_base * Math.pow(ratio, 0.55));
+
+  // ── 5. PETROL — semi-variable, power 0.70 (route optimization) ──
+  const petrol = Math.round(AUTO_BASE.petrol_base * Math.pow(ratio, 0.70));
+
+  // ── 6. MISC — economies of scale, power 0.50 ──
+  const misc = Math.round(AUTO_BASE.misc_base * Math.pow(ratio, 0.50));
+
+  // ── 7. PACKAGING — purely variable with bulk discount ──
+  let pkgRate = AUTO_BASE.pkg_tiers[0][1];
+  AUTO_BASE.pkg_tiers.forEach(([minTpd, rate]) => {
+    if (tpd >= minTpd) pkgRate = rate;
+  });
+  // pkgRate goes into daily as per-tiffin cost
+
+  return {
+    monthly: [
+      { id:'a1', name:'Room / Kitchen Rent',
+        amount: rent,
+        _auto: true, _note: 'Fixed — never changes with scale' },
+
+      { id:'a2', name:`Labour (${helpers} helper${helpers>1?'s':''})`,
+        amount: labour,
+        _auto: true, _note: `Step-based · ${helpers} helper${helpers>1?'s':''} for ${s} students` },
+
+      { id:'a3', name:`Gas / LPG (${cylCount} cylinder${cylCount>1?'s':''})`,
+        amount: gas,
+        _auto: true, _note: `${cylCount} cyl × ₹2,000${tpd>60?' (15% commercial saving)':''}` },
+
+      { id:'a4', name:'Electricity',
+        amount: electricity,
+        _auto: true, _note: `Semi-variable · base ₹1,000 @ 10 students` },
+
+      { id:'a5', name:'Petrol / Delivery',
+        amount: petrol,
+        _auto: true, _note: `Route optimization · base ₹1,500 @ 10 students` },
+
+      { id:'a6', name:'Miscellaneous',
+        amount: misc,
+        _auto: true, _note: `Economies of scale · base ₹1,000 @ 10 students` },
+    ],
+    daily: [
+      { id:'a7', name:'Packaging / Containers',
+        amount: pkgRate,
+        type: 'pertiffin',
+        _auto: true, _note: `₹${pkgRate}/tiffin · ${tpd<=20?'base rate':tpd<=50?'small bulk discount':tpd<=100?'medium bulk discount':'large bulk discount'}` },
+    ],
+    _meta: { helpers, cylCount, pkgRate, ratio: ratio.toFixed(2) }
+  };
+}
+
+let menuItems = [
+  { id:1, name:"Chawal (Rice)",   unit:"g",      servingG:45,  costPerKg:60,  category:"grain"  },
+  { id:2, name:"Dal (Pulses)",    unit:"g",      servingG:42,  costPerKg:120, category:"pulse"  },
+  { id:3, name:"Sabji",           unit:"g",      servingG:175, costPerKg:80,  category:"veggie" },
+  { id:4, name:"Roti (Aata)",     unit:"g",      servingG:127, costPerKg:50,  category:"grain"  },
+  { id:5, name:"Salad",           unit:"g",      servingG:55,  costPerKg:30,  category:"veggie" },
+  { id:6, name:"Achar (Pickle)",  unit:"g",      servingG:15,  costPerKg:300, category:"extra"  },
+  { id:7, name:"Papad",           unit:"pieces", servingG:1,   costPerKg:250, category:"extra"  },
+  { id:8, name:"Meetha (Sweet)",  unit:"g",      servingG:50,  costPerKg:200, category:"extra"  },
+];
+
+let monthlyExpenses = [
+  { id:1, name:"Room / Rent",      amount:5000  },
+  { id:2, name:"Worker (Labour)",  amount:10000 },
+  { id:3, name:"Petrol / Bike",    amount:1500  },
+  { id:4, name:"Gas / LPG",        amount:2000  },
+  { id:5, name:"Electricity",      amount:1000  },
+  { id:6, name:"Miscellaneous",    amount:1000  },
+];
+
+let dailyExpenses = [
+  { id:7, name:"Packaging / Containers", amount:10, type:'pertiffin' },
+];
+// Each daily expense now has a 'type': 'fixed' (per day regardless of tiffins, e.g. gas/petrol)
+//                                   or 'pertiffin' (scales with tiffin count, e.g. packaging per box)
+// Legacy entries without type default to 'fixed'
+let selectedItems   = menuItems.map(i => i.id);
+let profitTarget    = 50;
+let editingItemId   = null;
+
+function escName(name) {
+  return name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/`/g,'\\`');
+}
+const CAT_ICON  = { grain:"🌾", pulse:"🫘", veggie:"🥦", extra:"✨" };
+const CAT_COLOR = { grain:"#f59e0b", pulse:"#3b9eff", veggie:"#00d68f", extra:"#a855f7" };
+
+// ═══════════════════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════════════════
+
+function saveData() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      menuItems, monthlyExpenses, dailyExpenses, selectedItems, profitTarget,
+      appMode, autoOverrides, autoAddedMonthly, autoAddedDaily,
+      tpm:         document.getElementById('tiffins-per-month')?.value || 600,
+      studentsPd:  document.getElementById('students-per-day')?.value || '',
+      workingDays: document.getElementById('working-days')?.value || 26,
+      healthPrice: document.getElementById('health-price')?.value || '',
+      wastagePct:  document.getElementById('wastage-pct')?.value || '5',
+      bepPrice:    document.getElementById('bep-price')?.value || '',
+      bepSpoilage: document.getElementById('bep-spoilage')?.value || '0',
+      tiTarget:    document.getElementById('ti-target')?.value || '',
+      tiVolume:    document.getElementById('ti-volume')?.value || '',
+      mixSub:      document.getElementById('mix-sub')?.value || '',
+      mixWalkin:   document.getElementById('mix-walkin')?.value || '',
+      mixSubPrice: document.getElementById('mix-sub-price')?.value || '',
+      mixWalkinPrice: document.getElementById('mix-walkin-price')?.value || ''
+    }));
+  } catch(e) {}
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d.menuItems)       menuItems       = d.menuItems.map(i => ({ ...i, id: +i.id, servingG: +i.servingG, costPerKg: +i.costPerKg }));
+    if (d.monthlyExpenses) monthlyExpenses = d.monthlyExpenses.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
+    if (d.dailyExpenses)   dailyExpenses   = d.dailyExpenses.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
+    if (d.autoOverrides)   autoOverrides   = d.autoOverrides;
+    if (d.autoAddedMonthly) autoAddedMonthly = d.autoAddedMonthly.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
+    if (d.autoAddedDaily)   autoAddedDaily   = d.autoAddedDaily.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
+    if (d.selectedItems)   selectedItems   = d.selectedItems.map(x => +x);
+    if (d.profitTarget !== undefined) profitTarget = d.profitTarget;
+    if (d.appMode) { appMode = d.appMode; setMode(appMode); }
+    const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    set('tiffins-per-month', d.tpm);
+    set('working-days', d.workingDays);
+    set('health-price', d.healthPrice);
+    set('students-per-day', d.studentsPd);
+    if (d.wastagePct !== undefined) set('wastage-pct', d.wastagePct);
+    if (d.bepPrice)      set('bep-price',        d.bepPrice);
+    // bep-spoilage can be '0' which is falsy — use explicit check
+    if (d.bepSpoilage !== undefined && d.bepSpoilage !== '') set('bep-spoilage', d.bepSpoilage);
+    if (d.tiTarget)      set('ti-target',         d.tiTarget);
+    if (d.tiVolume)      set('ti-volume',         d.tiVolume);
+    if (d.mixSub)        set('mix-sub',           d.mixSub);
+    if (d.mixWalkin)     set('mix-walkin',        d.mixWalkin);
+    if (d.mixSubPrice)   set('mix-sub-price',     d.mixSubPrice);
+    if (d.mixWalkinPrice) set('mix-walkin-price', d.mixWalkinPrice);
+    // Bug 11 fix: remove stale IDs that no longer exist in menuItems
+    const validIds = new Set(menuItems.map(i => i.id));
+    selectedItems = selectedItems.filter(id => validIds.has(id));
+    // Also add any new items that weren't in saved selectedItems (newly added defaults)
+    menuItems.forEach(i => { if (!selectedItems.includes(i.id)) selectedItems.push(i.id); });
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════
+// CORE CALCULATIONS — working days used throughout
+// ═══════════════════════════════════════════════════════
+
+function getTpm()  { return Math.max(1, parseInt(document.getElementById('tiffins-per-month')?.value) || 600); }
+function getWd()   { return Math.max(1, Math.min(31, parseInt(document.getElementById('working-days')?.value) || 26)); }
+function getTpd()  { const wd = getWd(); return wd > 0 ? getTpm() / wd : getTpm(); }   // tiffins per working day
+
+// ─── Active expense resolvers — returns auto or manual lists ───
+function getActiveStudents() {
+  const tpd = getTpd();
+  return _studentsManuallySet
+    ? (parseInt(document.getElementById('students-per-day')?.value) || Math.round(tpd / 2))
+    : Math.round(tpd / 2);
+}
+
+function getActiveExpenses() {
+  if (appMode === 'auto') {
+    const tpm = getTpm();
+    const students = getActiveStudents();
+    const raw = autoCalcExpenses(students, tpm);
+    // Apply any per-row overrides
+    const applyOverrides = (list) => list.map(e => {
+      if (autoOverrides[e.id]) {
+        return { ...e, amount: autoOverrides[e.id].amount, _overridden: true, _autoAmount: e.amount, _notes: autoOverrides[e.id].notes };
+      }
+      return e;
+    });
+    // Only append expenses explicitly added while in Auto mode (separate store)
+    // NEVER merge monthlyExpenses/dailyExpenses here — those are Manual mode data
+    return {
+      monthly: [...applyOverrides(raw.monthly), ...autoAddedMonthly],
+      daily:   [...applyOverrides(raw.daily),   ...autoAddedDaily],
+      _meta:   raw._meta
+    };
+  }
+  return { monthly: monthlyExpenses, daily: dailyExpenses };
+}
+
+function getMonthlyExpenses() { return getActiveExpenses().monthly; }
+function getDailyExpenses()   { return getActiveExpenses().daily; }
+
+function getWastagePct() {
+  return Math.max(0, Math.min(30, parseFloat(document.getElementById('wastage-pct')?.value) || 0));
+}
+
+function costPerTiffin(item) {
+  if (item.unit === "pieces") return (item.servingG / 100) * item.costPerKg;
+  return (item.servingG / 1000) * item.costPerKg;
+}
+function totalRawMaterial(items) {
+  const raw = items.reduce((s,i) => s + costPerTiffin(i), 0);
+  const wp  = getWastagePct();
+  return raw * (1 + wp / 100);
+}
+
+// Monthly fixed overhead per tiffin = total monthly ÷ tiffins/month
+function overheadPerTiffin() {
+  const t = getTpm();
+  const me = getMonthlyExpenses();
+  return (t > 0 && me.length) ? me.reduce((s,e)=>s+(+e.amount||0),0) / t : 0;
+}
+
+// Daily variable cost per tiffin — two types handled correctly:
+//   'fixed'    : cost is fixed per working day regardless of tiffin count (gas, petrol, labour)
+//                → cost/tiffin = daily amount ÷ tiffins-per-day
+//   'pertiffin': cost scales directly with each tiffin (packaging box, disposable)
+//                → cost/tiffin = amount directly (amount field = cost per 1 tiffin)
+function dailyPerTiffin() {
+  const de = getDailyExpenses();
+  if (!de.length) return 0;
+  const tpd = getTpd();
+  return de.reduce((sum, e) => {
+    const type = e.type || 'fixed';
+    const amt  = +e.amount || 0;
+    if (type === 'pertiffin') return sum + amt;
+    return sum + (tpd > 0 ? amt / tpd : 0);
+  }, 0);
+}
+
+function dailyMonthlyFixedTotal()     { return getDailyExpenses().filter(e => (e.type||'fixed')==='fixed').reduce((s,e)=>s+(+e.amount||0),0) * getWd(); }
+function dailyMonthlyPerTiffinTotal() { return getDailyExpenses().filter(e => e.type==='pertiffin').reduce((s,e)=>s+(+e.amount||0),0) * getTpm(); }
+
+function totalMonthly()       { return getMonthlyExpenses().reduce((s,e) => s + (+e.amount||0), 0); }
+function totalDailyPerDay()   { return getDailyExpenses().filter(e=>(e.type||'fixed')==='fixed').reduce((s,e) => s + (+e.amount||0), 0); }
+function totalPerTiffinDaily(){ return getDailyExpenses().filter(e=>e.type==='pertiffin').reduce((s,e) => s + (+e.amount||0), 0); }
+
+function rup(n)    { return "₹" + Number(n).toFixed(2); }
+function rupInt(n) { return "₹" + Math.round(n).toLocaleString('en-IN'); }
+function fmt(n)    { return Number(n).toFixed(1); }
+
+// ═══════════════════════════════════════════════════════
+// DEBOUNCE + FLASH
+// ═══════════════════════════════════════════════════════
+
+let _refreshTimer = null;
+
+function debouncedRefresh() {
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(() => {
+    refreshAll();
+    showRefreshFlash();
+  }, 80);
+}
+
+function showRefreshFlash() {
+  const el = document.getElementById('refresh-flash');
+  if (!el) return;
+  const old = document.getElementById('refresh-dot');
+  if (old) { const n = old.cloneNode(true); old.parentNode.replaceChild(n, old); }
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 1600);
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════════════
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name !== 'menu') {
+    editingItemId = null;
+    const f = document.getElementById('add-item-form');
+    if (f) f.style.display = 'none';
+  }
+  // Render only what's needed for the newly active tab
+  updateDerivedLabel();
+  if (name === 'dashboard') { renderDashboard(); }
+  else if (name === 'menu') { renderMenu(); }
+  else if (name === 'expenses') { renderExpenses(); }
+  else if (name === 'pricing') { renderPricing(); }
+  else if (name === 'bep')     { renderBEP(); renderTargetIncome(); renderMix(); renderWastageSummary(); }
+  saveData();
+}
+
+// ═══════════════════════════════════════════════════════
+// REFRESH ALL — tab-aware for efficiency
+// ═══════════════════════════════════════════════════════
+
+function activeTab() {
+  const p = document.querySelector('.tab-panel.active');
+  return p ? p.id.replace('tab-', '') : 'dashboard';
+}
+
+function refreshAll() {
+  updateDerivedLabel();
+  // Always render all tabs so every panel stays in sync with global params
+  renderDashboard();
+  renderExpenses();
+  renderPricing();
+  if (activeTab() === 'bep') { renderBEP(); renderTargetIncome(); renderMix(); renderWastageSummary(); }
+  if (!editingItemId && document.getElementById('add-item-form')?.style.display === 'none') {
+    renderMenu();
+  }
+  saveData();
+}
+
+let _studentsManuallySet = false;
+
+// Update derived labels & keep students input in sync with tiffins/month
+function updateDerivedLabel() {
+  const tpd = getTpd();
+  const tpdEl = document.getElementById('derived-tpd');
+  if (tpdEl) tpdEl.textContent = '≈' + fmt(tpd) + '/day';
+  // Only update students field if user hasn't manually set it
+  if (!_studentsManuallySet) {
+    const students = Math.round(tpd / 2);
+    const studEl = document.getElementById('students-per-day');
+    if (studEl && document.activeElement !== studEl) studEl.value = students;
+  }
+}
+
+// Called when admin types tiffins/month — update students after debounce
+function onTpmInput() {
+  _studentsManuallySet = false; // user overrode from tiffin side, re-derive students
+  debouncedRefresh();
+}
+
+// Called when admin types students/day → back-calculate tiffins/month
+function onStudentsInput() {
+  _studentsManuallySet = true;
+  const studEl = document.getElementById('students-per-day');
+  const students = Math.max(1, parseInt(studEl.value) || 1);
+  const wd = getWd();
+  // 1 student = 2 tiffins/day; tiffins/month = students × 2 × working days
+  const tpm = students * 2 * wd;
+  const tpmEl = document.getElementById('tiffins-per-month');
+  if (tpmEl) tpmEl.value = tpm;
+  debouncedRefresh();
+}
+
+// Called when working days change — if students field is filled, keep students fixed and update tpm
+function onWorkingDaysInput() {
+  const studEl = document.getElementById('students-per-day');
+  const students = parseInt(studEl?.value) || 0;
+  if (students > 0) {
+    const wd = getWd();
+    const tpm = students * 2 * wd;
+    const tpmEl = document.getElementById('tiffins-per-month');
+    if (tpmEl) tpmEl.value = tpm;
+  }
+  debouncedRefresh();
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+
+function renderDashboard() {
+  const tpm  = getTpm();
+  const wd   = getWd();
+  const tpd  = getTpd();
+  const rm   = totalRawMaterial(menuItems);   // already includes wastage
+  const rmBase = menuItems.reduce((s,i) => s + costPerTiffin(i), 0);
+  const wastageAmt = rm - rmBase;
+  const wp = getWastagePct();
+  const oh   = overheadPerTiffin();
+  const dv   = dailyPerTiffin();
+  const cost = rm + oh + dv;
+  const tm   = totalMonthly();
+  const tdm  = totalDailyPerDay();         // fixed daily expenses
+  const tptd = totalPerTiffinDaily();      // per-tiffin daily expenses
+  const totalMonthExp = tm + (tdm * wd) + (tptd * tpm); // true total monthly spend
+
+  // ─── 5 stat tiles (plus students + revenue) ───
+  const students = _studentsManuallySet
+    ? (parseInt(document.getElementById('students-per-day')?.value) || Math.round(tpd / 2))
+    : Math.round(tpd / 2);
+  const healthPrice = parseFloat(document.getElementById('health-price')?.value) || 0;
+  const monthlyRevenue = healthPrice > 0 ? healthPrice * tpm : 0;
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="card stat-tile" style="border-color:var(--red)33;">
+      <div class="stat-label">Cost / Tiffin</div>
+      <div class="stat-num" style="color:var(--red);">${rup(cost)}</div>
+      <div class="stat-sub">all-in break-even</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--blue)33;">
+      <div class="stat-label">Raw Material / Tiffin</div>
+      <div class="stat-num" style="color:var(--blue);">${rup(rm)}</div>
+      <div class="stat-sub">${menuItems.length} items${wp > 0 ? ` + ${wp}% wastage` : ''}</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--amber)33;">
+      <div class="stat-label">Total Monthly Spend</div>
+      <div class="stat-num" style="color:var(--amber);">${rupInt(totalMonthExp)}</div>
+      <div class="stat-sub">fixed + daily×${wd}days</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--green)33;">
+      <div class="stat-label">Tiffins / Month</div>
+      <div class="stat-num" style="color:var(--green);">${tpm}</div>
+      <div class="stat-sub">${fmt(tpd)}/day × ${wd} working days</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--purple)33;">
+      <div class="stat-label">Overhead / Tiffin</div>
+      <div class="stat-num" style="color:var(--purple);">${rup(oh + dv)}</div>
+      <div class="stat-sub">fixed ${rup(oh)} + daily ${rup(dv)}</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--teal)33;">
+      <div class="stat-label">🎓 Students / Day</div>
+      <div class="stat-num" style="color:var(--teal);">${students}</div>
+      <div class="stat-sub">${fmt(tpd)} tiffins ÷ 2</div>
+    </div>
+    ${monthlyRevenue > 0 ? `
+    <div class="card stat-tile" style="border-color:var(--green)55;background:rgba(0,214,143,0.04);">
+      <div class="stat-label">💰 Monthly Revenue</div>
+      <div class="stat-num" style="color:var(--green);">${rupInt(monthlyRevenue)}</div>
+      <div class="stat-sub">@ ₹${healthPrice}/tiffin × ${tpm}</div>
+    </div>` : `
+    <div class="card stat-tile" style="border-color:var(--border);opacity:0.5;">
+      <div class="stat-label">💰 Monthly Revenue</div>
+      <div class="stat-num" style="color:var(--muted);font-size:14px;">—</div>
+      <div class="stat-sub">Set price in Health section</div>
+    </div>`}`;
+
+  // ─── Cost per tiffin full breakdown ───
+  const bk = document.getElementById('dash-cost-breakdown');
+  if (bk) {
+    bk.innerHTML = `
+      <div class="flex-between mb8">
+        <span class="text-sm" style="color:#cbd5e1;">🥦 Raw Material <span class="text-muted text-sm">(pure ingredients)</span></span>
+        <span class="mono fw7" style="color:var(--blue);">${rup(rmBase)}</span>
+      </div>
+      <div class="prog-track mb4"><div class="prog-fill" style="background:var(--blue);width:${cost>0?(rmBase/cost*100):0}%"></div></div>
+      ${wp > 0 ? `<div class="flex-between mb8">
+        <span class="text-sm" style="color:#cbd5e1;">🗑️ Wastage <span class="text-muted text-sm">(${wp}% on raw material)</span></span>
+        <span class="mono fw7" style="color:var(--red);">${rup(wastageAmt)}</span>
+      </div>
+      <div class="prog-track mb12"><div class="prog-fill" style="background:var(--red);width:${cost>0?(wastageAmt/cost*100):0}%"></div></div>` : '<div class="mb12"></div>'}
+      <div class="flex-between mb8">
+        <span class="text-sm" style="color:#cbd5e1;">🏠 Monthly Overhead <span class="text-muted text-sm">(${rupInt(tm)} ÷ ${tpm})</span></span>
+        <span class="mono fw7" style="color:var(--amber);">${rup(oh)}</span>
+      </div>
+      <div class="prog-track mb12"><div class="prog-fill" style="background:var(--amber);width:${cost>0?(oh/cost*100):0}%"></div></div>
+      <div class="flex-between mb8">
+        <span class="text-sm" style="color:#cbd5e1;">📦 Daily Costs
+          <span class="text-muted text-sm">
+            ${tdm > 0 ? `fixed ${rup(tdm)}/day ÷ ${fmt(tpd)} tiffins` : ''}${tdm > 0 && tptd > 0 ? ' + ' : ''}${tptd > 0 ? `${rup(tptd)}/tiffin direct` : ''}${tdm === 0 && tptd === 0 ? 'none added' : ''}
+          </span>
+        </span>
+        <span class="mono fw7" style="color:var(--purple);">${rup(dv)}</span>
+      </div>
+      <div class="prog-track mb12"><div class="prog-fill" style="background:var(--purple);width:${cost>0?(dv/cost*100):0}%"></div></div>
+      <hr class="dvdr"/>
+      <div class="flex-between">
+        <span class="fw7">Total Cost / Tiffin</span>
+        <span class="mono fw7" style="color:var(--red);font-size:18px;">${rup(cost)}</span>
+      </div>
+      <div class="info-box mt8">
+        <span class="hl">Working Days Effect:</span> With <span class="hl">${wd} days</span> and <span class="hl">${tpm} tiffins/month</span>, you make <span class="mono-sm">${fmt(tpd)}</span> tiffins/day.
+        Fixed daily expenses of <span class="mono-sm">${rup(tdm)}/day</span> spread over <span class="mono-sm">${fmt(tpd)}</span> tiffins = <span class="mono-sm">${rup(tdm>0&&tpd>0?tdm/tpd:0)}/tiffin</span>.
+        Per-tiffin costs (packaging etc.) of <span class="mono-sm">${rup(tptd)}/tiffin</span> are added directly.
+        ${wd < 26 ? `⚠ Fewer working days → higher fixed daily cost per tiffin.` : ''}
+      </div>`;
+  }
+
+  // ─── Pricing table ───
+  document.querySelector('#dash-pricing-table tbody').innerHTML = [20,30,40,50,60].map(p => {
+    const price  = cost * (1 + p/100);
+    const rev    = price * tpm;
+    const profit = (price - cost) * tpm;
+    const margin = price > 0 ? ((price - cost) / price * 100).toFixed(1) : '0.0';
+    const col    = p===50 ? 'var(--green)' : p===30 ? 'var(--blue)' : 'var(--amber)';
+    return `<tr>
+      <td><span class="badge" style="color:${col};border-color:${col};background:${col}22;">${p}% markup</span></td>
+      <td class="mono fw7" style="color:${col};">${rup(price)}</td>
+      <td class="mono">${rupInt(rev)}</td>
+      <td class="mono fw7" style="color:${profit>0?'var(--green)':'var(--red)'};">${rupInt(profit)}</td>
+      <td class="mono" style="color:var(--muted);">${margin}%</td>
+    </tr>`;
+  }).join('');
+
+  // ─── Ingredient bars ───
+  let mcs = '';
+  menuItems.forEach(item => {
+    const c   = costPerTiffin(item);
+    const pct = rm > 0 ? (c/rm)*100 : 0;
+    const col = CAT_COLOR[item.category] || '#6b7280';
+    mcs += `<div class="mb12">
+      <div class="flex-between mb4">
+        <span style="font-size:13px;color:#cbd5e1;">${CAT_ICON[item.category]} ${item.name}</span>
+        <span class="mono fw7 text-sm" style="color:${col};">${rup(c)}</span>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="background:${col};width:${pct}%"></div></div>
+    </div>`;
+  });
+  mcs += `<hr class="dvdr"/><div class="flex-between"><span class="text-muted text-sm">Total Raw Material</span><span class="mono fw7">${rup(rm)}</span></div>`;
+  document.getElementById('dash-menu-summary').innerHTML = mcs;
+
+  // ─── Cost composition ───
+  const comps = [
+    { label:"Raw Material (pure)",       val:rmBase,     col:"var(--blue)"   },
+    ...(wp > 0 ? [{ label:`Wastage (${wp}% on RM)`, val:wastageAmt, col:"var(--red)" }] : []),
+    { label:"Monthly Overhead / Tiffin", val:oh,         col:"var(--amber)"  },
+    { label:"Daily Variable / Tiffin",   val:dv,         col:"var(--purple)" },
+  ];
+  let comp = '';
+  comps.forEach(row => {
+    const pct = cost > 0 ? (row.val/cost)*100 : 0;
+    comp += `<div class="mb12">
+      <div class="flex-between mb4">
+        <span class="text-sm" style="color:#cbd5e1;">${row.label}</span>
+        <span class="text-sm mono fw7" style="color:${row.col};">${rup(row.val)} <span class="text-muted">(${pct.toFixed(1)}%)</span></span>
+      </div>
+      <div class="prog-track"><div class="prog-fill" style="background:${row.col};width:${pct}%"></div></div>
+    </div>`;
+  });
+  comp += `<hr class="dvdr"/><div class="flex-between"><span class="text-muted text-sm">Total Cost / Tiffin</span><span class="mono fw7" style="color:var(--red);font-size:16px;">${rup(cost)}</span></div>`;
+  document.getElementById('dash-composition').innerHTML = comp;
+
+  renderHealth();
+}
+
+function renderHealth() {
+  const el = document.getElementById('health-result');
+  if (!el) return;
+  const priceVal = parseFloat(document.getElementById('health-price')?.value);
+  if (!priceVal || priceVal <= 0) {
+    el.innerHTML = '<p class="text-muted text-sm">Enter your selling price above to see profit/loss analysis.</p>';
+    return;
+  }
+  const tpm   = getTpm();
+  const wd    = getWd();
+  const rm    = totalRawMaterial(menuItems);
+  const oh    = overheadPerTiffin();
+  const dv    = dailyPerTiffin();
+  const cost  = rm + oh + dv;
+  const ppt   = priceVal - cost;
+  const mpr   = ppt * tpm;
+  const dpr   = ppt * getTpd();
+  const margin= (priceVal > 0 && cost > 0) ? (ppt / priceVal) * 100 : 0;
+  const markup= (cost > 0) ? (ppt / cost) * 100 : 0;
+  const ok    = ppt >= 0;
+  const col   = ok ? 'var(--green)' : 'var(--red)';
+  const sign  = ok ? '+' : '';
+  el.innerHTML = `
+    <div class="health-result">
+      <div class="health-tile">
+        <div class="lbl">Per Tiffin</div>
+        <div class="num" style="color:${col};">${sign}${rup(ppt)}</div>
+        <div class="lbl">${ok?'profit':'loss'}</div>
+      </div>
+      <div class="health-tile">
+        <div class="lbl">Per Day</div>
+        <div class="num" style="color:${col};">${sign}${rupInt(dpr)}</div>
+        <div class="lbl">${fmt(getTpd())} tiffins</div>
+      </div>
+      <div class="health-tile">
+        <div class="lbl">Monthly</div>
+        <div class="num" style="color:${col};">${sign}${rupInt(mpr)}</div>
+        <div class="lbl">${tpm} tiffins</div>
+      </div>
+      <div class="health-tile">
+        <div class="lbl">Margin %</div>
+        <div class="num" style="color:${col};">${sign}${margin.toFixed(1)}%</div>
+        <div class="lbl">profit ÷ sell</div>
+      </div>
+      <div class="health-tile">
+        <div class="lbl">Markup %</div>
+        <div class="num" style="color:var(--amber);">${markup.toFixed(1)}%</div>
+        <div class="lbl">profit ÷ cost</div>
+      </div>
+      <div class="health-tile">
+        <div class="lbl">Break Even</div>
+        <div class="num" style="color:var(--muted);">${rup(cost)}</div>
+        <div class="lbl">your cost</div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPENSES TAB — working days fully visible
+// ═══════════════════════════════════════════════════════
+
+function renderExpenses() {
+  const tpm  = getTpm();
+  const wd   = getWd();
+  const tpd  = getTpd();
+  const students = getActiveStudents();
+  const tm   = totalMonthly();
+  const tdd  = totalDailyPerDay();
+  const tptd = totalPerTiffinDaily();
+  const dv   = dailyPerTiffin();
+  const oh   = overheadPerTiffin();
+  const dailyMonthly     = tdd * wd;
+  const pertiffinMonthly = tptd * tpm;
+  const grandTotal       = tm + dailyMonthly + pertiffinMonthly;
+
+  // ─── Mode banner ───
+  const bannerEl = document.getElementById('exp-mode-banner');
+  if (bannerEl) {
+    if (appMode === 'auto') {
+      const meta = autoCalcExpenses(students, tpm)._meta;
+      const overrideCount = Object.keys(autoOverrides).length;
+      bannerEl.innerHTML = `<div class="auto-banner">
+        <span class="auto-banner-dot"></span>
+        <span style="font-size:12px;color:var(--green);font-weight:600;">AUTO MODE</span>
+        <span style="font-size:12px;color:var(--muted);">All expenses auto-calculated · <strong style="color:var(--text);">${students} students</strong> · ${tpm} tiffins/mo · <strong style="color:var(--text);">${meta.helpers} helper${meta.helpers>1?'s':''}</strong> · ${meta.cylCount} gas cyl · ₹${meta.pkgRate}/pkg · scale ${meta.ratio}×</span>
+        ${overrideCount > 0 ? `<span style="font-size:11px;color:var(--amber);font-weight:600;">${overrideCount} override${overrideCount>1?'s':''} active</span>` : ''}
+        <span style="font-size:11px;color:var(--muted);margin-left:auto;">Click <strong style="color:var(--amber);">Override</strong> on any row to customize · <strong style="color:var(--green);">+ Add</strong> to add extra expenses</span>
+      </div>`;
+    } else {
+      bannerEl.innerHTML = `<div class="manual-banner">
+        <span style="font-size:18px;">✏️</span>
+        <span style="font-size:12px;color:var(--amber);font-weight:600;">MANUAL MODE</span>
+        <span style="font-size:12px;color:var(--muted);">You control all expense values. Add / edit / delete freely below.</span>
+      </div>`;
+    }
+  }
+
+  // 4 stat tiles
+  document.getElementById('exp-stats').innerHTML = `
+    <div class="card stat-tile" style="border-color:var(--amber)33;">
+      <div class="stat-label">Monthly Fixed</div>
+      <div class="stat-num" style="color:var(--amber);">${rupInt(tm)}</div>
+      <div class="stat-formula">${rupInt(tm)} ÷ ${tpm} = ${rup(oh)}/tiffin</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--blue)33;">
+      <div class="stat-label">Fixed Daily Expenses</div>
+      <div class="stat-num" style="color:var(--blue);">${rupInt(tdd)}<span style="font-size:13px;color:var(--muted);font-weight:400;">/day</span></div>
+      <div class="stat-formula">${rupInt(tdd)} × ${wd}d = ${rupInt(dailyMonthly)}/mo</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--teal)33;">
+      <div class="stat-label">Per-Tiffin Variable</div>
+      <div class="stat-num" style="color:var(--teal);">${rup(tptd)}<span style="font-size:13px;color:var(--muted);font-weight:400;">/tiffin</span></div>
+      <div class="stat-formula">${rup(tptd)} × ${tpm} = ${rupInt(pertiffinMonthly)}/mo</div>
+    </div>
+    <div class="card stat-tile" style="border-color:var(--red)33;">
+      <div class="stat-label">True Monthly Total</div>
+      <div class="stat-num" style="color:var(--red);">${rupInt(grandTotal)}</div>
+      <div class="stat-formula">fixed + daily×${wd}d + per-tiffin×${tpm}</div>
+    </div>`;
+
+  const fb = document.getElementById('exp-formula-box');
+  if (fb) {
+    fb.innerHTML = `
+      <span class="hl">How costs are calculated per tiffin:</span>
+      Monthly fixed of <span class="mono-sm">${rupInt(tm)}</span> ÷ <span class="mono-sm">${tpm} tiffins</span> = <span class="mono-sm">${rup(oh)}/tiffin</span>.
+      Daily fixed of <span class="mono-sm">${rup(tdd)}/day</span> ÷ <span class="mono-sm">${fmt(tpd)} tiffins/day</span> = <span class="mono-sm">${rup(tpd>0?tdd/tpd:0)}/tiffin</span>.
+      Per-tiffin (packaging) of <span class="mono-sm">${rup(tptd)}</span> added directly.
+      <strong style="color:var(--text);">Total overhead = ${rup(oh + dv)}/tiffin.</strong>
+      ${appMode==='auto'?`<br/><span style="color:var(--green);font-size:11px;">⚡ Auto mode: all values scale intelligently with student count.</span>`:''}`;
+  }
+
+  document.getElementById('monthly-total-label').textContent = rupInt(tm);
+  document.getElementById('daily-total-label').textContent   = rupInt(tdd);
+  const ptEl  = document.getElementById('pertiffin-total-label');
+  const ptmEl = document.getElementById('pertiffin-monthly-label');
+  if (ptEl)  ptEl.textContent  = rup(tptd);
+  if (ptmEl) ptmEl.textContent = rupInt(tptd * tpm) + '/mo';
+
+  // In auto mode: still show + Add so admin can add extra expenses on top of auto
+  const addMonthlyBtn = document.getElementById('btn-add-monthly');
+  const addDailyBtn   = document.getElementById('btn-add-daily');
+  if (addMonthlyBtn) addMonthlyBtn.style.display = '';
+  if (addDailyBtn)   addDailyBtn.style.display   = '';
+
+  renderExpenseList('monthly-expense-list', getMonthlyExpenses(), 'var(--amber)', 'monthly');
+  renderExpenseList('daily-expense-list',   getDailyExpenses(),   'var(--blue)',  'daily');
+  renderExpenseAnalytics();
+}
+
+// ─── Expense Analytics ───
+function renderExpenseAnalytics() {
+  const analyticsEl    = document.getElementById('expense-analytics');
+  const grandTotalEl   = document.getElementById('expense-grand-total');
+  if (!analyticsEl) return;
+
+  const tpm = getTpm();
+  const wd  = getWd();
+  const me  = getMonthlyExpenses();
+  const de  = getDailyExpenses();
+
+  // Build unified list of all expenses with their monthly equivalent
+  const allItems = [];
+
+  me.forEach(e => {
+    allItems.push({ name: e.name, monthlyAmt: +e.amount, color: 'var(--amber)', category: 'Monthly Fixed' });
+  });
+
+  de.forEach(e => {
+    const type = e.type || 'fixed';
+    const monthlyAmt = type === 'pertiffin' ? (+e.amount) * tpm : (+e.amount) * wd;
+    allItems.push({ name: e.name, monthlyAmt, color: type === 'pertiffin' ? 'var(--teal)' : 'var(--blue)', category: type === 'pertiffin' ? 'Per-Tiffin' : 'Fixed Daily' });
+  });
+
+  const grandTotal = allItems.reduce((s, x) => s + x.monthlyAmt, 0);
+  if (grandTotal === 0) {
+    analyticsEl.innerHTML = '<p class="text-muted text-sm">No expense data to analyse.</p>';
+    return;
+  }
+
+  // Sort by amount desc
+  allItems.sort((a, b) => b.monthlyAmt - a.monthlyAmt);
+
+  analyticsEl.innerHTML = allItems.map(item => {
+    const pct = grandTotal > 0 ? (item.monthlyAmt / grandTotal) * 100 : 0;
+    return `<div class="analytics-bar-row">
+      <span class="analytics-bar-label" title="${item.name}">${item.name}</span>
+      <div class="analytics-bar-track">
+        <div class="analytics-bar-fill" style="width:${pct}%;background:${item.color};"></div>
+      </div>
+      <span class="analytics-bar-val" style="color:${item.color};">${rupInt(item.monthlyAmt)}</span>
+      <span style="font-size:10px;color:var(--muted);min-width:34px;text-align:right;">${pct.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+
+  // Grand total card
+  const tm   = me.reduce((s, e) => s + (+e.amount), 0);
+  const tdd  = de.filter(e => (e.type||'fixed')==='fixed').reduce((s,e) => s + (+e.amount), 0);
+  const tptd = de.filter(e => e.type==='pertiffin').reduce((s,e) => s + (+e.amount), 0);
+  const overrideCount = Object.keys(autoOverrides).length;
+
+  grandTotalEl.innerHTML = `<div class="grand-total-card">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Monthly Spend Summary</div>
+    <div class="grand-total-row">
+      <span style="color:var(--amber);">Monthly Fixed</span>
+      <span class="mono" style="color:var(--amber);">${rupInt(tm)}</span>
+    </div>
+    <div class="grand-total-row">
+      <span style="color:var(--blue);">Daily Fixed <span style="font-size:10px;color:var(--muted);">(×${wd} days)</span></span>
+      <span class="mono" style="color:var(--blue);">${rupInt(tdd * wd)}</span>
+    </div>
+    <div class="grand-total-row">
+      <span style="color:var(--teal);">Per-Tiffin <span style="font-size:10px;color:var(--muted);">(×${tpm} tiffins)</span></span>
+      <span class="mono" style="color:var(--teal);">${rupInt(tptd * tpm)}</span>
+    </div>
+    <div class="grand-total-row main">
+      <span style="font-weight:700;font-size:14px;">True Monthly Total</span>
+      <span class="mono fw7" style="color:var(--green);font-size:20px;">${rupInt(grandTotal)}</span>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap;">
+      <div style="font-size:11px;color:var(--muted);">Per tiffin overhead: <span class="mono" style="color:var(--text);">${rup(tpm>0?grandTotal/tpm:0)}</span></div>
+      <div style="font-size:11px;color:var(--muted);">Per day: <span class="mono" style="color:var(--text);">${rupInt(wd>0?grandTotal/wd:0)}</span></div>
+      ${appMode==='auto' && overrideCount > 0 ? `<div style="font-size:11px;color:var(--amber);">⚠ ${overrideCount} override${overrideCount>1?'s':''} active</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderExpenseList(containerId, list, color, type) {
+  const el = document.getElementById(containerId);
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px 0;">No expenses yet. Tap + Add.</div>';
+    return;
+  }
+  el.innerHTML = list.map(e => {
+    const isAuto       = !!e._auto;
+    const isOverridden = !!e._overridden;
+    const isManual     = !isAuto;
+
+    const typeBadge = type === 'daily'
+      ? (e.type === 'pertiffin'
+          ? `<span class="badge" style="color:var(--teal);border-color:var(--teal)44;background:var(--teal)11;margin-right:4px;">per tiffin</span>`
+          : `<span class="badge" style="color:var(--blue);border-color:var(--blue)44;background:var(--blue)11;margin-right:4px;">fixed/day</span>`)
+      : '';
+
+    let statusBadge = '';
+    if (isOverridden)       statusBadge = `<span class="override-badge">override</span>`;
+    else if (isAuto)        statusBadge = `<span class="auto-badge">auto</span>`;
+
+    const amtLabel = type === 'daily' && e.type === 'pertiffin'
+      ? `₹${(+e.amount).toLocaleString('en-IN')}/tiffin`
+      : `₹${(+e.amount).toLocaleString('en-IN')}`;
+
+    const overrideHint = isOverridden
+      ? `<span style="font-size:10px;color:var(--muted);text-decoration:line-through;margin-left:4px;">auto: ₹${(+e._autoAmount).toLocaleString('en-IN')}</span>`
+      : '';
+
+    const userNotes = e._notes || e.notes;
+    const noteHtml = isAuto && !isOverridden && e._note
+      ? `<div style="font-size:10px;color:var(--muted);margin-top:1px;">${e._note}</div>`
+      : (userNotes ? `<div class="exp-note-text">📝 ${userNotes}</div>` : '');
+
+    let actions = '';
+    if (isManual) {
+      actions = `<div class="exp-actions">
+        <button class="btn-edit"   onclick="editExpense('${type}',${e.id})">Edit</button>
+        <button class="btn-delete" onclick="askDeleteExpense('${type}',${e.id},'${escName(e.name)}')">Del</button>
+      </div>`;
+    } else if (isOverridden) {
+      actions = `<div class="exp-actions" style="flex-direction:column;gap:4px;align-items:flex-end;">
+        <div style="display:flex;gap:4px;">
+          <button class="btn-edit" onclick="editAutoOverride('${type}','${e.id}')">Edit</button>
+          <button class="btn-reset" onclick="resetAutoOverride('${e.id}')" title="Reset to auto-calculated value">↺ Auto</button>
+        </div>
+      </div>`;
+    } else {
+      actions = `<button class="btn-edit" style="font-size:11px;color:var(--amber);border-color:var(--amber)44;" onclick="startAutoOverride('${type}','${e.id}')">Override</button>`;
+    }
+
+    return `
+    <div class="exp-row${isOverridden ? ' auto-row' : isAuto ? ' auto-row' : ''}">
+      <span class="exp-name">${statusBadge}${typeBadge}${e.name}${noteHtml}</span>
+      <span class="exp-amt" style="color:${isOverridden ? 'var(--amber)' : color};">${amtLabel}${overrideHint}</span>
+      ${actions}
+    </div>`;
+  }).join('');
+}
+
+// ─── Expense Modal ───
+let _expModal = { mode:null, type:null, id:null };
+
+function openExpModal({ mode, type, id, name, amount, expType, notes, isOverride, autoId }) {
+  _expModal = { mode, type, id, isOverride: !!isOverride, autoId: autoId || null };
+  document.getElementById('exp-modal-title').textContent =
+    isOverride ? `✏️ Override: ${name}`
+    : mode==='add' ? (type==='monthly' ? '+ Monthly Expense' : '+ Daily Expense')
+    : 'Edit Expense';
+  document.getElementById('exp-modal-name').value   = name   || '';
+  document.getElementById('exp-modal-amount').value = amount || '';
+  document.getElementById('exp-modal-notes').value  = notes  || '';
+  document.getElementById('exp-modal-name').style.borderColor   = '';
+  document.getElementById('exp-modal-amount').style.borderColor = '';
+
+  // Name field: editable for manual, readonly for auto overrides
+  document.getElementById('exp-modal-name').readOnly = !!isOverride;
+  document.getElementById('exp-modal-name').style.opacity = isOverride ? '0.6' : '';
+
+  // Show type selector only for daily expenses (not overrides of auto items)
+  const typeRow = document.getElementById('exp-modal-type-row');
+  if (type === 'daily' && !isOverride) {
+    typeRow.style.display = '';
+    document.getElementById('exp-modal-type').value = expType || 'fixed';
+    updateExpTypeHint();
+    document.getElementById('exp-modal-type').onchange = updateExpTypeHint;
+    document.getElementById('exp-modal-amount').placeholder = expType === 'pertiffin' ? 'e.g. 3 (cost per tiffin)' : 'e.g. 200 (cost per day)';
+  } else {
+    typeRow.style.display = 'none';
+  }
+
+  document.getElementById('exp-modal-overlay').classList.add('open');
+  setTimeout(() => {
+    const target = isOverride
+      ? document.getElementById('exp-modal-amount')
+      : document.getElementById('exp-modal-name');
+    target.focus();
+  }, 80);
+}
+
+function updateExpTypeHint() {
+  const t = document.getElementById('exp-modal-type')?.value;
+  const hint = document.getElementById('exp-modal-type-hint');
+  const amtEl = document.getElementById('exp-modal-amount');
+  if (!hint) return;
+  if (t === 'pertiffin') {
+    hint.innerHTML = '<span style="color:var(--teal);">Per-tiffin: enter cost for <strong>1 tiffin</strong> (e.g. ₹3 for a packaging box). Multiplied by total tiffins automatically.</span>';
+    if (amtEl) amtEl.placeholder = 'e.g. 3 (per tiffin cost)';
+  } else {
+    hint.innerHTML = '<span style="color:var(--blue);">Fixed daily: enter <strong>total daily cost</strong> (e.g. ₹200 for gas/day). Divided by tiffins per day automatically.</span>';
+    if (amtEl) amtEl.placeholder = 'e.g. 200 (per day cost)';
+  }
+}
+
+function closeExpModal(e) {
+  if (e && e.target !== document.getElementById('exp-modal-overlay')) return;
+  document.getElementById('exp-modal-overlay').classList.remove('open');
+  _expModal = { mode: null, type: null, id: null };
+}
+
+function saveExpModal() {
+  const name   = document.getElementById('exp-modal-name').value.trim();
+  const amount = parseFloat(document.getElementById('exp-modal-amount').value);
+  const notes  = document.getElementById('exp-modal-notes').value.trim();
+
+  if (!name) {
+    document.getElementById('exp-modal-name').style.borderColor = 'var(--red)';
+    document.getElementById('exp-modal-name').focus();
+    return;
+  }
+  if (isNaN(amount) || amount <= 0) {
+    document.getElementById('exp-modal-amount').style.borderColor = 'var(--red)';
+    document.getElementById('exp-modal-amount').focus();
+    return;
+  }
+
+  // Handle auto override save
+  if (_expModal.isOverride && _expModal.autoId) {
+    autoOverrides[_expModal.autoId] = { amount: +amount, notes };
+    document.getElementById('exp-modal-overlay').classList.remove('open');
+    _expModal = { mode: null, type: null, id: null };
+    refreshAll();
+    return;
+  }
+
+  const expType = _expModal.type === 'daily'
+    ? (document.getElementById('exp-modal-type')?.value || 'fixed')
+    : undefined;
+
+  if (_expModal.mode === 'add') {
+    const entry = { id: Date.now(), name, amount: +amount, notes, ...(expType ? { type: expType } : {}) };
+    if (appMode === 'auto') {
+      // In auto mode, extra additions go to separate store — never pollute manual arrays
+      if (_expModal.type === 'monthly') autoAddedMonthly.push(entry);
+      else                              autoAddedDaily.push(entry);
+    } else {
+      if (_expModal.type === 'monthly') monthlyExpenses.push(entry);
+      else                              dailyExpenses.push(entry);
+    }
+  } else {
+    // Edit: search in the correct store depending on mode
+    const list = appMode === 'auto'
+      ? (_expModal.type === 'monthly' ? autoAddedMonthly : autoAddedDaily)
+      : (_expModal.type === 'monthly' ? monthlyExpenses  : dailyExpenses);
+    // eslint-disable-next-line eqeqeq
+    const idx  = list.findIndex(x => x.id == _expModal.id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], name, amount: +amount, notes, ...(expType !== undefined ? { type: expType } : {}) };
+    }
+  }
+  document.getElementById('exp-modal-overlay').classList.remove('open');
+  _expModal = { mode: null, type: null, id: null };
+  refreshAll();
+}
+
+function showAddMonthly() { openExpModal({ mode:'add', type:'monthly' }); }
+function showAddDaily()   { openExpModal({ mode:'add', type:'daily'   }); }
+
+function editExpense(type, id) {
+  // In auto mode, manually-added extras live in autoAdded arrays
+  const list = appMode === 'auto'
+    ? (type === 'monthly' ? autoAddedMonthly : autoAddedDaily)
+    : (type === 'monthly' ? monthlyExpenses  : dailyExpenses);
+  // eslint-disable-next-line eqeqeq
+  const e = list.find(x => x.id == id);
+  if (!e) return;
+  openExpModal({ mode:'edit', type, id: e.id, name:e.name, amount:e.amount, expType: e.type || 'fixed', notes: e.notes || '' });
+}
+
+// ─── Auto Override functions ───
+
+function startAutoOverride(type, autoId) {
+  // Find the expense in the current auto list
+  const ae = getActiveExpenses();
+  const list = type === 'monthly' ? ae.monthly : ae.daily;
+  const e = list.find(x => x.id === autoId);
+  if (!e) return;
+  openExpModal({
+    mode: 'edit',
+    type,
+    id: autoId,
+    name: e.name,
+    amount: e.amount,
+    notes: autoOverrides[autoId]?.notes || '',
+    isOverride: true,
+    autoId
+  });
+}
+
+function editAutoOverride(type, autoId) {
+  const ae = getActiveExpenses();
+  const list = type === 'monthly' ? ae.monthly : ae.daily;
+  const e = list.find(x => x.id === autoId);
+  if (!e) return;
+  openExpModal({
+    mode: 'edit',
+    type,
+    id: autoId,
+    name: e.name,
+    amount: autoOverrides[autoId]?.amount || e.amount,
+    notes: autoOverrides[autoId]?.notes || '',
+    isOverride: true,
+    autoId
+  });
+}
+
+function resetAutoOverride(autoId) {
+  delete autoOverrides[autoId];
+  refreshAll();
+}
+
+// ═══════════════════════════════════════════════════════
+// CONFIRM MODAL
+// ═══════════════════════════════════════════════════════
+
+let _confirmCb = null;
+
+function showConfirm(msg, cb) {
+  _confirmCb = cb;
+  document.getElementById('confirm-sub-text').textContent = msg || 'This cannot be undone.';
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+
+function closeConfirm(e) {
+  if (e && e.target !== document.getElementById('confirm-overlay')) return;
+  document.getElementById('confirm-overlay').classList.remove('open');
+  _confirmCb = null;
+}
+
+function confirmDeleteYes() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  if (_confirmCb) { _confirmCb(); _confirmCb = null; }
+}
+
+function askDeleteItem(id, name) {
+  showConfirm(`Delete "${name}" from menu?`, () => {
+    // eslint-disable-next-line eqeqeq
+    menuItems     = menuItems.filter(i => i.id != id);
+    // eslint-disable-next-line eqeqeq
+    selectedItems = selectedItems.filter(x => x != id);
+    refreshAll();
+  });
+}
+
+function askDeleteExpense(type, id, name) {
+  showConfirm(`Delete "${name}"?`, () => {
+    if (appMode === 'auto') {
+      // In auto mode, only auto-added extras can be deleted (auto rows use Override/Reset)
+      // eslint-disable-next-line eqeqeq
+      if (type === 'monthly') autoAddedMonthly = autoAddedMonthly.filter(x => x.id != id);
+      // eslint-disable-next-line eqeqeq
+      else                    autoAddedDaily   = autoAddedDaily.filter(x => x.id != id);
+    } else {
+      // eslint-disable-next-line eqeqeq
+      if (type === 'monthly') monthlyExpenses = monthlyExpenses.filter(x => x.id != id);
+      // eslint-disable-next-line eqeqeq
+      else                    dailyExpenses   = dailyExpenses.filter(x => x.id != id);
+    }
+    refreshAll();
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// MENU TAB
+// ═══════════════════════════════════════════════════════
+
+function kgHintText(item) {
+  const cost = costPerTiffin(item);
+  if (item.unit === 'pieces') return `${item.servingG} pcs ÷ 100 × ₹${item.costPerKg}/100pcs = ₹${cost.toFixed(2)}/tiffin`;
+  if (item.unit === 'ml')     return `${item.servingG}ml ÷ 1000 × ₹${item.costPerKg}/litre = ₹${cost.toFixed(2)}/tiffin`;
+  return `${item.servingG}g ÷ 1000 × ₹${item.costPerKg}/kg = ₹${cost.toFixed(2)}/tiffin`;
+}
+
+function itemFormHTML(item, btnLabel, onSave, onCancel) {
+  return `
+    <div class="form-row">
+      <label class="inp-label">Item Name</label>
+      <input class="inp" id="if-name" value="${item.name}" placeholder="e.g. Chawal"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-row">
+        <label class="inp-label">Category</label>
+        <select class="inp" id="if-cat">
+          <option value="grain"  ${item.category==='grain' ?'selected':''}>🌾 Grain</option>
+          <option value="pulse"  ${item.category==='pulse' ?'selected':''}>🫘 Dal/Pulse</option>
+          <option value="veggie" ${item.category==='veggie'?'selected':''}>🥦 Sabji/Salad</option>
+          <option value="extra"  ${item.category==='extra' ?'selected':''}>✨ Extra</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label class="inp-label">Unit</label>
+        <select class="inp" id="if-unit" onchange="onUnitChange(this)">
+          <option value="g"      ${item.unit==='g'      ?'selected':''}>Grams (g)</option>
+          <option value="ml"     ${item.unit==='ml'     ?'selected':''}>Milliliter (ml)</option>
+          <option value="pieces" ${item.unit==='pieces' ?'selected':''}>Pieces</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-row">
+        <label class="inp-label" id="if-serving-label">Serving per Tiffin (${item.unit==='pieces'?'pcs':item.unit})</label>
+        <input type="number" class="inp" id="if-serving" value="${item.servingG}" min="0"/>
+      </div>
+      <div class="form-row">
+        <label class="inp-label" id="if-cost-label">${item.unit==='pieces'?'Cost / 100 pcs (₹)': item.unit==='ml' ? 'Cost per Litre (₹)' : 'Cost per KG (₹)'}</label>
+        <input type="number" class="inp" id="if-cpkg" value="${item.costPerKg}" min="0"/>
+      </div>
+    </div>
+    <div class="kg-hint" id="if-kg-hint">${kgHintText(item)}</div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="${onSave}">${btnLabel}</button>
+      <button class="btn-secondary" onclick="${onCancel}">Cancel</button>
+    </div>`;
+}
+
+function onUnitChange(sel) {
+  const unit = sel.value;
+  const sl = document.getElementById('if-serving-label');
+  const cl = document.getElementById('if-cost-label');
+  if (sl) sl.textContent = `Serving per Tiffin (${unit==='pieces'?'pcs':unit})`;
+  if (cl) {
+    if (unit === 'pieces') cl.textContent = 'Cost / 100 pcs (₹)';
+    else if (unit === 'ml') cl.textContent = 'Cost per Litre (₹)';
+    else cl.textContent = 'Cost per KG (₹)';
+  }
+  updateKgHintLive();
+}
+
+function updateKgHintLive() {
+  const unit    = document.getElementById('if-unit')?.value || 'g';
+  const serving = parseFloat(document.getElementById('if-serving')?.value) || 0;
+  const cpkg    = parseFloat(document.getElementById('if-cpkg')?.value) || 0;
+  const hint    = document.getElementById('if-kg-hint');
+  if (!hint) return;
+  if (serving <= 0 || cpkg <= 0) {
+    hint.textContent = 'Enter serving and rate to see cost/tiffin';
+    return;
+  }
+  hint.textContent = kgHintText({ unit, servingG: serving, costPerKg: cpkg });
+}
+
+function attachFormListeners() {
+  ['if-serving','if-cpkg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateKgHintLive);
+  });
+}
+
+function startAddItem() {
+  editingItemId = null;
+  const form = document.getElementById('add-item-form');
+  form.style.display = '';
+  document.getElementById('add-item-fields').innerHTML = itemFormHTML(
+    { name:'', unit:'g', servingG:0, costPerKg:0, category:'veggie' },
+    'Save Item', 'saveNewItem()', 'cancelAddItem()'
+  );
+  attachFormListeners();
+  form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function cancelAddItem() {
+  document.getElementById('add-item-form').style.display = 'none';
+}
+
+function saveNewItem() {
+  const name    = document.getElementById('if-name').value.trim();
+  const cat     = document.getElementById('if-cat').value;
+  const unit    = document.getElementById('if-unit').value;
+  const serving = parseFloat(document.getElementById('if-serving').value) || 0;
+  const cpkg    = parseFloat(document.getElementById('if-cpkg').value) || 0;
+  if (!name)      { document.getElementById('if-name').style.borderColor    = 'var(--red)'; document.getElementById('if-name').focus(); return; }
+  if (serving<=0) { document.getElementById('if-serving').style.borderColor = 'var(--red)'; document.getElementById('if-serving').focus(); return; }
+  if (cpkg<=0)    { document.getElementById('if-cpkg').style.borderColor    = 'var(--red)'; document.getElementById('if-cpkg').focus(); return; }
+  menuItems.push({ id: Date.now(), name, unit, servingG: +serving, costPerKg: +cpkg, category: cat });
+  selectedItems = menuItems.map(i => i.id);
+  cancelAddItem();
+  refreshAll();
+}
+
+function startEditItem(id) {
+  editingItemId = id;
+  renderMenu();
+}
+
+function saveEditItem(id) {
+  const name    = document.getElementById('if-name').value.trim();
+  const cat     = document.getElementById('if-cat').value;
+  const unit    = document.getElementById('if-unit').value;
+  const serving = parseFloat(document.getElementById('if-serving').value) || 0;
+  const cpkg    = parseFloat(document.getElementById('if-cpkg').value) || 0;
+  if (!name)      { document.getElementById('if-name').style.borderColor    = 'var(--red)'; document.getElementById('if-name').focus(); return; }
+  if (serving<=0) { document.getElementById('if-serving').style.borderColor = 'var(--red)'; document.getElementById('if-serving').focus(); return; }
+  if (cpkg<=0)    { document.getElementById('if-cpkg').style.borderColor    = 'var(--red)'; document.getElementById('if-cpkg').focus(); return; }
+  // eslint-disable-next-line eqeqeq
+  menuItems     = menuItems.map(i => i.id == id ? { ...i, name, category: cat, unit, servingG: +serving, costPerKg: +cpkg } : i);
+  editingItemId = null;
+  refreshAll();
+}
+
+function cancelEditItem() {
+  editingItemId = null;
+  renderMenu();
+}
+
+function renderMenu() {
+  const wrap = document.getElementById('menu-table-wrap');
+  if (!menuItems.length) {
+    wrap.innerHTML = '<div class="empty-state">No items yet. Click "+ Add Item" to get started.</div>';
+    return;
+  }
+  let rows = '';
+  menuItems.forEach(item => {
+    const cost      = costPerTiffin(item);
+    const col       = CAT_COLOR[item.category] || '#6b7280';
+    const unitLabel = item.unit === 'pieces' ? 'pcs' : item.unit;
+    const rateLabel = item.unit === 'pieces' ? '/100pcs' : item.unit === 'ml' ? '/L' : '/kg';
+    // eslint-disable-next-line eqeqeq
+    if (editingItemId == item.id) {
+      rows += `<tr><td colspan="6" style="padding:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:12px;">Editing: ${item.name}</div>
+        ${itemFormHTML(item, 'Save', `saveEditItem(${item.id})`, 'cancelEditItem()')}
+      </td></tr>`;
+      setTimeout(attachFormListeners, 0);
+    } else {
+      rows += `<tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;display:inline-block;"></span>
+            <span style="font-weight:600;">${item.name}</span>
+          </div>
+        </td>
+        <td><span class="badge" style="color:${col};border-color:${col}44;background:${col}11;">${item.category}</span></td>
+        <td class="mono">${item.servingG}${unitLabel}</td>
+        <td class="mono">₹${item.costPerKg}${rateLabel}</td>
+        <td class="mono fw7" style="color:${col};">${rup(cost)}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn-edit" onclick="startEditItem(${item.id})">Edit</button>
+            <button class="btn-delete" onclick="askDeleteItem(${item.id},'${escName(item.name)}')">Delete</button>
+          </div>
+        </td>
+      </tr>`;
+    }
+  });
+  wrap.innerHTML = `<div class="table-scroll"><table>
+    <thead><tr><th>Item</th><th>Category</th><th>Serving</th><th>Rate</th><th>Cost/Tiffin</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// PRICING CALCULATOR
+// ═══════════════════════════════════════════════════════
+
+function toggleItem(id) {
+  const numId = +id;
+  // eslint-disable-next-line eqeqeq
+  if (selectedItems.some(x => x == numId)) selectedItems = selectedItems.filter(x => x != numId);
+  else selectedItems.push(numId);
+  renderPricing();
+  saveData();
+}
+
+function setProfitTarget(p) {
+  profitTarget = p;
+  document.getElementById('custom-profit').value = p;
+  renderPricing();
+  saveData();
+}
+
+function setCustomProfit(v) {
+  profitTarget = Math.max(0, Math.min(200, parseInt(v) || 0));
+  renderPricing();
+  saveData();
+}
+
+function renderPricing() {
+  // Item toggles
+  const togglesEl = document.getElementById('item-toggles');
+  if (togglesEl) {
+    if (!menuItems.length) {
+      togglesEl.innerHTML = '<span class="text-muted text-sm">No items. Add items in Menu tab.</span>';
+    } else {
+      togglesEl.innerHTML = menuItems.map(item => {
+        // eslint-disable-next-line eqeqeq
+        const on  = selectedItems.some(x => x == item.id);
+        const c   = costPerTiffin(item);
+        const col = CAT_COLOR[item.category] || '#6b7280';
+        return `<button class="item-toggle ${on ? 'on' : ''}" onclick="toggleItem(${item.id})"
+          style="${on ? `border-color:${col};color:${col};background:${col}11;` : ''}"
+          >${CAT_ICON[item.category]} ${item.name}${on ? ` (${rup(c)})` : ''}</button>`;
+      }).join('');
+    }
+  }
+
+  // Profit pills
+  const pillsEl = document.getElementById('profit-pills');
+  if (pillsEl) {
+    pillsEl.innerHTML = [10, 20, 30, 40, 50, 60].map(p =>
+      `<button class="profit-pill ${profitTarget === p ? 'on' : ''}" onclick="setProfitTarget(${p})">${p}%</button>`
+    ).join('');
+  }
+
+  // eslint-disable-next-line eqeqeq
+  const activeItems = menuItems.filter(i => selectedItems.some(x => x == i.id));
+  const tpm  = getTpm();
+  const tpd  = getTpd();
+  const wp   = getWastagePct();
+  const rm   = totalRawMaterial(activeItems);        // includes wastage
+  const rmBase = activeItems.reduce((s,i) => s + costPerTiffin(i), 0); // pure RM
+  const wastageAmt = rm - rmBase;
+  const oh   = overheadPerTiffin();
+  const dv   = dailyPerTiffin();
+  const cost = rm + oh + dv;
+  const price= cost * (1 + profitTarget / 100);
+  const ppt  = price - cost;
+  const mpr  = ppt * tpm;
+  const dpr  = ppt * tpd;
+
+  // Breakdown
+  const bkEl = document.getElementById('pricing-breakdown');
+  if (bkEl) {
+    if (!activeItems.length) {
+      bkEl.innerHTML = '<p class="text-muted text-sm">Select items above to see breakdown.</p>';
+    } else {
+      let bk = activeItems.map(item => {
+        const c   = costPerTiffin(item);
+        const col = CAT_COLOR[item.category] || '#6b7280';
+        return `<div class="flex-between mb8">
+          <span style="font-size:13px;">${CAT_ICON[item.category]} ${item.name} <span class="text-muted text-sm">(${item.servingG}${item.unit === 'pieces' ? 'pcs' : item.unit})</span></span>
+          <span class="mono fw7" style="color:${col};">${rup(c)}</span>
+        </div>`;
+      }).join('');
+      bk += `<hr class="dvdr"/>
+        <div class="flex-between mb8"><span class="text-muted">Raw Material (pure)</span><span class="mono fw7">${rup(rmBase)}</span></div>
+        ${wp > 0 ? `<div class="flex-between mb8"><span class="text-muted">🗑️ Wastage (${wp}%)</span><span class="mono fw7" style="color:var(--red);">${rup(wastageAmt)}</span></div>` : ''}
+        <div class="flex-between mb8"><span class="text-muted">Monthly Overhead</span><span class="mono fw7" style="color:var(--amber);">${rup(oh)}</span></div>
+        <div class="flex-between mb8"><span class="text-muted">Daily Variable</span><span class="mono fw7" style="color:var(--purple);">${rup(dv)}</span></div>
+        <hr class="dvdr"/>
+        <div class="flex-between"><span class="fw7">Total Cost / Tiffin</span><span class="mono fw7" style="color:var(--red);font-size:16px;">${rup(cost)}</span></div>`;
+      bkEl.innerHTML = bk;
+    }
+  }
+
+  // Result
+  const resEl = document.getElementById('pricing-result');
+  if (resEl) {
+    resEl.innerHTML = `
+      <div class="result-block mb16">
+        <span class="result-label">Break Even Price</span>
+        <span class="result-value" style="color:var(--red);">${rup(cost)}</span>
+        <span class="result-note">Sell below this = loss</span>
+      </div>
+      <div class="result-block border-top pt12 mb16">
+        <span class="result-label">Sell at This Price</span>
+        <span class="result-value" style="color:var(--green);">${rup(price)}</span>
+        <span class="result-note">${profitTarget}% markup on cost → ${price > 0 ? ((ppt/price)*100).toFixed(1) : '0.0'}% true margin on sale</span>
+      </div>
+      <div style="background:var(--bg4);border-radius:9px;padding:14px;">
+        <div class="flex-between mb8"><span class="text-muted text-sm">Profit / Tiffin</span><span class="mono fw7" style="color:var(--green);">${rup(ppt)}</span></div>
+        <div class="flex-between mb8"><span class="text-muted text-sm">Profit / Day <span style="font-size:10px;">(${fmt(tpd)} tiffins)</span></span><span class="mono fw7" style="color:var(--green);">${rupInt(dpr)}</span></div>
+        <div class="flex-between mb8"><span class="text-muted text-sm">True Margin % <span style="font-size:10px;">(÷ sell price)</span></span><span class="mono fw7" style="color:var(--green);">${price > 0 ? ((ppt / price) * 100).toFixed(1) : '0.0'}%</span></div>
+        <div class="flex-between border-top pt8"><span class="text-muted text-sm">Monthly Profit (${tpm} tiffins)</span><span class="mono fw7" style="color:var(--green);font-size:15px;">${rupInt(mpr)}</span></div>
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// BEP & GOALS
+// ═══════════════════════════════════════════════════════
+
+function getTotalMonthlyCost() {
+  const tpm  = getTpm();
+  const wd   = getWd();
+  const tm   = totalMonthly();
+  const tdm  = totalDailyPerDay();
+  const tptd = totalPerTiffinDaily();
+  return tm + (tdm * wd) + (tptd * tpm);
+}
+
+// Break-Even Volume: minimum tiffins to cover ALL costs at a given sell price
+// Formula: BEV = TotalFixedMonthly / (SellPrice - VariableCostPerTiffin)
+// VariableCostPerTiffin = rawMaterial + perTiffinDailyExpenses
+// FixedMonthly = monthlyExpenses + (dailyFixed × workingDays)
+function renderBEP() {
+  const el = document.getElementById('bep-result');
+  if (!el) return;
+
+  const sellPrice = parseFloat(document.getElementById('bep-price')?.value);
+  const spoilage  = parseFloat(document.getElementById('bep-spoilage')?.value) || 0;
+  const tpm       = getTpm();
+  const wd        = getWd();
+
+  // Cost components
+  const varCostPerTiffin = totalRawMaterial(menuItems) + totalPerTiffinDaily();
+  const fixedMonthly     = totalMonthly() + totalDailyPerDay() * wd;
+
+  if (!sellPrice || sellPrice <= 0) {
+    el.innerHTML = '<p class="text-muted text-sm">Enter your sell price above to calculate break-even volume.</p>';
+    return;
+  }
+
+  const contrib = sellPrice - varCostPerTiffin; // contribution margin per tiffin
+
+  if (contrib <= 0) {
+    el.innerHTML = `<div class="info-box" style="border-color:var(--red)44;background:#3f0a0a22;">
+      <span style="color:var(--red);font-weight:700;">⛔ Sell price too low!</span><br/>
+      Your variable cost per tiffin is <span class="mono-sm">${rup(varCostPerTiffin)}</span>.
+      At ₹${sellPrice}/tiffin you cannot cover costs — increase the price above <span class="mono-sm">${rup(varCostPerTiffin)}</span>.
+    </div>`;
+    return;
+  }
+
+  const bev        = Math.ceil(fixedMonthly / contrib);  // tiffins/month to break even
+  const bevPerDay  = Math.ceil(bev / wd);                // tiffins/day to break even
+  const spoilageMo = spoilage * wd;                      // lost tiffins/month from spoilage
+  const bevWithSpoilage = Math.ceil((fixedMonthly + spoilageMo * varCostPerTiffin) / contrib);
+  const bevWithSpoilagePerDay = Math.ceil(bevWithSpoilage / wd);
+  const surplusTiffins = tpm - bev;
+  const surplusProfit  = surplusTiffins * contrib;
+  const pctOfCurrent   = tpm > 0 ? (bev / tpm * 100).toFixed(1) : '—';
+  const coverageDays   = wd > 0 ? Math.ceil(bev / (tpm / wd)) : 0; // how many days to hit BEV
+
+  const statusColor  = bev <= tpm ? 'var(--green)' : 'var(--red)';
+  const statusIcon   = bev <= tpm ? '✅' : '⚠️';
+  const statusText   = bev <= tpm
+    ? `You cover break-even with ${tpm} tiffins. <strong style="color:var(--green);">${surplusTiffins} tiffins surplus</strong> → profit of <strong style="color:var(--green);">${rupInt(surplusProfit)}/month</strong>.`
+    : `You need <strong style="color:var(--red);">${bev - tpm} more tiffins/month</strong> to break even. Scale up or raise your price.`;
+
+  el.innerHTML = `
+    <div class="grid4 mb16">
+      <div class="card stat-tile" style="border-color:var(--red)44;">
+        <div class="stat-label">Break-Even Volume</div>
+        <div class="stat-num" style="color:var(--red);">${bev.toLocaleString('en-IN')}</div>
+        <div class="stat-sub">tiffins / month</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--amber)44;">
+        <div class="stat-label">BEP / Day</div>
+        <div class="stat-num" style="color:var(--amber);">${bevPerDay}</div>
+        <div class="stat-sub">tiffins / working day</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--blue)44;">
+        <div class="stat-label">Contribution Margin</div>
+        <div class="stat-num" style="color:var(--blue);">${rup(contrib)}</div>
+        <div class="stat-sub">profit per tiffin sold</div>
+      </div>
+      <div class="card stat-tile" style="border-color:${statusColor}44;">
+        <div class="stat-label">vs Current Volume</div>
+        <div class="stat-num" style="color:${statusColor};">${pctOfCurrent}%</div>
+        <div class="stat-sub">of current tiffin target</div>
+      </div>
+    </div>
+
+    <div class="info-box mb12" style="${bev <= tpm ? 'border-color:var(--green)44;background:#0a1f1044;' : 'border-color:var(--red)44;background:#1f0a0a44;'}">
+      ${statusIcon} ${statusText}
+    </div>
+
+    ${spoilage > 0 ? `<div class="info-box mb12" style="border-color:var(--amber)44;">
+      <span class="hl">With Spoilage (${spoilage} tiffins wasted/day → ${spoilageMo}/month):</span><br/>
+      You need <span class="mono-sm">${bevWithSpoilage}</span> tiffins (${bevWithSpoilagePerDay}/day) to break even.
+      Spoilage adds <span class="mono-sm">${rupInt(spoilageMo * varCostPerTiffin)}/month</span> in losses.
+    </div>` : ''}
+
+    <div class="scaling-card">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">BEP Sensitivity — at different sell prices</div>
+      ${[sellPrice - 20, sellPrice - 10, sellPrice, sellPrice + 10, sellPrice + 20].filter(p => p > 0).map(p => {
+        const c = p - varCostPerTiffin;
+        if (c <= 0) return `<div class="scale-row"><span style="color:var(--muted);">₹${p}/tiffin</span><span style="color:var(--red);font-family:'DM Mono',monospace;font-size:12px;">Price too low</span></div>`;
+        const b = Math.ceil(fixedMonthly / c);
+        const col = p === sellPrice ? 'var(--green)' : p > sellPrice ? 'var(--teal)' : 'var(--amber)';
+        return `<div class="scale-row">
+          <span style="color:${col};font-weight:${p===sellPrice?'700':'400'};">₹${p}/tiffin${p===sellPrice?' ◀':''}</span>
+          <span class="scale-val" style="color:${col};">${b.toLocaleString('en-IN')} tiffins/mo (${Math.ceil(b/wd)}/day)</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// Target Income: what sell price do you need to earn a given monthly profit?
+function renderTargetIncome() {
+  const el = document.getElementById('ti-result');
+  if (!el) return;
+
+  const targetProfit = parseFloat(document.getElementById('ti-target')?.value);
+  const customVol    = parseFloat(document.getElementById('ti-volume')?.value);
+  const tpm          = customVol > 0 ? customVol : getTpm();
+
+  const varCostPerTiffin = totalRawMaterial(menuItems) + totalPerTiffinDaily();
+  const fixedMonthly     = totalMonthly() + totalDailyPerDay() * getWd();
+  const totalCostAtVol   = fixedMonthly + varCostPerTiffin * tpm;
+  const costPerT         = tpm > 0 ? totalCostAtVol / tpm : 0;
+
+  if (!targetProfit || targetProfit < 0) {
+    el.innerHTML = '<p class="text-muted text-sm">Enter your desired monthly profit above.</p>';
+    return;
+  }
+
+  const neededSellPrice  = costPerT + (targetProfit / tpm);
+  const neededMarkup     = costPerT > 0 ? ((neededSellPrice - costPerT) / costPerT * 100).toFixed(1) : '—';
+  const trueMargin       = neededSellPrice > 0 ? ((neededSellPrice - costPerT) / neededSellPrice * 100).toFixed(1) : '—';
+
+  el.innerHTML = `
+    <div class="grid4 mb12">
+      <div class="card stat-tile" style="border-color:var(--green)44;">
+        <div class="stat-label">Required Sell Price</div>
+        <div class="stat-num" style="color:var(--green);">${rup(neededSellPrice)}</div>
+        <div class="stat-sub">per tiffin</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--blue)44;">
+        <div class="stat-label">Required Markup</div>
+        <div class="stat-num" style="color:var(--blue);">${neededMarkup}%</div>
+        <div class="stat-sub">on cost</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--teal)44;">
+        <div class="stat-label">True Margin</div>
+        <div class="stat-num" style="color:var(--teal);">${trueMargin}%</div>
+        <div class="stat-sub">on sale price</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--amber)44;">
+        <div class="stat-label">Total Cost / Tiffin</div>
+        <div class="stat-num" style="color:var(--amber);">${rup(costPerT)}</div>
+        <div class="stat-sub">at ${tpm} tiffins/mo</div>
+      </div>
+    </div>
+    <div class="info-box">
+      To earn <span class="hl">${rupInt(targetProfit)}/month</span> at <span class="hl">${tpm} tiffins/month</span>,
+      charge <span class="mono-sm">${rup(neededSellPrice)}</span> per tiffin —
+      that's a <span class="mono-sm">${neededMarkup}%</span> markup on your all-in cost of <span class="mono-sm">${rup(costPerT)}</span>.
+    </div>`;
+}
+
+// Subscriber vs Walk-In revenue mix
+function renderMix() {
+  const el = document.getElementById('mix-result');
+  if (!el) return;
+
+  const subVol       = parseFloat(document.getElementById('mix-sub')?.value) || 0;
+  const walkinVol    = parseFloat(document.getElementById('mix-walkin')?.value) || 0;
+  const subPrice     = parseFloat(document.getElementById('mix-sub-price')?.value) || 0;
+  const walkinPrice  = parseFloat(document.getElementById('mix-walkin-price')?.value) || 0;
+
+  if (!subVol && !walkinVol) {
+    el.innerHTML = '<p class="text-muted text-sm">Enter volumes and prices above to see revenue breakdown.</p>';
+    return;
+  }
+
+  const subRev      = subVol * subPrice;
+  const walkinRev   = walkinVol * walkinPrice;
+  const totalVol    = subVol + walkinVol;
+  const totalRev    = subRev + walkinRev;
+  const avgPrice    = totalVol > 0 ? totalRev / totalVol : 0;
+  const subPct      = totalVol > 0 ? (subVol / totalVol * 100).toFixed(1) : 0;
+  const stabilityScore = totalRev > 0 ? Math.round(subRev / totalRev * 100) : 0;
+
+  const costPerT    = (() => {
+    const tpm = Math.max(1, totalVol);
+    const fixedMonthly = totalMonthly() + totalDailyPerDay() * getWd();
+    const varCpt = totalRawMaterial(menuItems) + totalPerTiffinDaily();
+    return (fixedMonthly + varCpt * tpm) / tpm;
+  })();
+
+  const netProfit  = totalRev - costPerT * totalVol;
+  const statusCol  = stabilityScore >= 70 ? 'var(--green)' : stabilityScore >= 40 ? 'var(--amber)' : 'var(--red)';
+
+  el.innerHTML = `
+    <div class="grid4 mb12">
+      <div class="card stat-tile" style="border-color:var(--green)44;">
+        <div class="stat-label">Guaranteed Revenue</div>
+        <div class="stat-num" style="color:var(--green);">${rupInt(subRev)}</div>
+        <div class="stat-sub">${subVol} subscriber tiffins</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--blue)44;">
+        <div class="stat-label">Walk-In Revenue</div>
+        <div class="stat-num" style="color:var(--blue);">${rupInt(walkinRev)}</div>
+        <div class="stat-sub">${walkinVol} walk-in tiffins</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--amber)44;">
+        <div class="stat-label">Avg Effective Price</div>
+        <div class="stat-num" style="color:var(--amber);">${rup(avgPrice)}</div>
+        <div class="stat-sub">blended across both</div>
+      </div>
+      <div class="card stat-tile" style="border-color:${statusCol}44;">
+        <div class="stat-label">Revenue Stability</div>
+        <div class="stat-num" style="color:${statusCol};">${stabilityScore}%</div>
+        <div class="stat-sub">guaranteed portion</div>
+      </div>
+    </div>
+    <div class="info-box">
+      <span class="hl">Total Revenue: ${rupInt(totalRev)}/month</span> (${rupInt(subRev)} guaranteed + ${rupInt(walkinRev)} walk-in) ·
+      Net Profit: <span class="mono-sm" style="color:${netProfit>0?'var(--green)':'var(--red)'};">${rupInt(netProfit)}</span>/month ·
+      Subscriber share: <span class="mono-sm">${subPct}%</span> of tiffins.<br/>
+      ${stabilityScore < 50 ? '⚠️ <span style="color:var(--amber);">Less than half your revenue is guaranteed. Focus on converting walk-ins to monthly subscribers.</span>' :
+        stabilityScore >= 70 ? '✅ <span style="color:var(--green);">Strong subscriber base. Revenue is predictable and planning is easier.</span>' :
+        '🔶 <span style="color:var(--amber);">Moderate stability. Aim for 70%+ subscriber share for financial predictability.</span>'}
+    </div>`;
+}
+
+// Wastage cost breakdown
+function renderWastageSummary() {
+  const el = document.getElementById('wastage-summary');
+  if (!el) return;
+
+  const wp       = getWastagePct();
+  const tpm      = getTpm();
+  const wd       = getWd();
+  const rmBase   = menuItems.reduce((s,i) => s + costPerTiffin(i), 0);
+  const wastePT  = rmBase * (wp / 100);            // wastage per tiffin
+  const wasteDay = wastePT * (tpm / wd);           // wastage per working day
+  const wasteMo  = wastePT * tpm;                  // wastage per month
+
+  if (wp === 0) {
+    el.innerHTML = `<p class="text-muted text-sm">Wastage is set to 0%. Adjust the <strong>🗑️ Wastage %</strong> in the top bar to see impact.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="grid4 mb12">
+      <div class="card stat-tile" style="border-color:var(--red)44;">
+        <div class="stat-label">Wastage / Tiffin</div>
+        <div class="stat-num" style="color:var(--red);">${rup(wastePT)}</div>
+        <div class="stat-sub">${wp}% on RM of ${rup(rmBase)}</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--amber)44;">
+        <div class="stat-label">Wastage / Day</div>
+        <div class="stat-num" style="color:var(--amber);">${rupInt(wasteDay)}</div>
+        <div class="stat-sub">across ${(tpm/wd).toFixed(1)} tiffins/day</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--red)55;">
+        <div class="stat-label">Wastage / Month</div>
+        <div class="stat-num" style="color:var(--red);">${rupInt(wasteMo)}</div>
+        <div class="stat-sub">across ${tpm} tiffins</div>
+      </div>
+      <div class="card stat-tile" style="border-color:var(--purple)44;">
+        <div class="stat-label">Annual Wastage Cost</div>
+        <div class="stat-num" style="color:var(--purple);">${rupInt(wasteMo * 12)}</div>
+        <div class="stat-sub">₹ lost per year</div>
+      </div>
+    </div>
+    <div class="info-box">
+      At <span class="hl">${wp}% wastage</span>, you lose <span class="mono-sm">${rupInt(wasteMo)}/month</span> (≈ <span class="mono-sm">${rupInt(wasteMo*12)}/year</span>) in raw material cost.
+      Reducing wastage by just 1% saves <span class="mono-sm">${rupInt(rmBase * 0.01 * tpm)}/month</span>.
+      Track your actual spoilage daily and target below 4% through better portion control and ordering.
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+loadData();
+updateDerivedLabel();
+renderDashboard();
+// Render other tabs lazily on first switch — dashboard is active by default
+</script>
+</body>
+</html>
