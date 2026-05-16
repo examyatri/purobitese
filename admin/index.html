@@ -1,20 +1,11 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v19.6                                    ║
-     ║  Updated : 2026-04-28                               ║
-     ║  Changes : Deep mobile UX overhaul —                ║
-     ║            swipe-to-dismiss bottom sheet modals;    ║
-     ║            close button on every modal;             ║
-     ║            2-col grids collapse to 1-col on phone;  ║
-     ║            touch targets min 44px; field font 16px  ║
-     ║            (prevents iOS zoom); modal content area  ║
-     ║            scrollable with overscroll bounce;       ║
-     ║            backdrop tap-to-close; mo-title sticky;  ║
-     ║            action buttons sticky at bottom;         ║
-     ║            select/input full-width mobile;          ║
-     ║            keyboard-aware bottom padding;           ║
-     ║            openMo animation & focus management      ║
+     ║  Version : v19.9                                    ║
+     ║  Updated : 2026-05-16                               ║
+     ║  Changes : Cooking Sessions morning/evening filter;  ║
+     ║            added — All / Morning / Evening toggle   ║
+     ║            buttons for client-side session filter   ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1668,7 +1659,13 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a;margin:0">Notifications</h2>
             <div style="font-size:12px;color:#94a3b8;margin-top:2px">Auto-refreshes every 60 seconds</div>
           </div>
-          <!-- New User Welcome Coupon trigger -->
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <!-- Beep toggle button -->
+            <button id="beep-toggle-btn" onclick="toggleBeep()"
+              style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1.5px solid #059669;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer;transition:all 180ms">
+              <i class="fa fa-bell" style="font-size:13px"></i> Beep On
+            </button>
+            <!-- New User Welcome Coupon trigger -->
           <button onclick="toggleNuCouponPanel()" id="nu-coupon-toggle-card"
             style="display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:12px;border:1.5px solid #d1fae5;background:linear-gradient(135deg,#ecfdf5,#f0fdf4);cursor:pointer;transition:all 180ms;box-shadow:0 2px 8px rgba(16,185,129,.12)">
             <div style="width:32px;height:32px;background:linear-gradient(135deg,#10b981,#059669);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -1682,6 +1679,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <span id="nu-pending-count-badge" style="background:#e63946;color:white;border-radius:20px;padding:2px 8px;font-size:10px;font-family:var(--ff);font-weight:700">0</span>
             </div>
           </button>
+          </div><!-- end right-side flex wrapper -->
         </div>
 
         <!-- ── NU COUPON PANEL (collapsible) ── -->
@@ -1816,8 +1814,17 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <!-- Cooking sessions history -->
         <div class="card" style="padding:0;overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid #f1f5f9">
-            <div style="font-family:var(--ff);font-weight:800;font-size:15px;color:#0f172a" id="kitchen-sessions-title">🕒 Cooking Sessions</div>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px">Locked sessions — these orders are excluded from calculation above</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+              <div>
+                <div style="font-family:var(--ff);font-weight:800;font-size:15px;color:#0f172a" id="kitchen-sessions-title">🕒 Cooking Sessions</div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px">Locked sessions — excluded from calculation above</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="ks-filter-btn ks-act" data-ksf="all"     onclick="setKSFilter('all',this)"     style="padding:5px 12px;border-radius:8px;border:1.5px solid #0f172a;background:#0f172a;color:#fff;font-family:var(--ff);font-weight:700;font-size:11px;cursor:pointer">All</button>
+                <button class="ks-filter-btn"             data-ksf="morning" onclick="setKSFilter('morning',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:11px;cursor:pointer">🌅 Morning</button>
+                <button class="ks-filter-btn"             data-ksf="evening" onclick="setKSFilter('evening',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:11px;cursor:pointer">🌙 Evening</button>
+              </div>
+            </div>
           </div>
           <div id="kitchen-sessions-wrap" style="padding:12px">
             <div style="color:#94a3b8;text-align:center;padding:20px">No sessions yet</div>
@@ -1871,6 +1878,7 @@ async function doAdminLogin() {
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(role);
     showPage('p-dash');
+    _updateBeepBtn(); // apply saved beep preference to button
     startPolling();
     npDone();
   } catch(e) { npDone(); aToast(e.message || 'Login failed'); }
@@ -1884,6 +1892,7 @@ function applyRoleRestrictions(role) {
 }
 
 function doAdminLogout() {
+  _stopBeepLoop();
   stopPolling();
   AdminAuth.clear();
   document.getElementById('main-layout').style.display = 'none';
@@ -1898,6 +1907,7 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(session.role);
     showPage('p-dash');
+    _updateBeepBtn(); // restore saved beep preference to button on session resume
     startPolling();
   }
 
@@ -2022,6 +2032,7 @@ function aToast(msg, duration = 3000) {
 }
 
 function openMo(html) {
+  _stopBeepLoop(); // opening a modal = admin is responding — stop alert
   const box = document.getElementById('mo-box');
   const bg  = document.getElementById('mo-bg');
 
@@ -5331,19 +5342,141 @@ let _lastNotifsStr = '', _allNotifs = [], _notifTab = 'orders';
 let _nuPanelOpen = false;
 let _nuCurrentTab = 'pending';
 let _prevUnreadCount = -1; // -1 = first load, no beep yet
+let _beepEnabled = true;   // master on/off toggle — persisted in localStorage
+let _beepLoopTimer = null; // interval ID for repeating beep
+let _beepAudioCtx = null;  // shared AudioContext
 
-function _beepNotif() {
+// ── Load beep preference from localStorage on boot ───────
+(function() {
+  const saved = localStorage.getItem('tiffo_beep_enabled');
+  if (saved !== null) _beepEnabled = saved === 'true';
+})();
+
+// ── Unlock AudioContext on first user gesture (required on mobile) ──────────
+// Mobile browsers start AudioContext in "suspended" state. Programmatic
+// resume() from a polling timer is blocked — only a user gesture can unlock it.
+// Strategy: on the very first click/touch/keydown, create the AudioContext and
+// call resume() inside that gesture callback so the browser permits it.
+// _beepAudioCtx is assigned BEFORE resume() so that any beep triggered
+// immediately after reuses the same context (already mid-resume) instead of
+// creating a second suspended one.
+let _beepUnlocked = false;
+function _unlockAudioCtx() {
+  if (_beepUnlocked) return;
+  _beepUnlocked = true;
+  document.removeEventListener('click',      _unlockAudioCtx, true);
+  document.removeEventListener('touchstart', _unlockAudioCtx, true);
+  document.removeEventListener('keydown',    _unlockAudioCtx, true);
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine'; osc.frequency.setValueAtTime(880, ctx.currentTime);
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
-    osc.onended = () => ctx.close();
+    if (!_beepAudioCtx || _beepAudioCtx.state === 'closed') {
+      _beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_beepAudioCtx.state === 'suspended') _beepAudioCtx.resume();
   } catch(e) {}
+}
+document.addEventListener('click',      _unlockAudioCtx, true);
+document.addEventListener('touchstart', _unlockAudioCtx, true);
+document.addEventListener('keydown',    _unlockAudioCtx, true);
+
+function _getAudioCtx() {
+  if (!_beepAudioCtx || _beepAudioCtx.state === 'closed') {
+    // Context was GC'd after being backgrounded — recreate only after unlock.
+    // Before first gesture this path returns a new suspended ctx; _playCashRegister
+    // will silently fail — correct: no sound before the admin interacts.
+    _beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_beepAudioCtx.state === 'suspended') _beepAudioCtx.resume();
+  return _beepAudioCtx;
+}
+
+// Cash register sound: high ding → brief pause → two quick dings
+function _playCashRegister() {
+  try {
+    const ctx = _getAudioCtx();
+    const t = ctx.currentTime;
+    function playDing(startT, freq, dur, vol) {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startT);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.85, startT + dur);
+      gain.gain.setValueAtTime(0, startT);
+      gain.gain.linearRampToValueAtTime(vol, startT + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001, startT + dur);
+      osc.start(startT);
+      osc.stop(startT + dur);
+    }
+    playDing(t + 0.00, 1318, 0.32, 0.28); // E6 — first ding
+    playDing(t + 0.38, 1047, 0.18, 0.22); // C6 — ding
+    playDing(t + 0.56, 1319, 0.22, 0.26); // C#6 — ding
+  } catch(e) {}
+}
+
+// Start repeating beep loop (every 4s) — called when new activity arrives
+function _startBeepLoop() {
+  if (!_beepEnabled) return;
+  if (_beepLoopTimer) return; // already looping
+  _playCashRegister(); // immediate first beep
+  _beepLoopTimer = setInterval(() => {
+    if (!_beepEnabled) { _stopBeepLoop(); return; }
+    _playCashRegister();
+  }, 4000);
+  _updateBeepBtn(); // show pulsing state
+}
+
+// Stop the repeating beep — called on any meaningful admin interaction
+function _stopBeepLoop() {
+  if (_beepLoopTimer) {
+    clearInterval(_beepLoopTimer);
+    _beepLoopTimer = null;
+  }
+  _updateBeepBtn();
+}
+
+// Toggle: if beep is currently looping → stop loop (acknowledge); if master off → turn on; if idle on → turn off
+function toggleBeep() {
+  if (_beepLoopTimer) {
+    // Beep is alerting — admin clicked to acknowledge/stop, keep master ON
+    _stopBeepLoop();
+    aToast('🔔 Alert stopped');
+    return;
+  }
+  // No active loop — toggle master on/off
+  _beepEnabled = !_beepEnabled;
+  localStorage.setItem('tiffo_beep_enabled', String(_beepEnabled));
+  if (_beepEnabled) _playCashRegister(); // confirmation ding
+  _updateBeepBtn();
+  aToast(_beepEnabled ? '🔔 Alert beep ON' : '🔕 Alert beep OFF');
+}
+
+function _updateBeepBtn() {
+  const btn = document.getElementById('beep-toggle-btn');
+  if (!btn) return;
+  const isLooping = !!_beepLoopTimer;
+  if (!_beepEnabled) {
+    // Master OFF
+    btn.innerHTML = '<i class="fa fa-bell-slash" style="font-size:13px"></i> Beep Off';
+    btn.style.background  = '#f8fafc';
+    btn.style.color       = '#94a3b8';
+    btn.style.borderColor = '#e2e8f0';
+    btn.style.animation   = '';
+  } else if (isLooping) {
+    // Active alert — pulsing red to grab attention
+    btn.innerHTML = '<i class="fa fa-bell" style="font-size:13px"></i> Stop Beep';
+    btn.style.background  = 'linear-gradient(135deg,#ef4444,#dc2626)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = '#dc2626';
+    btn.style.animation   = 'badgePulse 1s infinite';
+  } else {
+    // Enabled, idle
+    btn.innerHTML = '<i class="fa fa-bell" style="font-size:13px"></i> Beep On';
+    btn.style.background  = 'linear-gradient(135deg,#10b981,#059669)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = '#059669';
+    btn.style.animation   = '';
+  }
 }
 
 // ─── NOTIFICATION PANEL TOGGLE ────────────────────────────
@@ -5375,8 +5508,8 @@ async function loadNotifications() {
     const badge = document.getElementById('notif-badge');
     const unreadCount = _allNotifs.filter(n => !n.is_read).length;
     if (badge) { badge.textContent = unreadCount; badge.style.display = unreadCount > 0 ? 'inline' : 'none'; }
-    // Beep only when unread count genuinely increases (skip first load)
-    if (_prevUnreadCount >= 0 && unreadCount > _prevUnreadCount) _beepNotif();
+    // Start repeating beep loop on ANY new unread notification (order, txn, user, subscriber)
+    if (_prevUnreadCount >= 0 && unreadCount > _prevUnreadCount) _startBeepLoop();
     _prevUnreadCount = unreadCount;
     renderNotifs(_allNotifs);
     updateNuPendingBadge(_allNotifs);
@@ -5951,6 +6084,7 @@ function relTime(ts) {
 }
 
 async function markNotifRead(id) {
+  _stopBeepLoop(); // reading a notification = acknowledged
   try {
     await api('markNotificationRead', { id });
     _lastNotifsStr = '';
@@ -6060,6 +6194,7 @@ async function sendWaAndMarkSent(phone, notifId) {
 }
 
 function showPage(id) {
+  _stopBeepLoop(); // admin is actively using the panel — stop alert
   document.querySelectorAll('.pg-v').forEach(p => p.classList.remove('act'));
   document.querySelectorAll('.sb-nav a').forEach(a => a.classList.remove('act'));
   document.getElementById(id)?.classList.add('act');
@@ -6244,6 +6379,8 @@ window.addEventListener('DOMContentLoaded', () => {
 let _kitchenSlot = 'all';
 let _kitchenSummary = null; // last fetched summary
 let _kitchenIncludedIds = [];
+let _kitchenSessionsFilter = 'all'; // separate filter for sessions list
+let _allKitchenSessions = []; // cached for client-side session filtering
 
 // ── Kitchen date-preset helpers ───────────────────────────────
 let _kitchenDatePreset = 'today'; // 'today' | 'tomorrow' | 'yesterday' | 'custom'
@@ -6398,14 +6535,40 @@ async function loadKitchen() {
 }
 
 function _renderKitchenSessions(sessions) {
+  _allKitchenSessions = sessions || []; // cache for filter
+  _applyKitchenSessionsFilter();
+}
+
+function setKSFilter(filter, btn) {
+  _kitchenSessionsFilter = filter;
+  document.querySelectorAll('.ks-filter-btn').forEach(b => {
+    const isActive = b === btn;
+    b.className = 'ks-filter-btn' + (isActive ? ' ks-act' : '');
+    b.style.background = isActive ? '#0f172a' : '#fff';
+    b.style.color      = isActive ? '#fff'    : '#334155';
+    b.style.borderColor= isActive ? '#0f172a' : '#e2e8f0';
+  });
+  _applyKitchenSessionsFilter();
+}
+
+function _applyKitchenSessionsFilter() {
   const wrap = document.getElementById('kitchen-sessions-wrap');
-  // Update title to show active range
+  const titleEl = document.getElementById('kitchen-sessions-title');
+  // Update title to show active date range
   const { from: fd, to: td } = _syncResolvedDates();
   const rangeLabel = fd === td ? fd : `${fd} → ${td}`;
-  const titleEl = document.getElementById('kitchen-sessions-title');
   if (titleEl) titleEl.textContent = `🕒 Cooking Sessions (${rangeLabel})`;
+
+  // Apply slot filter
+  let sessions = _allKitchenSessions;
+  if (_kitchenSessionsFilter === 'morning') {
+    sessions = sessions.filter(s => s.slot === 'morning');
+  } else if (_kitchenSessionsFilter === 'evening') {
+    sessions = sessions.filter(s => s.slot === 'evening');
+  }
+
   if (!sessions.length) {
-    wrap.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">No cooking sessions in this date range.</div>';
+    wrap.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">No cooking sessions for this filter.</div>';
     return;
   }
   wrap.innerHTML = sessions.map(s => {
