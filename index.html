@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.4                                    ║
+     ║  Version : v50.6                                    ║
      ║  Updated : 2026-05-16                               ║
-     ║  Changes : Auto tiffin plan bug fixed — morning-    ║
-     ║            only subscribers no longer see 'Both     ║
-     ║            Off' option after another user logout;   ║
-     ║            plan patched in all 5 Auth.set flows;    ║
-     ║            "bulk orders" → "auto tiffin" language   ║
+     ║  Changes : Auto tiffin toggle stale-state bug fixed ║
+     ║            — tomorrow-pending pause now shows       ║
+     ║            yellow across all load paths (login,     ║
+     ║            PTR, bg-poll, 48h verify, account PTR);  ║
+     ║            after cutoff: clear "unavailable" msg,   ║
+     ║            no confirm button shown                  ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -411,6 +412,9 @@ textarea{resize:vertical;min-height:80px}
 .pause-status-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:var(--ff);border-radius:20px;padding:2px 8px;margin-top:3px}
 .pause-status-badge.active{background:var(--gl);color:var(--g)}
 .pause-status-badge.paused{background:#fde8ea;color:var(--pd)}
+.pause-status-badge.tomorrow{background:#fff3cd;color:#b45309}
+.toggle-sw.tomorrow{background:#f59e0b}
+#pause-cutoff-msg{display:none;background:#fff3cd;border:1.5px solid #fcd34d;border-radius:12px;padding:12px 14px;font-family:var(--fb);font-size:13px;color:#92400e;margin-bottom:12px;line-height:1.5}
 .toggle-sw{appearance:none;width:46px;height:26px;background:#e5e7eb;border-radius:13px;position:relative;cursor:pointer;transition:background 200ms;flex-shrink:0;border:none}
 .toggle-sw.active{background:var(--g)}
 .toggle-sw.paused{background:var(--pd)}
@@ -1358,7 +1362,8 @@ textarea{resize:vertical;min-height:80px}
     <div class="sheet-title">Auto Tiffin Settings</div>
     <button class="sheet-close" onclick="closePauseSheet()"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px">Choose which tiffin session to pause</div>
+  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px" id="pause-sheet-desc">Choose which tiffin session to pause</div>
+  <div id="pause-cutoff-msg"></div>
   <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="lunch">
     <div class="pause-option-icon picon-morning">☀️</div>
@@ -2107,36 +2112,47 @@ function applyKhataVisibility() {
 
 function applyPauseState(mode) {
   // pause_delivery drives bulk order slot eligibility:
-  // 'none'   → both sessions active (included in morning + evening bulk)
-  // 'lunch'  → morning OFF, evening still active
-  // 'dinner' → evening OFF, morning still active
-  // 'both'   → all sessions OFF (excluded from all bulk orders)
+  // 'none'          → both sessions active
+  // 'lunch'         → morning OFF today
+  // 'dinner'        → evening OFF today
+  // 'both'          → all sessions OFF today
+  // 'lunch-tomorrow'   → morning OFF from tomorrow (today still active)
+  // 'dinner-tomorrow'  → evening OFF from tomorrow (today still active)
+  // 'both-tomorrow'    → both OFF from tomorrow (today still active)
   _pauseMode = mode || 'none';
+  const isTomorrow = _pauseMode.endsWith('-tomorrow');
+  const isPaused   = _pauseMode !== 'none';
   const toggle   = document.getElementById('pause-toggle');
   const sub      = document.getElementById('pause-subtitle');
   const row      = document.getElementById('pause-toggle-row');
   const badge    = document.getElementById('pause-status-badge');
-  const isPaused = _pauseMode !== 'none';
   if (toggle) {
-    toggle.checked = true; // always visually on (right side); color indicates state
-    toggle.className = 'toggle-sw ' + (isPaused ? 'paused' : 'active');
+    toggle.checked = true;
+    toggle.className = 'toggle-sw ' + (isTomorrow ? 'tomorrow' : isPaused ? 'paused' : 'active');
   }
-  if (row)   row.classList.toggle('paused', isPaused);
+  if (row) row.classList.toggle('paused', isPaused);
   if (badge) {
-    badge.className = 'pause-status-badge ' + (isPaused ? 'paused' : 'active');
+    badge.className = 'pause-status-badge ' + (isTomorrow ? 'tomorrow' : isPaused ? 'paused' : 'active');
     badge.textContent =
-      _pauseMode === 'none'   ? '● All Active' :
-      _pauseMode === 'lunch'  ? '● Morning Off' :
-      _pauseMode === 'dinner' ? '● Evening Off' : '● Both Off';
+      _pauseMode === 'none'            ? '● All Active' :
+      _pauseMode === 'lunch'           ? '● Morning Off' :
+      _pauseMode === 'dinner'          ? '● Evening Off' :
+      _pauseMode === 'both'            ? '● Both Off' :
+      _pauseMode === 'lunch-tomorrow'  ? '● Morning Off (Tomorrow)' :
+      _pauseMode === 'dinner-tomorrow' ? '● Evening Off (Tomorrow)' :
+      _pauseMode === 'both-tomorrow'   ? '● Both Off (Tomorrow)' : '● All Active';
   }
   if (sub) sub.textContent =
-    _pauseMode === 'none'   ? 'Tap to manage tiffin sessions' :
-    _pauseMode === 'lunch'  ? 'Morning auto tiffin is off — tap to resume' :
-    _pauseMode === 'dinner' ? 'Evening auto tiffin is off — tap to resume' :
-                              'All auto tiffins off — tap to resume';
+    _pauseMode === 'none'            ? 'Tap to manage tiffin sessions' :
+    _pauseMode === 'lunch'           ? 'Morning auto tiffin is off — tap to resume' :
+    _pauseMode === 'dinner'          ? 'Evening auto tiffin is off — tap to resume' :
+    _pauseMode === 'both'            ? 'All auto tiffins off — tap to resume' :
+    _pauseMode === 'lunch-tomorrow'  ? 'Morning tiffin off from tomorrow — tap to cancel' :
+    _pauseMode === 'dinner-tomorrow' ? 'Evening tiffin off from tomorrow — tap to cancel' :
+    _pauseMode === 'both-tomorrow'   ? 'Both tiffins off from tomorrow — tap to cancel' :
+                                       'Tap to manage tiffin sessions';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
-  // sub-plan-banner removed — status driven by Auto Tiffin card only
 }
 
 function togglePw(inputId, btn) {
@@ -4505,8 +4521,11 @@ async function refreshAccountData() {
     if (res.subscriber) {
       Auth.patch({ is_subscriber: true, plan: res.subscriber.plan, plan_start: res.subscriber.plan_start, plan_end: res.subscriber.plan_end });
       _session.is_subscriber = true;
-      _pauseMode = res.subscriber.pause_delivery || 'none';
-      applyPauseState(_pauseMode);
+      // Use loadPauseState for correct pendingTomorrow display instead of raw pause_delivery
+      loadPauseState().catch(() => {
+        _pauseMode = res.subscriber.pause_delivery || 'none';
+        applyPauseState(_pauseMode);
+      });
     } else {
       Auth.patch({ is_subscriber: false });
       _session.is_subscriber = false;
@@ -5052,41 +5071,79 @@ async function openPauseSheet() {
   const morningToday = showMorning && (nowHHMM <= cutoff.morning);
   const eveningToday = showEvening && (nowHHMM <= cutoff.evening);
 
+  // For morning-only plan: after cutoff there's NOTHING actionable today,
+  // and we intentionally do NOT offer tomorrow-off here (confusing UX).
+  // Instead show a clear message and disable the confirm button.
+  const cutoffMsgEl   = document.getElementById('pause-cutoff-msg');
+  const sheetDescEl   = document.getElementById('pause-sheet-desc');
+  const confirmBtn    = document.querySelector('#pause-sheet .btn-primary');
+
+  // Reset visibility
+  if (cutoffMsgEl) { cutoffMsgEl.style.display = 'none'; cutoffMsgEl.textContent = ''; }
+  if (confirmBtn)  confirmBtn.style.display = 'block';
+
+  // Build per-card messages
   document.querySelectorAll('.pause-option-card').forEach(card => {
     const radio = card.querySelector('input[type=radio]');
     if (!radio) return;
+
     if (radio.value === 'lunch') {
-      card.style.display = showMorning ? '' : 'none';
-      if (showMorning) {
+      if (!showMorning) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      if (morningToday) {
+        // Before cutoff — allow today off
         const sub = card.querySelector('div[style*="font-size:12px"]');
-        if (sub) sub.textContent = morningToday
-          ? `Skip morning auto tiffin for today (till ${cutoff.morning})`
-          : `Skip morning auto tiffin for tomorrow`;
+        if (sub) sub.textContent = `Skip morning auto tiffin for today (till ${cutoff.morning})`;
         const title = card.querySelector('div[style*="font-size:14px"]');
-        if (title) title.textContent = morningToday ? 'Morning Off (Today)' : 'Morning Off (Tomorrow)';
+        if (title) title.textContent = 'Morning Off (Today)';
+        card.style.opacity = '1'; card.style.pointerEvents = '';
+        if (radio) radio.disabled = false;
+      } else {
+        // After morning cutoff — hide the card entirely, show info message
+        card.style.display = 'none';
+        if (cutoffMsgEl) {
+          cutoffMsgEl.style.display = 'block';
+          cutoffMsgEl.innerHTML = `⏰ <strong>Today's morning cutoff (${cutoff.morning}) has passed.</strong><br>Today's tiffin off option is unavailable. To skip tomorrow's morning tiffin, come back tomorrow before ${cutoff.morning}.`;
+        }
+        if (confirmBtn) confirmBtn.style.display = 'none';
       }
     }
+
     if (radio.value === 'dinner') {
-      card.style.display = showEvening ? '' : 'none';
-      if (showEvening) {
+      if (!showEvening) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      if (eveningToday) {
         const sub = card.querySelector('div[style*="font-size:12px"]');
-        if (sub) sub.textContent = eveningToday
-          ? `Skip evening auto tiffin for today (till ${cutoff.evening})`
-          : `Skip evening auto tiffin for tomorrow`;
+        if (sub) sub.textContent = `Skip evening auto tiffin for today (till ${cutoff.evening})`;
         const title = card.querySelector('div[style*="font-size:14px"]');
-        if (title) title.textContent = eveningToday ? 'Evening Off (Today)' : 'Evening Off (Tomorrow)';
+        if (title) title.textContent = 'Evening Off (Today)';
+        card.style.opacity = '1'; card.style.pointerEvents = '';
+        if (radio) radio.disabled = false;
+      } else {
+        card.style.display = 'none';
+        if (cutoffMsgEl && !morningToday) {
+          cutoffMsgEl.style.display = 'block';
+          cutoffMsgEl.innerHTML = `⏰ <strong>Today's evening cutoff (${cutoff.evening}) has passed.</strong><br>Today's tiffin off option is unavailable. To skip tomorrow's evening tiffin, come back tomorrow before ${cutoff.evening}.`;
+        }
+        if (confirmBtn && !morningToday) confirmBtn.style.display = 'none';
       }
     }
+
     if (radio.value === 'both') {
-      card.style.display = showBoth ? '' : 'none';
-      if (showBoth) {
-        const isAnyToday = morningToday || eveningToday;
+      if (!showBoth) { card.style.display = 'none'; return; }
+      const isAnyToday = morningToday || eveningToday;
+      card.style.display = isAnyToday ? '' : 'none';
+      if (isAnyToday) {
         const sub = card.querySelector('div[style*="font-size:12px"]');
-        if (sub) sub.textContent = isAnyToday
-          ? 'Pause all auto tiffins (applies today where cutoff not passed)'
-          : 'Pause all auto tiffins for tomorrow';
+        if (sub) sub.textContent = 'Pause all auto tiffins (applies today where cutoff not passed)';
         const title = card.querySelector('div[style*="font-size:14px"]');
-        if (title) title.textContent = isAnyToday ? 'Both Off (Today/Tomorrow)' : 'Both Off (Tomorrow)';
+        if (title) title.textContent = 'Both Off (Today)';
+      } else {
+        if (cutoffMsgEl) {
+          cutoffMsgEl.style.display = 'block';
+          cutoffMsgEl.innerHTML = `⏰ <strong>Today's cutoff has passed for all sessions.</strong><br>Come back tomorrow to pause tiffin.`;
+        }
+        if (confirmBtn) confirmBtn.style.display = 'none';
       }
     }
   });
@@ -5100,8 +5157,12 @@ function closePauseSheet() {
   document.getElementById('pause-sheet').classList.remove('open');
   document.getElementById('sheet-backdrop').classList.remove('show');
   setTimeout(() => document.getElementById('pause-sheet').style.display = 'none', 350);
-  // Reset radio selections
+  // Reset radio selections, cutoff message, and confirm button
   document.querySelectorAll('input[name="pause-opt"]').forEach(r => r.checked = false);
+  const cutoffMsg = document.getElementById('pause-cutoff-msg');
+  if (cutoffMsg) { cutoffMsg.style.display = 'none'; cutoffMsg.textContent = ''; }
+  const confirmBtn = document.querySelector('#pause-sheet .btn-primary');
+  if (confirmBtn) confirmBtn.style.display = 'block';
 }
 
 function onPauseToggle(chk) {
@@ -5122,6 +5183,7 @@ async function confirmPause() {
   const mode = opt.value;
   const cutoff = await _loadAtCutoff();
   const nowHHMM = _istTimeNow();
+  // All options shown in sheet are today-only (after-cutoff options are hidden)
   const morningForToday = (mode === 'lunch' || mode === 'both') && (nowHHMM <= cutoff.morning);
   const eveningForToday = (mode === 'dinner' || mode === 'both') && (nowHHMM <= cutoff.evening);
   try {
@@ -5131,9 +5193,7 @@ async function confirmPause() {
       morningForToday,
       eveningForToday
     });
-    // Apply only the sessions that are effectively paused TODAY.
-    // A tomorrow-only pause (after cutoff) must not block today's orders.
-    // Example: mode='lunch', morningForToday=false → effectiveToday='none'
+    // Effective pause for today's UI state
     const pm_eff = (mode === 'lunch' || mode === 'both') && morningForToday;
     const pe_eff = (mode === 'dinner' || mode === 'both') && eveningForToday;
     const effectiveToday = pm_eff && pe_eff ? 'both' : pm_eff ? 'lunch' : pe_eff ? 'dinner' : 'none';
@@ -5141,11 +5201,9 @@ async function confirmPause() {
     _lastPauseMode = effectiveToday;
     closePauseSheet();
     toast(
-      mode === 'lunch'  ? `Morning tiffin off ${morningForToday ? 'today' : 'tomorrow'} ✓` :
-      mode === 'dinner' ? `Evening tiffin off ${eveningForToday ? 'today' : 'tomorrow'} ✓` :
-      (morningForToday && eveningForToday) ? 'Both tiffins off today ✓' :
-      (!morningForToday && !eveningForToday) ? 'Both tiffins off tomorrow ✓' :
-      `Morning off ${morningForToday ? 'today' : 'tomorrow'}, Evening off ${eveningForToday ? 'today' : 'tomorrow'} ✓`
+      mode === 'lunch'  ? 'Morning tiffin off today ✓' :
+      mode === 'dinner' ? 'Evening tiffin off today ✓' :
+      'Both tiffins off today ✓'
     );
   } catch(e) { toast(e.message || 'Failed'); }
 }
@@ -5164,8 +5222,14 @@ async function loadPauseState() {
   if (!_session?.is_subscriber) return;
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
-    applyPauseState(res.pauseMode);
     if (res.plan) Auth.patch({ plan: res.plan });
+    // If no active pause today but a pause is pending for tomorrow, show tomorrow state
+    let displayMode = res.pauseMode;
+    if (res.pendingTomorrow && res.pauseMode === 'none') {
+      displayMode = res.pendingTomorrow + '-tomorrow';
+    }
+    applyPauseState(displayMode);
+    _lastPauseMode = displayMode;
   } catch {}
 }
 
@@ -5344,12 +5408,19 @@ async function refreshSubscriberStatus(force = false) {
     const nowSubscriber = !!res.isSubscriber;
     if (!force && nowSubscriber === !!_session.is_subscriber) return;
     _session.is_subscriber = nowSubscriber;
-    _pauseMode = res.subscriber?.pause_delivery || 'none';
     _walletBal = nowSubscriber ? (_walletBal || 0) : 0;
-    applyPauseState(_pauseMode);
     updateWalletUI(_walletBal);
     _applySubscriberUI();
     applyKhataVisibility();
+    // Use loadPauseState for pause UI — it fetches getSubscriberPauseStatus which
+    // correctly returns pendingTomorrow, fixing the stale-toggle bug where a
+    // tomorrow-only pause showed the toggle as green (active) instead of yellow (tomorrow).
+    if (nowSubscriber) {
+      loadPauseState().catch(() => {});
+    } else {
+      _pauseMode = 'none';
+      applyPauseState('none');
+    }
     SessionCache.save({
       user:          _session,
       is_subscriber: nowSubscriber,
@@ -5379,10 +5450,13 @@ async function refreshPauseStatus(force = false) {
   if (!_session?.is_subscriber) return;
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
-    // On PTR (force=true): always re-apply UI even if pause mode unchanged
-    if (force || res.pauseMode !== _lastPauseMode) {
-      _lastPauseMode = res.pauseMode;
-      applyPauseState(res.pauseMode);
+    let displayMode = res.pauseMode;
+    if (res.pendingTomorrow && res.pauseMode === 'none') {
+      displayMode = res.pendingTomorrow + '-tomorrow';
+    }
+    if (force || displayMode !== _lastPauseMode) {
+      _lastPauseMode = displayMode;
+      applyPauseState(displayMode);
     }
   } catch {}
 }
@@ -5398,10 +5472,14 @@ async function refreshSubscriberStatusMerged() {
       _lastBalance = res.balance;
       updateWalletUI(res.balance);
     }
-    // Pause mode update
-    if (res.pauseMode !== _lastPauseMode) {
-      _lastPauseMode = res.pauseMode;
-      applyPauseState(res.pauseMode);
+    // Pause mode update — account for tomorrow-pending pauses so toggle shows correctly
+    let mergedDisplayMode = res.pauseMode;
+    if (res.pendingTomorrow && res.pauseMode === 'none') {
+      mergedDisplayMode = res.pendingTomorrow + '-tomorrow';
+    }
+    if (mergedDisplayMode !== _lastPauseMode) {
+      _lastPauseMode = mergedDisplayMode;
+      applyPauseState(mergedDisplayMode);
     }
   } catch {
     // On failure fall back to individual calls so UI isn't left stale
@@ -5595,11 +5673,16 @@ async function bootApp() {
             Auth.set(res.user);
             _session.is_subscriber = !!res.subscriber;
             _walletBal = res.walletBalance || 0;
-            _pauseMode = res.subscriber?.pause_delivery || 'none';
             if (res.subscriber) Auth.patch({ plan: res.subscriber.plan || 'morning' });
             updateWalletUI(_walletBal);
-            applyPauseState(_pauseMode);
             _applySubscriberUI();
+            // Use loadPauseState for correct pendingTomorrow display instead of raw pause_delivery
+            if (res.subscriber) {
+              loadPauseState().catch(() => {
+                _pauseMode = res.subscriber?.pause_delivery || 'none';
+                applyPauseState(_pauseMode);
+              });
+            }
             SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
               walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled , userToken: res.userToken || '' });
           })
@@ -5656,10 +5739,8 @@ async function bootApp() {
       Auth.set(res.user);
       _session.is_subscriber = !!res.subscriber;
       _walletBal = res.walletBalance || 0;
-      _pauseMode = res.subscriber?.pause_delivery || 'none';
       if (res.subscriber) Auth.patch({ plan: res.subscriber.plan || 'morning' });
       updateWalletUI(_walletBal);
-      applyPauseState(_pauseMode);
       _isGuestMode = false;
       document.body.classList.remove('auth-mode');
       _applySubscriberUI();
@@ -5674,7 +5755,7 @@ async function bootApp() {
           walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
       });
       startPolling();
-      _doPostLoginRefresh(_p);
+      _doPostLoginRefresh(_p); // refreshPauseStatus inside will set correct display including pendingTomorrow
     })
     .catch(e => {
       if (_silentDone) return;
@@ -5852,9 +5933,8 @@ async function _gasDoLogin() {
     Auth.set(res.user);
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
-    _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
-    if (res.subscriber) { Auth.patch({ plan: res.subscriber.plan || 'morning' }); applyPauseState(_pauseMode); }
+    if (res.subscriber) { Auth.patch({ plan: res.subscriber.plan || 'morning' }); }
     showMenuSkeletons();
     _transitionToHome();
     // If user was going to cart → open it right away
@@ -5868,7 +5948,7 @@ async function _gasDoLogin() {
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
     });
     startPolling();
-    _doPostLoginRefresh(_p);
+    _doPostLoginRefresh(_p); // refreshPauseStatus inside sets correct display including pendingTomorrow
   } catch(e) {
     btn.disabled = false;
     const isAuthError = e.message?.includes('Session invalid') ||
