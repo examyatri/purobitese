@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>🍱 Tiffin Manager — Tiffo v16</title>
+<title>🍱 Tiffin Manager — Tiffo v17</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -490,7 +490,7 @@ select.inp { cursor: pointer; }
       <span style="font-size:24px;">🍱</span>
       <div>
         <div class="logo-title">Tiffo</div>
-        <div class="logo-sub">Tiffin Business Portal v16</div>
+        <div class="logo-sub">Tiffin Business Portal v17</div>
       </div>
     </div>
     <div class="global-params">
@@ -780,7 +780,7 @@ select.inp { cursor: pointer; }
 // DATA STORE
 // ═══════════════════════════════════════════════════════
 
-const STORAGE_KEY = 'tiffin_mgr_v5';
+const STORAGE_KEY = 'tiffin_mgr_v6';
 
 // ═══════════════════════════════════════════════════════
 // AUTO OVERRIDES — admin can override individual auto rows
@@ -809,172 +809,269 @@ function setMode(m) {
 }
 
 /*
-  AUTO-SCALING ENGINE
-  ───────────────────
-  Based on Indian Tier-2 city tiffin operations (Varanasi context).
-  Uses:
-  - Economies of scale  : fixed costs spread over more tiffins → lower per-unit cost
-  - Step-based labour   : helpers added in thresholds (1→20s, 2→50s, 3→100s students)
-  - Power-law scaling   : semi-variable costs grow sub-linearly (gas, electricity)
-  - Delivery routing    : petrol grows slower than tiffin count due to route density
-  - Packaging           : purely variable, scales 1:1 with tiffins
-  - Wastage factor      : small batches have higher % wastage; large batches slightly better
-  - Kitchen utilisation : a single kitchen handles up to ~120 students; rent is fixed
-*/
+  ═══════════════════════════════════════════════════════════════════
+  AUTO-SCALING ENGINE — v17 (Ground Reality, Varanasi Tier-2 context)
+  ═══════════════════════════════════════════════════════════════════
 
-/*
-  ═══════════════════════════════════════════════════════
-  BASE PARAMETERS — calibrated to Vishal's actual numbers
-  Reference point: 10 students = 20 tiffins/day = 520 tiffins/month (26 days)
-  ═══════════════════════════════════════════════════════
+  EXPENSE-BY-EXPENSE DERIVATION (all anchored to 10 students / 20 tpd base)
+  ──────────────────────────────────────────────────────────────────────────
 
-  EXPENSE          BASE(10 students)   SCALING TYPE
-  ─────────────────────────────────────────────────────
-  Rent             ₹5,000              Fixed (never changes)
-  Labour           ₹10,000             Step-based (thresholds)
-  Petrol/Bike      ₹1,500              Semi-variable (power 0.70)
-  Miscellaneous    ₹1,000              Semi-variable (power 0.50)
-  Gas/LPG          ₹2,000/cylinder     Cylinder-count based
-  Electricity      ₹1,000              Semi-variable (power 0.55)
-  Packaging        ₹10/tiffin          Purely variable (bulk discount at scale)
+  1. RENT — Step-fixed
+     Small kitchen (1 room) fits ~35 students comfortably.
+     Beyond that a bigger space or 2nd room is needed.
+     Steps:
+       1–35  students → ₹5,000  (1 room / home kitchen)
+       36–70 students → ₹8,000  (larger room or 2 rooms)
+       71+   students → ₹12,000 (proper commercial kitchen)
 
-  GAS LOGIC:
-  - 1 cylinder = ₹2,000
-  - 10 students (20 tiffins/day) → 1 cylinder/month
-  - Each cylinder handles ~20 tiffins/day comfortably
-  - So cylinders needed = ceil(tiffins_per_day / 20)
-  - At scale >60 tiffins/day, bulk commercial connection saves ~15%
+  2. LABOUR — Step-based on students
+     Varanasi helper salary: ₹8,000–10,000/month entry level.
+     Owner themselves typically handles up to ~10 students solo.
+       0–10  → 0 helpers (owner only)           ₹0
+       11–25 → 1 helper                         ₹9,000
+       26–45 → 2 helpers                        ₹18,000
+       46–70 → 3 helpers                        ₹26,000
+       71–100→ 4 helpers                        ₹34,000
+       101+  → 5 helpers                        ₹42,000
 
-  LABOUR STEPS (realistic for Varanasi):
-  - 1–15 students  → 1 helper  @ ₹10,000
-  - 16–35 students → 2 helpers @ ₹18,000
-  - 36–60 students → 3 helpers @ ₹25,000
-  - 61–100 students→ 4 helpers @ ₹32,000
-  - 100+ students  → 5 helpers @ ₹38,000
+  3. GAS / LPG — Cylinder count based on actual cooking load
+     ──────────────────────────────────────────────────────
+     Measured reality: cooking 1 tiffin (rice+dal+sabji+roti) requires
+     ~55g of LPG on a pressure cooker + tawa setup.
+     In bulk (large deg/pressure cooker) efficiency improves: ~40g/tiffin.
 
-  PACKAGING BULK DISCOUNT:
-  - ≤20 tiffins/day  → ₹10/tiffin (base)
-  - 21–50 tiffins/day → ₹9/tiffin  (small bulk)
-  - 51–100 tiffins/day→ ₹8/tiffin  (medium bulk)
-  - 100+ tiffins/day  → ₹7/tiffin  (large bulk)
+     Commercial LPG cylinder (19 kg) = 19,000g
+
+     Formula:
+       LPG per month (g)  = tiffins/month × lpg_per_tiffin_g
+       Cylinders needed   = ceil(lpg_per_month / 19000)
+       Cost               = cylinders × cylinder_price
+
+     lpg_per_tiffin_g:
+       tpm ≤ 300  → 55g  (small batch, inefficient)
+       tpm ≤ 800  → 45g  (medium batch, pressure cooker)
+       tpm > 800  → 35g  (large deg, highly efficient)
+
+     cylinder_price: ₹900 (domestic, Varanasi 2025 rate)
+     Note: Commercial cylinder = ₹1,800 but most small operators use
+     domestic cylinders. At >60 tpd, commercial connection more likely.
+
+  4. ELECTRICITY — Step-fixed by equipment tier
+     Small: 1 mixer, fridge, lighting → ₹600–900/month
+     Medium: 2 mixers, large fridge, extra lighting → ₹1,200–1,600/month
+     Large: commercial equipment → ₹2,000–2,800/month
+       1–25  students → ₹700
+       26–50 students → ₹1,200
+       51–80 students → ₹1,800
+       81+   students → ₹2,500
+
+  5. PETROL / DELIVERY — Zone-based step scaling
+     Varanasi delivery radius: mostly 2–5 km.
+     1 bike handles ~15–20 drops per trip.
+     Petrol cost per km: ~₹4–5 at ₹100/litre, 20–25 km/l bike.
+       1–20  students → ₹800   (1 trip, 1 bike)
+       21–40 students → ₹1,400 (2 trips or wider zone)
+       41–65 students → ₹2,000 (2 bikes or long routes)
+       66+   students → ₹2,800 (3 bikes / multiple zones)
+
+  6. MISCELLANEOUS — Semi-fixed with soft cap
+     Cleaning, repairs, small sundries, mobile recharge, etc.
+     Base ₹500, grows slowly, caps at ₹1,800 for large ops.
+       Uses: base=500, power=0.40, hardcap=1800
+     This means: 10 students→₹500, 50 students→₹797, 100→₹999, 200→₹1,259.
+
+  7. PACKAGING — Per-tiffin with bulk discount
+     Steel/reusable dabba: owner's own investment, no recurring cost.
+     Disposable (common for new customers / walk-ins):
+       ≤ 20 tpd → ₹9/tiffin   (small volumes, no discount)
+       21–60 tpd → ₹7.50       (medium bulk from supplier)
+       61–100 tpd → ₹6.50      (good volume discount)
+       101+ tpd → ₹5.50        (wholesale price)
+     Most subscription ops use steel dabbas = ₹0 recurring.
+     Default set to ₹0 (steel dabba assumption) with option to override.
+  ═══════════════════════════════════════════════════════════════════
 */
 
 const AUTO_BASE = {
-  students:     10,       // YOUR actual base
-  tiffins_pd:   20,       // tiffins/day at base (10 students × 2)
   working_days: 26,
 
-  // Fixed
-  rent:         5000,
-
-  // Step-based labour — [min_students, monthly_cost]
-  labour_steps: [
-    [0,   10000],   // 1 helper
-    [16,  18000],   // 2 helpers
-    [36,  25000],   // 3 helpers
-    [61,  32000],   // 4 helpers
-    [101, 38000],   // 5 helpers
+  // RENT — step-fixed by student count [min_students, monthly_rent]
+  rent_steps: [
+    [0,   5000],   // home kitchen / 1 room
+    [36,  8000],   // bigger space
+    [71, 12000],   // commercial kitchen
   ],
 
-  // Gas: ₹2000/cylinder, 1 cylinder per 20 tiffins/day
-  gas_cyl_cost:     2000,
-  gas_tiffins_pcyl: 20,   // tiffins per day per cylinder
+  // LABOUR — [min_students, helpers_count, monthly_cost]
+  labour_steps: [
+    [0,   0,  0],     // owner only
+    [11,  1,  9000],  // 1 helper
+    [26,  2,  18000], // 2 helpers
+    [46,  3,  26000], // 3 helpers
+    [71,  4,  34000], // 4 helpers
+    [101, 5,  42000], // 5 helpers
+  ],
 
-  // Electricity base ₹1000 @ 10 students, power 0.55
-  electricity_base: 1000,
+  // GAS — LPG consumption per tiffin (grams) by batch size
+  // cylinder = 19kg domestic = ₹900 each
+  gas_cyl_kg:    19,
+  gas_cyl_price: 900,
+  // [max_tpm, lpg_g_per_tiffin]
+  gas_tiers: [
+    [300,  55],   // small batch
+    [800,  45],   // medium batch
+    [Infinity, 35], // large deg
+  ],
 
-  // Petrol base ₹1500 @ 10 students, power 0.70
-  petrol_base:      1500,
+  // ELECTRICITY — step-fixed [min_students, monthly_bill]
+  elec_steps: [
+    [0,   700],
+    [26,  1200],
+    [51,  1800],
+    [81,  2500],
+  ],
 
-  // Misc base ₹1000 @ 10 students, power 0.50
-  misc_base:        1000,
+  // PETROL — step-fixed [min_students, monthly_petrol]
+  petrol_steps: [
+    [0,   800],
+    [21,  1400],
+    [41,  2000],
+    [66,  2800],
+  ],
 
-  // Packaging per tiffin with bulk breaks
+  // MISC — semi-fixed with power law + hard cap
+  misc_base:  500,
+  misc_power: 0.40,
+  misc_cap:   1800,
+  misc_ref:   10,  // reference students (base)
+
+  // PACKAGING — per-tiffin with bulk discount [min_tpd, rate_per_tiffin]
+  // Default ₹0 = steel dabba assumption (subscriber ops)
+  // Admin can override if using disposables
   pkg_tiers: [
-    [0,   10],   // ≤20 tiffins/day → ₹10
-    [21,   9],   // 21–50           → ₹9
-    [51,   8],   // 51–100          → ₹8
-    [101,  7],   // 100+            → ₹7
+    [0,   0],     // steel dabba — ₹0 recurring (most tiffin services)
+    // If you use disposables, override this row:
+    // [0, 9], [21, 7.5], [61, 6.5], [101, 5.5]
   ],
 };
 
 /**
  * Auto-calculate all expenses based on student count.
- * Every formula is anchored to the real base of 10 students.
+ * v17 — Ground reality formulas, Varanasi Tier-2 tiffin context.
  */
 function autoCalcExpenses(students, tiffinsPerMonth) {
-  const s   = Math.max(1, students);
+  const s   = Math.max(0, students);
   const wd  = AUTO_BASE.working_days;
-  const tpd = tiffinsPerMonth / wd;                      // tiffins per day
-  const ratio = s / AUTO_BASE.students;                  // scale vs. base (10 students)
+  const tpd = tiffinsPerMonth / wd;   // tiffins per working day
 
-  // ── 1. RENT — purely fixed ──
-  const rent = AUTO_BASE.rent;
+  // ── 1. RENT — step-fixed by kitchen size needed ──
+  let rent = AUTO_BASE.rent_steps[0][1];
+  let rentNote = '1-room home kitchen';
+  AUTO_BASE.rent_steps.forEach(([minS, cost]) => {
+    if (s >= minS) rent = cost;
+  });
+  if      (s >= 71) rentNote = 'commercial kitchen';
+  else if (s >= 36) rentNote = 'large room / 2 rooms';
+  else              rentNote = '1-room home kitchen';
 
   // ── 2. LABOUR — step-based by student count ──
-  let labour = AUTO_BASE.labour_steps[0][1];
-  let helpers = 1;
-  AUTO_BASE.labour_steps.forEach(([minS, cost], idx) => {
-    if (s >= minS) { labour = cost; helpers = idx + 1; }
+  let labour = 0, helpers = 0, labourNote = 'owner only (no helpers)';
+  AUTO_BASE.labour_steps.forEach(([minS, h, cost]) => {
+    if (s >= minS) { labour = cost; helpers = h; }
   });
+  if (helpers === 0) labourNote = 'owner manages alone';
+  else labourNote = `${helpers} helper${helpers > 1 ? 's' : ''} @ ₹${Math.round(labour/helpers).toLocaleString('en-IN')}/helper`;
 
-  // ── 3. GAS — cylinder count × ₹2000 ──
-  // cylinders needed = how many sets of 20 tiffins/day we cook
-  // At large scale (>60 tpd), commercial gas saves ~15%
-  const cylRaw  = Math.ceil(tpd / AUTO_BASE.gas_tiffins_pcyl);
-  const gasSave = tpd > 60 ? 0.85 : 1.0;
-  const gas     = Math.round(cylRaw * AUTO_BASE.gas_cyl_cost * gasSave);
-  const cylCount = cylRaw;
+  // ── 3. GAS / LPG — measured cooking load, cylinder based ──
+  // Step 1: pick LPG consumption rate by batch size
+  let lpgPerTiffin = AUTO_BASE.gas_tiers[AUTO_BASE.gas_tiers.length - 1][1];
+  for (const [maxTpm, g] of AUTO_BASE.gas_tiers) {
+    if (tiffinsPerMonth <= maxTpm) { lpgPerTiffin = g; break; }
+  }
+  // Step 2: total LPG in grams for the month
+  const lpgMonthG  = tiffinsPerMonth * lpgPerTiffin;
+  // Step 3: cylinders needed (19 kg domestic = 19,000 g each)
+  const cylCount   = Math.max(1, Math.ceil(lpgMonthG / (AUTO_BASE.gas_cyl_kg * 1000)));
+  const gas        = cylCount * AUTO_BASE.gas_cyl_price;
+  const gasNote    = `${cylCount} cyl × ₹${AUTO_BASE.gas_cyl_price} · ${lpgPerTiffin}g LPG/tiffin · ${Math.round(lpgMonthG/1000)}kg/month`;
 
-  // ── 4. ELECTRICITY — semi-variable, power 0.55 ──
-  const electricity = Math.round(AUTO_BASE.electricity_base * Math.pow(ratio, 0.55));
+  // ── 4. ELECTRICITY — step-fixed by equipment tier ──
+  let electricity = AUTO_BASE.elec_steps[0][1];
+  let elecNote = 'basic: mixer, fridge, lighting';
+  AUTO_BASE.elec_steps.forEach(([minS, cost]) => {
+    if (s >= minS) electricity = cost;
+  });
+  if      (s >= 81) elecNote = 'heavy: commercial equipment';
+  else if (s >= 51) elecNote = 'medium: 2 mixers, large fridge';
+  else if (s >= 26) elecNote = 'moderate: larger setup';
+  else              elecNote = 'basic: mixer, fridge, lighting';
 
-  // ── 5. PETROL — semi-variable, power 0.70 (route optimization) ──
-  const petrol = Math.round(AUTO_BASE.petrol_base * Math.pow(ratio, 0.70));
+  // ── 5. PETROL / DELIVERY — zone-based step scaling ──
+  let petrol = AUTO_BASE.petrol_steps[0][1];
+  let petrolNote = '1 bike, 1 delivery trip';
+  AUTO_BASE.petrol_steps.forEach(([minS, cost]) => {
+    if (s >= minS) petrol = cost;
+  });
+  if      (s >= 66) petrolNote = '3 bikes / multiple zones';
+  else if (s >= 41) petrolNote = '2 bikes or wider zone';
+  else if (s >= 21) petrolNote = '1 bike, 2 trips or longer route';
+  else              petrolNote = '1 bike, 1 delivery trip';
 
-  // ── 6. MISC — economies of scale, power 0.50 ──
-  const misc = Math.round(AUTO_BASE.misc_base * Math.pow(ratio, 0.50));
+  // ── 6. MISC — semi-fixed, power law with hard cap ──
+  const miscRatio = s > 0 ? s / AUTO_BASE.misc_ref : 1;
+  const misc = Math.min(
+    AUTO_BASE.misc_cap,
+    Math.round(AUTO_BASE.misc_base * Math.pow(miscRatio, AUTO_BASE.misc_power))
+  );
+  const miscNote = `cleaning, repairs, sundries · base ₹${AUTO_BASE.misc_base} @ ${AUTO_BASE.misc_ref} students`;
 
-  // ── 7. PACKAGING — purely variable with bulk discount ──
+  // ── 7. PACKAGING — per-tiffin, tiered by daily volume ──
   let pkgRate = AUTO_BASE.pkg_tiers[0][1];
+  let pkgNote = '';
   AUTO_BASE.pkg_tiers.forEach(([minTpd, rate]) => {
     if (tpd >= minTpd) pkgRate = rate;
   });
-  // pkgRate goes into daily as per-tiffin cost
+  if (pkgRate === 0) {
+    pkgNote = 'steel dabba (₹0 — subscription model). Override if using disposables.';
+  } else {
+    pkgNote = `₹${pkgRate}/tiffin disposable · ${
+      tpd <= 20 ? 'no bulk discount' : tpd <= 60 ? 'medium bulk' : tpd <= 100 ? 'good bulk' : 'wholesale rate'
+    }`;
+  }
 
   return {
     monthly: [
       { id:'a1', name:'Room / Kitchen Rent',
         amount: rent,
-        _auto: true, _note: 'Fixed — never changes with scale' },
+        _auto: true, _note: `${rentNote} · step-fixed` },
 
-      { id:'a2', name:`Labour (${helpers} helper${helpers>1?'s':''})`,
+      { id:'a2', name: helpers === 0 ? 'Labour (owner only)' : `Labour (${helpers} helper${helpers>1?'s':''})`,
         amount: labour,
-        _auto: true, _note: `Step-based · ${helpers} helper${helpers>1?'s':''} for ${s} students` },
+        _auto: true, _note: labourNote },
 
-      { id:'a3', name:`Gas / LPG (${cylCount} cylinder${cylCount>1?'s':''})`,
+      { id:'a3', name:`Gas / LPG (${cylCount} cyl${cylCount>1?'s':''})`,
         amount: gas,
-        _auto: true, _note: `${cylCount} cyl × ₹2,000${tpd>60?' (15% commercial saving)':''}` },
+        _auto: true, _note: gasNote },
 
       { id:'a4', name:'Electricity',
         amount: electricity,
-        _auto: true, _note: `Semi-variable · base ₹1,000 @ 10 students` },
+        _auto: true, _note: elecNote },
 
       { id:'a5', name:'Petrol / Delivery',
         amount: petrol,
-        _auto: true, _note: `Route optimization · base ₹1,500 @ 10 students` },
+        _auto: true, _note: petrolNote },
 
       { id:'a6', name:'Miscellaneous',
         amount: misc,
-        _auto: true, _note: `Economies of scale · base ₹1,000 @ 10 students` },
+        _auto: true, _note: miscNote },
     ],
     daily: [
       { id:'a7', name:'Packaging / Containers',
         amount: pkgRate,
         type: 'pertiffin',
-        _auto: true, _note: `₹${pkgRate}/tiffin · ${tpd<=20?'base rate':tpd<=50?'small bulk discount':tpd<=100?'medium bulk discount':'large bulk discount'}` },
+        _auto: true, _note: pkgNote },
     ],
-    _meta: { helpers, cylCount, pkgRate, ratio: ratio.toFixed(2) }
+    _meta: { helpers, cylCount, pkgRate, rent, labour, gas, electricity, petrol, misc }
   };
 }
 
@@ -1537,7 +1634,7 @@ function renderExpenses() {
       bannerEl.innerHTML = `<div class="auto-banner">
         <span class="auto-banner-dot"></span>
         <span style="font-size:12px;color:var(--green);font-weight:600;">AUTO MODE</span>
-        <span style="font-size:12px;color:var(--muted);">All expenses auto-calculated · <strong style="color:var(--text);">${students} students</strong> · ${tpm} tiffins/mo · <strong style="color:var(--text);">${meta.helpers} helper${meta.helpers>1?'s':''}</strong> · ${meta.cylCount} gas cyl · ₹${meta.pkgRate}/pkg · scale ${meta.ratio}×</span>
+        <span style="font-size:12px;color:var(--muted);">All expenses auto-calculated · <strong style="color:var(--text);">${students} students</strong> · ${tpm} tiffins/mo · <strong style="color:var(--text);">${meta.helpers === 0 ? 'owner only' : meta.helpers + ' helper' + (meta.helpers>1?'s':'')}</strong> · ${meta.cylCount} gas cyl · ${meta.pkgRate === 0 ? 'steel dabba' : '₹'+meta.pkgRate+'/pkg'}</span>
         ${overrideCount > 0 ? `<span style="font-size:11px;color:var(--amber);font-weight:600;">${overrideCount} override${overrideCount>1?'s':''} active</span>` : ''}
         <span style="font-size:11px;color:var(--muted);margin-left:auto;">Click <strong style="color:var(--amber);">Override</strong> on any row to customize · <strong style="color:var(--green);">+ Add</strong> to add extra expenses</span>
       </div>`;
