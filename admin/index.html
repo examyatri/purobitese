@@ -912,7 +912,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <input id="bulk-item-qty" type="number" min="1" step="1" value="1" placeholder="Qty" title="Quantity per person (e.g. 2 for 2 roti)" style="width:66px;padding:10px 8px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;text-align:center">
               <button type="button" onclick="bulkAddItem()" style="padding:10px 14px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px"><i class="fa fa-plus"></i> Add</button>
             </div>
-            <div style="font-size:11px;color:#64748b;margin-top:4px">Qty = per person (e.g. 2 roti each → enter 2)</div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px">Qty = servings per person of the selected variant (e.g. select "100 Gram ₹100" with qty 2 → each person gets 200g)</div>
             <div id="bulk-items-empty" style="font-size:11px;color:#f59e0b;margin-top:5px;display:none">⚠️ Add at least one item</div>
           </div>
 
@@ -2884,11 +2884,23 @@ async function _bulkRefreshItemPicker() {
   if (!picker) return;
   picker.innerHTML = '<option value="">— Select menu item —</option>';
   _bulkMenuCache.forEach(m => {
-    // Bulk orders: show only item name — admin types qty directly (no variant confusion)
-    const opt = document.createElement('option');
-    opt.value = m.item_id;
-    opt.textContent = m.name;
-    picker.appendChild(opt);
+    const variants = Array.isArray(m.variants) ? m.variants
+      : (typeof m.variants === 'string' ? (() => { try { return JSON.parse(m.variants); } catch(_) { return []; } })() : []);
+    if (variants.length > 0) {
+      // One option per variant: value = "item_id|||variantLabel", text = "Name — Variant ₹Price"
+      variants.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = `${m.item_id}|||${v.label}`;
+        opt.textContent = `${m.name} — ${v.label} ₹${v.price}`;
+        picker.appendChild(opt);
+      });
+    } else {
+      // No variants — single option at base price
+      const opt = document.createElement('option');
+      opt.value = `${m.item_id}|||`;
+      opt.textContent = m.price ? `${m.name} ₹${m.price}` : m.name;
+      picker.appendChild(opt);
+    }
   });
 }
 

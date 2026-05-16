@@ -1,15 +1,15 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v6.0  |  Updated : 2026-05-10
+   Version : v7.0  |  Updated : 2026-05-16
 
-   CHANGES v6.0:
-   - Cache bumped → tiffo-admin-v6
+   CHANGES v7.0:
+   - Cache bumped → tiffo-admin-v7 (bulk variant picker fix)
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v6';
+const CACHE      = 'tiffo-admin-v7';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
