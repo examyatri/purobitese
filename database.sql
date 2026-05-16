@@ -662,3 +662,79 @@ CREATE INDEX IF NOT EXISTS idx_cooking_sessions_dates
 --   SELECT routine_name FROM information_schema.routines
 --    WHERE routine_name IN ('bulk_increment_balance','increment_balance');
 -- ────────────────────────────────────────────────────────────
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 7: Performance Indexes Migration                       ║
+-- ║  Added: 2026-05-16                                           ║
+-- ║  Safe to run on live database — IF NOT EXISTS guards         ║
+-- ║  No data is deleted or modified. Read-only operation.        ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ── WHY THESE INDEXES ────────────────────────────────────────────────────────
+--
+--  idx_orders_phone
+--    getUserOrders fetches all orders for a phone number.
+--    Without this index, Postgres scans the entire orders table every time.
+--    With this index, it jumps directly to that user's rows.
+--    Impact: Fast user order history. Critical as orders grow past 1000+.
+--
+--  idx_orders_date
+--    Admin panel "today's orders" and date-range filters use WHERE date = X.
+--    DESC because admin always views latest date first.
+--    Impact: Instant admin daily view regardless of total order count.
+--
+--  idx_khata_entries_phone
+--    Wallet/khata history tab fetches all entries for a phone, sorted by date.
+--    Composite index covers both the filter (phone) and the sort (created_at).
+--    Impact: Fast wallet history load for any user.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE INDEX IF NOT EXISTS idx_orders_phone
+  ON orders (phone);
+
+CREATE INDEX IF NOT EXISTS idx_orders_date
+  ON orders (date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_khata_entries_phone
+  ON khata_entries (phone, created_at DESC);
+
+-- ── VERIFY (run after migration to confirm indexes exist) ─────────────────────
+-- SELECT indexname, tablename, indexdef
+-- FROM pg_indexes
+-- WHERE indexname IN (
+--   'idx_orders_phone',
+--   'idx_orders_date',
+--   'idx_khata_entries_phone'
+-- );
+-- Expected: 3 rows returned.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 8: Performance Indexes Migration (Standalone)          ║
+-- ║  Date: 2026-05-16                                            ║
+-- ║  Safe to run on live database — IF NOT EXISTS guards         ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+CREATE INDEX IF NOT EXISTS idx_orders_phone
+  ON orders (phone);
+
+CREATE INDEX IF NOT EXISTS idx_orders_date
+  ON orders (date DESC);
+
+CREATE INDEX IF NOT EXISTS idx_khata_entries_phone
+  ON khata_entries (phone, created_at DESC);
+
+-- ── VERIFY ───────────────────────────────────────────────────────────────────
+-- SELECT indexname, tablename, indexdef
+-- FROM pg_indexes
+-- WHERE indexname IN (
+--   'idx_orders_phone',
+--   'idx_orders_date',
+--   'idx_khata_entries_phone'
+-- );
+-- Expected: 3 rows
+-- ─────────────────────────────────────────────────────────────────────────────

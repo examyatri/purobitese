@@ -1,16 +1,22 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v29.0  |  Updated : 2026-05-16
+   Version : v29.2  |  Updated : 2026-05-16
 
-   CHANGES v28.0:
-   - Cache bumped → tiffo-v22 (bulk order variant fix; PTR full refresh update)
+   CHANGES v29.1:
+   - FIX: Activate cleanup now only removes own 'tiffo-v*' caches.
+     Previously used startsWith('tiffo-') which incorrectly deleted
+     tiffo-admin-v* and tiffo-rider-v* caches (shared Cache Storage
+     origin — SW scopes do NOT restrict caches.keys() access).
+
+   CHANGES v29.0 (was v28.0):
+   - Cache bumped → tiffo-v24 (performance indexes migration)
    - Added sw.js itself to PRECACHE for offline reliability
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
    - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v22';
+const CACHE      = 'tiffo-v24';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
@@ -82,11 +88,15 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     Promise.all([
-      // Delete all old tiffo-* caches (except current and font cache)
+      // Delete old CUSTOMER-ONLY caches (tiffo-v* prefix).
+      // IMPORTANT: Cache Storage is shared across the entire origin — SW scopes
+      // do NOT restrict caches.keys(). Using startsWith('tiffo-') would also
+      // delete tiffo-admin-v* and tiffo-rider-v* caches. Use 'tiffo-v' prefix
+      // so we only touch our own versioned caches. Font cache is permanent.
       caches.keys().then(keys =>
         Promise.all(
           keys
-            .filter(k => k.startsWith('tiffo-') && k !== CACHE && k !== FONT_CACHE)
+            .filter(k => k.startsWith('tiffo-v') && k !== CACHE)
             .map(k => caches.delete(k))
         )
       ),

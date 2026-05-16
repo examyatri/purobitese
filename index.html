@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.2                                    ║
+     ║  Version : v50.3                                    ║
      ║  Updated : 2026-05-01                               ║
      ║  Changes : Bug fixes — 'confirmed' status added to  ║
      ║            getStatusClass, getStatusLabel, progress ║
@@ -5529,12 +5529,13 @@ async function bootApp() {
     return;
   }
 
-  // Case: Credentials saved but no session cache → show login instantly (prefilled),
-  // AND simultaneously attempt silent auto-login in background.
-  // If auto-login succeeds before user submits → jump to home (seamless).
-  // If it fails → user sees login form already visible, just taps Login.
-  // No stuck loader. No waiting. Maximum speed + maximum reliability.
-  _transitionToLogin(true, false); // show login tab with prefilled phone + password
+  // Case: Credentials saved but no session cache → show GUEST HOME immediately.
+  // User sees the menu right away (just like a new visitor). No login flash.
+  // Background auto-login runs silently:
+  //   SUCCESS → seamlessly upgrade to full authenticated state (no visible transition).
+  //   AUTH FAIL → wipe stale creds; user stays on guest home, can tap Login anytime.
+  //   NET FAIL  → stay on guest home; user can browse and login when back online.
+  _transitionToGuestHome();
 
   // Silent background auto-login attempt (no loader, no blocking)
   let _silentDone = false;
@@ -5542,26 +5543,29 @@ async function bootApp() {
 
   api('checkSession', { phone: creds.phone, password: creds.pw }, 0)
     .then(res => {
-      if (_silentDone) return; // user already submitted form manually — don't fight it
-      if (_session) return;    // user already logged in via manual submit
+      if (_silentDone) return; // timed out or user already logged in via auth sheet
+      if (_session) return;    // user already logged in manually
       clearTimeout(_silentTimeout);
       _silentDone = true;
-      // ✅ Silent auto-login succeeded → jump home instantly
+      // ✅ Silent auto-login succeeded → upgrade guest home to authenticated home
       Auth.set(res.user);
       _session.is_subscriber = !!res.subscriber;
       _walletBal = res.walletBalance || 0;
       _pauseMode = res.subscriber?.pause_delivery || 'none';
       updateWalletUI(_walletBal);
       applyPauseState(_pauseMode);
-      showMenuSkeletons();
-      _transitionToHome();
-      const _p = loadMenu(true, false);
+      _isGuestMode = false;
+      document.body.classList.remove('auth-mode');
+      _applySubscriberUI();
+      applyKhataVisibility();
+      updateCartBadge();
+      const _p = loadMenu(true, true); // silent refresh (menu already loaded as guest)
       _p.then(() => {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled , userToken: res.userToken || '' });
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, userToken: res.userToken || '' });
       }).catch(() => {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false , userToken: res.userToken || '' });
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
       });
       startPolling();
       _doPostLoginRefresh(_p);
@@ -5570,7 +5574,7 @@ async function bootApp() {
       if (_silentDone) return;
       clearTimeout(_silentTimeout);
       _silentDone = true;
-      // Auth error → clear stale creds so login form doesn't mislead user
+      // Auth error → wipe stale creds silently; user stays on guest home
       const isAuthError = e.message?.includes('Session invalid') ||
                           e.message?.includes('Unauthorized') ||
                           e.message?.includes('not found') ||
@@ -5579,11 +5583,8 @@ async function bootApp() {
       if (isAuthError) {
         Creds.clear();
         SessionCache.clear();
-        // Clear prefilled phone since creds are now invalid
-        const phoneEl = document.getElementById('login-phone');
-        if (phoneEl) phoneEl.value = '';
       }
-      // Network error → just leave the login form as-is (already visible)
+      // Network error → stay on guest home; user can browse and login later
     });
 }
 
@@ -5808,9 +5809,11 @@ function doLogout() {
   _slotTimers.forEach(t => clearTimeout(t)); _slotTimers = []; // clear slot transition timers
   _clearCooldownBanner(); // stop any running 30s countdown
   _postLoginRefreshDone = false;
+  // Clear session + credentials FIRST (synchronous) before any UI work
   Auth.clear();
   Creds.clear();
   SessionCache.clear();
+  Store.remove('tf_creds'); // ensure creds key is wiped (same as _wipeAndShowLogin)
   Store.remove('tf_menu_cache');
   Store.remove('pb_cart');
   Store.remove('pb_order_processing');
@@ -5863,11 +5866,17 @@ function doLogout() {
   const bnavBal = document.getElementById('bnav-bal');
   if (bnavBal) bnavBal.textContent = '₹0';
 
-  // Home avatar
+  // Home avatar + subscriber UI reset (must mirror _applySubscriberUI for non-subscriber)
   const avatarInitials = document.getElementById('home-avatar-initials');
   if (avatarInitials) avatarInitials.textContent = '?';
   const proBadge = document.getElementById('home-pro-badge');
   if (proBadge) proBadge.classList.add('hidden');
+  // Hide subscriber-only rows
+  document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
+  const _logoutPauseRow = document.getElementById('pause-toggle-row');
+  const _logoutPlanCard = document.getElementById('monthly-plan-card');
+  if (_logoutPauseRow) _logoutPauseRow.style.display = 'none';
+  if (_logoutPlanCard) _logoutPlanCard.style.display = 'flex';
 
   // Clear menu list so stale content isn't visible on re-login
   const menuList = document.getElementById('menu-list');
@@ -5922,11 +5931,16 @@ function doLogout() {
 /* ═══════════════════════════════════════════
    GUARDS & LIFECYCLE
 ═══════════════════════════════════════════ */
-// Absolute safety net — if nothing is showing after 8s, wipe all and go to login.
+// Absolute safety net — if nothing is showing after 8s, recover to guest home.
 // Covers any edge case: JS crash, render failure, unexpected state.
 setTimeout(() => {
   if (!document.querySelector('.pg.here')) {
-    _wipeAndShowLogin();
+    // Always recover to home (not login) so user can always browse
+    Auth.clear();
+    Creds.clear();
+    SessionCache.clear();
+    if ('caches' in window) { caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {}); }
+    _transitionToGuestHome();
   }
 }, 8000);
 
