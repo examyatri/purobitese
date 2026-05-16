@@ -1,9 +1,12 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.2                                    ║
+// ║  Version : v59.4                                    ║
 // ║  Updated : 2026-05-16                               ║
-// ║  Changes : Version bump for v63 release             ║
+// ║  Changes : getSubscriberStatus now returns          ║
+// ║            pendingTomorrow field so background poll  ║
+// ║            correctly shows yellow toggle for        ║
+// ║            tomorrow-pending pauses                  ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -903,7 +906,12 @@ app.post('/api', async (req, res) => {
         // Compute effective pause for TODAY — respects _from date so a tomorrow-only
         // pause does not falsely block today's orders in the customer frontend.
         const effectivePauseMode = computeEffectivePauseDelivery(subRow, istDateStr(ist));
-        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: effectivePauseMode, plan: subRow?.plan || 'morning' });
+        // Compute pendingTomorrow so frontend can show "Morning Off (Tomorrow)" on toggle
+        const tomorrowStrSt = istDateStr(new Date(ist.getTime() + 86_400_000));
+        const pmTmrw = subRow?.pause_morning && subRow?.pause_morning_from === tomorrowStrSt;
+        const peTmrw = subRow?.pause_evening && subRow?.pause_evening_from === tomorrowStrSt;
+        const pendingTomorrowSt = (pmTmrw && peTmrw) ? 'both' : pmTmrw ? 'lunch' : peTmrw ? 'dinner' : null;
+        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: effectivePauseMode, pendingTomorrow: pendingTomorrowSt, plan: subRow?.plan || 'morning' });
       }
 
       case 'adminGetMenu': {
@@ -1793,8 +1801,18 @@ app.post('/api', async (req, res) => {
         const { data: row } = await supabase.from('subscribers').select('pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, plan').eq('phone', cleanPhone(data.phone)).single();
         // Compute effective pause for TODAY — respects _from date so a tomorrow-only
         // pause does not falsely block today's orders in the customer frontend.
-        const effectivePauseMode = computeEffectivePauseDelivery(row, istDateStr(ist));
-        return res.json({ success: true, pauseMode: effectivePauseMode, plan: row?.plan || 'morning' });
+        const todayStr2    = istDateStr(ist);
+        const tomorrowIST2 = new Date(ist.getTime() + 86_400_000);
+        const tomorrowStr2 = istDateStr(tomorrowIST2);
+        const effectivePauseMode = computeEffectivePauseDelivery(row, todayStr2);
+        // Compute pending-tomorrow: a pause that is set but not active today (starts tomorrow)
+        const pmTomorrow = row?.pause_morning && row?.pause_morning_from === tomorrowStr2;
+        const peTomorrow = row?.pause_evening && row?.pause_evening_from === tomorrowStr2;
+        let pendingTomorrow = null;
+        if (pmTomorrow && peTomorrow) pendingTomorrow = 'both';
+        else if (pmTomorrow) pendingTomorrow = 'lunch';
+        else if (peTomorrow) pendingTomorrow = 'dinner';
+        return res.json({ success: true, pauseMode: effectivePauseMode, plan: row?.plan || 'morning', pendingTomorrow });
       }
 
       case 'getAutoTiffinCutoff': {
