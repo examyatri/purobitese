@@ -463,6 +463,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .ord-chip[data-status="out for delivery"].act{background:#0369a1;border-color:#0369a1}
 .ord-chip[data-status="delivered"].act{background:#15803d;border-color:#15803d}
 .ord-chip[data-status="rejected"].act{background:#be123c;border-color:#be123c}
+.ord-chip[data-status="unassigned"].act{background:#7c3aed;border-color:#7c3aed}
 /* items detail cell */
 .ord-items-list{list-style:none;padding:0;margin:0}
 .ord-items-list li{font-size:12px;color:#334155;padding:1px 0;display:flex;align-items:baseline;gap:4px}
@@ -638,6 +639,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   border-top-color:var(--p);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<script src="https://purobitese-api.onrender.com/config.js"></script>
 </head>
 <body>
 
@@ -687,7 +689,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     <div class="sb-section-label">Admin</div>
     <nav class="sb-nav">
       <a href="#" onclick="showPage('p-khata');return false" data-pg="p-khata"><i class="fa fa-wallet"></i> Khata / Wallet</a>
-      <a href="#" onclick="showPage('p-staff');return false" data-pg="p-staff"><i class="fa fa-id-badge"></i> Staff Members</a>
+      <a href="#" onclick="showPage('p-staff');return false" data-pg="p-staff" class="admin-only"><i class="fa fa-id-badge"></i> Staff Members</a>
       <a href="#" onclick="showPage('p-settings');return false" data-pg="p-settings" class="admin-only"><i class="fa fa-gear"></i> Settings</a>
       <a href="#" onclick="showPage('p-notifs');return false" data-pg="p-notifs"><i class="fa fa-bell"></i> Notifications <span id="notif-badge" class="badge" style="display:none">0</span></a>
     </nav>
@@ -814,6 +816,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <button class="ord-chip" data-status="out for delivery" onclick="setOrdStatus('out for delivery',this)">🛵 Out for Del.</button>
               <button class="ord-chip" data-status="delivered" onclick="setOrdStatus('delivered',this)">✅ Delivered</button>
               <button class="ord-chip" data-status="rejected" onclick="setOrdStatus('rejected',this)">❌ Rejected</button>
+              <button class="ord-chip" data-status="unassigned" onclick="setOrdStatus('unassigned',this)">🏍️ Unassigned</button>
             </div>
           </div>
         </div>
@@ -882,22 +885,57 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <i class="fa fa-circle-info" style="margin-top:1px;flex-shrink:0"></i>
             <span>Orders marked <b>PENDING</b> for verification. Auto-select checks: wallet balance &ge; price, not ordered today, subscription active, delivery not paused.</span>
           </div>
+
+          <!-- ① SESSION — first, so item picker filters correctly -->
           <div class="field">
-            <label>ITEM NAME * <span style="font-weight:400;color:#9ca3af;font-size:11px">(TYPE CUSTOM NAME DIRECTLY)</span></label>
-            <input id="bulk-item-name" type="text" placeholder="e.g. Special Thali, Dal Rice, Roti Sabji...">
+            <label>SESSION <span style="font-weight:400;color:#9ca3af;font-size:11px">(PAUSED USERS AUTO-EXCLUDED)</span></label>
+            <div style="display:flex;gap:8px;margin-top:6px">
+              <button class="bulk-slot-btn active" id="bulk-slot-morning" onclick="_bulkSetSlot('morning',this)" style="flex:1;padding:10px;border-radius:10px;border:2px solid #0f172a;background:#0f172a;color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all 150ms">&#127749; Morning</button>
+              <button class="bulk-slot-btn" id="bulk-slot-evening" onclick="_bulkSetSlot('evening',this)" style="flex:1;padding:10px;border-radius:10px;border:2px solid #e2e8f0;background:#fff;color:#475569;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all 150ms">&#127750; Evening</button>
+            </div>
+            <!-- Hidden select kept for backward compat with loadBulkSubscribers() which reads its value -->
+            <select id="bulk-slot-select" style="display:none">
+              <option value="morning" selected>Morning</option>
+              <option value="evening">Evening</option>
+            </select>
           </div>
+
+          <!-- ② ORDER NAME -->
           <div class="field">
-            <label>DESCRIPTION <span style="font-weight:400;color:#9ca3af;font-size:11px">(WHAT&#39;S INSIDE THIS ITEM)</span></label>
-            <textarea id="bulk-item-desc" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:inherit;resize:none;box-sizing:border-box" placeholder="e.g. Thali contains: Dal 100g, Chawal 50g, Roti x4, Sabji 100g, Salad"></textarea>
+            <label>ORDER NAME * <span style="font-weight:400;color:#9ca3af;font-size:11px">(E.G. TIFFIN, THALI, SPECIAL)</span></label>
+            <input id="bulk-item-name" type="text" placeholder="e.g. Tiffin, Special Thali, Dal Rice...">
           </div>
+
+          <!-- ③ ITEMS — picked from that session's menu, qty typed by admin -->
           <div class="field">
-            <label>PRICE (&#8377;) *</label>
+            <label>ITEMS IN THIS ORDER <span style="font-weight:400;color:#9ca3af;font-size:11px">(FROM <span id="bulk-slot-label">MORNING</span> MENU — QTY PER PERSON)</span></label>
+            <!-- Added items list -->
+            <div id="bulk-items-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+            <!-- Item picker row -->
+            <div style="display:flex;gap:6px;align-items:stretch;flex-wrap:wrap">
+              <select id="bulk-item-picker" style="flex:1;min-width:0;padding:10px 10px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:inherit;background:#fff">
+                <option value="">— Select menu item —</option>
+              </select>
+              <input id="bulk-item-qty" type="number" min="1" step="1" value="1" placeholder="Qty" title="Quantity per person (e.g. 2 for 2 roti)" style="width:66px;padding:10px 8px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;text-align:center">
+              <button type="button" onclick="bulkAddItem()" style="padding:10px 14px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px"><i class="fa fa-plus"></i> Add</button>
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px">Qty = per person (e.g. 2 roti each → enter 2)</div>
+            <div id="bulk-items-empty" style="font-size:11px;color:#f59e0b;margin-top:5px;display:none">⚠️ Add at least one item</div>
+          </div>
+
+          <!-- ④ PRICE -->
+          <div class="field">
+            <label>PRICE (&#8377;) * <span style="font-weight:400;color:#9ca3af;font-size:11px">(TOTAL PER PERSON)</span></label>
             <input id="bulk-price" type="number" min="0" placeholder="e.g. 80" oninput="loadBulkSubscribers()">
           </div>
+
+          <!-- ⑤ REASON -->
           <div class="field">
             <label>REASON / NOTE</label>
-            <input id="bulk-reason" type="text" placeholder="e.g. Auto-generated for Day subscribers">
+            <input id="bulk-reason" type="text" placeholder="e.g. Auto-generated for morning subscribers">
           </div>
+
+          <!-- ⑥ ORDER FOR -->
           <div class="field">
             <label>ORDER FOR</label>
             <div style="display:flex;gap:8px;margin-top:6px">
@@ -905,14 +943,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <button class="bulk-tab-btn" id="bulk-for-all" onclick="setBulkFor('all')">All Users</button>
             </div>
           </div>
-          <div class="field">
-            <label>SESSION <span style="font-weight:400;color:#9ca3af;font-size:11px">(PAUSED USERS AUTO-EXCLUDED)</span></label>
-            <select id="bulk-slot-select" onchange="loadBulkSubscribers()">
-              <option value="morning">&#127749; Morning Only</option>
-              <option value="evening">&#127750; Evening Only</option>
-              <option value="both">&#9728;&#65039; Both Sessions</option>
-            </select>
-          </div>
+
+          <!-- ⑦ FILTER BY PLAN -->
           <div class="field">
             <label>FILTER SUBSCRIBERS BY PLAN</label>
             <select id="bulk-plan-filter">
@@ -920,6 +952,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <option value="expiring_soon">Expiring This Week</option>
             </select>
           </div>
+
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
             <button class="btn btn-g" onclick="bulkAutoSelect()"><i class="fa fa-wand-magic-sparkles"></i> Auto-Select Eligible</button>
             <button class="btn btn-outline" onclick="bulkSelectAll()"><i class="fa fa-check-double"></i> Select All</button>
@@ -1248,7 +1281,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
       </div>
 
       <!-- STAFF (admin-only) -->
-      <div id="p-staff" class="pg-v">
+      <div id="p-staff" class="pg-v admin-only">
         <div class="page-header">
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Staff Members</h2>
           <button class="btn btn-p" onclick="openStaffModal()"><i class="fa fa-plus"></i> Add Staff</button>
@@ -1388,6 +1421,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button onclick="loadKitchen()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer"><i class="fa fa-rotate-right"></i> Refresh</button>
+            <button onclick="kitchenSendWhatsApp()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(37,211,102,.3)"><i class="fab fa-whatsapp"></i> WhatsApp</button>
             <button onclick="kitchenExportPDF()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(230,57,70,.25)"><i class="fa fa-file-pdf"></i> Export PDF</button>
           </div>
         </div>
@@ -1484,7 +1518,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 <script>
 const CFG = {
   API: 'https://purobitese-api.onrender.com/api',
-  KEY: 'PB_SECURE_API_KEY_2026',
+  KEY: window.__TIFFO_API_KEY__ || '',  // injected server-side or left blank — never commit a real key here
   WA:  '919889760350'
 };
 
@@ -1511,7 +1545,7 @@ async function doAdminLogin() {
   try {
     npStart();
     const res = await api(action, { username: user, password: pw });
-    AdminAuth.set({ role, username: user, name: res.staff?.name || user, staff: res.staff });
+    AdminAuth.set({ role, username: user, name: res.staff?.name || user, staff: res.staff, sessionToken: res.sessionToken || '' });
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(role);
@@ -1841,7 +1875,7 @@ async function api(action, data = {}, _retry = 2) {
     const res = await fetch(CFG.API, {
       method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, data, apiKey: CFG.KEY })
+      body: JSON.stringify({ action, data, apiKey: CFG.KEY, sessionToken: (AdminAuth.get() || {}).sessionToken || '' })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
     if (!res.ok) throw new Error('Server error ' + res.status);
@@ -1874,6 +1908,12 @@ function renderStatCard(id, val, label, icon, iconBg, adminOnly = false) {
 async function loadDashboard() {
   try {
     npStart();
+    // Show skeleton shimmer while loading
+    ['stat-today-orders','stat-today-rev','stat-month-rev','stat-wallet',
+     'stat-total-orders','stat-users','stat-subs','stat-new-users'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<div class="sk" style="height:24px;width:60%;margin:8px auto 6px"></div><div class="sk" style="height:14px;width:80%;margin:0 auto"></div>';
+    });
     const res = await api('getAnalytics');
     const d = res;
     renderStatCard('stat-today-orders', d.todayOrders, "Today's Orders", 'fa-bag-shopping', '#fde8ea');
@@ -1955,6 +1995,8 @@ async function _loadStatDetail(type) {
 // ─── ORDERS v2 ────────────────────────────────────────────
 let _allOrders = [], _ordersStr = '', _ridersCache = [], _weeklySchedule = [];
 let _ordDay = 'today', _ordCat = 'all', _ordStatus = 'all'; // 2-layer filters: day + session + status
+let _ridersCacheTime = 0, _settingsCacheTime = 0;
+const _RIDERS_SETTINGS_TTL = 10 * 60 * 1000; // 10 minutes
 
 // ── Time helpers ──
 function _getMorningCutoff(dateStr) {
@@ -2022,17 +2064,24 @@ async function loadOrders(forceRender = false) {
     const istNow = new Date(Date.now() + 5.5 * 3600000);
     const todayIST = istNow.toISOString().slice(0, 10);
     const yesterdayIST = new Date(istNow - 86400000).toISOString().slice(0, 10);
-    const [oRes, rRes, sRes] = await Promise.all([
-      api('adminGetOrders', { fromDate: yesterdayIST }),
-      api('getRiders').catch(() => ({ riders: [] })),
-      api('getSettings').catch(() => ({}))
-    ]);
+    const now = Date.now();
+    const needRiders   = now - _ridersCacheTime   > _RIDERS_SETTINGS_TTL || !_ridersCache.length;
+    const needSettings = now - _settingsCacheTime > _RIDERS_SETTINGS_TTL || !_weeklySchedule.length;
+
+    const fetches = [api('adminGetOrders', { fromDate: yesterdayIST })];
+    if (needRiders)   fetches.push(api('getRiders').catch(() => ({ riders: [] })));
+    if (needSettings) fetches.push(api('getSettings').catch(() => ({})));
+
+    const results = await Promise.all(fetches);
+    const oRes = results[0];
+    let rIdx = 1;
+    if (needRiders)   { const rRes = results[rIdx++]; _ridersCache = rRes.riders || []; _ridersCacheTime = now; }
+    if (needSettings) { const sRes = results[rIdx++]; _weeklySchedule = sRes.settings?.weeklySchedule || []; _settingsCacheTime = now; }
+
     const newStr = JSON.stringify(oRes.orders);
     if (!forceRender && newStr === _ordersStr) { npDone(); return; }
     _ordersStr = newStr;
     _allOrders = oRes.orders || [];
-    _ridersCache = rRes.riders || [];
-    _weeklySchedule = sRes.settings?.weeklySchedule || [];
     renderOrdersTable(_allOrders);
     npDone();
   } catch(e) { npDone(); aToast('Orders load failed'); }
@@ -2059,7 +2108,8 @@ function renderOrdersTable(orders) {
   // 'all' = no session filter
 
   // Status filter
-  if (_ordStatus !== 'all') filtered = filtered.filter(o=>o.order_status===_ordStatus);
+  if (_ordStatus === 'unassigned') filtered = filtered.filter(o => !o.rider_id);
+  else if (_ordStatus !== 'all') filtered = filtered.filter(o=>o.order_status===_ordStatus);
 
   // Search
   if (search) filtered = filtered.filter(o =>
@@ -2562,7 +2612,13 @@ let _bulkOrderFor = 'subscribers';
 let _bulkManualPhones = []; // extra manually-added phones
 
 async function loadBulkPage() {
-  await loadBulkSubscribers();
+  // Ensure morning slot is active by default on page load
+  const morningBtn = document.getElementById('bulk-slot-morning');
+  if (morningBtn) _bulkSetSlot('morning', morningBtn);
+  else {
+    await loadBulkSubscribers();
+    await _bulkRefreshItemPicker();
+  }
 }
 
 async function loadBulkSubscribers() {
@@ -2769,25 +2825,186 @@ async function bulkAddManual() {
   } catch(e) { npDone(); if (infoEl) infoEl.innerHTML = `<span style="color:#ef4444">${e.message||'User not found'}</span>`; }
 }
 
+// ── Bulk multi-item state ────────────────────────────────────────────────────
+let _bulkItems = []; // [{ item_id, name, variantLabel, qty }]
+let _bulkMenuCache = []; // active menu items for current slot
+
+// ── Slot toggle buttons (replaces dropdown) ──────────────────────────────────
+function _bulkSetSlot(slot, btn) {
+  // Update hidden select (used by loadBulkSubscribers)
+  const sel = document.getElementById('bulk-slot-select');
+  if (sel) sel.value = slot;
+  // Update button styles
+  document.querySelectorAll('.bulk-slot-btn').forEach(b => {
+    b.style.background = '#fff';
+    b.style.color      = '#475569';
+    b.style.borderColor = '#e2e8f0';
+  });
+  if (btn) {
+    btn.style.background   = '#0f172a';
+    btn.style.color        = '#fff';
+    btn.style.borderColor  = '#0f172a';
+  }
+  // Update label in items section
+  const lbl = document.getElementById('bulk-slot-label');
+  if (lbl) lbl.textContent = slot === 'morning' ? 'MORNING' : 'EVENING';
+  // Refresh subscribers list and item picker
+  loadBulkSubscribers();
+  _bulkRefreshItemPicker();
+}
+
+// Populate the item picker from menu, filtered by current slot
+async function _bulkRefreshItemPicker() {
+  const slot = document.getElementById('bulk-slot-select')?.value || 'morning';
+  let items = (_menuItems && _menuItems.length) ? _menuItems : [];
+  if (!items.length) {
+    try {
+      const res = await api('getMenuItems');
+      items = res.items || [];
+      _menuItems = items;
+    } catch(e) {}
+  }
+  // Show only active items available in the selected session
+  _bulkMenuCache = items.filter(m => {
+    if (!m.is_active) return false;
+    const sess = m.meal_session || 'both';
+    if (slot === 'morning') return sess === 'morning' || sess === 'both';
+    return sess === 'evening' || sess === 'both'; // evening
+  });
+  const picker = document.getElementById('bulk-item-picker');
+  if (!picker) return;
+  picker.innerHTML = '<option value="">— Select menu item —</option>';
+  _bulkMenuCache.forEach(m => {
+    // Each variant becomes its own option so variantLabel is preserved for kitchen
+    let variants = [];
+    try { variants = typeof m.variants === 'string' ? JSON.parse(m.variants) : (Array.isArray(m.variants) ? m.variants : []); } catch(e) {}
+    variants = variants.filter(v => v && v.label);
+    if (variants.length) {
+      variants.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = m.item_id + '|||' + v.label;
+        opt.textContent = m.name + ' (' + v.label + ')';
+        picker.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = m.item_id + '|||';
+      opt.textContent = m.name;
+      picker.appendChild(opt);
+    }
+  });
+}
+
+// Add selected menu item with typed qty to the bulk items list
+function bulkAddItem() {
+  const picker  = document.getElementById('bulk-item-picker');
+  const qtyEl   = document.getElementById('bulk-item-qty');
+  const emptyEl = document.getElementById('bulk-items-empty');
+  const val     = picker?.value || '';
+  if (!val) { aToast('Select a menu item first'); return; }
+  const qty = parseInt(qtyEl?.value);
+  if (!qty || qty < 1) { aToast('Enter a valid quantity (≥ 1)'); return; }
+
+  const [item_id, variantLabel] = val.split('|||');
+  const menuItem = _bulkMenuCache.find(m => m.item_id === item_id);
+  if (!menuItem) { aToast('Item not found — reload page'); return; }
+
+  // Duplicate check: same item + same variant → just update qty
+  const existing = _bulkItems.find(i => i.item_id === item_id && i.variantLabel === (variantLabel || ''));
+  if (existing) {
+    existing.qty = qty; // replace with new qty (admin explicitly entered this amount)
+    _bulkRenderItems();
+    aToast('Qty updated to ' + qty);
+    picker.value = '';
+    if (qtyEl) qtyEl.value = 1;
+    return;
+  }
+
+  _bulkItems.push({ item_id, name: menuItem.name, variantLabel: variantLabel || '', qty });
+  _bulkRenderItems();
+  if (emptyEl) emptyEl.style.display = 'none';
+  picker.value = '';
+  if (qtyEl) qtyEl.value = 1;
+}
+
+// Render added items as editable chips
+function _bulkRenderItems() {
+  const listEl = document.getElementById('bulk-items-list');
+  if (!listEl) return;
+  if (!_bulkItems.length) { listEl.innerHTML = ''; return; }
+  listEl.innerHTML = _bulkItems.map((it, i) => {
+    const label = it.variantLabel
+      ? `${it.name} <span style="color:#64748b;font-size:11px;font-weight:500">(${it.variantLabel})</span>`
+      : it.name;
+    return `
+      <div style="display:flex;align-items:center;gap:8px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:9px 12px">
+        <div style="font-size:13px;font-weight:600;color:#0f172a;flex:1">${label}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          <button type="button" onclick="_bulkItemQty(${i},-1)" style="width:28px;height:28px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;color:#475569;line-height:1">−</button>
+          <input type="number" min="1" value="${it.qty}" onchange="_bulkItemSetQty(${i},this.value)" style="width:48px;height:28px;border:1.5px solid #93c5fd;border-radius:7px;text-align:center;font-size:13px;font-weight:700;color:#1e40af;padding:0 4px">
+          <button type="button" onclick="_bulkItemQty(${i},+1)" style="width:28px;height:28px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;color:#475569;line-height:1">+</button>
+          <button type="button" onclick="_bulkItemRemove(${i})" title="Remove" style="width:28px;height:28px;border:none;border-radius:7px;background:#fee2e2;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:13px;font-weight:700">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function _bulkItemQty(i, delta) {
+  if (!_bulkItems[i]) return;
+  _bulkItems[i].qty = Math.max(1, _bulkItems[i].qty + delta);
+  _bulkRenderItems();
+}
+
+function _bulkItemSetQty(i, val) {
+  if (!_bulkItems[i]) return;
+  const n = parseInt(val);
+  if (n && n >= 1) _bulkItems[i].qty = n;
+  else _bulkItems[i].qty = 1;
+  _bulkRenderItems();
+}
+
+function _bulkItemRemove(i) {
+  _bulkItems.splice(i, 1);
+  _bulkRenderItems();
+}
+
 async function bulkGenerateOrders() {
   const itemName = (document.getElementById('bulk-item-name')?.value||'').trim();
-  const itemDesc = (document.getElementById('bulk-item-desc')?.value||'').trim();
   const price    = parseFloat(document.getElementById('bulk-price')?.value||'0');
   const reason   = (document.getElementById('bulk-reason')?.value||'').trim();
   const slotVal  = document.getElementById('bulk-slot-select')?.value || 'morning';
-  if (!itemName) { aToast('Enter item name'); return; }
+  const emptyEl  = document.getElementById('bulk-items-empty');
+
+  if (!itemName) { aToast('Enter order name'); return; }
   if (!price || price <= 0) { aToast('Enter valid price'); return; }
+  if (!_bulkItems.length) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    aToast('Add at least one item to the order');
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
   if (!_bulkSelected.size) { aToast('Select at least one subscriber'); return; }
 
-  const slots  = slotVal === 'both' ? ['morning','evening'] : [slotVal];
+  const slots  = [slotVal]; // only morning or evening — 'both' removed
   const phones = [..._bulkSelected];
 
-  confirmAction(`Generate <b>${phones.length}</b> order(s) for <b>"${itemName}"</b> @ ₹${price}?<br><small style="color:#64748b">Status: PENDING | Session: ${slotVal}</small>`, async function() {
+  // Build items array for backend — each item carries correct qty & variantLabel
+  const itemsPayload = _bulkItems.map(it => ({
+    item_id:      it.item_id,
+    name:         it.name,
+    variantLabel: it.variantLabel || '',
+    qty:          it.qty,
+    price:        0  // total price is set by admin in the PRICE field; per-item price not used
+  }));
+
+  const itemsSummary = _bulkItems.map(it =>
+    it.variantLabel ? `${it.name} ${it.variantLabel} ×${it.qty}` : `${it.name} ×${it.qty}`
+  ).join(', ');
+
+  confirmAction(`Generate <b>${phones.length}</b> order(s) for <b>"${itemName}"</b> @ ₹${price}?<br><small style="color:#64748b">${itemsSummary}</small><br><small style="color:#64748b">Status: PENDING | Session: ${slotVal}</small>`, async function() {
     const resultEl = document.getElementById('bulk-result');
 
     // ── Inline progress UI ──────────────────────────────────────────────────
-    // Shows live step labels + animated bar so admin isn't staring at a frozen
-    // screen. Each slot = one server round trip (batch ops, ~1-2s regardless of N).
     const totalSteps = slots.length;
     let   doneSteps  = 0;
     function _bulkProgress(label) {
@@ -2802,7 +3019,7 @@ async function bulkGenerateOrders() {
             <div style="height:100%;background:#2563eb;border-radius:99px;width:${pct}%;transition:width .4s ease"></div>
           </div>
           <div style="margin-top:8px;font-size:11px;color:#3b82f6">
-            ${phones.length} subscriber${phones.length>1?'s':''} · ${slotVal === 'both' ? 'Both sessions' : slotVal + ' session'}
+            ${phones.length} subscriber${phones.length>1?'s':''} · ${slotVal} session
           </div>
         </div>`;
     }
@@ -2815,7 +3032,9 @@ async function bulkGenerateOrders() {
         _bulkProgress(slots.length > 1
           ? `Processing ${slot} session… (${doneSteps + 1}/${totalSteps})`
           : 'Generating orders…');
-        const res = await api('bulkGenerateOrders', { itemName, description: itemDesc, price, reason, slot, phones, orderFor: _bulkOrderFor });
+        const res = await api('bulkGenerateOrders', {
+          itemName, items: itemsPayload, price, reason, slot, phones, orderFor: _bulkOrderFor
+        });
         totalCreated += res.created || 0;
         totalSkipped += res.skipped || 0;
         totalUdhar   += res.udhar   || 0;
@@ -2834,6 +3053,8 @@ async function bulkGenerateOrders() {
           </div>
           <div style="margin-top:8px;font-size:12px;color:#374151">All orders marked <b>PENDING</b> — verify in Orders section.</div>
         </div>`;
+      _bulkItems = [];
+      _bulkRenderItems();
       _bulkSelected.clear();
       _bulkManualPhones = [];
       await loadBulkSubscribers();
@@ -3966,18 +4187,19 @@ async function saveRider(isEdit, editId) {
   if (!data.name || !data.phone) { aToast('Name and phone required'); return; }
   try {
     await api(isEdit ? 'updateRider' : 'createRider', data);
+    _ridersCacheTime = 0; // bust cache so next loadOrders re-fetches
     closeMo(); loadRiders(); aToast(isEdit ? 'Rider updated' : 'Rider added');
   } catch(e) { aToast(e.message); }
 }
 
 async function toggleRiderActive(id, active) {
-  try { await api('updateRider', { rider_id: id, is_active: active }); aToast(active?'Activated':'Deactivated'); }
+  try { await api('updateRider', { rider_id: id, is_active: active }); _ridersCacheTime = 0; aToast(active?'Activated':'Deactivated'); }
   catch(e) { aToast(e.message); loadRiders(); }
 }
 
 async function deleteRider(id) {
   confirmAction('Delete this rider?', async function() {
-    try { await api('deleteRider', { rider_id: id }); loadRiders(); aToast('Deleted'); }
+    try { await api('deleteRider', { rider_id: id }); _ridersCacheTime = 0; loadRiders(); aToast('Deleted'); }
     catch(e) { aToast(e.message); }
   });
 }
@@ -4266,7 +4488,7 @@ async function saveCutoff() {
     cutoffDay:   document.getElementById('set-cutoff-day')?.value,
     cutoffNight: document.getElementById('set-cutoff-night')?.value
   };
-  try { await api('setOrderCutoff', { config }); aToast('Cutoff saved'); }
+  try { await api('setOrderCutoff', { config }); _settingsCacheTime = 0; aToast('Cutoff saved'); }
   catch(e) { aToast(e.message); }
 }
 
@@ -4315,7 +4537,7 @@ async function saveSchedule() {
     dinnerStart: document.getElementById(`sch-ds-${i}`)?.value,
     dinnerEnd:   document.getElementById(`sch-de-${i}`)?.value
   }));
-  try { await api('setWeeklySchedule', { schedule }); aToast('Schedule saved ✅'); }
+  try { await api('setWeeklySchedule', { schedule }); _settingsCacheTime = 0; aToast('Schedule saved ✅'); }
   catch(e) { aToast(e.message); }
 }
 
@@ -4699,6 +4921,21 @@ async function saveDeliveryZone() {
 let _lastNotifsStr = '', _allNotifs = [], _notifTab = 'orders';
 let _nuPanelOpen = false;
 let _nuCurrentTab = 'pending';
+let _prevUnreadCount = -1; // -1 = first load, no beep yet
+
+function _beepNotif() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+    osc.onended = () => ctx.close();
+  } catch(e) {}
+}
 
 // ─── NOTIFICATION PANEL TOGGLE ────────────────────────────
 function toggleNuCouponPanel() {
@@ -4729,6 +4966,9 @@ async function loadNotifications() {
     const badge = document.getElementById('notif-badge');
     const unreadCount = _allNotifs.filter(n => !n.is_read).length;
     if (badge) { badge.textContent = unreadCount; badge.style.display = unreadCount > 0 ? 'inline' : 'none'; }
+    // Beep only when unread count genuinely increases (skip first load)
+    if (_prevUnreadCount >= 0 && unreadCount > _prevUnreadCount) _beepNotif();
+    _prevUnreadCount = unreadCount;
     renderNotifs(_allNotifs);
     updateNuPendingBadge(_allNotifs);
     npDone();
@@ -5599,9 +5839,12 @@ let _kitchenIncludedIds = [];
 let _kitchenDatePreset = 'today'; // 'today' | 'tomorrow' | 'yesterday' | 'custom'
 
 function _dateOffset(offsetDays) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  // Use IST (UTC+5:30) so date matches how orders are stored (istDateStr on server).
+  // Using plain new Date() returns UTC date, which is yesterday in IST before 5:30 AM —
+  // causing morning cooking sessions to show yesterday's orders instead of today's.
+  const ist = new Date(Date.now() + 5.5 * 3600000);
+  ist.setUTCDate(ist.getUTCDate() + offsetDays);
+  return ist.toISOString().slice(0, 10);
 }
 
 function _syncResolvedDates() {
@@ -5903,6 +6146,22 @@ async function viewCookingSession(sessionId, label, dt, orderCount, idsJson) {
   } catch(e) {
     document.getElementById('cs-detail-body').innerHTML = `<div style="text-align:center;padding:30px;color:#ef4444">❌ ${e.message}</div>`;
   }
+}
+
+function kitchenSendWhatsApp() {
+  if (!_kitchenSummary || !_kitchenSummary.length) {
+    aToast('⚠️ Load the kitchen summary first'); return;
+  }
+  const { from: fromDate, to: toDate } = _syncResolvedDates();
+  const slot  = _kitchenSlot === 'morning' ? 'Morning' : _kitchenSlot === 'evening' ? 'Evening' : 'All Sessions';
+  const range = fromDate === toDate ? fromDate : `${fromDate} → ${toDate}`;
+  const emoji = _kitchenSlot === 'morning' ? '🌅' : _kitchenSlot === 'evening' ? '🌙' : '🍳';
+  const lines = _kitchenSummary.map(i => {
+    const qty = Number.isInteger(i.totalQty) ? i.totalQty : parseFloat(i.totalQty.toFixed(2));
+    return `• ${i.name}: ${qty}${i.unit ? ' ' + i.unit : ''}`;
+  }).join('\n');
+  const msg = `${emoji} Kitchen Summary — ${slot} (${range})\n${lines}\n\n📦 Total Orders: ${_kitchenIncludedIds.length}`;
+  window.open(`https://wa.me/919889763050?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function kitchenExportPDF() {
