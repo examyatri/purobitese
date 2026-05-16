@@ -1,53 +1,75 @@
 /* ─────────────────────────────────────────────────────────
-   Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v7.0  |  Updated : 2026-05-16
+   Tiffo — Service Worker (sw.js)
+   Version : v29.0  |  Updated : 2026-05-16
 
-   CHANGES v7.0:
-   - Cache bumped → tiffo-admin-v7 (bulk variant picker fix)
+   CHANGES v28.0:
+   - Cache bumped → tiffo-v22 (bulk order variant fix; PTR full refresh update)
+   - Added sw.js itself to PRECACHE for offline reliability
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
-   - Manifest id fixed to absolute URL
+   - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v7';
+const CACHE      = 'tiffo-v22';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
-/* Only admin assets */
-const PRECACHE = ['./index.html', './manifest.json', './sw.js'];
+/* Core app shell — cached on install. */
+const PRECACHE = ['./', './index.html', './manifest.json', './sw.js'];
 
+/* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
   'https://fonts.googleapis.com',
   'https://fonts.gstatic.com',
   'https://cdnjs.cloudflare.com'
 ];
 
-/* Network-only: API + Supabase — never cache */
+/* Network-only: API calls — never cache, always live */
 const NETWORK_ONLY_ORIGINS = [
   'purobitese-api.onrender.com',
   'supabase.co',
-  'supabase.com'
+  'supabase.com',
+  'googletagmanager.com',
+  'google-analytics.com',
+  'gc.zgo.at',
+  'goatcounter.com',
+  'clarity.ms'
 ];
 
+/* Max age for stale-while-revalidate assets (non-HTML, non-CDN). */
 const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const OFFLINE_HTML = `<!DOCTYPE html>
-<html><head><title>Tiffo Admin Offline</title>
+<html lang="en">
+<head>
+<title>Tiffo – Fresh Tiffin in Varanasi | Offline</title>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0f172a;padding:24px;text-align:center}
-h1{color:#e63946;font-size:22px;margin:12px 0 8px}p{color:#94a3b8;font-size:14px;margin:0 0 20px}button{background:#e63946;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}button:active{opacity:.85}</style>
-</head><body>
-<div style="font-size:52px">⚙️</div>
-<h1 style="color:#e63946">Tiffo Admin Offline</h1>
+<meta name="description" content="Tiffo – Daily home-cooked tiffin delivery in Varanasi. Mess alternative for BHU students and hostellers.">
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8f5f2;padding:24px;text-align:center}
+h1{color:#e63946;font-size:22px;margin:12px 0 6px}
+p{color:#6b7280;font-size:14px;margin:0 0 8px;line-height:1.5}
+.tag{font-size:12px;color:#94a3b8;margin-bottom:20px}
+button{background:#e63946;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:active{opacity:.85}
+</style>
+</head>
+<body>
+<div style="font-size:52px">🍱</div>
+<h1>Tiffo is offline</h1>
 <p>Check your internet connection and try again.</p>
+<div class="tag">Fresh tiffin delivery · Varanasi · BHU · Hostels</div>
 <button onclick="location.reload()">Try Again</button>
-</body></html>`;
+</body>
+</html>`;
 
-/* ─── MESSAGE ────────────────────────────────────────────── */
+/* ─── MESSAGE (SKIP_WAITING for instant deploy) ─────────────────────────── */
 self.addEventListener('message', e => {
   if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-/* ─── INSTALL ────────────────────────────────────────────── */
+/* ─── INSTALL ────────────────────────────────────────────────────────────── */
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
@@ -56,35 +78,40 @@ self.addEventListener('install', e => {
   );
 });
 
-/* ─── ACTIVATE ───────────────────────────────────────────── */
+/* ─── ACTIVATE ───────────────────────────────────────────────────────────── */
 self.addEventListener('activate', e => {
   e.waitUntil(
     Promise.all([
+      // Delete all old tiffo-* caches (except current and font cache)
       caches.keys().then(keys =>
         Promise.all(
           keys
-            .filter(k => k.startsWith('tiffo-admin-') && k !== CACHE)
+            .filter(k => k.startsWith('tiffo-') && k !== CACHE && k !== FONT_CACHE)
             .map(k => caches.delete(k))
         )
       ),
+      // Take control of all open clients immediately
       self.clients.claim()
     ])
   );
 });
 
-/* ─── FETCH ──────────────────────────────────────────────── */
+/* ─── FETCH ──────────────────────────────────────────────────────────────── */
 self.addEventListener('fetch', e => {
   const { request } = e;
 
+  // Ignore non-GET requests (POST, PUT, etc.)
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
-  /* Network-only: API + Supabase */
+  /* Strategy 1 — Network-only: API + Supabase — never cache */
   if (NETWORK_ONLY_ORIGINS.some(o => url.hostname.includes(o)) ||
-      url.pathname.startsWith('/api/')) return;
+      url.pathname.startsWith('/api/')) {
+    return; /* let browser handle normally */
+  }
 
-  /* CDN — cache first */
+  /* Strategy 2 — CDN fonts & icons: cache-first, very long TTL */
   if (CDN_ORIGINS.some(o => url.href.startsWith(o))) {
     e.respondWith(
       caches.open(FONT_CACHE).then(async cache => {
@@ -102,17 +129,24 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* HTML navigation — network first, offline fallback */
+  /* Strategy 3 — HTML navigation: network-first, fallback to cache or offline */
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request, { cache: 'no-cache' })
         .then(res => {
           if (res && res.status === 200) {
-            caches.open(CACHE).then(cache => cache.put(request, res.clone()));
+            const clone = res.clone();
+            caches.open(CACHE).then(cache => cache.put(request, clone));
           }
           return res;
         })
         .catch(async () => {
+          const path = url.pathname;
+          if (path.includes('admin') || path.includes('rider')) {
+            return new Response(OFFLINE_HTML, {
+              headers: { 'Content-Type': 'text/html; charset=utf-8' }
+            });
+          }
           const cached = await caches.match('./index.html');
           if (cached) return cached;
           return new Response(OFFLINE_HTML, {
@@ -123,7 +157,7 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* All other assets — stale-while-revalidate */
+  /* Strategy 4 — All other assets: stale-while-revalidate, max 7 days */
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(request);
@@ -138,13 +172,15 @@ self.addEventListener('fetch', e => {
 
       if (!cached) return fetchPromise;
 
+      // If stale beyond 7 days, wait for network (block on fresh)
       const cachedDate = cached.headers.get('date');
       if (cachedDate) {
         const ageMs = Date.now() - new Date(cachedDate).getTime();
         if (ageMs > ASSET_MAX_AGE_MS) return fetchPromise.catch(() => cached);
       }
 
-      fetchPromise.catch(() => {}); // background revalidate, prevent unhandled rejection
+      // Serve stale, revalidate in background (fire-and-forget correctly)
+      fetchPromise.catch(() => {}); // prevent unhandled rejection
       return cached;
     })
   );
