@@ -648,13 +648,6 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     <div class="auth-logo-icon">🍱</div>
     <div class="auth-logo">Tif<span>fo</span> Admin</div>
     <p class="auth-subtitle">Sign in to your dashboard</p>
-    <div class="field">
-      <label>Role</label>
-      <select id="role-select">
-        <option value="admin">Admin</option>
-        <option value="staff">Staff</option>
-      </select>
-    </div>
     <div class="field"><label>Username</label><input id="a-username" type="text" placeholder="admin" autocomplete="username"></div>
     <div class="field"><label>Password</label><input id="a-password" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
     <button class="btn btn-p" style="width:100%;justify-content:center;padding:12px 18px;font-size:14px;margin-top:4px" onclick="doAdminLogin()"><i class="fa fa-right-to-bracket"></i> Sign In</button>
@@ -1537,14 +1530,15 @@ const AdminAuth = {
 };
 
 async function doAdminLogin() {
-  const role = document.getElementById('role-select').value;
   const user = document.getElementById('a-username').value.trim();
   const pw   = document.getElementById('a-password').value;
   if (!user || !pw) { aToast('Enter username and password'); return; }
-  const action = role === 'admin' ? 'adminLogin' : 'staffLogin';
   try {
     npStart();
-    const res = await api(action, { username: user, password: pw });
+    // Always use adminLogin — server returns the actual role from the database.
+    // Never trust the UI dropdown for role; it caused second-admin login failures.
+    const res = await api('adminLogin', { username: user, password: pw });
+    const role = res.staff?.role || 'staff'; // role comes from DB, not UI
     AdminAuth.set({ role, username: user, name: res.staff?.name || user, staff: res.staff, sessionToken: res.sessionToken || '' });
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
@@ -1866,7 +1860,17 @@ function guardedApi(key, fn) {
 }
 
 // ─── API ─────────────────────────────────────────────────
-async function api(action, data = {}, _retry = 2) {
+async function _refreshApiKey() {
+  try {
+    const r = await fetch('https://purobitese-api.onrender.com/config.js', { cache: 'no-store' });
+    const txt = await r.text();
+    const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
+    if (m && m[1]) { CFG.KEY = m[1]; return true; }
+  } catch {}
+  return false;
+}
+
+async function api(action, data = {}, _retry = 2, _keyRetried = false) {
   const ctrl = new AbortController();
   // 15s timeout — safe now that bulkGenerateOrders uses batch DB calls (3 round
   // trips regardless of user count) instead of the old N×3 sequential loop.
@@ -1878,6 +1882,11 @@ async function api(action, data = {}, _retry = 2) {
       body: JSON.stringify({ action, data, apiKey: CFG.KEY, sessionToken: (AdminAuth.get() || {}).sessionToken || '' })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
+    if (res.status === 401 && !_keyRetried) {
+      const gotKey = await _refreshApiKey();
+      if (gotKey) return api(action, data, _retry, true);
+      throw new Error('Server error 401');
+    }
     if (!res.ok) throw new Error('Server error ' + res.status);
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Request failed');
@@ -1887,7 +1896,7 @@ async function api(action, data = {}, _retry = 2) {
     const isNetworkErr = e.name === 'AbortError' || e.name === 'TypeError' || (e.message || '').startsWith('Server error 5');
     if (_retry > 0 && isNetworkErr) {
       await new Promise(r => setTimeout(r, 500 * (3 - _retry)));
-      return api(action, data, _retry - 1);
+      return api(action, data, _retry - 1, _keyRetried);
     }
     throw e;
   } finally { clearTimeout(timer); }
@@ -2875,23 +2884,11 @@ async function _bulkRefreshItemPicker() {
   if (!picker) return;
   picker.innerHTML = '<option value="">— Select menu item —</option>';
   _bulkMenuCache.forEach(m => {
-    // Each variant becomes its own option so variantLabel is preserved for kitchen
-    let variants = [];
-    try { variants = typeof m.variants === 'string' ? JSON.parse(m.variants) : (Array.isArray(m.variants) ? m.variants : []); } catch(e) {}
-    variants = variants.filter(v => v && v.label);
-    if (variants.length) {
-      variants.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = m.item_id + '|||' + v.label;
-        opt.textContent = m.name + ' (' + v.label + ')';
-        picker.appendChild(opt);
-      });
-    } else {
-      const opt = document.createElement('option');
-      opt.value = m.item_id + '|||';
-      opt.textContent = m.name;
-      picker.appendChild(opt);
-    }
+    // Bulk orders: show only item name — admin types qty directly (no variant confusion)
+    const opt = document.createElement('option');
+    opt.value = m.item_id;
+    opt.textContent = m.name;
+    picker.appendChild(opt);
   });
 }
 
