@@ -1584,7 +1584,9 @@ function _doPostLoginRefresh(initialMenuPromise, skipSubscriberCheck = false) {
     skipSubscriberCheck ? Promise.resolve() : refreshSubscriberStatus(true).catch(() => {}),
     (_session?.is_subscriber && _khataEnabled)
       ? refreshWalletBalance(true).catch(() => {})
-      : Promise.resolve()
+      : Promise.resolve(),
+    // Prefetch auto-tiffin cutoff config in parallel — cached for session lifetime
+    _loadAtCutoff().catch(() => {})
   ];
 
   // Wait for initial loadMenu to finish, then run side refreshes and start polling.
@@ -2392,10 +2394,23 @@ function _haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// Shared getSettings fetch — both _loadDeliveryZone and _loadAtCutoff reuse this
+// to avoid two redundant API calls on load.
+let _settingsFetchP = null;
+async function _fetchSettings() {
+  if (_settingsFetchP) return _settingsFetchP;
+  _settingsFetchP = api('getSettings').catch(() => ({ settings: {} }));
+  return _settingsFetchP;
+}
+// Reset on logout so next session gets fresh settings
+function _resetSettingsCache() {
+  _settingsFetchP = null;
+}
+
 async function _loadDeliveryZone() {
   if (_deliveryZone) return _deliveryZone;
   try {
-    const r = await api('getSettings');
+    const r = await _fetchSettings();
     _deliveryZone = r.settings?.deliveryZone || null;
   } catch(e) { _deliveryZone = null; }
   return _deliveryZone;
@@ -4993,22 +5008,89 @@ function exportKhataPDF() { generateKhataPDF(); }
 /* ═══════════════════════════════════════════
    PAUSE DELIVERY
 ═══════════════════════════════════════════ */
-function openPauseSheet() {
+// Cached auto tiffin cutoff config fetched from backend
+let _atCutoff = null;
+
+// Returns IST HH:MM string for current time
+function _istTimeNow() {
+  const now = new Date();
+  // IST = UTC + 5:30
+  const istMs = now.getTime() + (5 * 60 + 30) * 60000;
+  const ist = new Date(istMs);
+  const hh = String(ist.getUTCHours()).padStart(2,'0');
+  const mm = String(ist.getUTCMinutes()).padStart(2,'0');
+  return `${hh}:${mm}`;
+}
+
+// Returns true if current IST time is before or equal to cutoffStr (HH:MM)
+function _beforeCutoff(cutoffStr) {
+  return _istTimeNow() <= cutoffStr;
+}
+
+async function _loadAtCutoff() {
+  if (_atCutoff) return _atCutoff;
+  try {
+    // Reuse the shared getSettings fetch — no extra API round-trip
+    const r = await _fetchSettings();
+    _atCutoff = r.settings?.autoTiffinCutoff || { morning: '11:00', evening: '18:00' };
+  } catch {
+    _atCutoff = { morning: '11:00', evening: '18:00' };
+  }
+  return _atCutoff;
+}
+
+async function openPauseSheet() {
   // Show only relevant pause options based on subscriber's plan
-  // IMPORTANT: default to 'morning' not 'both' to prevent showing invalid options
-  // when _session.plan hasn't been set yet (plan lives on subscriber, not user object)
   const plan = _session?.plan || 'morning';
   const showMorning = plan === 'morning' || plan === 'both';
   const showEvening = plan === 'evening' || plan === 'both';
   const showBoth    = plan === 'both';
-  // Find option cards by their radio value
+
+  // Fetch cutoff config then decide today vs tomorrow labels
+  const cutoff = await _loadAtCutoff();
+  const nowHHMM = _istTimeNow();
+  const morningToday = showMorning && (nowHHMM <= cutoff.morning);
+  const eveningToday = showEvening && (nowHHMM <= cutoff.evening);
+
   document.querySelectorAll('.pause-option-card').forEach(card => {
     const radio = card.querySelector('input[type=radio]');
     if (!radio) return;
-    if (radio.value === 'lunch')  card.style.display = showMorning ? '' : 'none';
-    if (radio.value === 'dinner') card.style.display = showEvening ? '' : 'none';
-    if (radio.value === 'both')   card.style.display = showBoth    ? '' : 'none';
+    if (radio.value === 'lunch') {
+      card.style.display = showMorning ? '' : 'none';
+      if (showMorning) {
+        const sub = card.querySelector('div[style*="font-size:12px"]');
+        if (sub) sub.textContent = morningToday
+          ? `Skip morning auto tiffin for today (till ${cutoff.morning})`
+          : `Skip morning auto tiffin for tomorrow`;
+        const title = card.querySelector('div[style*="font-size:14px"]');
+        if (title) title.textContent = morningToday ? 'Morning Off (Today)' : 'Morning Off (Tomorrow)';
+      }
+    }
+    if (radio.value === 'dinner') {
+      card.style.display = showEvening ? '' : 'none';
+      if (showEvening) {
+        const sub = card.querySelector('div[style*="font-size:12px"]');
+        if (sub) sub.textContent = eveningToday
+          ? `Skip evening auto tiffin for today (till ${cutoff.evening})`
+          : `Skip evening auto tiffin for tomorrow`;
+        const title = card.querySelector('div[style*="font-size:14px"]');
+        if (title) title.textContent = eveningToday ? 'Evening Off (Today)' : 'Evening Off (Tomorrow)';
+      }
+    }
+    if (radio.value === 'both') {
+      card.style.display = showBoth ? '' : 'none';
+      if (showBoth) {
+        const isAnyToday = morningToday || eveningToday;
+        const sub = card.querySelector('div[style*="font-size:12px"]');
+        if (sub) sub.textContent = isAnyToday
+          ? 'Pause all auto tiffins (applies today where cutoff not passed)'
+          : 'Pause all auto tiffins for tomorrow';
+        const title = card.querySelector('div[style*="font-size:14px"]');
+        if (title) title.textContent = isAnyToday ? 'Both Off (Today/Tomorrow)' : 'Both Off (Tomorrow)';
+      }
+    }
   });
+
   document.getElementById('pause-sheet').style.display = 'block';
   document.getElementById('pause-sheet').classList.add('open');
   document.getElementById('sheet-backdrop').classList.add('show');
@@ -5038,15 +5120,32 @@ async function confirmPause() {
   const opt = document.querySelector('input[name="pause-opt"]:checked');
   if (!opt) { toast('Select an option'); return; }
   const mode = opt.value;
+  const cutoff = await _loadAtCutoff();
+  const nowHHMM = _istTimeNow();
+  const morningForToday = (mode === 'lunch' || mode === 'both') && (nowHHMM <= cutoff.morning);
+  const eveningForToday = (mode === 'dinner' || mode === 'both') && (nowHHMM <= cutoff.evening);
   try {
-    await api('updatePauseDelivery', { phone: Auth.get()?.phone, pauseMode: mode });
-    applyPauseState(mode);
-    _lastPauseMode = mode;
+    await api('updatePauseDelivery', {
+      phone: Auth.get()?.phone,
+      pauseMode: mode,
+      morningForToday,
+      eveningForToday
+    });
+    // Apply only the sessions that are effectively paused TODAY.
+    // A tomorrow-only pause (after cutoff) must not block today's orders.
+    // Example: mode='lunch', morningForToday=false → effectiveToday='none'
+    const pm_eff = (mode === 'lunch' || mode === 'both') && morningForToday;
+    const pe_eff = (mode === 'dinner' || mode === 'both') && eveningForToday;
+    const effectiveToday = pm_eff && pe_eff ? 'both' : pm_eff ? 'lunch' : pe_eff ? 'dinner' : 'none';
+    applyPauseState(effectiveToday);
+    _lastPauseMode = effectiveToday;
     closePauseSheet();
     toast(
-      mode === 'lunch'  ? 'Morning tiffin paused ✓' :
-      mode === 'dinner' ? 'Evening tiffin paused ✓' :
-                          'All tiffins paused ✓'
+      mode === 'lunch'  ? `Morning tiffin off ${morningForToday ? 'today' : 'tomorrow'} ✓` :
+      mode === 'dinner' ? `Evening tiffin off ${eveningForToday ? 'today' : 'tomorrow'} ✓` :
+      (morningForToday && eveningForToday) ? 'Both tiffins off today ✓' :
+      (!morningForToday && !eveningForToday) ? 'Both tiffins off tomorrow ✓' :
+      `Morning off ${morningForToday ? 'today' : 'tomorrow'}, Evening off ${eveningForToday ? 'today' : 'tomorrow'} ✓`
     );
   } catch(e) { toast(e.message || 'Failed'); }
 }
@@ -5406,6 +5505,8 @@ function _wipeAndShowLogin() {
   _pauseMode       = 'none';
   _khataEnabled    = false;
   _appliedCoupon   = null;
+  _atCutoff        = null; // reset cutoff cache so next login fetches fresh
+  _resetSettingsCache();   // reset shared getSettings promise
   // Wipe service worker caches so no stale data remains on device after logout
   if ('caches' in window) {
     caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});

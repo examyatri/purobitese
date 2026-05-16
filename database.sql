@@ -84,6 +84,8 @@ CREATE TABLE subscribers (
   pause_delivery  TEXT        NOT NULL DEFAULT 'none',    -- legacy: none|lunch|dinner|both
   pause_morning   BOOLEAN     NOT NULL DEFAULT false,
   pause_evening   BOOLEAN     NOT NULL DEFAULT false,
+  pause_morning_from DATE     DEFAULT NULL,               -- IST date from which morning pause is active (NULL = active immediately)
+  pause_evening_from DATE     DEFAULT NULL,               -- IST date from which evening pause is active (NULL = active immediately)
   is_delivery_off BOOLEAN     NOT NULL DEFAULT false,
   auto_tiffin     BOOLEAN     NOT NULL DEFAULT true,      -- kept for legacy; eligibility derived from pause_delivery
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -258,7 +260,8 @@ CREATE TABLE nu_coupon_sent (
 INSERT INTO admin_settings (key, value, updated_at) VALUES
   ('khata_enabled',    'false', now()),
   ('order_cutoff_config', '{"cutoffHour":21,"cutoffMinute":0}', now()),
-  ('weekly_schedule',  '[]',    now())
+  ('weekly_schedule',  '[]',    now()),
+  ('auto_tiffin_cutoff', '{"morning":"11:00","evening":"18:00"}', now())
 ON CONFLICT (key) DO NOTHING;
 
 
@@ -305,6 +308,8 @@ ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS plan            TEXT    NOT NUL
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_morning   BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_evening   BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS is_delivery_off BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_morning_from DATE DEFAULT NULL;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_evening_from DATE DEFAULT NULL;
 ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS auto_tiffin     BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE subscribers ALTER COLUMN plan_end DROP NOT NULL;
 
@@ -737,4 +742,136 @@ CREATE INDEX IF NOT EXISTS idx_khata_entries_phone
 --   'idx_khata_entries_phone'
 -- );
 -- Expected: 3 rows
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 9: Auto Tiffin Cutoff Setting Migration               ║
+-- ║  Date: 2026-05-16                                           ║
+-- ║  Safe to run on live database — ON CONFLICT DO NOTHING      ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- Seed the auto_tiffin_cutoff key if it doesn't already exist.
+-- Admin can update these values from Settings → Auto Tiffin Cutoff panel.
+-- Default: morning off allowed till 11:00 IST, evening off allowed till 18:00 IST.
+INSERT INTO admin_settings (key, value, updated_at)
+VALUES ('auto_tiffin_cutoff', '{"morning":"11:00","evening":"18:00"}', now())
+ON CONFLICT (key) DO NOTHING;
+
+-- ── VERIFY ───────────────────────────────────────────────────────────────────
+-- SELECT key, value FROM admin_settings WHERE key = 'auto_tiffin_cutoff';
+-- Expected: 1 row with {"morning":"11:00","evening":"18:00"}
+-- ─────────────────────────────────────────────────────────────────────────────
+
+
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║  FILE 10: Auto Tiffin Cutoff — Verification & Safe Migration ║
+-- ║  Date: 2026-05-16                                            ║
+-- ║  Safe to run on live database — all statements are          ║
+-- ║  idempotent (IF NOT EXISTS / ON CONFLICT DO NOTHING)        ║
+-- ╚══════════════════════════════════════════════════════════════╝
+
+-- ── WHAT THIS COVERS ─────────────────────────────────────────────────────────
+-- Auto tiffin cutoff feature relies on these columns in `subscribers`:
+--   pause_morning       BOOLEAN  — is morning auto tiffin paused?
+--   pause_evening       BOOLEAN  — is evening auto tiffin paused?
+--   pause_morning_from  DATE     — IST date from which morning pause is effective
+--   pause_evening_from  DATE     — IST date from which evening pause is effective
+--
+-- And this key in `admin_settings`:
+--   auto_tiffin_cutoff  JSON     — { "morning": "HH:MM", "evening": "HH:MM" }
+--
+-- CUTOFF LOGIC (enforced in server.js, not in DB):
+--   If user pauses BEFORE cutoff  → pause_*_from = TODAY  → blocks today + future
+--   If user pauses AFTER  cutoff  → pause_*_from = TOMORROW → only blocks tomorrow+
+--   Bulk order creation uses isPauseActive(_from, today) to skip paused subscribers
+--   correctly for both cases.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- STEP 1 — Ensure all required columns exist on subscribers table
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_morning      BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_evening      BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_morning_from DATE    DEFAULT NULL;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS pause_evening_from DATE    DEFAULT NULL;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS auto_tiffin        BOOLEAN NOT NULL DEFAULT true;
+
+-- STEP 2 — Ensure auto_tiffin_cutoff setting exists in admin_settings
+-- Admin can change these values from the Settings panel in admin.html
+-- morning: latest IST time user can pause/unpause today's morning tiffin (HH:MM 24h)
+-- evening: latest IST time user can pause/unpause today's evening tiffin (HH:MM 24h)
+INSERT INTO admin_settings (key, value, updated_at)
+VALUES ('auto_tiffin_cutoff', '{"morning":"11:00","evening":"18:00"}', now())
+ON CONFLICT (key) DO NOTHING;
+
+-- STEP 3 — Back-fill: for any old subscribers where pause_morning=true but
+-- pause_morning_from is NULL, set _from = today so isPauseActive treats them
+-- as immediately active (preserves existing behaviour for legacy rows).
+-- Run this ONCE after deployment.
+UPDATE subscribers
+SET    pause_morning_from = CURRENT_DATE
+WHERE  pause_morning = true
+  AND  pause_morning_from IS NULL;
+
+UPDATE subscribers
+SET    pause_evening_from = CURRENT_DATE
+WHERE  pause_evening = true
+  AND  pause_evening_from IS NULL;
+
+-- STEP 4 — Sync legacy pause_delivery to match granular fields for any rows
+-- that may have gotten out of sync (safe, no data loss).
+UPDATE subscribers
+SET pause_delivery =
+  CASE
+    WHEN pause_morning = true AND pause_evening = true THEN 'both'
+    WHEN pause_morning = true AND pause_evening = false THEN 'lunch'
+    WHEN pause_morning = false AND pause_evening = true THEN 'dinner'
+    ELSE 'none'
+  END
+WHERE pause_delivery IS DISTINCT FROM (
+  CASE
+    WHEN pause_morning = true AND pause_evening = true THEN 'both'
+    WHEN pause_morning = true AND pause_evening = false THEN 'lunch'
+    WHEN pause_morning = false AND pause_evening = true THEN 'dinner'
+    ELSE 'none'
+  END
+);
+
+-- ── VERIFY ───────────────────────────────────────────────────────────────────
+-- Run these SELECT statements to confirm everything is correct:
+
+-- 1. Confirm all columns exist:
+-- SELECT column_name, data_type, column_default
+-- FROM   information_schema.columns
+-- WHERE  table_name = 'subscribers'
+--   AND  column_name IN (
+--          'pause_morning','pause_evening',
+--          'pause_morning_from','pause_evening_from',
+--          'pause_delivery','auto_tiffin'
+--        )
+-- ORDER BY column_name;
+-- Expected: 6 rows
+
+-- 2. Confirm auto_tiffin_cutoff setting exists:
+-- SELECT key, value FROM admin_settings WHERE key = 'auto_tiffin_cutoff';
+-- Expected: 1 row → {"morning":"11:00","evening":"18:00"}
+
+-- 3. Confirm no paused subscriber has NULL _from date (after back-fill):
+-- SELECT phone, pause_morning, pause_morning_from, pause_evening, pause_evening_from
+-- FROM   subscribers
+-- WHERE  (pause_morning = true AND pause_morning_from IS NULL)
+--    OR  (pause_evening = true AND pause_evening_from IS NULL);
+-- Expected: 0 rows
+
+-- 4. Confirm pause_delivery is in sync with granular fields:
+-- SELECT phone, pause_delivery, pause_morning, pause_evening
+-- FROM   subscribers
+-- WHERE  pause_delivery != (
+--   CASE
+--     WHEN pause_morning = true AND pause_evening = true  THEN 'both'
+--     WHEN pause_morning = true AND pause_evening = false THEN 'lunch'
+--     WHEN pause_morning = false AND pause_evening = true THEN 'dinner'
+--     ELSE 'none'
+--   END
+-- );
+-- Expected: 0 rows (all in sync)
 -- ─────────────────────────────────────────────────────────────────────────────
