@@ -457,6 +457,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   border-top-color:var(--p);border-radius:50%;animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
 </style>
+<script src="https://purobitese-api.onrender.com/config.js"></script>
 </head>
 <body>
 
@@ -686,7 +687,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 /* ─── CONFIG ─────────────────────────────────────────── */
 const CFG = {
   API:      'https://purobitese-api.onrender.com/api',
-  KEY:      'PB_SECURE_API_KEY_2026',
+  KEY:      window.__TIFFO_API_KEY__ || '',  // injected server-side — never hardcode here
   WA_ADMIN: '919889760350'
 };
 
@@ -744,7 +745,7 @@ const RiderSession = {
     try {
       const d = JSON.parse(localStorage.getItem(this.KEY));
       if (!d || !d.rider) return null;
-      return d.rider;
+      return d.rider; // rider object may include sessionToken
     } catch { return null; }
   },
   clear() {
@@ -768,7 +769,7 @@ async function api(action, data = {}, _retry = 2) {
     const res  = await fetch(CFG.API, {
       method: 'POST', signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, data, apiKey: CFG.KEY })
+      body: JSON.stringify({ action, data, apiKey: CFG.KEY, sessionToken: (_rider?.sessionToken || '') })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
     if (!res.ok) throw new Error('Server error ' + res.status);
@@ -809,7 +810,7 @@ async function doRiderLogin() {
 
   try {
     const res = await api('riderLogin', { riderId, password: pw });
-    _rider = res.rider;
+    _rider = { ...res.rider, sessionToken: res.sessionToken || '' };
     saveRiderCreds(riderId, pw);
     RiderSession.save(_rider);
     showApp();
@@ -1697,9 +1698,9 @@ function openRiderMap(ordersParam) {
     _placeMarkers();
     _updateMapTitle(orders);
     _renderStopList();
-    // Auto-sort route once first GPS fix arrives (if 2+ stops have coords)
+    // Auto-sort route once first GPS fix arrives (if 3+ stops have coords)
     const _stopsWithCoords = _mapStops.filter(s => s.coords);
-    if (_stopsWithCoords.length >= 2) {
+    if (_stopsWithCoords.length >= 3) {
       _autoOptimizeOnGpsFix = true;
       rToast('📍 Getting GPS — route will auto-sort…');
     }
@@ -2659,7 +2660,7 @@ window.addEventListener('DOMContentLoaded', () => {
         api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0)
           .then(res => {
             RiderSession.markVerified();
-            _rider = res.rider;
+            _rider = { ...res.rider, sessionToken: res.sessionToken || '' };
             RiderSession.save(_rider);
             // Refresh display with latest rider data (name etc.)
             document.getElementById('rider-name').textContent       = _rider.name || 'Rider';
@@ -2685,7 +2686,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (creds) {
     api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0)
       .then(res => {
-        _rider = res.rider;
+        _rider = { ...res.rider, sessionToken: res.sessionToken || '' };
         RiderSession.save(_rider);
         showApp();
         loadOrders();
