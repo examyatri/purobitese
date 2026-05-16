@@ -1,19 +1,9 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.1 — Performance indexes migration     ║
+// ║  Version : v59.2                                    ║
 // ║  Updated : 2026-05-16                               ║
-// ║  Fix 1   : createOrder now requires userToken       ║
-// ║            (was apiKey-only — any caller could      ║
-// ║            place orders on any phone number)        ║
-// ║  Fix 2   : signup now checks insert error before    ║
-// ║            issuing token (previously issued token   ║
-// ║            even if DB insert failed silently)       ║
-// ║  Fix 3   : getSubscriberStatus + getSubscriberBal-  ║
-// ║            ance added to _USER_SENSITIVE_ACTIONS    ║
-// ║            (were leaking wallet balance for any     ║
-// ║            phone number without authentication)     ║
-// ║            immediately after registering.           ║
+// ║  Changes : Version bump for v63 release             ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
