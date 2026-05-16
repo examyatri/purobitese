@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59 — Security audit fixes               ║
+// ║  Version : v59.1 — Performance indexes migration     ║
 // ║  Updated : 2026-05-16                               ║
 // ║  Fix 1   : createOrder now requires userToken       ║
 // ║            (was apiKey-only — any caller could      ║
