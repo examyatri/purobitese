@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)         ║
-// ║  Version : v52.1 — rate limiting added              ║
+// ║  Version : v55.2 — 30-day userToken, security hardening              ║
 // ║  Updated : 2026-05-15                               ║
 // ║  Changes : Allow multiple orders per slot (removed  ║
 // ║            per-slot duplicate block). 30s idempotency║
@@ -33,7 +33,7 @@ const _authRateLimit = rateLimit({
 // General limiter: permissive limit for all other actions
 const _generalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 120,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
@@ -138,8 +138,9 @@ const _STAFF_ACTIONS = new Set([
   'getAdminSettings', 'getOrderCutoffConfig', 'getWeeklySchedule', 'getDeliveryZone',
   'getDashboard', 'getNotifications', 'markNotificationRead', 'clearNotifications',
   'getCookingSessions', 'adminGetCouponReport', 'getCookingSummary', 'getCookingSessionDetail',
-  'getAllKhata', 'getAnalytics', 'getCoupons', 'getKhata', 'getKitchenDashboard',
-  'getMenuItems', 'getOrderTransactions', 'getSettings', 'getUserByPhone', 'getUserOrders',
+  'getAllKhata', 'getAnalytics', 'getCoupons', 'getKitchenDashboard',
+  'getMenuItems', 'getUserByPhone',
+  // NOTE: getKhata, getUserOrders, getOrderTransactions, getSettings, validateCoupon, applyCoupon are customer-facing — apiKey only, no session needed
   // ── Orders & operations ──
   'assignRider', 'bulkUpdateOrder', 'rejectOrder', 'updateOrderStatus',
   'lockCookingSession', 'unlockCookingSession', 'startCookingSession',
@@ -154,7 +155,7 @@ const _STAFF_ACTIONS = new Set([
   'addMenuItem', 'updateMenuItem', 'deleteMenuItem', 'updateMenuOrder', 'updateMenuStock',
   // ── Coupons ──
   'createCoupon', 'deleteCoupon', 'deleteExpiredCoupons', 'addCoupon', 'updateCoupon',
-  'validateCoupon', 'applyCoupon',
+  // NOTE: validateCoupon, applyCoupon are customer-facing — apiKey only, no session needed
   // ── Riders ──
   'addRider', 'updateRider', 'deleteRider',
   // ── Notifications & cleanup ──
@@ -172,6 +173,25 @@ const _STAFF_ACTIONS = new Set([
   'previewDeleteNotifications', 'previewDeleteOrders', 'previewDeleteTransactions',
   'purgeOldNotifications',
 ]);
+
+
+// ─── USER-SENSITIVE ACTIONS ───────────────────────────────────────────────────
+// These actions operate on user-owned data. They require a valid userToken
+// (issued at login) matching the phone in the request. This prevents one user
+// from reading/modifying another user's orders, wallet, or subscription.
+const _USER_SENSITIVE_ACTIONS = new Set([
+  'getUserOrders', 'getKhata', 'updatePauseDelivery',
+  'getSubscriberPauseStatus', 'changePassword', 'updateProfile',
+]);
+
+function _verifyUserToken(token, phone) {
+  if (!token || !phone) return false;
+  const session = _verifyToken(token);
+  if (!session) return false;
+  if (session.role !== 'user') return false;
+  if (session.phone !== phone) return false;
+  return true;
+}
 
 const SALT_ROUNDS = 10;
 
@@ -411,7 +431,10 @@ async function _authenticateUser(phone, password) {
   const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
   const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
   const { password_hash, ...safeUser } = user;
-  return { success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0 };
+  // Issue a signed user token — 30-day TTL so customers never face forced re-login
+  const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+  const userToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
+  return { success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0, userToken };
 }
 
 // Shared staff auth — used by both 'adminLogin' and 'staffLogin' (were 100% identical)
@@ -661,6 +684,20 @@ app.post('/api', async (req, res) => {
     }
     if (session.role !== 'admin' && session.role !== 'staff') {
       return res.status(403).json({ success: false, error: 'Staff access required.' });
+    }
+  }
+
+  // ── USER-SENSITIVE ACTION CHECK ─────────────────────────────────────────────
+  // Verify userToken for actions that touch user-owned data.
+  // Admin/staff bypass this check (they carry a sessionToken with role=admin/staff).
+  if (_USER_SENSITIVE_ACTIONS.has(action)) {
+    const phone = cleanPhone(data.phone || '');
+    const { userToken } = req.body;
+    // Staff/admin acting on behalf of a user: allow if valid staff session
+    const staffSession = _verifyToken(req.body.sessionToken);
+    const isStaff = staffSession && (staffSession.role === 'admin' || staffSession.role === 'staff');
+    if (!isStaff && !_verifyUserToken(userToken, phone)) {
+      return res.status(401).json({ success: false, error: 'Auth required. Please log in again.' });
     }
   }
 
@@ -1007,10 +1044,12 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getUserOrders': {
+        if (!data.phone) return res.json({ success: false, error: 'Phone required' });
         const { data: rows } = await supabase
           .from('orders').select('*')
           .eq('user_id', cleanPhone(data.phone))
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(50); // stability: cap at 50 most recent orders
         return res.json({ success: true, orders: (rows || []).map(formatOrder) });
       }
 
@@ -1872,6 +1911,13 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getRiderOrders': {
+        // Verify the sessionToken belongs to this rider (or is an admin)
+        const riderSession = _verifyToken(req.body.sessionToken);
+        const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
+        const isOwner = riderSession && riderSession.username === data.riderId;
+        if (!isAdmin && !isOwner) {
+          return res.status(401).json({ success: false, error: 'Rider auth required' });
+        }
         const twoDaysAgo = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
         const { data: rows } = await supabase
           .from('orders').select('*')
@@ -1879,8 +1925,6 @@ app.post('/api', async (req, res) => {
           .gte('date', twoDaysAgo)
           .order('created_at', { ascending: false });
         const formatted = (rows || []).map(formatOrder);
-        // No resolveRiderNames here — rider panel only shows the logged-in rider's own orders,
-        // so the DB roundtrip to fetch all riders is wasteful.
         return res.json({ success: true, orders: formatted });
       }
 
@@ -2385,7 +2429,8 @@ app.post('/api', async (req, res) => {
 
       // ── INDEX (CUSTOMER) ALIASES ──────────────────────────────────────────
       case 'updatePauseDelivery':
-        { const allowed = ['none', 'lunch', 'dinner', 'both'];
+        { if (!data.phone) return res.json({ success: false, error: 'Phone required' });
+          const allowed = ['none', 'lunch', 'dinner', 'both'];
           const mode = data.pauseMode || data.mode;
           if (!allowed.includes(mode)) return res.json({ success: false, error: 'Invalid mode' });
           // FIX #14: Sync granular pause fields to match legacy pause_delivery
