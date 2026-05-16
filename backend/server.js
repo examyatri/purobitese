@@ -1,8 +1,8 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)         ║
-// ║  Version : v22.0 (v50 release)                      ║
-// ║  Updated : 2026-04-29                               ║
+// ║  Version : v52.1 — rate limiting added              ║
+// ║  Updated : 2026-05-15                               ║
 // ║  Changes : Allow multiple orders per slot (removed  ║
 // ║            per-slot duplicate block). 30s idempotency║
 // ║            guard still blocks accidental re-clicks. ║
@@ -14,9 +14,36 @@ const https       = require('https');
 const compression = require('compression');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt      = require('bcryptjs');
+const rateLimit   = require('express-rate-limit');
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
 const app = express();
+app.set('trust proxy', 1); // Required for correct IP behind Render's reverse proxy
+
+// ─── RATE LIMITERS ───────────────────────────────────────────────────────────
+// Auth limiter: tight limit for login/signup/password actions (brute-force protection)
+const _authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
+});
+
+// General limiter: permissive limit for all other actions
+const _generalRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
+});
+
+// Auth actions that get the tighter limit
+const _AUTH_ACTIONS = new Set([
+  'login', 'signup', 'adminLogin', 'riderLogin', 'staffLogin',
+  'resetUserPassword', 'adminResetUserPassword', 'changePassword',
+]);
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 // ALLOWED_ORIGINS env var: comma-separated list, e.g.:
@@ -61,6 +88,90 @@ const supabase = createClient(
 
 const SECURE_API_KEY = process.env.API_KEY;
 if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
+
+// ─── SESSION TOKEN (HMAC-SHA256, no external deps) ────────────────────────────
+// Format: base64url(header).base64url(payload).base64url(sig)
+// Secret is separate from API_KEY so rotating one doesn't break the other.
+const SESSION_SECRET = process.env.SESSION_SECRET || SECURE_API_KEY + '_session';
+if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var not set — falling back to derived secret. Set SESSION_SECRET in production.');
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function _b64url(buf) {
+  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function _signToken(payload) {
+  const header  = _b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const body    = _b64url(JSON.stringify(payload));
+  const sig     = _b64url(require('crypto').createHmac('sha256', SESSION_SECRET).update(`${header}.${body}`).digest());
+  return `${header}.${body}.${sig}`;
+}
+
+function _verifyToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const expected = _b64url(require('crypto').createHmac('sha256', SESSION_SECRET).update(`${parts[0]}.${parts[1]}`).digest());
+  if (expected !== parts[2]) return null; // signature mismatch
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    if (Date.now() > payload.exp) return null; // expired
+    return payload;
+  } catch { return null; }
+}
+
+// Actions that require a valid admin session token (role = 'admin' only)
+const _ADMIN_ONLY_ACTIONS = new Set([
+  // Truly admin-exclusive: account/staff management and nuclear data wipe
+  'masterDelete',        // wipe all historical data
+  'addStaff', 'createStaff', 'updateStaff', 'deleteStaff', // manage staff accounts
+  'resetAdminPassword',  // change admin/staff passwords
+]);
+
+// Actions that require any valid staff session token (role = 'admin' OR 'staff')
+// Staff can do EVERYTHING except: masterDelete, adminDeleteUser, staff management, resetAdminPassword
+const _STAFF_ACTIONS = new Set([
+  // ── Read / dashboard ──
+  'adminGetOrders', 'adminGetMenu', 'adminGetUsers', 'adminGetSubscribers',
+  'adminGetAllKhata', 'adminGetCoupons', 'getStaff',
+  'getSubscribersForBulk', 'getRiders', 'getNuCouponPending', 'getNuCouponSent',
+  'getAdminSettings', 'getOrderCutoffConfig', 'getWeeklySchedule', 'getDeliveryZone',
+  'getDashboard', 'getNotifications', 'markNotificationRead', 'clearNotifications',
+  'getCookingSessions', 'adminGetCouponReport', 'getCookingSummary', 'getCookingSessionDetail',
+  'getAllKhata', 'getAnalytics', 'getCoupons', 'getKhata', 'getKitchenDashboard',
+  'getMenuItems', 'getOrderTransactions', 'getSettings', 'getUserByPhone', 'getUserOrders',
+  // ── Orders & operations ──
+  'assignRider', 'bulkUpdateOrder', 'rejectOrder', 'updateOrderStatus',
+  'lockCookingSession', 'unlockCookingSession', 'startCookingSession',
+  'forceUdharOrder', 'bulkGenerateOrders',
+  // ── Wallet & khata ──
+  'rechargeWallet', 'manualRefund',
+  // ── Subscribers & users ──
+  'pauseSubscriber', 'resumeSubscriber', 'togglePauseSession', 'updateSubscriber',
+  'promoteToSubscriber', 'removeSubscriber',
+  'adminCreateUser', 'adminResetUserPassword', 'resetUserPassword',
+  // ── Menu ──
+  'addMenuItem', 'updateMenuItem', 'deleteMenuItem', 'updateMenuOrder', 'updateMenuStock',
+  // ── Coupons ──
+  'createCoupon', 'deleteCoupon', 'deleteExpiredCoupons', 'addCoupon', 'updateCoupon',
+  'validateCoupon', 'applyCoupon',
+  // ── Riders ──
+  'addRider', 'updateRider', 'deleteRider',
+  // ── Notifications & cleanup ──
+  'deleteNotification', 'deleteNotificationRange', 'deleteOldData', 'previewCleanup',
+  // ── Nu-coupon ──
+  'addNuCouponPending', 'markNuCouponSent', 'deleteOldNuCouponSent',
+  // ── Settings ──
+  'setCutoffConfig', 'setOrderCutoff', 'setWeeklySchedule', 'setKhataEnabled', 'setDeliveryZone',
+  // ── User management ──
+  'adminDeleteUser', 'saveAndSendCoupon',
+  // ── Additional admin-panel operational actions ──
+  'addKhataEntry', 'addSubscriber', 'autoCleanupStatus', 'createNotification',
+  'createRider', 'deleteOldOrders', 'deleteOldTransactions', 'getOrdersByDate',
+  'getSubscribers', 'getUsers', 'markNotificationGroupRead',
+  'previewDeleteNotifications', 'previewDeleteOrders', 'previewDeleteTransactions',
+  'purgeOldNotifications',
+]);
 
 const SALT_ROUNDS = 10;
 
@@ -490,6 +601,16 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
 app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v2' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
+// ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
+// Serves the API key to all frontends without ever hardcoding it in HTML.
+// Each HTML file loads: <script src="https://purobitese-api.onrender.com/config.js"></script>
+// This sets window.__TIFFO_API_KEY__ which CFG.KEY falls back to.
+app.get('/config.js', (_req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Cache-Control', 'no-store'); // always fresh — key may rotate
+  res.send(`window.__TIFFO_API_KEY__ = ${JSON.stringify(process.env.API_KEY || '')};`);
+});
+
 // ─── IDEMPOTENCY GUARD (in-memory, protects createOrder double-submits) ───────
 // Stores SHA-256-like fingerprint of mutation actions for 30s to reject duplicates.
 // Cleared automatically — Map never grows unboundedly on free-tier Render.
@@ -499,7 +620,8 @@ const _MUTATION_ACTIONS = new Set(['createOrder', 'bulkGenerateOrders', 'forceUd
 
 function _mutationKey(action, data) {
   // Key = action + phone + total_amount (enough to catch accidental double-submit)
-  const phone = data.phone || data.phones?.join(',') || '';
+  // data.orderId is used as fallback identifier for rejectOrder (which has no phone/amount)
+  const phone = data.phone || data.phones?.join(',') || data.orderId || '';
   const amt   = data.amount || data.price || (data.items ? data.items.reduce((s,i)=>s+(i.price*i.qty),0) : '');
   return `${action}:${phone}:${amt}`;
 }
@@ -511,8 +633,35 @@ app.post('/api', async (req, res) => {
   }
   const { action, data = {}, apiKey } = req.body;
 
+  // Apply rate limiting before any auth or DB work
+  const limiter = _AUTH_ACTIONS.has(action) ? _authRateLimit : _generalRateLimit;
+  await new Promise((resolve) => limiter(req, res, resolve));
+  if (res.headersSent) return; // limiter already sent 429
+
   if (apiKey !== SECURE_API_KEY) {
     return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  // ── SESSION TOKEN CHECK ────────────────────────────────────────────────────
+  // Admin-only and staff actions require a valid signed session token issued at login.
+  // This is enforced server-side — the API key alone is NOT enough for these actions.
+  const { sessionToken } = req.body;
+  if (_ADMIN_ONLY_ACTIONS.has(action)) {
+    const session = _verifyToken(sessionToken);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+    }
+    if (session.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Admin access required.' });
+    }
+  } else if (_STAFF_ACTIONS.has(action)) {
+    const session = _verifyToken(sessionToken);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+    }
+    if (session.role !== 'admin' && session.role !== 'staff') {
+      return res.status(403).json({ success: false, error: 'Staff access required.' });
+    }
   }
 
   // Idempotency: reject mutation duplicates within 30s window
@@ -587,6 +736,14 @@ app.post('/api', async (req, res) => {
       case 'adminLogin':
       case 'staffLogin': {
         const result = await _authenticateStaff(data.username, data.password);
+        if (result.success && result.staff) {
+          // Issue a signed session token — role is embedded and server-verified on every sensitive call
+          result.sessionToken = _signToken({
+            username: result.staff.username,
+            role:     result.staff.role,   // 'admin' | 'staff' (from DB)
+            exp:      Date.now() + SESSION_TTL_MS,
+          });
+        }
         return res.json(result);
       }
 
@@ -1190,20 +1347,34 @@ app.post('/api', async (req, res) => {
         // IDs use a zero-padded batch index (B0001…B0999) instead of rand5() to
         // guarantee uniqueness within the batch regardless of how fast it runs.
 
-        // Auto-extract variantLabel from itemName for kitchen qty aggregation.
-        // If itemName starts with a number + unit (e.g. "100 Gram Bhindi", "6 Roti Sabji"),
-        // store that leading "100 Gram" / "6 Roti" as variantLabel so getCookingSummary
-        // can compute real quantities (100 Gram × 2 orders = 200 Gram, not 2).
-        // Accept explicit variantLabel from payload too (future-proof).
-        let bulkVariantLabel = data.variantLabel || null;
-        if (!bulkVariantLabel) {
-          const vm = String(itemName).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
-          if (vm) bulkVariantLabel = `${vm[1]} ${vm[2]}`;  // e.g. "100 Gram"
+        // Build items array from the multi-item payload sent by admin.
+        // New format: data.items = [{ item_id, name, variantLabel, qty, price }]
+        // Legacy fallback: single itemName/description (old admin panel, backward compat).
+        let bulkItemsArr;
+        if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+          // New multi-item format — validate and clean each item
+          bulkItemsArr = data.items.map(it => {
+            const itName = (it.name || '').trim() || itemName;
+            const itQty  = Math.max(1, parseInt(it.qty) || 1);
+            const itObj  = { name: itName, qty: itQty, price: 0 };
+            // Preserve variantLabel for kitchen quantity aggregation
+            // e.g. "100 Gram" on Bhindi lets kitchen show 500g for 5 orders
+            if (it.variantLabel) itObj.variantLabel = it.variantLabel;
+            if (it.item_id)      itObj.item_id      = it.item_id;
+            return itObj;
+          });
+        } else {
+          // Legacy single-item fallback — auto-extract variantLabel from itemName
+          let bulkVariantLabel = data.variantLabel || null;
+          if (!bulkVariantLabel) {
+            const vm = String(itemName).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
+            if (vm) bulkVariantLabel = `${vm[1]} ${vm[2]}`;
+          }
+          const legacyItem = { name: itemName, description: itemDesc || '', qty: 1, price: priceNum };
+          if (bulkVariantLabel) legacyItem.variantLabel = bulkVariantLabel;
+          bulkItemsArr = [legacyItem];
         }
-
-        const bulkItem = { name: itemName, description: itemDesc || '', qty: 1, price: priceNum };
-        if (bulkVariantLabel) bulkItem.variantLabel = bulkVariantLabel;
-        const itemsJson  = JSON.stringify([bulkItem]);
+        const itemsJson  = JSON.stringify(bulkItemsArr);
         const nowIso     = new Date().toISOString();
         const timeStr    = istTimeStr(ist);
         const datePart   = `${ist.getUTCFullYear()}${String(ist.getUTCMonth()+1).padStart(2,'0')}${String(ist.getUTCDate()).padStart(2,'0')}`;
@@ -1691,7 +1862,13 @@ app.post('/api', async (req, res) => {
         const valid = await bcrypt.compare(data.password, rider.password_hash);
         if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
         const { password_hash, ...safe } = rider;
-        return res.json({ success: true, rider: safe });
+        // Issue a signed session token so rider can call staff-gated actions (e.g. updateOrderStatus)
+        const sessionToken = _signToken({
+          role:     'staff',
+          username: rider.rider_id,
+          exp:      Date.now() + SESSION_TTL_MS,
+        });
+        return res.json({ success: true, rider: safe, sessionToken });
       }
 
       case 'getRiderOrders': {
@@ -2599,14 +2776,35 @@ app.post('/api', async (req, res) => {
           items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
         }));
 
-        // Build item summary (same logic as getCookingSummary)
+        // Build item summary — mirrors _parseVariantQtyUnit logic from getCookingSummary.
+        // Items are stored with 'variantLabel' (e.g. "100 Gram"), NOT 'variant'.
+        // Using i.variant was always '' → qty was always raw cart qty (1), not real qty.
+        function _parseVQL(variantLabel) {
+          if (!variantLabel) return null;
+          const m = String(variantLabel).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
+          if (!m) return null;
+          return { numQty: parseFloat(m[1]), unit: m[2] };
+        }
         const itemMap = {};
         orders.forEach(o => {
+          // Track which item keys appear in this order so we count orders once per item per order
+          const seenKeysInOrder = new Set();
           (o.items || []).forEach(i => {
-            const key = (i.name || i.item_id || 'Unknown') + '|' + (i.variant || '');
-            if (!itemMap[key]) itemMap[key] = { name: i.name || 'Unknown', variant: i.variant || '', qty: 0, orders: 0 };
-            itemMap[key].qty += Number(i.qty) || 0;
-            itemMap[key].orders += 1;
+            const key = (i.name || i.item_id || 'Unknown').trim();
+            // Robustly read cart quantity — check all common field names used across app versions
+            const rawQty = i.qty ?? i.quantity ?? i.count ?? i.amount ?? null;
+            const cartQty = rawQty !== null && rawQty !== undefined ? parseFloat(rawQty) || 1 : 1;
+            const parsed  = _parseVQL(i.variantLabel || i.variant_label || '');
+            const realQty = parsed ? parsed.numQty * cartQty : cartQty;
+            const unit    = parsed ? parsed.unit : (i.unit || '').trim();
+            if (!itemMap[key]) itemMap[key] = { name: key, variantLabel: i.variantLabel || '', unit, qty: 0, orders: 0 };
+            itemMap[key].qty += realQty;
+            // Count this order only once per item key (not once per item-line)
+            if (!seenKeysInOrder.has(key)) {
+              itemMap[key].orders += 1;
+              seenKeysInOrder.add(key);
+            }
+            if (!itemMap[key].unit && unit) itemMap[key].unit = unit;
           });
         });
         const summary = Object.values(itemMap).sort((a, b) => b.qty - a.qty);
@@ -2664,15 +2862,23 @@ app.post('/api', async (req, res) => {
             try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
           }
           const items = Array.isArray(rawItems) ? rawItems : [];
+          // Track seen item keys per order to count orders once per item per order
+          const seenKeysInOrder = new Set();
           items.forEach(item => {
             const key     = (item.name || item.item_name || 'Unknown').trim();
-            const cartQty = parseFloat(item.quantity || item.qty || 1);
+            // Robustly read cart quantity — check all common field names used across app versions
+            const rawQty  = item.qty != null ? item.qty : (item.quantity != null ? item.quantity : (item.count != null ? item.count : null));
+            const cartQty = rawQty !== null ? parseFloat(rawQty) || 1 : 1;
             const parsed  = _parseVQU(item.variantLabel || item.variant_label || '');
             const realQty = parsed ? parsed.numQty * cartQty : cartQty;
             const unit    = parsed ? parsed.unit : (item.unit || item.variant || '').trim();
             if (!summary[key]) summary[key] = { name: key, totalQty: 0, unit, orders: 0 };
             summary[key].totalQty += realQty;
-            summary[key].orders   += 1;
+            // Count this order only once per item key (not once per item-line)
+            if (!seenKeysInOrder.has(key)) {
+              summary[key].orders += 1;
+              seenKeysInOrder.add(key);
+            }
             if (!summary[key].unit && unit) summary[key].unit = unit;
           });
         });
