@@ -1673,6 +1673,28 @@ async function _refreshApiKey() {
   return false;
 }
 
+// Silent userToken refresh — called automatically when a 401 suggests token expiry.
+// Uses stored (obfuscated) credentials to re-login and get a fresh userToken.
+// Returns true if refresh succeeded and SessionCache was updated.
+async function _refreshUserToken() {
+  try {
+    const creds = Creds.get();
+    if (!creds || !creds.phone || !creds.pw) return false;
+    const res = await fetch(CFG.API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', data: { phone: creds.phone, password: creds.pw }, apiKey: CFG.KEY })
+    });
+    if (!res.ok) return false;
+    const json = await res.json();
+    if (!json.success || !json.userToken) return false;
+    // Update SessionCache with fresh userToken, preserve everything else
+    const cached = SessionCache.get() || {};
+    SessionCache.save({ ...cached, user: json.user || cached.user, userToken: json.userToken });
+    return true;
+  } catch { return false; }
+}
+
 async function api(action, data = {}, _retry = 2, _keyRetried = false) {
   const TIMEOUT = 12000; // 12s — better for slow Indian 4G; was 8s
   const ctrl = new AbortController();
@@ -1682,14 +1704,19 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, data, apiKey: CFG.KEY })
+      body: JSON.stringify({ action, data, apiKey: CFG.KEY, userToken: (SessionCache.get()?.userToken || '') })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
     // 401 = API key mismatch (key rotated or loaded empty during server restart)
     // Auto-heal: refetch key from /config.js and retry the request once
     if (res.status === 401 && !_keyRetried) {
+      // Step 1: try refreshing API key (handles key rotation)
       const gotKey = await _refreshApiKey();
       if (gotKey) return api(action, data, _retry, true); // retry with fresh key
+      // Step 2: try silently refreshing userToken using stored credentials
+      // (handles 30-day token expiry without forcing user to re-login)
+      const refreshed = await _refreshUserToken();
+      if (refreshed) return api(action, data, _retry, true);
       throw new Error('Server error 401');
     }
     if (!res.ok) throw new Error('Server error ' + res.status);
@@ -2318,10 +2345,10 @@ async function doLogin() {
     const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
     _initMenuP3.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, userToken: res.userToken || '' });
     }).catch(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
     });
     startPolling();
     _doPostLoginRefresh(_initMenuP3);
@@ -3380,7 +3407,7 @@ async function doSignup() {
     _walletBal = 0;
     _khataEnabled = false;
     applyKhataVisibility();
-    SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false });
+    SessionCache.save({ user: res.user, is_subscriber: false, walletBalance: 0, pauseMode: 'none', khataEnabled: false , userToken: res.userToken || '' });
     showMenuSkeletons();
     _transitionToHome();
     if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
@@ -5316,6 +5343,10 @@ function _wipeAndShowLogin() {
   _pauseMode       = 'none';
   _khataEnabled    = false;
   _appliedCoupon   = null;
+  // Wipe service worker caches so no stale data remains on device after logout
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+  }
   _lastOrders      = null;
   _lastBalance     = null;
   _lastKhataStr    = null;
@@ -5405,7 +5436,7 @@ async function bootApp() {
             applyPauseState(_pauseMode);
             _applySubscriberUI();
             SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-              walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+              walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled , userToken: res.userToken || '' });
           })
           .catch(e => {
             const isAuthError = e.message?.includes('Session invalid') ||
@@ -5467,10 +5498,10 @@ async function bootApp() {
       const _p = loadMenu(true, false);
       _p.then(() => {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled , userToken: res.userToken || '' });
       }).catch(() => {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false , userToken: res.userToken || '' });
       });
       startPolling();
       _doPostLoginRefresh(_p);
@@ -5664,10 +5695,10 @@ async function _gasDoLogin() {
     const _p = loadMenu(true, false);
     _p.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled });
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, userToken: res.userToken || '' });
     }).catch(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false });
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
     });
     startPolling();
     _doPostLoginRefresh(_p);
@@ -5738,6 +5769,10 @@ function doLogout() {
   _pauseMode       = 'none';
   _khataEnabled    = false;
   _appliedCoupon   = null;
+  // Wipe service worker caches so no stale data remains on device after logout
+  if ('caches' in window) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+  }
   _lastOrders      = null;
   _lastBalance     = null;
   _lastKhataStr    = null;
