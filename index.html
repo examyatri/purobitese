@@ -633,6 +633,7 @@ textarea{resize:vertical;min-height:80px}
 }
 /* ── END RESPONSIVE ── */
 </style>
+<script src="https://purobitese-api.onrender.com/config.js"></script>
 </head>
 <body class="auth-mode">
 
@@ -1492,7 +1493,7 @@ textarea{resize:vertical;min-height:80px}
 ═══════════════════════════════════════════ */
 const CFG = {
   API:    'https://purobitese-api.onrender.com/api',
-  KEY:    'PB_SECURE_API_KEY_2026',
+  KEY:    window.__TIFFO_API_KEY__ || '',  // injected server-side — never hardcode here
   WA:     '919889760350',
   TIFFIN: '919889760350'
 };
@@ -1564,16 +1565,18 @@ let _postLoginRefreshDone = false;
 let _pendingCartNav  = false;   // true = user tapped cart/orders while guest → go to cart after login
 let _isGuestMode     = false;   // true = user is browsing as guest (not logged in, but on home)
 
-function _doPostLoginRefresh(initialMenuPromise) {
+function _doPostLoginRefresh(initialMenuPromise, skipSubscriberCheck = false) {
   // Guard: only once per login session
   if (_postLoginRefreshDone) return;
   _postLoginRefreshDone = true;
 
   // Kick off non-menu refreshes immediately — don't wait for menu first.
   // Subscriber/pause/wallet data arrives sooner → faster perceived load.
+  // skipSubscriberCheck=true on fresh signup: server already confirmed is_subscriber=false,
+  // so the checkSubscriber round-trip is unnecessary and saves ~400-600ms on first load.
   const sideRefreshes = [
     refreshPauseStatus(true).catch(() => {}),
-    refreshSubscriberStatus(true).catch(() => {}),
+    skipSubscriberCheck ? Promise.resolve() : refreshSubscriberStatus(true).catch(() => {}),
     (_session?.is_subscriber && _khataEnabled)
       ? refreshWalletBalance(true).catch(() => {})
       : Promise.resolve()
@@ -3361,7 +3364,7 @@ async function doSignup() {
     if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
     const _initMenuP4 = loadMenu(true, false); // bypassCache=true — fresh signup always hits DB, never stale cache
     startPolling();
-    _doPostLoginRefresh(_initMenuP4);
+    _doPostLoginRefresh(_initMenuP4, true); // skipSubscriberCheck=true — server already confirmed is_subscriber=false at signup
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
     // ❌ Failed — re-enable button so user can retry
