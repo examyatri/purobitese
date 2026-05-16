@@ -1,15 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v7.0  |  Updated : 2026-05-10
+   Version : v8.2  |  Updated : 2026-05-16
 
-   CHANGES v7.0:
-   - Cache bumped → tiffo-rider-v7
+   CHANGES v8.2:
+   - Version bump for v63 release
+   - Cache bumped → tiffo-rider-v10 (performance indexes migration)
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v7';
+const CACHE      = 'tiffo-rider-v10';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
