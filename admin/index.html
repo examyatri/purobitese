@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v19.5                                    ║
+     ║  Version : v19.6                                    ║
      ║  Updated : 2026-04-28                               ║
      ║  Changes : Deep mobile UX overhaul —                ║
      ║            swipe-to-dismiss bottom sheet modals;    ║
@@ -522,18 +522,27 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 
-/* ── RESPONSIVE ──────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE — full mobile overhaul
+   Covers: sidebar, topbar, layout, all pages, modals, tables
+   ══════════════════════════════════════════════════════════ */
+
+/* ── 768 px (tablet / phone landscape + portrait) ── */
 @media(max-width:768px){
-  /* ── Sidebar ── */
+
+  /* ─ Sidebar ─ */
   #sidebar{transform:translateX(-260px)}
   #sidebar.open{transform:translateX(0);box-shadow:4px 0 32px rgba(0,0,0,.3)}
   #main{margin-left:0!important}
   #ham-btn{display:flex!important}
 
-  /* ── Layout ── */
-  #content{padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+  /* ─ Layout ─ */
+  #content{
+    padding:14px;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  }
 
-  /* ── Topbar: icon-only on mobile ── */
+  /* ─ Topbar ─ */
   #topbar{padding:0 14px;gap:8px;height:56px}
   #topbar-refresh-text,#topbar-logout-text{display:none}
   .topbar-chip .live-label{display:none}
@@ -541,74 +550,336 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   #topbar .btn{padding:7px 10px}
   .topbar-title{font-size:14px}
 
-  /* ── Stats grid ── */
+  /* ─ Dashboard — stats grid 2-col ─ */
   .grid-stats{grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
 
-  /* ── Cards ── */
+  /* ─ Cards ─ */
   .card{padding:16px}
   .card-header{margin-bottom:12px;padding-bottom:10px}
 
-  /* ── Page header ── */
+  /* ─ Page header — wrap buttons below title ─ */
   .page-header{flex-wrap:wrap;gap:8px}
   .page-header h2{font-size:17px}
+  /* header action buttons: full-width row on mobile */
+  .page-header > div:last-child,
+  .page-header > button:last-child{
+    width:100%;display:flex;gap:8px;flex-wrap:wrap;
+  }
+  .page-header > button:last-child{justify-content:stretch}
+  .page-header > div:last-child .btn,
+  .page-header > button:last-child{
+    flex:1;justify-content:center;min-height:44px;
+  }
 
-  /* ── Filter bar: stack on mobile ── */
-  .filter-bar{flex-direction:column;align-items:stretch;gap:8px;padding:12px}
-  .filter-bar .search-input{min-width:unset;width:100%}
-  .filter-bar select{width:100%}
-  .filter-bar .btn{width:100%;justify-content:center}
+  /* ─ Orders page — header buttons row ─ */
+  #p-orders > div:first-child > div:last-child{
+    width:100%;display:flex;gap:8px;flex-wrap:wrap;
+  }
+  #p-orders > div:first-child > div:last-child button{
+    flex:1;min-height:44px;justify-content:center;font-size:13px;
+  }
 
-  /* ── Order tabs: horizontal scroll, no wrap ── */
-  #ord-cat-tabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
-    -webkit-overflow-scrolling:touch;scrollbar-width:none;gap:6px;padding-bottom:2px}
+  /* ─ Orders — filter card: stack layers ─ */
+  #p-orders .card > div[style*="display:flex"][style*="justify-content:space-between"]{
+    flex-direction:column!important;gap:10px!important;
+  }
+  /* Day tab row + status chip row: horizontal scroll */
+  #ord-day-tabs{
+    display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    gap:6px;padding-bottom:4px;
+  }
+  #ord-day-tabs::-webkit-scrollbar{display:none}
+  #ord-cat-tabs{
+    display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    gap:6px;padding-bottom:2px;width:100%;
+  }
   #ord-cat-tabs::-webkit-scrollbar{display:none}
-  #ord-status-chips{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
-    -webkit-overflow-scrolling:touch;scrollbar-width:none;gap:5px;padding-bottom:2px}
+  #ord-status-chips{
+    display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    gap:5px;padding-bottom:2px;
+  }
   #ord-status-chips::-webkit-scrollbar{display:none}
+  .ord-cat-btn{white-space:nowrap;flex-shrink:0}
+  .ord-chip{white-space:nowrap;flex-shrink:0}
 
-  /* ── Tables: horizontal scroll ── */
+  /* ─ Filter bar (Menu, Coupons, Subscribers) ─ */
+  .filter-bar{
+    flex-direction:column;align-items:stretch;gap:8px;padding:12px;
+  }
+  .filter-bar .search-input{min-width:unset;width:100%;min-height:46px;font-size:16px!important}
+  .filter-bar select{width:100%;min-height:46px;font-size:16px!important}
+  .filter-bar .btn{width:100%;justify-content:center;min-height:46px}
+
+  /* ─ Tables: horizontal scroll on all pages ─ */
   .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
   th,td{padding:10px 11px;font-size:12.5px;white-space:nowrap}
 
-  /* ── Settings: stack sidebar list above panel ── */
-  #p-settings .settings-two-col{grid-template-columns:1fr!important;gap:14px}
-  .settings-list{flex-direction:row!important;flex-wrap:wrap!important;gap:8px}
-  .settings-item{padding:10px 12px;flex:1 1 calc(50% - 4px);min-width:130px}
-  .settings-item .si-icon{width:30px;height:30px;font-size:13px}
-  .settings-item span{font-size:12.5px!important}
+  /* ─ Bulk Orders page ─ */
+  /* "Order for" toggle buttons — full width */
+  #p-bulk .card [style*="display:flex"][style*="gap:8px"] .bulk-tab-btn{
+    flex:1;min-height:46px;font-size:14px;
+  }
+  /* Item picker row: stack vertically */
+  #p-bulk .field [style*="display:flex"][style*="gap:6px"][style*="flex-wrap:wrap"]{
+    flex-direction:column!important;
+  }
+  #p-bulk #bulk-item-picker{width:100%!important;min-height:48px;font-size:16px!important}
+  #p-bulk #bulk-item-qty{width:100%!important;min-height:48px;font-size:16px!important}
+  #p-bulk [onclick="bulkAddItem()"]{width:100%!important;min-height:48px;justify-content:center;font-size:15px}
+  /* Manual add row */
+  #p-bulk [style*="display:flex"][style*="gap:8px"]:has(#bulk-manual-phone){
+    flex-direction:column!important;
+  }
+  #bulk-manual-phone{min-height:48px!important;font-size:16px!important}
+  /* Bulk subscriber list header: sort + refresh row */
+  #p-bulk .card [style*="display:flex"][style*="align-items:center"][style*="justify-content:space-between"]{
+    flex-direction:column!important;align-items:stretch!important;gap:8px!important;
+  }
+  #bulk-sort{width:100%;min-height:46px;font-size:16px!important}
+  /* Bulk sub rows: stack columns on mobile */
+  .bulk-sub-row{
+    grid-template-columns:32px 1fr 70px!important;
+    gap:4px!important;
+  }
+  /* hide plan/status/address cols on mobile — keep checkbox, name, balance */
+  .bulk-sub-row > div:nth-child(3),  /* PLAN */
+  .bulk-sub-row > div:nth-child(5),  /* STATUS */
+  .bulk-sub-row > div:nth-child(6)   /* ADDRESS */
+  {display:none}
+  /* Header row of bulk list: match */
+  #p-bulk .card > div[style*="grid-template-columns:32px"]{
+    grid-template-columns:32px 1fr 70px!important;
+  }
+  #p-bulk .card > div[style*="grid-template-columns:32px"] > div:nth-child(3),
+  #p-bulk .card > div[style*="grid-template-columns:32px"] > div:nth-child(5),
+  #p-bulk .card > div[style*="grid-template-columns:32px"] > div:nth-child(6){display:none}
 
-  /* ── Modal: bottom sheet on mobile ── */
+  /* ─ Kitchen page ─ */
+  /* Header buttons: wrap into 2-col grid */
+  #p-kitchen .page-header > div:last-child{
+    width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  }
+  #p-kitchen .page-header > div:last-child button{
+    width:100%;min-height:46px;justify-content:center;font-size:13px;
+  }
+  /* Filter card: date buttons scroll, session row stacks */
+  #p-kitchen .card [style*="display:flex"][style*="gap:6px"][style*="flex-wrap:wrap"][style*="align-items:center"]{
+    flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;padding-bottom:4px;
+  }
+  /* Session + Search: stack vertically */
+  #p-kitchen .card [style*="display:flex"][style*="justify-content:space-between"][style*="flex-wrap:wrap"][style*="gap:10px"]{
+    flex-direction:column!important;align-items:stretch!important;
+  }
+  #p-kitchen .card [onclick="kitchenSearch()"]{
+    width:100%!important;min-height:48px;justify-content:center;font-size:15px;
+  }
+  /* Kitchen custom date range: stack */
+  #kitchen-custom-range{flex-direction:column!important;gap:8px!important}
+  #kitchen-from-date,#kitchen-to-date{width:100%!important;min-height:48px;font-size:16px!important}
+  /* Start Cooking button */
+  #kitchen-start-btn{width:100%!important;justify-content:center;min-height:52px;font-size:15px}
+  /* Kitchen stats pills: scroll */
+  #kitchen-stats{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px}
+  #kitchen-stats::-webkit-scrollbar{display:none}
+
+  /* ─ Subscribers page — chip row: scroll ─ */
+  #subs-filter-chips{
+    flex-wrap:nowrap!important;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+    padding-bottom:4px;
+  }
+  #subs-filter-chips::-webkit-scrollbar{display:none}
+  .subs-chip{white-space:nowrap;flex-shrink:0}
+
+  /* ─ Users page — filter tabs + sort: stack ─ */
+  #p-users > div[style*="display:flex"][style*="justify-content:space-between"]{
+    flex-direction:column!important;align-items:stretch!important;gap:10px!important;
+  }
+  #p-users > div[style*="display:flex"][style*="justify-content:space-between"] > div:first-child{
+    width:100%;display:flex;
+  }
+  #p-users > div[style*="display:flex"][style*="justify-content:space-between"] > div:first-child button{
+    flex:1;min-height:44px;font-size:12px;
+  }
+  #p-users > div[style*="display:flex"][style*="justify-content:space-between"] > div:last-child{
+    width:100%;justify-content:space-between;
+  }
+  #users-sort{min-height:44px;font-size:16px!important;flex:1}
+  /* Users search */
+  #users-search{min-height:48px!important;font-size:16px!important}
+
+  /* ─ Khata page ─ */
+  /* Filter bar: stack search + chips + sort */
+  #p-khata .card > div[style*="display:flex"]{
+    flex-direction:column!important;gap:10px!important;align-items:stretch!important;
+  }
+  #p-khata .card > div[style*="display:flex"] > div:first-child{min-width:unset!important}
+  #khata-search{min-height:48px;font-size:16px!important}
+  /* Khata chips: scroll */
+  #p-khata .card [style*="display:flex"][style*="flex-wrap:wrap"][style*="gap:6px"]:has(.khata-chip){
+    flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;padding-bottom:2px;width:100%;
+  }
+  .khata-chip{white-space:nowrap;flex-shrink:0;min-height:40px;align-items:center}
+  #khata-sort{width:100%;min-height:46px;font-size:16px!important}
+  /* Khata summary cards: 2-col */
+  #khata-summary-cards{grid-template-columns:1fr 1fr!important}
+
+  /* ─ Notifications page ─ */
+  /* Header: stack welcome-coupon button below title */
+  #p-notifs .page-header{flex-direction:column!important;align-items:stretch!important}
+  #nu-coupon-toggle-card{width:100%;justify-content:flex-start}
+
+  /* ─ Settings page ─ */
+  #p-settings .settings-two-col{grid-template-columns:1fr!important;gap:14px}
+  .settings-list{
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:8px!important;
+  }
+  .settings-item{padding:12px;min-height:56px}
+  .settings-item .si-icon{width:32px;height:32px;font-size:13px}
+  .settings-item span{font-size:13px!important}
+  .settings-panel{padding:18px}
+
+  /* ─ Modal: full bottom sheet ─ */
   .mo-bg{align-items:flex-end!important;padding:0!important}
   .mo-box{
     border-radius:20px 20px 0 0!important;
-    padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px))!important;
-    max-height:88vh!important;width:100%!important;max-width:100%!important;
+    padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px))!important;
+    max-height:92vh!important;
+    width:100%!important;max-width:100%!important;
+    overflow-y:auto!important;-webkit-overflow-scrolling:touch;
     animation:slideUp 250ms cubic-bezier(.32,0,.67,0);
   }
-  /* drag handle pill at top of bottom sheet */
+  /* drag handle */
   .mo-box::before{
-    content:'';display:block;width:44px;height:5px;background:#d1d5db;
-    border-radius:3px;margin:0 auto 16px;
+    content:'';display:block;width:44px;height:5px;
+    background:#d1d5db;border-radius:3px;margin:0 auto 18px;
   }
-  .mo-title{font-size:16px!important;margin-bottom:18px!important}
-  /* collapse 2-col grids inside modals to 1-col — both class-based and inline-style grids */
+  .mo-title{font-size:17px!important;margin-bottom:20px!important}
+  /* collapse 2-col grids */
   .mo-grid-2,.mo-grid-2-12{grid-template-columns:1fr!important}
   .mo-box [style*="grid-template-columns:1fr 1fr"],
   .mo-box [style*="grid-template-columns: 1fr 1fr"]{
-    grid-template-columns:1fr!important;
-    display:grid!important;
+    grid-template-columns:1fr!important;display:grid!important;
   }
-  /* larger touch targets + prevent iOS keyboard zoom (needs font-size>=16px) */
+  /* All inputs/selects in modal: large touch target, no iOS zoom */
   .mo-box .field input,
   .mo-box .field select,
   .mo-box .field textarea,
   .mo-box .bulk-mo-select{
-    min-height:48px;
-    font-size:16px!important;
-    padding:12px 14px!important;
+    min-height:52px;font-size:16px!important;padding:14px 16px!important;
   }
-  .mo-box .field label{font-size:13px}
-  /* ── Toast: full width at bottom on mobile ── */
+  .mo-box .field label{font-size:14px!important;margin-bottom:8px!important}
+  .mo-box .field{margin-bottom:16px!important}
+  /* bulk-mo-label */
+  .mo-box .bulk-mo-label{
+    font-size:13px!important;font-weight:700!important;
+    color:#374151!important;margin-bottom:8px!important;
+    letter-spacing:.02em!important;
+  }
+  /* All modal buttons: full-width, tall */
+  .mo-box .btn:not(.mo-label-btn){
+    width:100%!important;min-height:52px!important;
+    font-size:15px!important;font-weight:700!important;
+    border-radius:12px!important;margin-bottom:8px!important;
+    justify-content:center!important;
+  }
+  /* Inline label buttons (e.g. "+ Add Variant"): comfortable size, NOT full-width */
+  .mo-box .btn.mo-label-btn{
+    min-height:36px!important;padding:6px 14px!important;
+    font-size:13px!important;white-space:nowrap!important;
+    width:auto!important;display:inline-flex!important;
+  }
+  /* refund options in reject modal */
+  .mo-box .refund-opt{padding:16px;font-size:14px}
+  /* rider assign buttons */
+  .mo-box button[style*="width:100%"][style*="border:2px"]{
+    min-height:52px!important;font-size:14px!important;
+  }
+  /* inline flex rows inside modals: stack to column */
+  .mo-box [style*="display:flex"][style*="gap:10px"]:not(.mo-title):not([style*="align-items:center"][style*="gap:8px"]){
+    flex-wrap:wrap;
+  }
+  /* confirm buttons stacked */
+  .mo-box .mo-confirm-btns{flex-direction:column!important;justify-content:stretch!important}
+  .mo-box .mo-confirm-btns .btn{margin-bottom:0!important}
+  /* spacing helpers */
+  .mo-box [style*="margin-bottom:14px"]{margin-bottom:18px!important}
+  .mo-box [style*="margin-bottom:20px"]{margin-bottom:22px!important}
+
+  /* ─ Mobile modal deep-fix: override inline small font-sizes & layouts ─ */
+
+  /* Force readable font size on ALL text inside modal (beats inline style) */
+  .mo-box *{-webkit-text-size-adjust:100%}
+
+  /* Batch-status cards: stack label+button vertically on phone */
+  .mo-box .mo-batch-card{
+    flex-direction:column!important;
+    align-items:flex-start!important;
+    gap:10px!important;
+  }
+  .mo-box .mo-batch-card .mo-batch-btn{
+    width:100%!important;
+    min-height:48px!important;
+    font-size:14px!important;
+    white-space:normal!important;
+    justify-content:center!important;
+    border-radius:10px!important;
+  }
+  .mo-batch-card-label{font-size:14px!important}
+  .mo-batch-card-sub{font-size:12.5px!important}
+  .mo-batch-count{font-size:12px!important}
+
+  /* Transaction history rows: stack amount to new line */
+  .mo-box .mo-txn-row{
+    flex-direction:column!important;
+    align-items:flex-start!important;
+    gap:4px!important;
+  }
+  .mo-box .mo-txn-amount{font-size:16px!important;font-weight:800!important}
+  .mo-box .mo-txn-badge{font-size:12px!important;padding:3px 8px!important}
+
+  /* Info rows (order detail / stat detail): force readable size */
+  .mo-box .mo-info-row{font-size:13.5px!important;padding:8px 0!important}
+  .mo-box .mo-info-label{font-size:12px!important;min-width:80px!important}
+
+  /* Generic: any action button inside modal gets bumped up — excludes icon/stepper/label buttons */
+  .mo-box button:not(.mo-close-btn):not(.mo-icon-btn):not(.mo-label-btn){
+    min-height:46px!important;
+    font-size:13.5px!important;
+  }
+  /* Icon/stepper buttons (−/+/✕ qty controls): already sized correctly, never override */
+  .mo-box button.mo-icon-btn{min-height:unset!important;font-size:inherit!important}
+  /* But tiny-badge close-like icon buttons stay small */
+  .mo-box button.mo-close-btn{min-height:unset!important}
+
+  /* Rider assign buttons: easier tap */
+  .mo-box button[style*="border:2px solid"]{
+    padding:14px 16px!important;
+    font-size:14px!important;
+    min-height:52px!important;
+  }
+
+  /* Coupon restriction info box: readable */
+  .mo-box .mo-warn-box{padding:14px!important;font-size:13px!important}
+  .mo-box .mo-warn-box b{font-size:14px!important}
+
+  /* Order ID code chip: bigger */
+  .mo-box code{font-size:13px!important;padding:3px 8px!important}
+
+  /* Description para under modal title */
+  .mo-box > p,.mo-box [style*="font-size:12.5px"],.mo-box [style*="font-size:12px"],.mo-box [style*="font-size:13px"]{
+    font-size:13.5px!important;
+    line-height:1.6!important;
+  }
+
+  /* ─ Toast ─ */
   #a-toast{
     bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;
     right:14px!important;left:14px!important;
@@ -617,19 +888,75 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   }
 }
 
+/* ── 480 px (small phones — most common Indian Android sizes) ── */
 @media(max-width:480px){
+  #content{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+
+  /* Dashboard */
   .grid-stats{grid-template-columns:1fr 1fr;gap:10px}
   .stat-val{font-size:20px}
   .stat-icon{width:38px;height:38px;margin-bottom:8px}
   .stat-label{font-size:11px}
-  #content{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+
+  /* Cards & layout */
   .card{padding:13px;border-radius:12px}
   .page-header h2{font-size:15px}
+
+  /* Tables */
   th,td{padding:8px 9px;font-size:12px}
   .ord-cat-btn{padding:7px 12px;font-size:12px}
   .ord-chip{padding:4px 10px;font-size:11px}
-  .settings-item{flex:1 1 100%}
-  .mo-box{max-height:95vh!important;padding:16px 14px calc(16px + env(safe-area-inset-bottom,0px))!important}
+
+  /* Kitchen */
+  #p-kitchen .page-header > div:last-child{grid-template-columns:1fr!important}
+
+  /* Settings: full-width items on tiny screens */
+  .settings-list{grid-template-columns:1fr!important}
+  .settings-item{min-height:52px}
+
+  /* Khata summary: 1-col on very small */
+  #khata-summary-cards{grid-template-columns:1fr!important}
+
+  /* Bulk sub-list header row */
+  #p-bulk .card > div[style*="grid-template-columns:32px"]{
+    grid-template-columns:32px 1fr 60px!important;
+  }
+
+  /* Modal */
+  .mo-box{
+    max-height:96vh!important;
+    padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))!important;
+  }
+  .mo-box .btn{min-height:50px!important;font-size:14px!important}
+}
+
+/* ── Orders page header — mobile stacking ── */
+@media(max-width:768px){
+  .ord-page-hdr{flex-direction:column!important;align-items:stretch!important}
+  .ord-hdr-btns{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
+  .ord-hdr-btns button{
+    width:100%!important;min-height:46px!important;
+    justify-content:center!important;font-size:13px!important;
+  }
+  /* Kitchen header buttons: 3-col grid */
+  .kitchen-hdr-btns{
+    display:grid!important;grid-template-columns:1fr 1fr 1fr!important;
+    gap:8px!important;width:100%!important;
+  }
+  .kitchen-hdr-btns button{
+    width:100%!important;min-height:46px!important;
+    justify-content:center!important;font-size:12px!important;
+    padding:9px 8px!important;
+  }
+  /* Bulk manual add: stack input above button */
+  .bulk-manual-row{flex-direction:column!important}
+  .bulk-manual-row #bulk-manual-phone{
+    width:100%!important;min-height:48px!important;font-size:16px!important;
+  }
+  .bulk-manual-row .btn{width:100%!important;min-height:48px!important;justify-content:center}
+}
+@media(max-width:480px){
+  .kitchen-hdr-btns{grid-template-columns:1fr!important}
 }
 /* ── Pull-to-Refresh ── */
 .ptr-zone{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
@@ -755,12 +1082,12 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <span id="ptr-spinner-admin" class="ptr-spinner"></span>
           <span>Pull to refresh</span>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <div class="ord-page-hdr" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
           <div>
             <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Orders</h2>
             <p style="color:#94a3b8;font-size:13px;margin-top:2px" id="orders-subtitle">Today's orders — loading…</p>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="ord-hdr-btns" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button id="ord-batch-btn" onclick="openBatchStatusModal()" style="display:flex;align-items:center;gap:7px;padding:9px 14px;background:white;color:#7c3aed;border:1.5px solid #ddd6fe;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;transition:all 180ms" onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='white'">
               <i class="fa fa-bolt"></i> Batch Update
             </button>
@@ -982,7 +1309,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <span style="font-family:var(--ff);font-weight:700;font-size:14px;color:#1e40af">Order for Any Specific Subscriber</span>
           </div>
           <div style="font-size:12px;color:#64748b;margin-bottom:10px">Checks for duplicate order &amp; pause status. Low balance → Udhar tiffin. Admin can override pause.</div>
-          <div style="display:flex;gap:8px">
+          <div class="bulk-manual-row" style="display:flex;gap:8px">
             <input id="bulk-manual-phone" type="tel" placeholder="Subscriber mobile number" style="flex:1;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px">
             <button class="btn btn-p" onclick="bulkAddManual()"><i class="fa fa-plus"></i> Add to Order List</button>
           </div>
@@ -1412,7 +1739,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a;margin:0">🔥 Kitchen Dashboard</h2>
             <div style="font-size:12px;color:#94a3b8;margin-top:2px">Aggregate order quantities to prepare — excluding already-cooked sessions</div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="kitchen-hdr-btns" style="display:flex;gap:8px;flex-wrap:wrap">
             <button onclick="loadKitchen()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer"><i class="fa fa-rotate-right"></i> Refresh</button>
             <button onclick="kitchenSendWhatsApp()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(37,211,102,.3)"><i class="fab fa-whatsapp"></i> WhatsApp</button>
             <button onclick="kitchenExportPDF()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(230,57,70,.25)"><i class="fa fa-file-pdf"></i> Export PDF</button>
@@ -1725,15 +2052,72 @@ function openMo(html) {
 
   bg.style.display = 'flex';
 
-  // Focus first non-button input for UX (skip coupon modal inputs — auto-focus triggers virtual keyboard on mobile)
+  // Focus first non-button input for UX — skip on mobile (auto-focus triggers virtual keyboard,
+  // which lifts the bottom sheet and hides action buttons before the user has read the form)
   requestAnimationFrame(() => {
-    const first = box.querySelector('input:not([type=hidden]),select,textarea');
-    if (first && !first.id?.startsWith('cf-nu-')) first.focus?.();
+    if (window.innerWidth > 768) {
+      const first = box.querySelector('input:not([type=hidden]),select,textarea');
+      if (first && !first.id?.startsWith('cf-nu-')) first.focus?.();
+    }
     box.scrollTop = 0;
+    // Apply mobile layout patches after render
+    if (window.innerWidth <= 768) _moMobilePatch(box);
   });
 
   // Attach swipe-to-dismiss on mobile
   _moAttachSwipe(box, bg);
+}
+
+// ── Mobile modal patch ──────────────────────────────────────────────
+// Adds helper classes and fixes inline styles CSS specificity can't beat.
+// Zero functional changes — pure layout/readability improvements.
+function _moMobilePatch(box) {
+  if (!box) return;
+
+  // 1. Batch-status cards: only inside .mo-batch-grid (batch status modal).
+  //    Stack label+button vertically. Other space-between modals are untouched.
+  var batchGrid = box.querySelector('.mo-batch-grid');
+  if (batchGrid) {
+    batchGrid.querySelectorAll('div[style*="display:flex"]').forEach(function(row) {
+      var btn = row.querySelector('button');
+      if (!btn) return;
+      row.classList.add('mo-batch-card');
+      btn.classList.add('mo-batch-btn');
+      btn.style.whiteSpace = 'normal'; // kills nowrap overflow
+    });
+  }
+
+  // 2. Bump all inline font-size < 13.5px on non-icon, non-badge elements.
+  //    Handles deeply nested inline styles that CSS attribute selectors can't reach.
+  box.querySelectorAll('[style*="font-size"]').forEach(function(el) {
+    var fs = el.style.fontSize;
+    if (!fs) return;
+    var px = parseFloat(fs);
+    if (isNaN(px) || px >= 13.5) return;
+    // Skip FontAwesome icons
+    if (el.classList.contains('fa') || el.classList.contains('svg-inline--fa')) return;
+    // Skip <i> tags entirely (icon containers)
+    if (el.tagName === 'I') return;
+    // Skip stepper/icon buttons (mo-icon-btn) and inline label buttons (mo-label-btn)
+    if (el.classList.contains('mo-icon-btn') || el.classList.contains('mo-label-btn')) return;
+    // Skip tiny label badges (like ORDER / TRANSACTION headers in notif cards)
+    // identified by letter-spacing or all-caps short text
+    var ls = el.style.letterSpacing;
+    if (ls && parseFloat(ls) >= 0.4) return;
+    el.style.fontSize = '13.5px';
+  });
+
+  // 3. Make refund-opt tap targets more comfortable
+  box.querySelectorAll('.refund-opt').forEach(function(opt) {
+    opt.style.padding = '16px';
+    opt.style.minHeight = '64px';
+  });
+
+  // 4. Order-id code chips: bigger and readable
+  box.querySelectorAll('code').forEach(function(c) {
+    c.style.fontSize = '13px';
+    c.style.padding  = '3px 9px';
+  });
 }
 
 function closeMo() {
@@ -1768,6 +2152,9 @@ function _moAttachSwipe(box, bg) {
   function onStart(e) {
     // Don't swipe if the modal content is scrolled down
     if (box.scrollTop > 4) return;
+    // Don't swipe if touch started on a button or interactive element
+    const tag = e.target?.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'LABEL' || tag === 'A') return;
     startY = e.touches[0].clientY;
     curY   = startY;
     active = true;
@@ -1819,7 +2206,7 @@ let _confirmCb = null;
 function confirmAction(msg, onConfirm) {
   _confirmCb = onConfirm;
   openMo(`<div class="mo-title">⚠️ Confirm</div><p style="margin-bottom:20px">${msg}</p>
-    <div style="display:flex;gap:10px;justify-content:flex-end">
+    <div class="mo-confirm-btns" style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
       <button class="btn btn-danger" onclick="closeMo();if(_confirmCb){var cb=_confirmCb;_confirmCb=null;cb();}">Confirm</button>
     </div>`);
@@ -1860,6 +2247,10 @@ function guardedApi(key, fn) {
 }
 
 // ─── API ─────────────────────────────────────────────────
+// Guard: prevents multiple simultaneous 401s (e.g. parallel fetches) from
+// calling doAdminLogout() more than once in the same session.
+let _sessionExpiredHandled = false;
+
 async function _refreshApiKey() {
   try {
     const r = await fetch('https://purobitese-api.onrender.com/config.js', { cache: 'no-store' });
@@ -1883,9 +2274,18 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
     if (res.status === 401 && !_keyRetried) {
+      // Step 1: try refreshing the API key (covers server restart / key rotation)
       const gotKey = await _refreshApiKey();
       if (gotKey) return api(action, data, _retry, true);
-      throw new Error('Server error 401');
+      // Step 2: API key refresh didn't help → session token has expired (12h TTL).
+      // Schedule logout once (guard prevents duplicate calls from parallel requests).
+      // setTimeout(0) lets the caller's catch run first (showing its error toast),
+      // then logout fires on the next tick — no double-toast race.
+      if (!_sessionExpiredHandled) {
+        _sessionExpiredHandled = true;
+        setTimeout(() => doAdminLogout(), 0);
+      }
+      throw new Error('Session expired. Please log in again.');
     }
     if (!res.ok) throw new Error('Server error ' + res.status);
     const json = await res.json();
@@ -2407,7 +2807,7 @@ function openBatchStatusModal() {
       <i class="fa fa-circle-info" style="margin-right:5px"></i>
       Scope: <b>${scopeLabel}</b> &nbsp;·&nbsp; Updates all orders of the selected <b>current status</b> to the new status.
     </div>
-    <div style="display:grid;gap:10px;margin-bottom:18px">
+    <div class="mo-batch-grid" style="display:grid;gap:10px;margin-bottom:18px">
       <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
         <div>
           <div style="font-family:var(--ff);font-weight:700;font-size:13.5px;color:#9a3412">🕐 Pending <span style="background:#fed7aa;color:#9a3412;padding:2px 8px;border-radius:20px;font-size:11px;margin-left:6px">${pending}</span></div>
@@ -2524,10 +2924,10 @@ function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment)
       </select>
     </div>
 
-    <button class="btn btn-primary" style="width:100%;padding:11px;font-size:14px;font-weight:700" onclick="doBulkUpdate('${orderId}')">
+    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;font-weight:700;border-radius:12px;min-height:52px" onclick="doBulkUpdate('${orderId}')">
       <i class="fa fa-floppy-disk"></i> Save Changes
     </button>
-    <button class="btn btn-outline" style="margin-top:8px;width:100%" onclick="closeMo()">Cancel</button>
+    <button class="btn btn-outline" style="margin-top:8px;width:100%;padding:14px;font-size:15px;border-radius:12px;min-height:52px" onclick="closeMo()">Cancel</button>
   `);
 }
 
@@ -2949,10 +3349,10 @@ function _bulkRenderItems() {
       <div style="display:flex;align-items:center;gap:8px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:9px 12px">
         <div style="font-size:13px;font-weight:600;color:#0f172a;flex:1">${label}</div>
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
-          <button type="button" onclick="_bulkItemQty(${i},-1)" style="width:28px;height:28px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;color:#475569;line-height:1">−</button>
-          <input type="number" min="1" value="${it.qty}" onchange="_bulkItemSetQty(${i},this.value)" style="width:48px;height:28px;border:1.5px solid #93c5fd;border-radius:7px;text-align:center;font-size:13px;font-weight:700;color:#1e40af;padding:0 4px">
-          <button type="button" onclick="_bulkItemQty(${i},+1)" style="width:28px;height:28px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;color:#475569;line-height:1">+</button>
-          <button type="button" onclick="_bulkItemRemove(${i})" title="Remove" style="width:28px;height:28px;border:none;border-radius:7px;background:#fee2e2;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:13px;font-weight:700">✕</button>
+          <button type="button" class="mo-icon-btn" onclick="_bulkItemQty(${i},-1)" style="width:40px;height:40px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;color:#475569;line-height:1">−</button>
+          <input type="number" min="1" value="${it.qty}" onchange="_bulkItemSetQty(${i},this.value)" style="width:52px;height:40px;border:1.5px solid #93c5fd;border-radius:7px;text-align:center;font-size:14px;font-weight:700;color:#1e40af;padding:0 4px">
+          <button type="button" class="mo-icon-btn" onclick="_bulkItemQty(${i},+1)" style="width:40px;height:40px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;color:#475569;line-height:1">+</button>
+          <button type="button" class="mo-icon-btn" onclick="_bulkItemRemove(${i})" title="Remove" style="width:40px;height:40px;border:none;border-radius:7px;background:#fee2e2;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:15px;font-weight:700">✕</button>
         </div>
       </div>`;
   }).join('');
@@ -3226,7 +3626,7 @@ function openMenuModal(editId = null) {
     <div class="field"><label>Image URL</label><input id="mf-img" placeholder="https://…" value="${m?.image_url||''}"></div>
 
     <div class="field">
-      <label>Variants (optional) <button class="btn btn-outline" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="addVariantRow()">+ Add Variant</button></label>
+      <label>Variants (optional) <button class="btn btn-outline mo-label-btn" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="addVariantRow()">+ Add Variant</button></label>
       <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Each variant overrides base price (e.g. Half / Full, Regular / Large)</div>
       <div id="variants-container">${variantRows}</div>
     </div>
@@ -3282,7 +3682,7 @@ function buildVariantRow(i, label='', price='') {
   return `<div class="variant-row" id="vrow-${i}">
     <input placeholder="Label" value="${label}" style="flex:1;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px">
     <input placeholder="Price" type="number" value="${price}" style="width:90px;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px">
-    <button onclick="this.closest('.variant-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--pd);font-size:16px">×</button>
+    <button class="mo-icon-btn" onclick="this.closest('.variant-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--pd);font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:7px;flex-shrink:0">×</button>
   </div>`;
 }
 
@@ -4028,7 +4428,7 @@ function promoteUserFromAllTab(phone) {
     <div class="field"><label>Notes <span style="color:#94a3b8;font-weight:400">optional</span></label><textarea id="pat-notes" rows="2" placeholder="Internal note…"></textarea></div>
     <div style="display:flex;gap:10px;margin-top:4px">
       <button class="btn btn-outline" style="flex:1" onclick="closeMo()">Cancel</button>
-      <button class="btn" style="flex:2;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;font-weight:700" onclick="_doPromoteFromAllTab('${phone}')"><i class="fa fa-arrow-up"></i> Confirm &amp; Promote</button>
+      <button id="pat-confirm-btn" class="btn" style="flex:2;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;font-weight:700" onclick="_doPromoteFromAllTab('${phone}')"><i class="fa fa-arrow-up"></i> Confirm &amp; Promote</button>
     </div>`);
 }
 
@@ -4038,7 +4438,7 @@ async function _doPromoteFromAllTab(phone) {
   const notes      = document.getElementById('pat-notes')?.value.trim();
   const recharge   = parseFloat(document.getElementById('pat-recharge')?.value) || 0;
   if (!plan_start) { aToast('Select a start date'); return; }
-  const confirmBtn = document.querySelector('#mo-box button[onclick*="_doPromoteFromAllTab"]');
+  const confirmBtn = document.getElementById('pat-confirm-btn');
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Promoting…'; }
   try {
     await api('promoteToSubscriber', { phone, plan, plan_start, notes });
@@ -5765,7 +6165,8 @@ window.addEventListener('DOMContentLoaded', () => {
       if (!bg || bg.style.display !== 'flex') return;
       if (window.innerWidth > 768) return;
       const kbHeight = window.innerHeight - window.visualViewport.height;
-      // Lift the modal above the keyboard
+      // Lift the modal above the keyboard; reset any stale swipe transform
+      box.style.transform    = '';
       box.style.marginBottom = kbHeight > 60 ? kbHeight + 'px' : '';
       box.style.maxHeight    = kbHeight > 60
         ? `calc(92vh - ${kbHeight}px)`
