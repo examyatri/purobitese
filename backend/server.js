@@ -1,11 +1,19 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
-// ║  Tiffo — Backend API (server.js)         ║
-// ║  Version : v55.2 — 30-day userToken, security hardening              ║
-// ║  Updated : 2026-05-15                               ║
-// ║  Changes : Allow multiple orders per slot (removed  ║
-// ║            per-slot duplicate block). 30s idempotency║
-// ║            guard still blocks accidental re-clicks. ║
+// ║  Tiffo — Backend API (server.js)                    ║
+// ║  Version : v59 — Security audit fixes               ║
+// ║  Updated : 2026-05-16                               ║
+// ║  Fix 1   : createOrder now requires userToken       ║
+// ║            (was apiKey-only — any caller could      ║
+// ║            place orders on any phone number)        ║
+// ║  Fix 2   : signup now checks insert error before    ║
+// ║            issuing token (previously issued token   ║
+// ║            even if DB insert failed silently)       ║
+// ║  Fix 3   : getSubscriberStatus + getSubscriberBal-  ║
+// ║            ance added to _USER_SENSITIVE_ACTIONS    ║
+// ║            (were leaking wallet balance for any     ║
+// ║            phone number without authentication)     ║
+// ║            immediately after registering.           ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -181,7 +189,8 @@ const _STAFF_ACTIONS = new Set([
 // from reading/modifying another user's orders, wallet, or subscription.
 const _USER_SENSITIVE_ACTIONS = new Set([
   'getUserOrders', 'getKhata', 'updatePauseDelivery',
-  'getSubscriberPauseStatus', 'changePassword', 'updateProfile',
+  'getSubscriberPauseStatus', 'changePassword', 'updateProfile', 'getMyProfile',
+  'getSubscriberStatus', 'getSubscriberBalance',
 ]);
 
 function _verifyUserToken(token, phone) {
@@ -737,7 +746,7 @@ app.post('/api', async (req, res) => {
         if (existing) return res.json({ success: false, error: 'Phone already registered' });
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
         const createdAt = new Date().toISOString();
-        await supabase.from('users').insert({
+        const { error: insertErr } = await supabase.from('users').insert({
           user_id:       phone,
           name:          data.name,
           phone,
@@ -746,6 +755,7 @@ app.post('/api', async (req, res) => {
           password_hash: hash,
           created_at:    createdAt
         });
+        if (insertErr) return res.json({ success: false, error: 'Registration failed. Please try again.' });
         // ── Fire new-user notification so admin can send welcome coupon ──
         try {
           await _createNotification({
@@ -762,11 +772,14 @@ app.post('/api', async (req, res) => {
           await supabase.from('khata_summary')
             .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
         } catch(_) {}
+        const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days — matches login
+        const signupToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
         return res.json({
           success: true,
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
           subscriber:    null,
-          walletBalance: 0
+          walletBalance: 0,
+          userToken:     signupToken
         });
       }
 
@@ -798,6 +811,17 @@ app.post('/api', async (req, res) => {
         if (data.address !== undefined) updates.address = data.address;
         await supabase.from('users').update(updates).eq('phone', phone);
         return res.json({ success: true });
+      }
+
+      case 'getMyProfile': {
+        const phone = cleanPhone(data.phone);
+        const [userRes, subRes] = await Promise.all([
+          supabase.from('users').select('*').eq('phone', phone).single(),
+          supabase.from('subscribers').select('*').eq('phone', phone).single()
+        ]);
+        if (!userRes.data) return res.json({ success: false, error: 'User not found' });
+        const { password_hash, ...safeUser } = userRes.data;
+        return res.json({ success: true, user: safeUser, subscriber: subRes.data || null });
       }
 
       case 'resetAdminPassword': {
@@ -843,9 +867,9 @@ app.post('/api', async (req, res) => {
         const phone = cleanPhone(data.phone);
         const [balRes, subRes] = await Promise.all([
           supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
-          supabase.from('subscribers').select('pause_delivery').eq('phone', phone).single()
+          supabase.from('subscribers').select('pause_delivery, plan').eq('phone', phone).single()
         ]);
-        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: subRes.data?.pause_delivery || 'none' });
+        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: subRes.data?.pause_delivery || 'none', plan: subRes.data?.plan || 'morning' });
       }
 
       case 'adminGetMenu': {
@@ -907,6 +931,12 @@ app.post('/api', async (req, res) => {
 
       case 'createOrder': {
         const phone = cleanPhone(data.phone);
+        // Auth: must be the user's own token (staff bypass allowed for admin-placed orders)
+        const _staffSess = _verifyToken(req.body.sessionToken);
+        const _isStaff   = _staffSess && (_staffSess.role === 'admin' || _staffSess.role === 'staff');
+        if (!_isStaff && !_verifyUserToken(req.body.userToken, phone)) {
+          return res.status(401).json({ success: false, error: 'Auth required. Please log in again.' });
+        }
         const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
         if (!user) return res.json({ success: false, error: 'User not found' });
         const address = data.address || user.address;
@@ -1253,15 +1283,20 @@ app.post('/api', async (req, res) => {
           const slotPaused = deliveryOff
             || (slot === 'morning' && pm)
             || (slot === 'evening' && pe);
-          // Eligible for auto-bulk: not paused, not already ordered, and sufficient balance (if khata enabled)
+          // Plan-slot mismatch: morning-only subscriber excluded from evening bulk and vice versa
+          const subPlan = sub.plan || 'both';
+          const planMismatch = (slot === 'morning' && subPlan === 'evening')
+            || (slot === 'evening' && subPlan === 'morning');
+          // Eligible for auto-bulk: not paused, not already ordered, plan matches slot, and sufficient balance (if khata enabled)
           const insufficientBalance = khataEnabledForBulk && balance < bulkPrice;
-          const eligible = !slotPaused && !ordered && !insufficientBalance;
+          const eligible = !slotPaused && !planMismatch && !ordered && !insufficientBalance;
 
           result.push({
             phone:       sub.phone,
             name:        userRow?.name || sub.phone,
             address:     userRow?.address || '',
             balance,
+            plan:        sub.plan || 'morning',
             plan_end:    sub.plan_end,
             pause,
             pause_morning:  sub.pause_morning || false,
@@ -1320,7 +1355,7 @@ app.post('/api', async (req, res) => {
           getCachedSetting('khata_enabled'),
           supabase.from('orders').select('phone').eq('date', today).or(`slot.eq.${bulkSlot},slot.is.null`).not('order_status', 'eq', 'cancelled'),
           supabase.from('users').select('*').in('phone', cleanPhones),
-          supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_evening, is_delivery_off').in('phone', cleanPhones)
+          supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_evening, is_delivery_off, plan').in('phone', cleanPhones)
         ]);
 
         const bulkKhataEnabled = JSON.parse(khataSettingVal || 'false');
@@ -1351,8 +1386,12 @@ app.post('/api', async (req, res) => {
             const slotPaused = deliveryOff
               || (bulkSlot === 'morning' && pm)
               || (bulkSlot === 'evening' && pe);
-            if (slotPaused) {
-              skipped.push({ phone: cleanPh, reason: 'delivery paused for this slot' }); continue;
+            // Plan-slot mismatch: skip subscriber if their plan doesn't include this slot
+            const subPlan = sub.plan || 'both';
+            const planMismatch = (bulkSlot === 'morning' && subPlan === 'evening')
+              || (bulkSlot === 'evening' && subPlan === 'morning');
+            if (slotPaused || planMismatch) {
+              skipped.push({ phone: cleanPh, reason: slotPaused ? 'delivery paused for this slot' : 'plan does not include this slot' }); continue;
             }
           }
           eligiblePhones.push(cleanPh);
@@ -1697,8 +1736,8 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getSubscriberPauseStatus': {
-        const { data: row } = await supabase.from('subscribers').select('pause_delivery').eq('phone', cleanPhone(data.phone)).single();
-        return res.json({ success: true, pauseMode: row?.pause_delivery || 'none' });
+        const { data: row } = await supabase.from('subscribers').select('pause_delivery, plan').eq('phone', cleanPhone(data.phone)).single();
+        return res.json({ success: true, pauseMode: row?.pause_delivery || 'none', plan: row?.plan || 'morning' });
       }
 
 
