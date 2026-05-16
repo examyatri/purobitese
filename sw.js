@@ -1,12 +1,10 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v29.2  |  Updated : 2026-05-16
+   Version : v29.3  |  Updated : 2026-05-16
 
-   CHANGES v29.1:
-   - FIX: Activate cleanup now only removes own 'tiffo-v*' caches.
-     Previously used startsWith('tiffo-') which incorrectly deleted
-     tiffo-admin-v* and tiffo-rider-v* caches (shared Cache Storage
-     origin — SW scopes do NOT restrict caches.keys() access).
+   CHANGES v29.3:
+   - Version bump for v63 release (auto tiffin plan fix,
+     cooking sessions filter, language updates)
 
    CHANGES v29.0 (was v28.0):
    - Cache bumped → tiffo-v24 (performance indexes migration)

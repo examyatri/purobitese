@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.3                                    ║
-     ║  Updated : 2026-05-01                               ║
-     ║  Changes : Bug fixes — 'confirmed' status added to  ║
-     ║            getStatusClass, getStatusLabel, progress ║
-     ║            bar & _hasActiveOrders; slot timers      ║
-     ║            cleared on logout & wipe.                ║
+     ║  Version : v50.4                                    ║
+     ║  Updated : 2026-05-16                               ║
+     ║  Changes : Auto tiffin plan bug fixed — morning-    ║
+     ║            only subscribers no longer see 'Both     ║
+     ║            Off' option after another user logout;   ║
+     ║            plan patched in all 5 Auth.set flows;    ║
+     ║            "bulk orders" → "auto tiffin" language   ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1357,13 +1358,13 @@ textarea{resize:vertical;min-height:80px}
     <div class="sheet-title">Auto Tiffin Settings</div>
     <button class="sheet-close" onclick="closePauseSheet()"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px">Choose which session to exclude from bulk orders</div>
+  <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px">Choose which tiffin session to pause</div>
   <label class="pause-option-card">
     <input type="radio" name="pause-opt" value="lunch">
     <div class="pause-option-icon picon-morning">☀️</div>
     <div style="flex:1">
       <div style="font-family:var(--ff);font-weight:600;font-size:14px">Morning Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Exclude me from morning bulk orders</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip morning auto tiffin for tomorrow</div>
     </div>
   </label>
   <label class="pause-option-card">
@@ -1371,7 +1372,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="pause-option-icon picon-evening">🌙</div>
     <div style="flex:1">
       <div style="font-family:var(--ff);font-weight:600;font-size:14px">Evening Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Exclude me from evening bulk orders</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip evening auto tiffin for tomorrow</div>
     </div>
   </label>
   <label class="pause-option-card">
@@ -1379,7 +1380,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="pause-option-icon picon-both">⏸</div>
     <div style="flex:1">
       <div style="font-family:var(--ff);font-weight:600;font-size:14px">Both Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Exclude from all bulk orders</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Pause all auto tiffins for tomorrow</div>
     </div>
   </label>
   <div class="mt16">
@@ -2127,10 +2128,10 @@ function applyPauseState(mode) {
       _pauseMode === 'dinner' ? '● Evening Off' : '● Both Off';
   }
   if (sub) sub.textContent =
-    _pauseMode === 'none'   ? 'Tap to turn off a session' :
-    _pauseMode === 'lunch'  ? 'Morning excluded from bulk orders — tap to resume' :
-    _pauseMode === 'dinner' ? 'Evening excluded from bulk orders — tap to resume' :
-                              'All bulk orders off — tap to resume';
+    _pauseMode === 'none'   ? 'Tap to manage tiffin sessions' :
+    _pauseMode === 'lunch'  ? 'Morning auto tiffin is off — tap to resume' :
+    _pauseMode === 'dinner' ? 'Evening auto tiffin is off — tap to resume' :
+                              'All auto tiffins off — tap to resume';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
   // sub-plan-banner removed — status driven by Auto Tiffin card only
@@ -4994,7 +4995,9 @@ function exportKhataPDF() { generateKhataPDF(); }
 ═══════════════════════════════════════════ */
 function openPauseSheet() {
   // Show only relevant pause options based on subscriber's plan
-  const plan = _session?.plan || 'both';
+  // IMPORTANT: default to 'morning' not 'both' to prevent showing invalid options
+  // when _session.plan hasn't been set yet (plan lives on subscriber, not user object)
+  const plan = _session?.plan || 'morning';
   const showMorning = plan === 'morning' || plan === 'both';
   const showEvening = plan === 'evening' || plan === 'both';
   const showBoth    = plan === 'both';
@@ -5492,6 +5495,7 @@ async function bootApp() {
             _session.is_subscriber = !!res.subscriber;
             _walletBal = res.walletBalance || 0;
             _pauseMode = res.subscriber?.pause_delivery || 'none';
+            if (res.subscriber) Auth.patch({ plan: res.subscriber.plan || 'morning' });
             updateWalletUI(_walletBal);
             applyPauseState(_pauseMode);
             _applySubscriberUI();
@@ -5552,6 +5556,7 @@ async function bootApp() {
       _session.is_subscriber = !!res.subscriber;
       _walletBal = res.walletBalance || 0;
       _pauseMode = res.subscriber?.pause_delivery || 'none';
+      if (res.subscriber) Auth.patch({ plan: res.subscriber.plan || 'morning' });
       updateWalletUI(_walletBal);
       applyPauseState(_pauseMode);
       _isGuestMode = false;
