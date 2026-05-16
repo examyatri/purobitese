@@ -161,7 +161,7 @@ const _STAFF_ACTIONS = new Set([
   // ── Nu-coupon ──
   'addNuCouponPending', 'markNuCouponSent', 'deleteOldNuCouponSent',
   // ── Settings ──
-  'setCutoffConfig', 'setOrderCutoff', 'setWeeklySchedule', 'setKhataEnabled', 'setDeliveryZone',
+  'setCutoffConfig', 'setOrderCutoff', 'setWeeklySchedule', 'setKhataEnabled', 'setDeliveryZone', 'setAutoTiffinCutoff',
   // ── User management ──
   'adminDeleteUser', 'saveAndSendCoupon',
   // ── Additional admin-panel operational actions ──
@@ -313,6 +313,36 @@ function istTimeStr(d) {
   return `${String(h).padStart(2, '0')}:${min} ${ampm}`;
 }
 
+// Returns true if a pause flag is active for a given IST date string (YYYY-MM-DD).
+// pauseFlag   : boolean — the pause_morning / pause_evening field
+// pauseFrom   : string|null — the pause_morning_from / pause_evening_from field
+// todayStr    : YYYY-MM-DD IST date string for the day being evaluated
+// Logic: pause is active when pauseFlag=true AND (pauseFrom is null OR pauseFrom <= todayStr)
+// pauseFrom=null means the record pre-dates this feature → treat as active immediately (safe default).
+function isPauseActive(pauseFlag, pauseFrom, todayStr) {
+  if (!pauseFlag) return false;
+  if (!pauseFrom) return true;           // legacy rows without _from → honour existing behaviour
+  return pauseFrom <= todayStr;
+}
+
+// Computes the EFFECTIVE pause_delivery value for TODAY from granular fields.
+// Uses pause_morning/pause_morning_from and pause_evening/pause_evening_from with
+// isPauseActive so that a "tomorrow-only" pause (pause_morning_from = tomorrow) is
+// NOT treated as active today.  Falls back to legacy pause_delivery when granular
+// booleans are both false (pre-feature rows).
+// Returns: 'none' | 'lunch' | 'dinner' | 'both'
+function computeEffectivePauseDelivery(sub, todayStr) {
+  if (!sub) return 'none';
+  const legacy = sub.pause_delivery || 'none';
+  const pm = sub.pause_morning
+    ? isPauseActive(sub.pause_morning, sub.pause_morning_from, todayStr)
+    : (legacy === 'lunch' || legacy === 'both');
+  const pe = sub.pause_evening
+    ? isPauseActive(sub.pause_evening, sub.pause_evening_from, todayStr)
+    : (legacy === 'dinner' || legacy === 'both');
+  return pm && pe ? 'both' : pm ? 'lunch' : pe ? 'dinner' : 'none';
+}
+
 function cleanPhone(p) {
   return String(p).replace(/\D/g, '');
 }
@@ -433,7 +463,12 @@ async function _authenticateUser(phone, password) {
   // Issue a signed user token — 30-day TTL so customers never face forced re-login
   const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
   const userToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
-  return { success: true, user: safeUser, subscriber: sub || null, walletBalance: balRow?.balance || 0, userToken };
+  // Override pause_delivery with effective value for TODAY — a "tomorrow-only" pause
+  // (set after cutoff) must not block today's orders in the customer frontend.
+  const subWithEffectivePause = sub
+    ? { ...sub, pause_delivery: computeEffectivePauseDelivery(sub, istDateStr(getIST())) }
+    : null;
+  return { success: true, user: safeUser, subscriber: subWithEffectivePause, walletBalance: balRow?.balance || 0, userToken };
 }
 
 // Shared staff auth — used by both 'adminLogin' and 'staffLogin' (were 100% identical)
@@ -811,7 +846,12 @@ app.post('/api', async (req, res) => {
         ]);
         if (!userRes.data) return res.json({ success: false, error: 'User not found' });
         const { password_hash, ...safeUser } = userRes.data;
-        return res.json({ success: true, user: safeUser, subscriber: subRes.data || null });
+        // Override pause_delivery with effective value for TODAY so frontend
+        // does not treat a tomorrow-only pause as active for today's orders.
+        const subData = subRes.data
+          ? { ...subRes.data, pause_delivery: computeEffectivePauseDelivery(subRes.data, istDateStr(ist)) }
+          : null;
+        return res.json({ success: true, user: safeUser, subscriber: subData });
       }
 
       case 'resetAdminPassword': {
@@ -857,9 +897,13 @@ app.post('/api', async (req, res) => {
         const phone = cleanPhone(data.phone);
         const [balRes, subRes] = await Promise.all([
           supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
-          supabase.from('subscribers').select('pause_delivery, plan').eq('phone', phone).single()
+          supabase.from('subscribers').select('pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, plan').eq('phone', phone).single()
         ]);
-        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: subRes.data?.pause_delivery || 'none', plan: subRes.data?.plan || 'morning' });
+        const subRow = subRes.data;
+        // Compute effective pause for TODAY — respects _from date so a tomorrow-only
+        // pause does not falsely block today's orders in the customer frontend.
+        const effectivePauseMode = computeEffectivePauseDelivery(subRow, istDateStr(ist));
+        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: effectivePauseMode, plan: subRow?.plan || 'morning' });
       }
 
       case 'adminGetMenu': {
@@ -1265,9 +1309,15 @@ app.post('/api', async (req, res) => {
           const pause     = sub.pause_delivery || 'none';
           const ordered   = orderedPhones.has(sub.phone);
 
-          // Support both granular fields (pause_morning/pause_evening) and legacy pause_delivery
-          const pm = sub.pause_morning || (pause === 'lunch' || pause === 'both');
-          const pe = sub.pause_evening || (pause === 'dinner' || pause === 'both');
+          // Granular fields (pause_morning/pause_evening) are source of truth when set.
+          // Fall back to legacy pause_delivery ONLY when the granular boolean is false
+          // (rows pre-dating granular fields). This ensures pause_morning_from date is respected.
+          const pm = sub.pause_morning
+            ? isPauseActive(sub.pause_morning, sub.pause_morning_from, today)
+            : (pause === 'lunch' || pause === 'both');
+          const pe = sub.pause_evening
+            ? isPauseActive(sub.pause_evening, sub.pause_evening_from, today)
+            : (pause === 'dinner' || pause === 'both');
           const deliveryOff = sub.is_delivery_off || false;
 
           const slotPaused = deliveryOff
@@ -1345,7 +1395,7 @@ app.post('/api', async (req, res) => {
           getCachedSetting('khata_enabled'),
           supabase.from('orders').select('phone').eq('date', today).or(`slot.eq.${bulkSlot},slot.is.null`).not('order_status', 'eq', 'cancelled'),
           supabase.from('users').select('*').in('phone', cleanPhones),
-          supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_evening, is_delivery_off, plan').in('phone', cleanPhones)
+          supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off, plan').in('phone', cleanPhones)
         ]);
 
         const bulkKhataEnabled = JSON.parse(khataSettingVal || 'false');
@@ -1366,12 +1416,19 @@ app.post('/api', async (req, res) => {
           if (!bulkUserMap[cleanPh]) {
             skipped.push({ phone: cleanPh, reason: 'user not found' }); continue;
           }
-          // Pause/delivery-off check — respects both legacy pause_delivery and granular fields
+          // Pause/delivery-off check — respects both legacy pause_delivery and granular fields.
+          // Granular fields (pause_morning/pause_evening) take priority when set; the _from date
+          // ensures a pause set after morning cutoff (effective tomorrow) does NOT skip today's bulk.
+          // Legacy pause_delivery is the fallback for old rows where granular booleans are false.
           const sub = bulkSubMap[cleanPh];
           if (sub) {
             const pause = sub.pause_delivery || 'none';
-            const pm = sub.pause_morning || (pause === 'lunch' || pause === 'both');
-            const pe = sub.pause_evening || (pause === 'dinner' || pause === 'both');
+            const pm = sub.pause_morning
+              ? isPauseActive(sub.pause_morning, sub.pause_morning_from, today)
+              : (pause === 'lunch' || pause === 'both');
+            const pe = sub.pause_evening
+              ? isPauseActive(sub.pause_evening, sub.pause_evening_from, today)
+              : (pause === 'dinner' || pause === 'both');
             const deliveryOff = sub.is_delivery_off || false;
             const slotPaused = deliveryOff
               || (bulkSlot === 'morning' && pm)
@@ -1553,6 +1610,8 @@ app.post('/api', async (req, res) => {
             pause_delivery:  'none',
             pause_morning:   false,
             pause_evening:   false,
+            pause_morning_from: null,
+            pause_evening_from: null,
             is_delivery_off: false,
             created_at:      new Date().toISOString()
           });
@@ -1722,12 +1781,27 @@ app.post('/api', async (req, res) => {
 
       case 'checkSubscriber': {
         const { data: row } = await supabase.from('subscribers').select('*').eq('phone', cleanPhone(data.phone)).single();
-        return res.json({ success: true, isSubscriber: !!row, subscriber: row || null });
+        // Override pause_delivery with effective value for TODAY so frontend
+        // does not treat a tomorrow-only pause as active for today's orders.
+        const subWithEffective = row
+          ? { ...row, pause_delivery: computeEffectivePauseDelivery(row, istDateStr(ist)) }
+          : null;
+        return res.json({ success: true, isSubscriber: !!row, subscriber: subWithEffective });
       }
 
       case 'getSubscriberPauseStatus': {
-        const { data: row } = await supabase.from('subscribers').select('pause_delivery, plan').eq('phone', cleanPhone(data.phone)).single();
-        return res.json({ success: true, pauseMode: row?.pause_delivery || 'none', plan: row?.plan || 'morning' });
+        const { data: row } = await supabase.from('subscribers').select('pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, plan').eq('phone', cleanPhone(data.phone)).single();
+        // Compute effective pause for TODAY — respects _from date so a tomorrow-only
+        // pause does not falsely block today's orders in the customer frontend.
+        const effectivePauseMode = computeEffectivePauseDelivery(row, istDateStr(ist));
+        return res.json({ success: true, pauseMode: effectivePauseMode, plan: row?.plan || 'morning' });
+      }
+
+      case 'getAutoTiffinCutoff': {
+        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'auto_tiffin_cutoff').single();
+        let cfg = { morning: '11:00', evening: '18:00' };
+        if (row?.value) { try { cfg = JSON.parse(row.value); } catch {} }
+        return res.json({ success: true, cutoff: cfg });
       }
 
 
@@ -1766,6 +1840,8 @@ app.post('/api', async (req, res) => {
           pause_delivery: 'none',
           pause_morning:  false,
           pause_evening:  false,
+          pause_morning_from: null,
+          pause_evening_from: null,
           is_delivery_off: false,
           created_at:     new Date().toISOString()
         });
@@ -1810,14 +1886,19 @@ app.post('/api', async (req, res) => {
         if (checkSlot) {
           const [{ data: existOrd }, { data: subRow }] = await Promise.all([
             supabase.from('orders').select('order_id').eq('phone', safe.phone).eq('date', checkDate).eq('slot', checkSlot).not('order_status', 'eq', 'cancelled').limit(1),
-            supabase.from('subscribers').select('pause_delivery, pause_morning, pause_evening, is_delivery_off').eq('phone', safe.phone).single()
+            supabase.from('subscribers').select('pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off').eq('phone', safe.phone).single()
           ]);
           safe.already_ordered = !!(existOrd && existOrd.length);
-          // Compute pause status for this slot
+          // Compute pause status for this slot — granular fields take priority when set;
+          // _from date ensures a "tomorrow" pause does not mark today's preview row as paused.
           const sub = subRow || {};
           const pause = sub.pause_delivery || 'none';
-          const pm = sub.pause_morning || (pause === 'lunch' || pause === 'both');
-          const pe = sub.pause_evening || (pause === 'dinner' || pause === 'both');
+          const pm = sub.pause_morning
+            ? isPauseActive(sub.pause_morning, sub.pause_morning_from, checkDate)
+            : (pause === 'lunch' || pause === 'both');
+          const pe = sub.pause_evening
+            ? isPauseActive(sub.pause_evening, sub.pause_evening_from, checkDate)
+            : (pause === 'dinner' || pause === 'both');
           const deliveryOff = sub.is_delivery_off || false;
           safe.slot_paused = deliveryOff
             || (checkSlot === 'morning' && pm)
@@ -1854,6 +1935,8 @@ app.post('/api', async (req, res) => {
             pause_delivery: 'none',
             pause_morning:  false,
             pause_evening:  false,
+            pause_morning_from: null,
+            pause_evening_from: null,
             is_delivery_off: false,
             created_at:     new Date().toISOString()
           });
@@ -1875,6 +1958,8 @@ app.post('/api', async (req, res) => {
           pause_delivery: 'none',
           pause_morning:  false,
           pause_evening:  false,
+          pause_morning_from: null,
+          pause_evening_from: null,
           is_delivery_off: false,
           created_at:     new Date().toISOString()
         });
@@ -2160,6 +2245,17 @@ app.post('/api', async (req, res) => {
       case 'setWeeklySchedule': {
         await supabase.from('admin_settings').upsert({ key: 'weekly_schedule', value: JSON.stringify(data.schedule), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         _invalidateSettingsCache(); _analyticsCache = null;
+        return res.json({ success: true });
+      }
+
+      case 'setAutoTiffinCutoff': {
+        // config = { morning: 'HH:MM', evening: 'HH:MM' }
+        const cfg = data.config || {};
+        const timeRe = /^\d{2}:\d{2}$/;
+        if (!timeRe.test(cfg.morning) || !timeRe.test(cfg.evening))
+          return res.json({ success: false, error: 'Invalid time format. Use HH:MM' });
+        await supabase.from('admin_settings').upsert({ key: 'auto_tiffin_cutoff', value: JSON.stringify(cfg), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache();
         return res.json({ success: true });
       }
 
@@ -2465,10 +2561,21 @@ app.post('/api', async (req, res) => {
           // FIX #14: Sync granular pause fields to match legacy pause_delivery
           const pm = (mode === 'lunch' || mode === 'both');
           const pe = (mode === 'dinner' || mode === 'both');
+          // morningForToday/eveningForToday: sent by frontend based on cutoff check.
+          // true  = cutoff not yet passed → pause is active TODAY
+          // false = cutoff already passed → pause should only activate TOMORROW
+          // When resuming (mode='none'), clear both _from dates.
+          const todayStr    = istDateStr(ist);
+          const tomorrowIST = new Date(ist.getTime() + 86_400_000);
+          const tomorrowStr = istDateStr(tomorrowIST);
+          const pmFrom = pm ? (data.morningForToday !== false ? todayStr : tomorrowStr) : null;
+          const peFrom = pe ? (data.eveningForToday !== false ? todayStr : tomorrowStr) : null;
           await supabase.from('subscribers').update({
-            pause_delivery: mode,
-            pause_morning:  pm,
-            pause_evening:  pe
+            pause_delivery:     mode,
+            pause_morning:      pm,
+            pause_evening:      pe,
+            pause_morning_from: pmFrom,
+            pause_evening_from: peFrom
           }).eq('phone', cleanPhone(data.phone));
           return res.json({ success: true, pauseMode: mode }); }
 
@@ -2596,10 +2703,11 @@ app.post('/api', async (req, res) => {
           const map = {};
           for (const r of (rows || [])) { try { map[r.key] = JSON.parse(r.value); } catch { map[r.key] = r.value; } }
           return res.json({ success: true, settings: {
-            cutoff:         map['order_cutoff_config'] || {},
-            weeklySchedule: map['weekly_schedule']     || [],
-            khataEnabled:   map['khata_enabled']       === true,
-            deliveryZone:   map['delivery_zone']       || null
+            cutoff:           map['order_cutoff_config']   || {},
+            weeklySchedule:   map['weekly_schedule']       || [],
+            khataEnabled:     map['khata_enabled']         === true,
+            deliveryZone:     map['delivery_zone']         || null,
+            autoTiffinCutoff: map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' }
           }}); }
 
       case 'adminResetUserPassword':
@@ -2675,6 +2783,10 @@ app.post('/api', async (req, res) => {
         const pm = field === 'pause_morning' ? val : (sub.pause_morning || false);
         const pe = field === 'pause_evening' ? val : (sub.pause_evening || false);
         updates.pause_delivery = pm && pe ? 'both' : pm ? 'lunch' : pe ? 'dinner' : 'none';
+        // Admin action always takes effect today. When resuming, clear the _from date.
+        const todayStr = istDateStr(ist);
+        if (field === 'pause_morning') updates.pause_morning_from = val ? todayStr : null;
+        if (field === 'pause_evening') updates.pause_evening_from = val ? todayStr : null;
         await supabase.from('subscribers').update(updates).eq('phone', phone);
         return res.json({ success: true, pause_morning: pm, pause_evening: pe });
       }
