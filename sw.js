@@ -1,16 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v27.0  |  Updated : 2026-05-10
+   Version : v28.0  |  Updated : 2026-05-16
 
    CHANGES v27.0:
-   - Cache bumped → tiffo-v20 (force fresh install for all fixes)
+   - Cache bumped → tiffo-v21 (401 auto-heal: key-refresh in api() for all panels)
    - Added sw.js itself to PRECACHE for offline reliability
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
    - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v20';
+const CACHE      = 'tiffo-v21';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
