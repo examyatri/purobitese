@@ -1642,6 +1642,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <div class="si-icon" style="background:#f1f5f9"><i class="fa fa-broom" style="color:#64748b"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Data Cleanup</span>
             </div>
+            <div class="settings-item" onclick="showSettingPanel('auto-tiffin-cutoff',this)">
+              <div class="si-icon" style="background:#fef9c3"><i class="fa fa-stopwatch" style="color:#b45309"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Auto Tiffin Cutoff</span>
+            </div>
             <div class="settings-item" onclick="showSettingPanel('master-del',this)">
               <div class="si-icon" style="background:#fee2e2"><i class="fa fa-skull-crossbones" style="color:#be123c"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Master Delete</span>
@@ -4882,7 +4886,8 @@ function showSettingPanel(type, el) {
     'reset-user-pw': renderResetUserPwPanel,
     cleanup:      renderCleanupPanel,
     'master-del': renderMasterDelPanel,
-    'delivery-zone': renderDeliveryZonePanel
+    'delivery-zone': renderDeliveryZonePanel,
+    'auto-tiffin-cutoff': renderAutoTiffinCutoffPanel
   };
   if (panels[type]) panels[type](area);
 }
@@ -5166,6 +5171,71 @@ async function deleteCleanup(type) {
       aToast(`${labels[type]||type} deleted ✅`);
     } catch(e) { aToast(e.message); }
   });
+}
+
+function renderAutoTiffinCutoffPanel(area) {
+  area.innerHTML = `
+    <div class="settings-panel">
+      <div style="font-family:var(--ff);font-weight:700;font-size:15px;color:#0f172a;margin-bottom:4px">Auto Tiffin Off Cutoff</div>
+      <p style="color:#64748b;font-size:13px;margin-bottom:20px">
+        Set the deadline by which subscribers can turn off their auto tiffin for <b>today</b>.
+        After this time, pausing only affects tomorrow's tiffin.
+      </p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+        <div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:12px;padding:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span style="font-size:20px">☀️</span>
+            <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#854d0e">Morning Cutoff</div>
+          </div>
+          <div class="field" style="margin:0">
+            <label style="font-size:11px;color:#92400e">Pause allowed till</label>
+            <input id="atc-morning" type="time" style="font-size:15px;font-weight:700;color:#78350f">
+          </div>
+          <div style="font-size:11px;color:#a16207;margin-top:6px">Subscribers can turn off morning auto tiffin for today up to this time</div>
+        </div>
+        <div style="background:#ede9fe;border:1.5px solid #c4b5fd;border-radius:12px;padding:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <span style="font-size:20px">🌙</span>
+            <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#5b21b6">Evening Cutoff</div>
+          </div>
+          <div class="field" style="margin:0">
+            <label style="font-size:11px;color:#6d28d9">Pause allowed till</label>
+            <input id="atc-evening" type="time" style="font-size:15px;font-weight:700;color:#4c1d95">
+          </div>
+          <div style="font-size:11px;color:#7c3aed;margin-top:6px">Subscribers can turn off evening auto tiffin for today up to this time</div>
+        </div>
+      </div>
+
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px;margin-bottom:18px;font-size:12px;color:#0369a1;line-height:1.6">
+        <b>How it works:</b><br>
+        • Before cutoff → subscriber can pause for <b>today</b><br>
+        • After cutoff → subscriber can only pause for <b>tomorrow</b><br>
+        • Admin bulk order generation always respects subscriber's pause status
+      </div>
+
+      <button class="btn btn-p" onclick="saveAutoTiffinCutoff()">
+        <i class="fa fa-save" style="margin-right:6px"></i>Save Cutoff Times
+      </button>
+    </div>`;
+
+  api('getSettings').then(r => {
+    const cfg = r.settings?.autoTiffinCutoff || {};
+    document.getElementById('atc-morning').value = cfg.morning || '11:00';
+    document.getElementById('atc-evening').value = cfg.evening || '18:00';
+  }).catch(() => {});
+}
+
+async function saveAutoTiffinCutoff() {
+  const config = {
+    morning: document.getElementById('atc-morning')?.value || '11:00',
+    evening: document.getElementById('atc-evening')?.value || '18:00'
+  };
+  try {
+    await api('setAutoTiffinCutoff', { config });
+    _settingsCacheTime = 0;
+    aToast('Auto Tiffin cutoff saved ✅');
+  } catch(e) { aToast(e.message); }
 }
 
 function renderMasterDelPanel(area) {
