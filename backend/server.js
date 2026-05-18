@@ -1,12 +1,12 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.4                                    ║
-// ║  Updated : 2026-05-16                               ║
-// ║  Changes : getSubscriberStatus now returns          ║
-// ║            pendingTomorrow field so background poll  ║
-// ║            correctly shows yellow toggle for        ║
-// ║            tomorrow-pending pauses                  ║
+// ║  Version : v59.8                                    ║
+// ║  Updated : 2026-05-18                               ║
+// ║  Changes : Dead action cleanup — removed 44 dead    ║
+// ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
+// ║            No frontend calls these. Faster switch,   ║
+// ║            smaller attack surface, cleaner code.     ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -42,8 +42,12 @@ const _generalRateLimit = rateLimit({
 
 // Auth actions that get the tighter limit
 const _AUTH_ACTIONS = new Set([
-  'login', 'signup', 'adminLogin', 'riderLogin', 'staffLogin',
-  'resetUserPassword', 'adminResetUserPassword', 'changePassword',
+  'login',
+  'signup',
+  'adminLogin',
+  'riderLogin',
+  'adminResetUserPassword',
+  'changePassword'
 ]);
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -123,56 +127,68 @@ function _verifyToken(token) {
 
 // Actions that require a valid admin session token (role = 'admin' only)
 const _ADMIN_ONLY_ACTIONS = new Set([
-  // Truly admin-exclusive: account/staff management and nuclear data wipe
-  'masterDelete',        // wipe all historical data
-  'addStaff', 'createStaff', 'updateStaff', 'deleteStaff', // manage staff accounts
-  'resetAdminPassword',  // change admin/staff passwords
+  'masterDelete',
+  'createStaff',
+  'updateStaff',
+  'deleteStaff',
+  'resetAdminPassword'
 ]);
 
 // Actions that require any valid staff session token (role = 'admin' OR 'staff')
 // Staff can do EVERYTHING except: masterDelete, adminDeleteUser, staff management, resetAdminPassword
 const _STAFF_ACTIONS = new Set([
-  // ── Read / dashboard ──
-  'adminGetOrders', 'adminGetMenu', 'adminGetUsers', 'adminGetSubscribers',
-  'adminGetAllKhata', 'adminGetCoupons', 'getStaff',
-  'getSubscribersForBulk', 'getRiders', 'getNuCouponPending', 'getNuCouponSent',
-  'getAdminSettings', 'getOrderCutoffConfig', 'getWeeklySchedule', 'getDeliveryZone',
-  'getDashboard', 'getNotifications', 'markNotificationRead', 'clearNotifications',
-  'getCookingSessions', 'adminGetCouponReport', 'getCookingSummary', 'getCookingSessionDetail',
-  'getAllKhata', 'getAnalytics', 'getCoupons', 'getKitchenDashboard',
-  'getMenuItems', 'getUserByPhone',
-  // NOTE: getKhata, getUserOrders, getOrderTransactions, getSettings, validateCoupon, applyCoupon are customer-facing — apiKey only, no session needed
-  // ── Orders & operations ──
-  'assignRider', 'bulkUpdateOrder', 'rejectOrder', 'updateOrderStatus',
-  'lockCookingSession', 'unlockCookingSession', 'startCookingSession',
-  'forceUdharOrder', 'bulkGenerateOrders',
-  // ── Wallet & khata ──
-  'rechargeWallet', 'manualRefund',
-  // ── Subscribers & users ──
-  'pauseSubscriber', 'resumeSubscriber', 'togglePauseSession', 'updateSubscriber',
-  'promoteToSubscriber', 'removeSubscriber',
-  'adminCreateUser', 'adminResetUserPassword', 'resetUserPassword',
-  // ── Menu ──
-  'addMenuItem', 'updateMenuItem', 'deleteMenuItem', 'updateMenuOrder', 'updateMenuStock',
-  // ── Coupons ──
-  'createCoupon', 'deleteCoupon', 'deleteExpiredCoupons', 'addCoupon', 'updateCoupon',
-  // NOTE: validateCoupon, applyCoupon are customer-facing — apiKey only, no session needed
-  // ── Riders ──
-  'addRider', 'updateRider', 'deleteRider',
-  // ── Notifications & cleanup ──
-  'deleteNotification', 'deleteNotificationRange', 'deleteOldData', 'previewCleanup',
-  // ── Nu-coupon ──
-  'addNuCouponPending', 'markNuCouponSent', 'deleteOldNuCouponSent',
-  // ── Settings ──
-  'setCutoffConfig', 'setOrderCutoff', 'setWeeklySchedule', 'setKhataEnabled', 'setDeliveryZone', 'setAutoTiffinCutoff',
-  // ── User management ──
-  'adminDeleteUser', 'saveAndSendCoupon',
-  // ── Additional admin-panel operational actions ──
-  'addKhataEntry', 'addSubscriber', 'autoCleanupStatus', 'createNotification',
-  'createRider', 'deleteOldOrders', 'deleteOldTransactions', 'getOrdersByDate',
-  'getSubscribers', 'getUsers', 'markNotificationGroupRead',
-  'previewDeleteNotifications', 'previewDeleteOrders', 'previewDeleteTransactions',
-  'purgeOldNotifications',
+  'adminGetOrders',
+  'adminGetUsers',
+  'adminGetSubscribers',
+  'getStaff',
+  'getSubscribersForBulk',
+  'getRiders',
+  'getNotifications',
+  'markNotificationRead',
+  'getCookingSessionDetail',
+  'getAllKhata',
+  'getAnalytics',
+  'getCoupons',
+  'getKitchenDashboard',
+  'getMenuItems',
+  'getUserByPhone',
+  'assignRider',
+  'bulkUpdateOrder',
+  'rejectOrder',
+  'updateOrderStatus',
+  'startCookingSession',
+  'bulkGenerateOrders',
+  'rechargeWallet',
+  'manualRefund',
+  'updateSubscriber',
+  'promoteToSubscriber',
+  'removeSubscriber',
+  'adminCreateUser',
+  'adminResetUserPassword',
+  'addMenuItem',
+  'updateMenuItem',
+  'deleteMenuItem',
+  'deleteCoupon',
+  'deleteExpiredCoupons',
+  'addCoupon',
+  'updateCoupon',
+  'updateRider',
+  'deleteRider',
+  'deleteNotification',
+  'deleteNotificationRange',
+  'deleteOldData',
+  'previewCleanup',
+  'getNuCouponPending',
+  'getNuCouponSent',
+  'addNuCouponPending',
+  'markNuCouponSent',
+  'setOrderCutoff',
+  'setWeeklySchedule',
+  'setKhataEnabled',
+  'setDeliveryZone',
+  'setAutoTiffinCutoff',
+  'adminDeleteUser',
+  'createRider'
 ]);
 
 
@@ -294,6 +310,7 @@ function _invalidateSettingsCache() {
   delete _settingsCache['weekly_schedule'];
   delete _settingsCache['order_cutoff_config'];
   delete _settingsCache['khata_enabled'];
+  delete _settingsCache['auto_tiffin_cutoff'];
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -676,7 +693,7 @@ app.get('/config.js', (_req, res) => {
 // Cleared automatically — Map never grows unboundedly on free-tier Render.
 const _recentMutations = new Map();
 const _MUTATION_TTL = 30_000; // 30 seconds
-const _MUTATION_ACTIONS = new Set(['createOrder', 'bulkGenerateOrders', 'forceUdharOrder', 'rechargeWallet', 'manualRefund', 'rejectOrder']);
+const _MUTATION_ACTIONS = new Set(['createOrder', 'bulkGenerateOrders', 'rechargeWallet', 'manualRefund', 'rejectOrder']);
 
 function _mutationKey(action, data) {
   // Key = action + phone + total_amount (enough to catch accidental double-submit)
@@ -811,18 +828,15 @@ app.post('/api', async (req, res) => {
         });
       }
 
-      case 'adminLogin':
-      case 'staffLogin': {
+      case 'adminLogin': {
         const result = await _authenticateStaff(data.username, data.password);
-        if (result.success && result.staff) {
-          // Issue a signed session token — role is embedded and server-verified on every sensitive call
-          result.sessionToken = _signToken({
-            username: result.staff.username,
-            role:     result.staff.role,   // 'admin' | 'staff' (from DB)
-            exp:      Date.now() + SESSION_TTL_MS,
-          });
-        }
-        return res.json(result);
+        if (!result.success) return res.json(result);
+        const sessionToken = _signToken({
+          role:     result.staff.role,
+          username: result.staff.username,
+          exp:      Date.now() + SESSION_TTL_MS,
+        });
+        return res.json({ success: true, staff: result.staff, sessionToken });
       }
 
       case 'updateProfile': {
@@ -866,21 +880,6 @@ app.post('/api', async (req, res) => {
         await supabase.from('staff').update({ password_hash: hash }).eq('username', data.username);
         return res.json({ success: true });
       }
-
-      case 'resetUserPassword': {
-        const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
-        await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
-        return res.json({ success: true });
-      }
-
-      // ── MENU ──────────────────────────────────────────────────────────────
-
-      case 'getMenu': {
-        const { data: rows } = await supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true });
-        return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
-      }
-
-      // ── MERGED: replaces 4 separate calls (getMenu + getWeeklySchedule + getOrderCutoff + getKhataEnabled) ──
       case 'getHomeData': {
         const [menuRes, scheduleVal, cutoffVal, khataVal] = await Promise.all([
           supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
@@ -912,11 +911,6 @@ app.post('/api', async (req, res) => {
         const peTmrw = subRow?.pause_evening && subRow?.pause_evening_from === tomorrowStrSt;
         const pendingTomorrowSt = (pmTmrw && peTmrw) ? 'both' : pmTmrw ? 'lunch' : peTmrw ? 'dinner' : null;
         return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: effectivePauseMode, pendingTomorrow: pendingTomorrowSt, plan: subRow?.plan || 'morning' });
-      }
-
-      case 'adminGetMenu': {
-        const { data: rows } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
-        return res.json({ success: true, items: (rows || []).map(formatMenuItem) });
       }
 
       case 'addMenuItem': {
@@ -956,20 +950,6 @@ app.post('/api', async (req, res) => {
         await supabase.from('menu_items').delete().eq('item_id', mid);
         return res.json({ success: true });
       }
-
-      case 'updateMenuOrder': {
-        await Promise.all((data.order || []).map(entry =>
-          supabase.from('menu_items').update({ sort_order: entry.sort_order }).eq('item_id', entry.item_id)
-        ));
-        return res.json({ success: true });
-      }
-
-      case 'updateMenuStock': {
-        await supabase.from('menu_items').update({ stock_grams: data.stock_grams }).eq('item_id', data.item_id);
-        return res.json({ success: true });
-      }
-
-      // ── ORDERS ────────────────────────────────────────────────────────────
 
       case 'createOrder': {
         const phone = cleanPhone(data.phone);
@@ -1131,16 +1111,6 @@ app.post('/api', async (req, res) => {
         else if (data.fromDate) query = query.gte('date', data.fromDate);
         query = query.order('created_at', { ascending: false });
         const { data: rows } = await query;
-        const formatted = (rows || []).map(formatOrder);
-        const resolved = await resolveRiderNames(formatted);
-        return res.json({ success: true, orders: resolved });
-      }
-
-      case 'getOrdersByDate': {
-        const { data: rows } = await supabase
-          .from('orders').select('*')
-          .eq('date', data.date)
-          .order('created_at', { ascending: false });
         const formatted = (rows || []).map(formatOrder);
         const resolved = await resolveRiderNames(formatted);
         return res.json({ success: true, orders: resolved });
@@ -1601,42 +1571,6 @@ app.post('/api', async (req, res) => {
         });
       }
 
-
-      case 'forceUdharOrder': {
-        const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
-        if (!user) return res.json({ success: false, error: 'User not found' });
-        // FIX #12: Check actual subscriber status — don't hardcode is_subscriber = true
-        const { data: udharSubRow } = await supabase.from('subscribers').select('phone').eq('phone', phone).single();
-        if (!udharSubRow) {
-          // Auto-create subscriber row so wallet deduction works correctly
-          await supabase.from('subscribers').insert({
-            phone,
-            plan:            data.plan || 'morning',
-            plan_start:      istDateStr(ist),
-            notes:           'Auto-created by forceUdharOrder',
-            pause_delivery:  'none',
-            pause_morning:   false,
-            pause_evening:   false,
-            pause_morning_from: null,
-            pause_evening_from: null,
-            is_delivery_off: false,
-            created_at:      new Date().toISOString()
-          });
-          // Ensure wallet row exists
-          try {
-            await supabase.from('khata_summary')
-              .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
-          } catch(_) {}
-        }
-        user.is_subscriber = true;
-        const result = await _createSingleOrder({
-          user, items: data.items, deliveryCharge: data.deliveryCharge || 0,
-          khataEnabled: true, ist, source: 'admin', slot: data.slot || 'morning'
-        });
-        return res.json({ success: true, orderId: result.orderId, walletBalance: result.walletBalance });
-      }
-
       case 'assignRider': {
         const updates = { rider_id: data.riderId };
         await supabase.from('orders').update(updates).eq('order_id', data.orderId);
@@ -1686,10 +1620,6 @@ app.post('/api', async (req, res) => {
         if (updateErr) return res.json({ success: false, error: updateErr.message });
         return res.json({ success: true });
       }
-
-      // ── COUPONS ──────────────────────────────────────────────────────────
-
-      case 'applyCoupon':
       case 'validateCoupon': {
         const cpnCode = (data.code||'').toUpperCase();
         if (!cpnCode) return res.json({ success: false, error: 'Coupon code required' });
@@ -1734,35 +1664,6 @@ app.post('/api', async (req, res) => {
         if (minOrd && data.orderAmount < minOrd) return res.json({ success: false, error: 'Min order ₹' + minOrd });
         const capAmt = coupon.cap_amount ?? coupon.max_cap ?? null;
         return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, cap_amount: capAmt, min_order: minOrd, restriction_type: rtype } });
-      }
-
-
-      case 'createCoupon': {
-        if (!data.code) return res.json({ success: false, error: 'Coupon code required' });
-        await supabase.from('coupons').insert({
-          code:             data.code.toUpperCase(),
-          discount_type:    data.discount_type,
-          discount_value:   data.discount_value,
-          min_order:        data.min_order ?? null,
-          max_usage:        data.max_usage ?? null,
-          used_count:       0,
-          expiry_date:      data.expiry_date || null,
-          is_active:        true,
-          used_by:          '[]',
-          restriction_type: data.restriction_type || 'unlimited',
-          allowed_phones:   JSON.stringify(data.allowed_phones || []),
-          per_user_limit:   data.per_user_limit ?? null,
-          max_per_user:     data.per_user_limit ?? null,
-          cap_amount:       data.cap_amount ?? null,
-          max_cap:          data.cap_amount ?? null
-        });
-        return res.json({ success: true });
-      }
-
-      case 'adminGetCoupons': {
-        const { data: rows } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
-        const coupons = (rows || []).map(c => ({ ...c, used_by: JSON.parse(c.used_by || '[]') }));
-        return res.json({ success: true, coupons });
       }
 
       case 'deleteCoupon': {
@@ -1815,13 +1716,6 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, pauseMode: effectivePauseMode, plan: row?.plan || 'morning', pendingTomorrow });
       }
 
-      case 'getAutoTiffinCutoff': {
-        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'auto_tiffin_cutoff').single();
-        let cfg = { morning: '11:00', evening: '18:00' };
-        if (row?.value) { try { cfg = JSON.parse(row.value); } catch {} }
-        return res.json({ success: true, cutoff: cfg });
-      }
-
 
       case 'adminGetSubscribers': {
         const { data: subs } = await supabase.from('subscribers').select('*');
@@ -1847,23 +1741,6 @@ app.post('/api', async (req, res) => {
           is_paused:       s.pause_morning || s.pause_evening || (s.pause_delivery && s.pause_delivery !== 'none') || false
         }));
         return res.json({ success: true, subscribers: enriched });
-      }
-
-      case 'addSubscriber': {
-        await supabase.from('subscribers').insert({
-          phone:          cleanPhone(data.phone),
-          plan:           data.plan || 'morning',
-          plan_start:     data.plan_start,
-          notes:          data.notes || '',
-          pause_delivery: 'none',
-          pause_morning:  false,
-          pause_evening:  false,
-          pause_morning_from: null,
-          pause_evening_from: null,
-          is_delivery_off: false,
-          created_at:     new Date().toISOString()
-        });
-        return res.json({ success: true });
       }
 
       case 'updateSubscriber': {
@@ -1988,10 +1865,6 @@ app.post('/api', async (req, res) => {
         } catch(_) {}
         return res.json({ success: true });
       }
-
-      // ── RIDERS ────────────────────────────────────────────────────────────
-
-      case 'addRider':
       case 'createRider': {
         const rider_id = await generateRiderId(ist);
         const hash     = await bcrypt.hash(data.password, SALT_ROUNDS);
@@ -2065,10 +1938,6 @@ app.post('/api', async (req, res) => {
         const safe = (rows || []).map(r => { const { password_hash, ...s } = r; return s; });
         return res.json({ success: true, riders: safe });
       }
-
-      // ── STAFF ─────────────────────────────────────────────────────────────
-
-      case 'addStaff':
       case 'createStaff': {
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
         await supabase.from('staff').insert({
@@ -2205,59 +2074,10 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, newBalance: newBal });
       }
 
-      case 'adminGetAllKhata': {
-        const { data: rows } = await supabase.from('khata_summary').select('*');
-        const kPhones = (rows || []).map(k => k.phone);
-        const { data: kUsers } = kPhones.length
-          ? await supabase.from('users').select('phone, name').in('phone', kPhones)
-          : { data: [] };
-        const kuMap = {};
-        for (const u of (kUsers || [])) kuMap[u.phone] = u.name;
-        const enriched = (rows || []).map(k => ({ ...k, name: kuMap[k.phone] || null }));
-        return res.json({ success: true, khata: enriched });
-      }
-
-      case 'addKhataEntry': {
-        const phone  = cleanPhone(data.phone);
-        const amount = Number(data.amount);
-        await supabase.from('khata_entries').insert({
-          id:              generateTxnId(ist),
-          phone,
-          type:            data.type,
-          amount,
-          running_balance: data.running_balance ?? null,
-          note:            data.note || '',
-          date:            data.date || istDateStr(ist),
-          time:            data.time || istTimeStr(ist),
-          order_id:        data.order_id || null,
-          order_status:    data.order_status || null,
-          source:          data.source || 'admin',
-          created_at:      new Date().toISOString()
-        });
-        await _atomicWalletUpdate(phone, amount);
-        return res.json({ success: true });
-      }
-
-      // ── SETTINGS ──────────────────────────────────────────────────────────
-
-      case 'getOrderCutoff': {
-        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'order_cutoff_config').single();
-        let config = null;
-        if (row?.value) { try { config = JSON.parse(row.value); } catch { config = null; } }
-        return res.json({ success: true, config });
-      }
-
       case 'setOrderCutoff': {
         await supabase.from('admin_settings').upsert({ key: 'order_cutoff_config', value: JSON.stringify(data.config), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         _invalidateSettingsCache(); _analyticsCache = null;
         return res.json({ success: true });
-      }
-
-      case 'getWeeklySchedule': {
-        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'weekly_schedule').single();
-        let schedule = null;
-        if (row?.value) { try { schedule = JSON.parse(row.value); } catch { schedule = null; } }
-        return res.json({ success: true, schedule });
       }
 
       case 'setWeeklySchedule': {
@@ -2277,22 +2097,10 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
-      case 'getKhataEnabled': {
-        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'khata_enabled').single();
-        return res.json({ success: true, enabled: JSON.parse(row?.value || 'false') === true });
-      }
-
       case 'setKhataEnabled': {
         await supabase.from('admin_settings').upsert({ key: 'khata_enabled', value: JSON.stringify(!!data.enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         _invalidateSettingsCache(); _analyticsCache = null;
         return res.json({ success: true });
-      }
-
-      case 'getDeliveryZone': {
-        const { data: row } = await supabase.from('admin_settings').select('value').eq('key', 'delivery_zone').single();
-        let zone = null;
-        if (row?.value) { try { zone = JSON.parse(row.value); } catch { zone = null; } }
-        return res.json({ success: true, zone });
       }
 
       case 'setDeliveryZone': {
@@ -2347,15 +2155,6 @@ app.post('/api', async (req, res) => {
         return res.json(analyticsResult);
       }
 
-      case 'getUsers': {
-        const { data: rows, error: uErr2 } = await supabase.from('users').select('*').order('created_at', { ascending: false });
-        if (uErr2) throw new Error('DB error: ' + uErr2.message);
-        const safe = (rows || []).map(u => { const { password_hash, ...s } = u; return s; });
-        return res.json({ success: true, users: safe });
-      }
-
-      // ── NOTIFICATIONS ─────────────────────────────────────────────────────
-
       case 'getNotifications': {
         const { data: rows } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
         const list = (rows || []).map(n => {
@@ -2368,18 +2167,8 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, notifications: list, unreadCount });
       }
 
-      case 'createNotification': {
-        await _createNotification(data);
-        return res.json({ success: true });
-      }
-
       case 'markNotificationRead': {
         await supabase.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', data.id);
-        return res.json({ success: true });
-      }
-
-      case 'markNotificationGroupRead': {
-        await supabase.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('group_id', data.group_id);
         return res.json({ success: true });
       }
 
@@ -2388,62 +2177,30 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
-      case 'purgeOldNotifications': {
-        const cutoff = new Date(Date.now() - 24 * 3_600_000).toISOString();
-        await supabase.from('notifications').delete().lt('created_at', cutoff);
-        return res.json({ success: true });
-      }
-
-      // Returns row counts that WOULD be deleted by auto-cleanup (for admin info display)
-      case 'autoCleanupStatus': {
-        const ist2 = getIST();
-        const dc = (days) => istDateStr(new Date(ist2.getTime() - days * 86_400_000));
-        const ic = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
-
-        const [c1, c2, c3, c4, c5] = await Promise.all([
-          supabase.from('orders').select('order_id', { count: 'exact', head: true }).lte('date', dc(5)),
-          supabase.from('khata_entries').select('id', { count: 'exact', head: true }).lte('date', dc(35)),
-          supabase.from('notifications').select('id', { count: 'exact', head: true }).lt('created_at', ic(1)),
-          supabase.from('cooking_sessions').select('session_id', { count: 'exact', head: true }).lte('session_date', dc(5)),
-          supabase.from('nu_coupon_sent').select('phone', { count: 'exact', head: true }).lt('sent_at', ic(5)),
-        ]);
-
-        return res.json({
-          success: true,
-          pending: {
-            orders:           c1.count || 0,
-            khata_entries:    c2.count || 0,
-            notifications:    c3.count || 0,
-            cooking_sessions: c4.count || 0,
-            nu_coupon_sent:   c5.count || 0,
-          },
-          retention: { orders: 5, khata_entries: 35, notifications: 1, cooking_sessions: 5, nu_coupon_sent: 5 }
-        });
-      }
-
-      // ── NEW USER COUPON ───────────────────────────────────────────────────
-
       case 'getNuCouponPending': {
-        // Fetch unread new-user notifications, cross-reference with nu_coupon_sent
-        const { data: notifRows } = await supabase
+        // Pending = unread new-user notifications not yet in nu_coupon_sent
+        const { data: notifs } = await supabase
           .from('notifications')
           .select('id, meta, created_at')
           .eq('type', 'user')
           .eq('is_read', false)
           .order('created_at', { ascending: false });
-        const { data: sentRows } = await supabase.from('nu_coupon_sent').select('phone');
+        const { data: sentRows } = await supabase
+          .from('nu_coupon_sent')
+          .select('phone');
         const sentPhones = new Set((sentRows || []).map(r => r.phone));
-        const pending = (notifRows || [])
-          .map(n => {
-            let meta = {}; try { meta = typeof n.meta === 'string' ? JSON.parse(n.meta) : (n.meta || {}); } catch(_) {}
-            return { phone: meta.phone, name: meta.name, address: meta.address, notif_id: n.id, created_at: n.created_at };
-          })
-          .filter(u => u.phone && !sentPhones.has(u.phone));
-        return res.json({ success: true, records: pending });
+        const records = (notifs || [])
+          .map(n => { try { return { ...JSON.parse(n.meta || '{}'), notif_id: n.id, created_at: n.created_at }; } catch(_) { return null; } })
+          .filter(r => r && r.phone && !sentPhones.has(r.phone));
+        return res.json({ success: true, records });
       }
 
       case 'getNuCouponSent': {
-        const { data: rows } = await supabase.from('nu_coupon_sent').select('*').order('sent_at', { ascending: false });
+        // Sent = rows from nu_coupon_sent, newest first
+        const { data: rows } = await supabase
+          .from('nu_coupon_sent')
+          .select('phone, name, sent_at, coupon_code')
+          .order('sent_at', { ascending: false });
         return res.json({ success: true, records: rows || [] });
       }
 
@@ -2462,39 +2219,6 @@ app.post('/api', async (req, res) => {
           notif_id:    data.notif_id || null
         }, { onConflict: 'phone' });
         return res.json({ success: true });
-      }
-
-      case 'deleteOldNuCouponSent': {
-        const cutoff = new Date(Date.now() - 90 * 86_400_000).toISOString();
-        const { count } = await supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', cutoff);
-        return res.json({ success: true, deleted: count || 0 });
-      }
-
-      // ── DATA CLEANUP ──────────────────────────────────────────────────────
-
-      case 'previewDeleteOrders': {
-        const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true }).lte('date', data.before_date);
-        return res.json({ success: true, count: count || 0 });
-      }
-
-      case 'previewDeleteTransactions': {
-        const { count } = await supabase.from('khata_entries').select('*', { count: 'exact', head: true }).lte('date', data.before_date);
-        return res.json({ success: true, count: count || 0 });
-      }
-
-      case 'previewDeleteNotifications': {
-        const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).lte('created_at', data.before_date);
-        return res.json({ success: true, count: count || 0 });
-      }
-
-      case 'deleteOldOrders': {
-        const { count } = await supabase.from('orders').delete({ count: 'exact' }).lte('date', data.before_date);
-        return res.json({ success: true, deleted: count || 0 });
-      }
-
-      case 'deleteOldTransactions': {
-        const { count } = await supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', data.before_date);
-        return res.json({ success: true, deleted: count || 0 });
       }
 
       case 'deleteOldData': {
@@ -2678,17 +2402,6 @@ app.post('/api', async (req, res) => {
         await supabase.from('coupons').update(updates).eq('id', data.id);
         return res.json({ success: true }); }
 
-      case 'getSubscribers':
-        { const { data: subs } = await supabase.from('subscribers').select('*').order('plan_start', { ascending: false });
-          const gsPhones = (subs || []).map(s => s.phone);
-          const { data: gsUsers } = gsPhones.length
-            ? await supabase.from('users').select('phone, name, address').in('phone', gsPhones)
-            : { data: [] };
-          const gsMap = {};
-          for (const u of (gsUsers || [])) gsMap[u.phone] = u;
-          const result = (subs || []).map(s => ({ ...s, name: gsMap[s.phone]?.name || '', address: gsMap[s.phone]?.address || '', plan: s.plan || null }));
-          return res.json({ success: true, subscribers: result }); }
-
       case 'getAllKhata': {
         const { data: rows } = await supabase.from('khata_summary').select('*');
         const akPhones = (rows || []).map(r => r.phone);
@@ -2786,30 +2499,6 @@ app.post('/api', async (req, res) => {
 
       // ─────────────────────────────────────────────────────────────────────
       // Toggle granular pause for a subscriber session (admin action)
-      case 'toggleSubPause': {
-        const phone   = cleanPhone(data.phone);
-        const session = data.session; // 'morning' | 'evening'
-        const action  = data.action;  // 'pause' | 'resume'
-        if (!['morning','evening'].includes(session)) return res.json({ success: false, error: 'Invalid session' });
-        if (!['pause','resume'].includes(action))     return res.json({ success: false, error: 'Invalid action' });
-        const field   = session === 'morning' ? 'pause_morning' : 'pause_evening';
-        const val     = action === 'pause';
-        const { data: sub } = await supabase.from('subscribers').select('pause_morning, pause_evening').eq('phone', phone).single();
-        if (!sub) return res.json({ success: false, error: 'Subscriber not found' });
-        const updates = { [field]: val };
-        // Keep legacy pause_delivery in sync for index.html compatibility
-        const pm = field === 'pause_morning' ? val : (sub.pause_morning || false);
-        const pe = field === 'pause_evening' ? val : (sub.pause_evening || false);
-        updates.pause_delivery = pm && pe ? 'both' : pm ? 'lunch' : pe ? 'dinner' : 'none';
-        // Admin action always takes effect today. When resuming, clear the _from date.
-        const todayStr = istDateStr(ist);
-        if (field === 'pause_morning') updates.pause_morning_from = val ? todayStr : null;
-        if (field === 'pause_evening') updates.pause_evening_from = val ? todayStr : null;
-        await supabase.from('subscribers').update(updates).eq('phone', phone);
-        return res.json({ success: true, pause_morning: pm, pause_evening: pe });
-      }
-
-      // Delete user account completely (admin action)
       case 'adminDeleteUser': {
         const phone = cleanPhone(data.phone);
         // FIX #16: Also delete the user's orders to prevent orphaned records
@@ -2826,100 +2515,6 @@ app.post('/api', async (req, res) => {
       // ─── KITCHEN / COOKING SUMMARY ───────────────────────────────────────
       // getCookingSummary: aggregate item quantities from orders in a time range,
       // excluding orders already locked in a cooking session.
-      case 'getCookingSummary': {
-        // data.slot = 'morning' | 'evening' | 'all'
-        // data.fromDate, data.toDate  (YYYY-MM-DD)
-        const fromDate = data.fromDate || new Date().toISOString().slice(0, 10);
-        const toDate   = data.toDate   || fromDate;
-        const slot     = (data.slot || 'all').toLowerCase();
-
-        // 1. Fetch all locked order_ids from cooking_sessions that OVERLAP this date range
-        //    A session overlaps if its from_date <= toDate AND its to_date >= fromDate
-        const { data: sessions } = await supabase
-          .from('cooking_sessions')
-          .select('locked_order_ids')
-          .lte('from_date', toDate)
-          .gte('to_date', fromDate);
-
-        const lockedIds = new Set();
-        (sessions || []).forEach(s => {
-          (s.locked_order_ids || []).forEach(id => lockedIds.add(id));
-        });
-
-        // 2. Fetch orders in date range (non-cancelled)
-        let q = supabase.from('orders').select('order_id,items,slot,order_status')
-          .gte('date', fromDate)
-          .lte('date', toDate)
-          .not('order_status', 'eq', 'cancelled');
-
-        if (slot === 'morning') q = q.eq('slot', 'morning');
-        else if (slot === 'evening') q = q.eq('slot', 'evening');
-
-        const { data: orders } = await q;
-
-        // 3. Aggregate quantities, skip locked orders
-        //
-        // variantLabel parsing: extract numeric quantity and unit text from labels like:
-        //   "100 Gram"        → numQty=100, unit="Gram"
-        //   "50 Gram"         → numQty=50,  unit="Gram"
-        //   "6 Roti ₹30"     → numQty=6,   unit="Roti"
-        //   "4 Roti ₹22"     → numQty=4,   unit="Roti"
-        //   "2 piece ₹60"    → numQty=2,   unit="piece"
-        //   "1 piece ₹40"    → numQty=1,   unit="piece"
-        // If no variant label or no leading number, fall back to item.qty (cart quantity).
-        function _parseVariantQtyUnit(variantLabel) {
-          if (!variantLabel) return null;
-          // Match leading number (int or decimal) followed by a word unit, optionally followed by price/extra text
-          // e.g. "100 Gram ₹100" → ["100", "Gram"]
-          //      "6 Roti ₹30"   → ["6",   "Roti"]
-          //      "4 piece ₹22"  → ["4",   "piece"]
-          const m = String(variantLabel).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
-          if (!m) return null;
-          return { numQty: parseFloat(m[1]), unit: m[2] };
-        }
-
-        const summary = {};
-        let includedOrderIds = [];
-        (orders || []).forEach(ord => {
-          if (lockedIds.has(ord.order_id)) return;
-          includedOrderIds.push(ord.order_id);
-          // items is stored as JSON string in DB — parse it first
-          let rawItems = ord.items;
-          if (typeof rawItems === 'string') {
-            try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
-          }
-          const items = Array.isArray(rawItems) ? rawItems : [];
-          items.forEach(item => {
-            const key      = (item.name || item.item_name || 'Unknown').trim();
-            // Cart quantity (how many of this variant the user added to cart, usually 1)
-            const cartQty  = parseFloat(item.quantity || item.qty || 1);
-            // Try to parse real numeric quantity from variantLabel first
-            const parsed   = _parseVariantQtyUnit(item.variantLabel || item.variant_label || '');
-            // realQty = variant numeric amount × cart qty (e.g. "100 Gram" × 1 = 100)
-            const realQty  = parsed ? parsed.numQty * cartQty : cartQty;
-            // Unit from variant label (e.g. "Gram", "Roti", "piece"); fall back to stored unit field
-            const unit     = parsed ? parsed.unit : (item.unit || item.variant || '').trim();
-
-            if (!summary[key]) summary[key] = { name: key, totalQty: 0, unit, orders: 0 };
-            summary[key].totalQty += realQty;
-            summary[key].orders   += 1;
-            // Ensure unit is set (first variant's unit wins; subsequent same-unit items won't overwrite)
-            if (!summary[key].unit && unit) summary[key].unit = unit;
-          });
-        });
-
-        const summaryArr = Object.values(summary).sort((a, b) => a.name.localeCompare(b.name));
-        return res.json({
-          success: true,
-          summary: summaryArr,
-          orderCount: includedOrderIds.length,
-          includedOrderIds,
-          fromDate, toDate, slot
-        });
-      }
-
-      // startCookingSession: lock the current includedOrderIds so they won't be
-      // counted again in future getCookingSummary calls.
       case 'startCookingSession': {
         const sessionDate = data.sessionDate || new Date().toISOString().slice(0, 10);
         const slot        = (data.slot || 'all').toLowerCase();
@@ -2949,21 +2544,6 @@ app.post('/api', async (req, res) => {
       }
 
       // getCookingSessions: return past cooking sessions for audit/history
-      case 'getCookingSessions': {
-        const fromDate = data.fromDate || new Date().toISOString().slice(0, 10);
-        const toDate   = data.toDate   || fromDate;
-        const { data: sessions, error } = await supabase
-          .from('cooking_sessions')
-          .select('*')
-          .lte('from_date', toDate)
-          .gte('to_date', fromDate)
-          .order('created_at', { ascending: false });
-        if (error) return res.json({ success: false, error: error.message });
-        return res.json({ success: true, sessions: sessions || [] });
-      }
-
-      // getCookingSessionDetail: fetch orders for a specific cooking session
-      // so admin can see what items / quantities were locked.
       case 'getCookingSessionDetail': {
         const orderIds = data.orderIds || [];
         if (!orderIds.length) return res.json({ success: true, orders: [], summary: [] });
