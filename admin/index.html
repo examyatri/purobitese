@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v19.9                                    ║
-     ║  Updated : 2026-05-16                               ║
-     ║  Changes : Cooking Sessions morning/evening filter;  ║
-     ║            added — All / Morning / Evening toggle   ║
-     ║            buttons for client-side session filter   ║
+     ║  Version : v20.2                                    ║
+     ║  Updated : 2026-05-18                               ║
+     ║  Changes : Fixed doRejectOrder NOT_SUBSCRIBER bug   ║
+     ║            — moved modal to catch block so friendly ║
+     ║            "Cannot Refund to Wallet" dialog shows   ║
+     ║            correctly instead of raw error toast     ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -957,7 +958,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   border-top-color:var(--p);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://purobitese-api.onrender.com/config.js"></script>
+<script src="https://purobitese-api.onrender.com/config.js" async></script>
 </head>
 <body>
 
@@ -1849,7 +1850,9 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 <script>
 const CFG = {
   API: 'https://purobitese-api.onrender.com/api',
-  KEY: window.__TIFFO_API_KEY__ || '',  // injected server-side or left blank — never commit a real key here
+  // Lazy getter — reads window.__TIFFO_API_KEY__ on each access, not at definition time.
+  // Async config.js may not have run yet when this inline script parses.
+  get KEY() { return window.__TIFFO_API_KEY__ || ''; },
   WA:  '919889760350'
 };
 
@@ -1904,7 +1907,10 @@ function doAdminLogout() {
   document.getElementById('a-password').value = '';
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // ── KEY GUARD: config.js async — fetch key if not yet available ──────────
+  if (!CFG.KEY) await _refreshApiKey();
+
   const session = AdminAuth.get();
   if (session) {
     document.getElementById('auth-pg').style.display = 'none';
@@ -2267,12 +2273,16 @@ function guardedApi(key, fn) {
 let _sessionExpiredHandled = false;
 
 async function _refreshApiKey() {
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
-    const r = await fetch('https://purobitese-api.onrender.com/config.js', { cache: 'no-store' });
+    const r = await fetch('https://purobitese-api.onrender.com/config.js', {
+      cache: 'no-store', signal: ctrl.signal
+    });
     const txt = await r.text();
     const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
-    if (m && m[1]) { CFG.KEY = m[1]; return true; }
-  } catch {}
+    if (m && m[1]) { window.__TIFFO_API_KEY__ = m[1]; return true; }
+  } catch {} finally { clearTimeout(timer); }
   return false;
 }
 
@@ -2694,16 +2704,19 @@ function openRejectModal(orderId, customerName) {
 
 async function doRejectOrder(orderId, refundType) {
   try {
-    const res = await api('rejectOrder', { orderId, refundType });
-    if (!res.success) {
-      // NOT_SUBSCRIBER error → show friendly info modal
-      if (res.error === 'NOT_SUBSCRIBER') {
-        openMo(`<div class="mo-title" style="color:#b45309"><i class="fa fa-circle-exclamation"></i> Cannot Refund to Wallet</div>
+    await api('rejectOrder', { orderId, refundType });
+    const refundLabel = { wallet:'💰 Wallet refunded', cash:'💵 Cash refund issued', none:'🚫 No refund' }[refundType]||'';
+    aToast(`Order rejected ✓  ${refundLabel}`);
+    _ordersStr = '';
+    loadOrders();
+  } catch(e) {
+    if (e.message === 'NOT_SUBSCRIBER') {
+      openMo(`<div class="mo-title" style="color:#b45309"><i class="fa fa-circle-exclamation"></i> Cannot Refund to Wallet</div>
           <div style="background:#fef3c7;border:1.5px solid #fcd34d;border-radius:11px;padding:16px 18px;margin-bottom:18px;display:flex;gap:12px;align-items:flex-start">
             <div style="font-size:22px;flex-shrink:0">👤</div>
             <div>
               <div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#92400e;margin-bottom:4px">Customer is a Normal User</div>
-              <div style="font-size:13px;color:#78350f;line-height:1.5">${res.message||'This customer does not have a Tiffo wallet. Please use Cash Refund or No Refund option.'}</div>
+              <div style="font-size:13px;color:#78350f;line-height:1.5">This customer does not have a Tiffo wallet. Please use Cash Refund or No Refund option.</div>
             </div>
           </div>
           <p style="font-size:13px;color:#64748b;margin-bottom:16px">Please choose a different refund method for order <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code>:</p>
@@ -2716,16 +2729,10 @@ async function doRejectOrder(orderId, refundType) {
             <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">No Refund</div><div style="font-size:12px;color:#64748b;margin-top:1px">Order rejected without any refund</div></div>
           </div>
           <button class="btn btn-outline" style="margin-top:10px;width:100%" onclick="closeMo()">Cancel</button>`);
-        return;
-      }
-      aToast(res.error || res.message || 'Reject failed');
       return;
     }
-    const refundLabel = { wallet:'💰 Wallet refunded', cash:'💵 Cash refund issued', none:'🚫 No refund' }[refundType]||'';
-    aToast(`Order rejected ✓  ${refundLabel}`);
-    _ordersStr = '';
-    loadOrders();
-  } catch(e) { aToast(e.message); }
+    aToast(e.message);
+  }
 }
 
 // ── Wallet Transaction History Modal ──
@@ -6804,7 +6811,7 @@ function kitchenSendWhatsApp() {
     return `• ${i.name}: ${qty}${i.unit ? ' ' + i.unit : ''}`;
   }).join('\n');
   const msg = `${emoji} Kitchen Summary — ${slot} (${range})\n${lines}\n\n📦 Total Orders: ${_kitchenIncludedIds.length}`;
-  window.open(`https://wa.me/919889763050?text=${encodeURIComponent(msg)}`, '_blank');
+  window.open(`https://wa.me/919889760350?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function kitchenExportPDF() {

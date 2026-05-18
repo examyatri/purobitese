@@ -1,9 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v7.2  |  Updated : 2026-05-16
+   Version : v7.4  |  Updated : 2026-05-17
 
-   CHANGES v7.2:
-   - Version bump for v63 release
+   CHANGES v7.4:
+   - Version bump for v71 release
    - Cache bumped → tiffo-admin-v9 (performance indexes migration)
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
