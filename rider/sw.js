@@ -1,9 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v8.2  |  Updated : 2026-05-16
+   Version : v8.4  |  Updated : 2026-05-17
 
-   CHANGES v8.2:
-   - Version bump for v63 release
+   CHANGES v8.4:
+   - Version bump for v71 release
    - Cache bumped → tiffo-rider-v10 (performance indexes migration)
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)

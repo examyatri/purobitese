@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.3                                    ║
-     ║  Updated : 2026-05-16                               ║
+     ║  Version : v35.5                                    ║
+     ║  Updated : 2026-05-17                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -457,7 +457,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   border-top-color:var(--p);border-radius:50%;animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://purobitese-api.onrender.com/config.js"></script>
+<script src="https://purobitese-api.onrender.com/config.js" async></script>
 </head>
 <body>
 
@@ -687,7 +687,9 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 /* ─── CONFIG ─────────────────────────────────────────── */
 const CFG = {
   API:      'https://purobitese-api.onrender.com/api',
-  KEY:      window.__TIFFO_API_KEY__ || '',  // injected server-side — never hardcode here
+  // Lazy getter — reads window.__TIFFO_API_KEY__ on each access, not at definition time.
+  // Async config.js may not have run yet when this inline script parses.
+  get KEY() { return window.__TIFFO_API_KEY__ || ''; },
   WA_ADMIN: '919889760350'
 };
 
@@ -763,12 +765,16 @@ const RiderSession = {
 
 /* ─── API WRAPPER ────────────────────────────────────── */
 async function _refreshApiKey() {
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
-    const r = await fetch('https://purobitese-api.onrender.com/config.js', { cache: 'no-store' });
+    const r = await fetch('https://purobitese-api.onrender.com/config.js', {
+      cache: 'no-store', signal: ctrl.signal
+    });
     const txt = await r.text();
     const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
-    if (m && m[1]) { CFG.KEY = m[1]; return true; }
-  } catch {}
+    if (m && m[1]) { window.__TIFFO_API_KEY__ = m[1]; return true; }
+  } catch {} finally { clearTimeout(timer); }
   return false;
 }
 
@@ -2652,7 +2658,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ─── INIT ───────────────────────────────────────────── */
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // ── KEY GUARD: config.js async — fetch key if not yet available ──────────
+  if (!CFG.KEY) await _refreshApiKey();
+
   // Push initial state so first back press fires popstate
   history.pushState({ riderPg: 'init' }, '', location.href);
   autofillCreds();
