@@ -1,10 +1,10 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v29.3  |  Updated : 2026-05-16
+   Version : v29.6  |  Updated : 2026-05-17
 
-   CHANGES v29.3:
-   - Version bump for v63 release (auto tiffin plan fix,
-     cooking sessions filter, language updates)
+   CHANGES v29.6:
+   - Version bump for v71 release (PTR freshness fix,
+     settings cache reset on PTR and visibility return)
 
    CHANGES v29.0 (was v28.0):
    - Cache bumped → tiffo-v24 (performance indexes migration)
@@ -14,11 +14,11 @@
    - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v24';
+const CACHE      = 'tiffo-v25';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
-const PRECACHE = ['./', './index.html', './manifest.json', './sw.js'];
+const PRECACHE = ['./', './index.html', './manifest.json', './sw.js', './robots.txt', './llms.txt', './sitemap.xml', './humans.txt'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
