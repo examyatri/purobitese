@@ -1958,19 +1958,80 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getRiderOrders': {
-        // Verify the sessionToken belongs to this rider (or is an admin)
+        // LEGACY — kept for backward compat but now delegates to getRiderPending
+        // Falls through to getRiderPending logic below
+        data.tab = 'pending';
+      }
+      // eslint-disable-next-line no-fallthrough
+      case 'getRiderPending': {
+        // Fetch ONLY "out for delivery" orders for this rider.
+        // Date and slot are filtered at DB level — minimal rows returned.
         const riderSession = _verifyToken(req.body.sessionToken);
         const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
         const isOwner = riderSession && riderSession.username === data.riderId;
         if (!isAdmin && !isOwner) {
           return res.status(401).json({ success: false, error: 'Rider auth required' });
         }
-        const twoDaysAgo = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
-        const { data: rows } = await supabase
-          .from('orders').select('*')
+        const todayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000));
+        const yesterdayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 86_400_000));
+        // Resolve date filter sent from frontend ('today'|'yesterday'|'day_before'|'all')
+        const dayBeforeIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
+        const dateFilter = data.dateFilter || 'today';
+
+        let pendingQ = supabase
+          .from('orders')
+          .select('order_id,name,phone,address,slot,date,time,items,order_status,source,user_type')
           .eq('rider_id', data.riderId)
-          .gte('date', twoDaysAgo)
+          .eq('order_status', 'out for delivery')
           .order('created_at', { ascending: false });
+
+        // Push date filter to DB — only fetch what we need
+        if (dateFilter === 'today')      pendingQ = pendingQ.eq('date', todayIST);
+        else if (dateFilter === 'yesterday')  pendingQ = pendingQ.eq('date', yesterdayIST);
+        else if (dateFilter === 'day_before') pendingQ = pendingQ.eq('date', dayBeforeIST);
+        else pendingQ = pendingQ.gte('date', dayBeforeIST); // 'all' → last 2 days max
+
+        // Push slot filter to DB when specific slot requested
+        if (data.slot && data.slot !== 'all') {
+          pendingQ = pendingQ.eq('slot', data.slot);
+        }
+
+        const { data: rows } = await pendingQ;
+        const formatted = (rows || []).map(formatOrder);
+        return res.json({ success: true, orders: formatted });
+      }
+
+      case 'getRiderDelivered': {
+        // Fetch ONLY "delivered" orders for this rider.
+        // Lazy-loaded when rider switches to Delivered tab.
+        const riderSession = _verifyToken(req.body.sessionToken);
+        const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
+        const isOwner = riderSession && riderSession.username === data.riderId;
+        if (!isAdmin && !isOwner) {
+          return res.status(401).json({ success: false, error: 'Rider auth required' });
+        }
+        const todayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000));
+        const yesterdayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 86_400_000));
+        const dayBeforeIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
+        const dateFilter = data.dateFilter || 'today';
+
+        let delivQ = supabase
+          .from('orders')
+          .select('order_id,name,phone,address,slot,date,time,items,order_status,source,user_type')
+          .eq('rider_id', data.riderId)
+          .eq('order_status', 'delivered')
+          .order('created_at', { ascending: false });
+
+        if (dateFilter === 'today')      delivQ = delivQ.eq('date', todayIST);
+        else if (dateFilter === 'yesterday')  delivQ = delivQ.eq('date', yesterdayIST);
+        else if (dateFilter === 'day_before') delivQ = delivQ.eq('date', dayBeforeIST);
+        else delivQ = delivQ.gte('date', dayBeforeIST);
+
+        if (data.slot && data.slot !== 'all') {
+          delivQ = delivQ.eq('slot', data.slot);
+        }
+
+        const { data: rows } = await delivQ;
         const formatted = (rows || []).map(formatOrder);
         return res.json({ success: true, orders: formatted });
       }
