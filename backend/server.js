@@ -1977,6 +1977,7 @@ app.post('/api', async (req, res) => {
         // Resolve date filter sent from frontend ('today'|'yesterday'|'day_before'|'all')
         const dayBeforeIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
         const dateFilter = data.dateFilter || 'today';
+        console.log(`[getRiderPending] riderId=${data.riderId} dateFilter=${dateFilter} slot=${data.slot||'all'} todayIST=${todayIST}`);
 
         let pendingQ = supabase
           .from('orders')
@@ -1996,7 +1997,8 @@ app.post('/api', async (req, res) => {
           pendingQ = pendingQ.eq('slot', data.slot);
         }
 
-        const { data: rows } = await pendingQ;
+        const { data: rows, error: pendingErr } = await pendingQ;
+        if (pendingErr) { console.error("[getRiderPending] Supabase error:", pendingErr.message); }
         const formatted = (rows || []).map(formatOrder);
         return res.json({ success: true, orders: formatted });
       }
@@ -2031,9 +2033,34 @@ app.post('/api', async (req, res) => {
           delivQ = delivQ.eq('slot', data.slot);
         }
 
-        const { data: rows } = await delivQ;
+        const { data: rows, error: delivErr } = await delivQ;
+        if (delivErr) { console.error("[getRiderDelivered] Supabase error:", delivErr.message); }
         const formatted = (rows || []).map(formatOrder);
         return res.json({ success: true, orders: formatted });
+      }
+
+
+      case 'getRiderOrdersDebug': {
+        // Diagnostic endpoint — returns raw counts to debug zero-order issues
+        const riderSession = _verifyToken(req.body.sessionToken);
+        const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
+        const isOwner = riderSession && riderSession.username === data.riderId;
+        if (!isAdmin && !isOwner) return res.status(401).json({ success: false, error: 'Rider auth required' });
+        const todayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000));
+        // Fetch last 3 days, all statuses — no filter
+        const { data: allRows, error: dbErr } = await supabase
+          .from('orders')
+          .select('order_id,order_status,date,rider_id')
+          .eq('rider_id', data.riderId)
+          .gte('date', istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 3 * 86_400_000)));
+        return res.json({
+          success: true,
+          todayIST,
+          dbError: dbErr ? dbErr.message : null,
+          totalRows: (allRows || []).length,
+          statuses: (allRows || []).reduce((acc, o) => { acc[o.order_status] = (acc[o.order_status]||0)+1; return acc; }, {}),
+          dates: [...new Set((allRows || []).map(o => o.date))],
+        });
       }
 
       case 'getRiders': {
