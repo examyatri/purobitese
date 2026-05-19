@@ -2580,19 +2580,6 @@ function setMapMode(mode) { _mapMode = mode; }
 /* ── All Pins View (legacy stub — main map always shows all pins) */
 function openAllPinsView()  {}
 function closeAllPinsView() {}
-  const origin   = originCoords
-    ? `&origin=${originCoords.lat},${originCoords.lng}`
-    : '';
-
-  if (dest && typeof dest === 'object' && dest.lat) {
-    // Coords: most reliable — opens exactly on the pin
-    return `https://www.google.com/maps/dir/?api=1${origin}&destination=${dest.lat},${dest.lng}&travelmode=${mode}`;
-  } else if (typeof dest === 'string' && dest.trim()) {
-    // Text address fallback
-    return `https://www.google.com/maps/dir/?api=1${origin}&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
-  }
-  return null;
-}
 
 /* ── Backward compat stubs ────────────────────────────────────── */
 function openRouteModal(orders) { openRiderMap(orders); }
