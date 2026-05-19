@@ -1,8 +1,8 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.9                                    ║
-// ║  Updated : 2026-05-19                               ║
+// ║  Version : v59.8                                    ║
+// ║  Updated : 2026-05-18                               ║
 // ║  Changes : Dead action cleanup — removed 44 dead    ║
 // ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
 // ║            No frontend calls these. Faster switch,   ║
@@ -1958,109 +1958,21 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getRiderOrders': {
-        // LEGACY — kept for backward compat but now delegates to getRiderPending
-        // Falls through to getRiderPending logic below
-        data.tab = 'pending';
-      }
-      // eslint-disable-next-line no-fallthrough
-      case 'getRiderPending': {
-        // Fetch ONLY "out for delivery" orders for this rider.
-        // Date and slot are filtered at DB level — minimal rows returned.
+        // Verify the sessionToken belongs to this rider (or is an admin)
         const riderSession = _verifyToken(req.body.sessionToken);
         const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
         const isOwner = riderSession && riderSession.username === data.riderId;
         if (!isAdmin && !isOwner) {
           return res.status(401).json({ success: false, error: 'Rider auth required' });
         }
-        const todayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000));
-        const yesterdayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 86_400_000));
-        // Resolve date filter sent from frontend ('today'|'yesterday'|'day_before'|'all')
-        const dayBeforeIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
-        const dateFilter = data.dateFilter || 'today';
-        console.log(`[getRiderPending] riderId=${data.riderId} dateFilter=${dateFilter} slot=${data.slot||'all'} todayIST=${todayIST}`);
-
-        let pendingQ = supabase
-          .from('orders')
-          .select('order_id,name,phone,address,slot,date,time,items,order_status,source,user_type')
+        const twoDaysAgo = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
+        const { data: rows } = await supabase
+          .from('orders').select('*')
           .eq('rider_id', data.riderId)
-          .eq('order_status', 'out for delivery')
+          .gte('date', twoDaysAgo)
           .order('created_at', { ascending: false });
-
-        // Push date filter to DB — only fetch what we need
-        if (dateFilter === 'today')      pendingQ = pendingQ.eq('date', todayIST);
-        else if (dateFilter === 'yesterday')  pendingQ = pendingQ.eq('date', yesterdayIST);
-        else if (dateFilter === 'day_before') pendingQ = pendingQ.eq('date', dayBeforeIST);
-        else pendingQ = pendingQ.gte('date', dayBeforeIST); // 'all' → last 2 days max
-
-        // Push slot filter to DB when specific slot requested
-        if (data.slot && data.slot !== 'all') {
-          pendingQ = pendingQ.eq('slot', data.slot);
-        }
-
-        const { data: rows, error: pendingErr } = await pendingQ;
-        if (pendingErr) { console.error("[getRiderPending] Supabase error:", pendingErr.message); }
         const formatted = (rows || []).map(formatOrder);
         return res.json({ success: true, orders: formatted });
-      }
-
-      case 'getRiderDelivered': {
-        // Fetch ONLY "delivered" orders for this rider.
-        // Lazy-loaded when rider switches to Delivered tab.
-        const riderSession = _verifyToken(req.body.sessionToken);
-        const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
-        const isOwner = riderSession && riderSession.username === data.riderId;
-        if (!isAdmin && !isOwner) {
-          return res.status(401).json({ success: false, error: 'Rider auth required' });
-        }
-        const todayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000));
-        const yesterdayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 86_400_000));
-        const dayBeforeIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
-        const dateFilter = data.dateFilter || 'today';
-
-        let delivQ = supabase
-          .from('orders')
-          .select('order_id,name,phone,address,slot,date,time,items,order_status,source,user_type')
-          .eq('rider_id', data.riderId)
-          .eq('order_status', 'delivered')
-          .order('created_at', { ascending: false });
-
-        if (dateFilter === 'today')      delivQ = delivQ.eq('date', todayIST);
-        else if (dateFilter === 'yesterday')  delivQ = delivQ.eq('date', yesterdayIST);
-        else if (dateFilter === 'day_before') delivQ = delivQ.eq('date', dayBeforeIST);
-        else delivQ = delivQ.gte('date', dayBeforeIST);
-
-        if (data.slot && data.slot !== 'all') {
-          delivQ = delivQ.eq('slot', data.slot);
-        }
-
-        const { data: rows, error: delivErr } = await delivQ;
-        if (delivErr) { console.error("[getRiderDelivered] Supabase error:", delivErr.message); }
-        const formatted = (rows || []).map(formatOrder);
-        return res.json({ success: true, orders: formatted });
-      }
-
-
-      case 'getRiderOrdersDebug': {
-        // Diagnostic endpoint — returns raw counts to debug zero-order issues
-        const riderSession = _verifyToken(req.body.sessionToken);
-        const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
-        const isOwner = riderSession && riderSession.username === data.riderId;
-        if (!isAdmin && !isOwner) return res.status(401).json({ success: false, error: 'Rider auth required' });
-        const todayIST = istDateStr(new Date(Date.now() + 5.5 * 3_600_000));
-        // Fetch last 3 days, all statuses — no filter
-        const { data: allRows, error: dbErr } = await supabase
-          .from('orders')
-          .select('order_id,order_status,date,rider_id')
-          .eq('rider_id', data.riderId)
-          .gte('date', istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 3 * 86_400_000)));
-        return res.json({
-          success: true,
-          todayIST,
-          dbError: dbErr ? dbErr.message : null,
-          totalRows: (allRows || []).length,
-          statuses: (allRows || []).reduce((acc, o) => { acc[o.order_status] = (acc[o.order_status]||0)+1; return acc; }, {}),
-          dates: [...new Set((allRows || []).map(o => o.date))],
-        });
       }
 
       case 'getRiders': {
