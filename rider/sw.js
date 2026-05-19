@@ -1,8 +1,10 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v8.4  |  Updated : 2026-05-17
+   Version : v8.5  |  Updated : 2026-05-19
 
-   CHANGES v8.4:
+   CHANGES v8.5:
+//   - Layer 3 Area Filter feature in rider portal (polygon-based, OSM boundary)
+// CHANGES v8.4:
    - Version bump for v71 release
    - Cache bumped → tiffo-rider-v10 (performance indexes migration)
    - skipWaiting() called immediately in install (faster PWA launch)
@@ -10,7 +12,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v10';
+const CACHE      = 'tiffo-rider-v11';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
