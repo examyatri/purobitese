@@ -784,7 +784,7 @@ function clearRiderCreds() {
 const RiderSession = {
   KEY:             'tf_rider_session',
   VERIFY_KEY:      'tf_rider_session_verified_at',
-  VERIFY_INTERVAL: 48 * 60 * 60 * 1000, // 48 hours in ms
+  VERIFY_INTERVAL: 10 * 60 * 60 * 1000, // 10 hours — refresh before 12h server token expiry
 
   save(rider) {
     localStorage.setItem(this.KEY, JSON.stringify({ rider, savedAt: Date.now() }));
@@ -923,7 +923,34 @@ async function loadOrders() {
     _delivered = _orders.filter(o => o.order_status === 'delivered');
     updateStats();
     renderOrders();
-  } catch(e) { /* silent poll error */ }
+  } catch(e) {
+    // If session token expired (12h TTL), silently re-login and retry once
+    const isAuthErr = e.message?.includes('401') || e.message?.includes('auth') ||
+                      e.message?.includes('Session') || e.message?.includes('Unauthorized') ||
+                      e.message?.includes('Rider auth');
+    if (isAuthErr) {
+      const creds = getRiderCreds();
+      if (creds) {
+        try {
+          const res2 = await api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0);
+          _rider = { ...res2.rider, sessionToken: res2.sessionToken || '' };
+          RiderSession.save(_rider);
+          RiderSession.markVerified();
+          // Retry with fresh token
+          const res3 = await api('getRiderOrders', { riderId: _rider.rider_id });
+          _orders    = res3.orders || [];
+          _pending   = _orders.filter(o => {
+            const s = (o.order_status||'').toLowerCase();
+            return s !== 'delivered' && s !== 'rejected' && s !== 'cancelled';
+          });
+          _delivered = _orders.filter(o => o.order_status === 'delivered');
+          updateStats();
+          renderOrders();
+        } catch(_) { /* stay silent on network errors */ }
+      }
+    }
+    /* silent poll error for non-auth failures (network, timeout) */
+  }
 }
 
 function updateStats() {
@@ -3030,9 +3057,6 @@ window.addEventListener('popstate', () => {
     zone.style.height       = '0';
     if (arrow) arrow.style.transform = 'rotate(0deg)';
   }, { passive: true });
-})();
-</script>
-
 })();
 </script>
 
