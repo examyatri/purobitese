@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v20.3                                    ║
-     ║  Updated : 2026-05-19                               ║
+     ║  Version : v20.2                                    ║
+     ║  Updated : 2026-05-18                               ║
      ║  Changes : Fixed doRejectOrder NOT_SUBSCRIBER bug   ║
      ║            — moved modal to catch block so friendly ║
      ║            "Cannot Refund to Wallet" dialog shows   ║
@@ -506,7 +506,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   #sidebar,#topbar,#a-toast,#nprogress,#mo-bg,
   .act-btn,.act-btn-wa,.status-inline-select,
   #ord-cat-tabs,#ord-status-chips,#ord-count-badge,
-  #ord-pdf-btn,.filter-bar,.page-header button,#ord-area-row{display:none!important}
+  #ord-pdf-btn,.filter-bar,.page-header button{display:none!important}
   body{background:white!important}
   #main{margin-left:0!important}
   #p-orders .card{box-shadow:none!important;border:1px solid #e2e8f0!important}
@@ -594,13 +594,6 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     gap:5px;padding-bottom:2px;
   }
   #ord-status-chips::-webkit-scrollbar{display:none}
-  #ord-area-chips{
-    display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;
-    -webkit-overflow-scrolling:touch;scrollbar-width:none;
-    gap:5px;padding-bottom:2px;
-  }
-  #ord-area-chips::-webkit-scrollbar{display:none}
-  .ord-area-chip{white-space:nowrap;flex-shrink:0}
   .ord-cat-btn{white-space:nowrap;flex-shrink:0}
   .ord-chip{white-space:nowrap;flex-shrink:0}
 
@@ -1142,26 +1135,6 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <button class="ord-chip" data-status="delivered" onclick="setOrdStatus('delivered',this)">✅ Delivered</button>
               <button class="ord-chip" data-status="rejected" onclick="setOrdStatus('rejected',this)">❌ Rejected</button>
               <button class="ord-chip" data-status="unassigned" onclick="setOrdStatus('unassigned',this)">🏍️ Unassigned</button>
-            </div>
-          </div>
-          <!-- Layer 3 row: Area/Zone filter -->
-          <div id="ord-area-row" style="padding-top:10px;border-top:1px solid #f1f5f9">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">📍 Zone</span>
-              <div style="display:flex;gap:5px;flex-wrap:wrap" id="ord-area-chips">
-                <button class="ord-chip act" data-area="all" onclick="setOrdArea('all',this)">🗺 All Areas</button>
-                <button class="ord-chip ord-area-chip" data-area="assi" onclick="setOrdArea('assi',this)">🌊 Assi Ghat</button>
-                <button class="ord-chip ord-area-chip" data-area="lanka" onclick="setOrdArea('lanka',this)">🏪 Lanka</button>
-                <button class="ord-chip ord-area-chip" data-area="hydgate" onclick="setOrdArea('hydgate',this)">🚪 Hyd. Gate</button>
-                <button class="ord-chip ord-area-chip" data-area="bhu" onclick="setOrdArea('bhu',this)">🎓 BHU</button>
-                <button class="ord-chip ord-area-chip" data-area="sunderpur" onclick="setOrdArea('sunderpur',this)">🏘 Sunderpur</button>
-                <button class="ord-chip ord-area-chip" data-area="mahmoori" onclick="setOrdArea('mahmoori',this)">🏡 Mahmoori</button>
-                <button class="ord-chip ord-area-chip" data-area="seergate" onclick="setOrdArea('seergate',this)">🚦 Seer Gate</button>
-                <button class="ord-chip ord-area-chip" data-area="durgakund" onclick="setOrdArea('durgakund',this)">🛕 Durgakund</button>
-              </div>
-              <button id="ord-group-area-btn" onclick="toggleAreaGroupView()" style="margin-left:auto;padding:5px 11px;border:1.5px solid #e2e8f0;border-radius:8px;background:white;font-size:12px;font-weight:700;font-family:var(--ff);color:#475569;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:all 160ms" title="Group orders by delivery zone for rider batching">
-                <i class="fa fa-layer-group"></i> <span id="ord-group-area-label">Group View</span>
-              </button>
             </div>
           </div>
         </div>
@@ -2563,33 +2536,7 @@ async function _loadStatDetail(type) {
 
 // ─── ORDERS v2 ────────────────────────────────────────────
 let _allOrders = [], _ordersStr = '', _ridersCache = [], _weeklySchedule = [];
-let _ordDay = 'today', _ordCat = 'all', _ordStatus = 'all', _ordArea = 'all'; // 3-layer filters: day + session + status + area
-let _ordGroupArea = false; // group-by-zone view toggle
-
-// ── Zone keyword map — order matters (more specific first) ──
-const ORD_ZONES = [
-  { key:'bhu',       label:'🎓 BHU',         kw:['bhu','banaras hindu university','benaras hindu','bhu campus','bhu gate'] },
-  { key:'assi',      label:'🌊 Assi Ghat',    kw:['assi ghat','assi','nagwa','ravindrapuri'] },
-  { key:'lanka',     label:'🏪 Lanka',        kw:['lanka','varanasi','lallapura','birla','kamachha'] },
-  { key:'hydgate',   label:'🚪 Hyd. Gate',    kw:['hyderabad gate','hydgate','hyd gate','hydrabad gate','hydrabad','hyderabad'] },
-  { key:'sunderpur', label:'🏘 Sunderpur',    kw:['sunderpur','sundarpur'] },
-  { key:'mahmoori',  label:'🏡 Mahmoori',     kw:['mahmoori','mahamanapuri','mahmoori colony','mahamanapuri colony','mahamana'] },
-  { key:'seergate',  label:'🚦 Seer Gate',    kw:['seer gate','seergate','sir gate','sirgate'] },
-  { key:'durgakund', label:'🛕 Durgakund',    kw:['durgakund','durga kund','shivpurwa','tulsi nagar'] },
-];
-
-function _detectZone(address) {
-  if (!address) return null;
-  const low = address.toLowerCase();
-  for (const z of ORD_ZONES) {
-    if (z.kw.some(k => low.includes(k))) return z.key;
-  }
-  return null;
-}
-
-function _zoneLabel(key) {
-  return ORD_ZONES.find(z => z.key === key)?.label || key;
-}
+let _ordDay = 'today', _ordCat = 'all', _ordStatus = 'all'; // 2-layer filters: day + session + status
 let _ridersCacheTime = 0, _settingsCacheTime = 0;
 const _RIDERS_SETTINGS_TTL = 10 * 60 * 1000; // 10 minutes
 
@@ -2627,38 +2574,6 @@ function _isEvening(o) {
   if (mc===null||ec===null) return false;
   const om = _toMins(o.time||'00:00');
   return om!==null && om>mc && om<=ec;
-}
-
-// ── Layer-3 area setter ──
-function setOrdArea(area, btn) {
-  _ordArea = area;
-  document.querySelectorAll('#ord-area-chips .ord-chip').forEach(b => b.classList.remove('act'));
-  if (btn) btn.classList.add('act');
-  _ordGroupArea = false; // exit group view when manually picking a zone
-  const lbl = document.getElementById('ord-group-area-label');
-  const gbtn = document.getElementById('ord-group-area-btn');
-  if (lbl) lbl.textContent = 'Group View';
-  if (gbtn) { gbtn.style.background='white'; gbtn.style.color='#475569'; gbtn.style.borderColor='#e2e8f0'; }
-  renderOrdersTable(_allOrders);
-}
-
-// ── Toggle group-by-zone view ──
-function toggleAreaGroupView() {
-  _ordGroupArea = !_ordGroupArea;
-  const lbl = document.getElementById('ord-group-area-label');
-  const gbtn = document.getElementById('ord-group-area-btn');
-  if (_ordGroupArea) {
-    // reset area chip to "all" so grouping shows everything
-    _ordArea = 'all';
-    document.querySelectorAll('#ord-area-chips .ord-chip').forEach(b => b.classList.remove('act'));
-    document.querySelector('#ord-area-chips .ord-chip[data-area="all"]')?.classList.add('act');
-    if (lbl) lbl.textContent = 'Normal View';
-    if (gbtn) { gbtn.style.background='#0f172a'; gbtn.style.color='#fff'; gbtn.style.borderColor='#0f172a'; }
-  } else {
-    if (lbl) lbl.textContent = 'Group View';
-    if (gbtn) { gbtn.style.background='white'; gbtn.style.color='#475569'; gbtn.style.borderColor='#e2e8f0'; }
-  }
-  renderOrdersTable(_allOrders);
 }
 
 // ── Layer-1 day setter ──
@@ -2738,15 +2653,11 @@ function renderOrdersTable(orders) {
   if (_ordStatus === 'unassigned') filtered = filtered.filter(o => !o.rider_id);
   else if (_ordStatus !== 'all') filtered = filtered.filter(o=>o.order_status===_ordStatus);
 
-  // Layer 3: Area filter
-  if (_ordArea !== 'all') filtered = filtered.filter(o => _detectZone(o.address) === _ordArea);
-
   // Search
   if (search) filtered = filtered.filter(o =>
     (o.order_id||'').toLowerCase().includes(search) ||
     (o.name||'').toLowerCase().includes(search) ||
-    (o.phone||'').includes(search) ||
-    (o.address||'').toLowerCase().includes(search)
+    (o.phone||'').includes(search)
   );
 
   // Sort
@@ -2759,17 +2670,10 @@ function renderOrdersTable(orders) {
   if (sub) {
     const dayLabel = {today:"Today",yesterday:"Yesterday",all:"All"}[_ordDay]||'Orders';
     const sessLabel = {all:'',morning:' · Morning',evening:' · Evening'}[_ordCat]||'';
-    const areaLabel = _ordArea !== 'all' ? ' · ' + (_zoneLabel(_ordArea)) : (_ordGroupArea ? ' · Grouped by Zone' : '');
-    sub.textContent = `${dayLabel}${sessLabel}${areaLabel} orders • ${filtered.length} result${filtered.length!==1?'s':''}`;
+    sub.textContent = `${dayLabel}${sessLabel} orders • ${filtered.length} result${filtered.length!==1?'s':''}`;
   }
   const cntBadge = document.getElementById('ord-count-badge');
   if (cntBadge) cntBadge.textContent = `${filtered.length} order${filtered.length!==1?'s':''}`;
-
-  // ── GROUP BY ZONE VIEW ──
-  if (_ordGroupArea) {
-    _renderOrdersGrouped(filtered);
-    return;
-  }
 
   const riderOpts = _ridersCache.map(r=>`<option value="${r.rider_id}">${r.name}</option>`).join('');
 
@@ -2850,7 +2754,6 @@ function renderOrdersTable(orders) {
       <td>
         <div style="font-weight:600;font-size:13px;color:#0f172a">${o.name||'—'}</div>
         <div style="font-size:11.5px;color:#64748b;margin-top:2px">${o.phone||''}</div>
-        ${(()=>{const z=_detectZone(o.address);return z?`<span style="display:inline-block;margin-top:3px;font-size:10px;font-weight:700;background:#f1f5f9;color:#475569;padding:1px 7px;border-radius:20px;border:1px solid #e2e8f0">${_zoneLabel(z)}</span>`:'';})()}
       </td>
       <td style="max-width:160px">${itemsHtml}</td>
       <td style="min-width:140px">${priceHtml}</td>
@@ -2877,160 +2780,6 @@ function renderOrdersTable(orders) {
       </td>
     </tr>`;
   }).join('');
-}
-
-// ── Grouped-by-Zone view renderer (for rider batching) ──
-function _renderOrdersGrouped(orders) {
-  const tbody = document.getElementById('orders-tbody');
-  if (!tbody) return;
-  if (!orders.length) {
-    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:56px 20px">
-      <div style="font-size:40px;margin-bottom:12px">📭</div>
-      <div style="font-family:var(--ff);font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px">No orders found</div>
-      <div style="font-size:13px;color:#94a3b8">Try a different filter or search term</div>
-    </td></tr>`;
-    return;
-  }
-
-  // Group orders by detected zone
-  const groups = {}; // key -> {label, orders[]}
-  const OTHER_KEY = '__other__';
-  orders.forEach(o => {
-    const zk = _detectZone(o.address) || OTHER_KEY;
-    if (!groups[zk]) {
-      const zDef = ORD_ZONES.find(z => z.key === zk);
-      groups[zk] = { label: zDef ? zDef.label : '📍 Other / Unknown', orders: [] };
-    }
-    groups[zk].orders.push(o);
-  });
-
-  // Sort zones: known zones in ORD_ZONES order, then "Other" last
-  const sortedKeys = [
-    ...ORD_ZONES.map(z => z.key).filter(k => groups[k]),
-    ...(groups[OTHER_KEY] ? [OTHER_KEY] : [])
-  ];
-
-  const riderOpts = _ridersCache.map(r=>`<option value="${r.rider_id}">${r.name}</option>`).join('');
-
-  let html = '';
-  sortedKeys.forEach(zk => {
-    const grp = groups[zk];
-    const cnt = grp.orders.length;
-    const totalAmt = grp.orders.reduce((s,o)=>s+(o.final_amount||0),0);
-    const unassigned = grp.orders.filter(o=>!o.rider_id).length;
-
-    // Zone header row
-    html += `<tr style="background:linear-gradient(90deg,#f8fafc 0%,#f1f5f9 100%);border-top:2px solid #e2e8f0">
-      <td colspan="10" style="padding:10px 16px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-family:var(--ff);font-size:14px;font-weight:800;color:#0f172a">${grp.label}</span>
-          <span style="background:#0f172a;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">${cnt} order${cnt!==1?'s':''}</span>
-          <span style="font-size:12px;font-weight:700;color:#16a34a">₹${totalAmt}</span>
-          ${unassigned>0?`<span style="font-size:11px;font-weight:600;color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:20px">⚠ ${unassigned} unassigned</span>`:'<span style="font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:20px">✓ All assigned</span>'}
-          <button onclick="bulkAssignZone('${zk}')" style="margin-left:auto;padding:5px 12px;background:#e63946;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;font-family:var(--ff);cursor:pointer;display:flex;align-items:center;gap:5px">
-            <i class="fa fa-motorcycle"></i> Assign Rider to Zone
-          </button>
-        </div>
-      </td>
-    </tr>`;
-
-    // Order rows for this zone
-    grp.orders.forEach(o => {
-      const isMorn = _isMorning(o), isEve = _isEvening(o);
-      const slotIcon = isMorn ? '☀️' : isEve ? '🌙' : '';
-      const items = o.items||[];
-      const itemsStr = items.length ? items.map(i=>`${i.name}${i.qty>1?` ×${i.qty}`:''}`).join(', ') : '—';
-      const addrShort = _adminShortAddr(o.address) || '<span style="color:#cbd5e1">—</span>';
-      const riderHtml = o.rider_name
-        ? `<div style="font-weight:600;font-size:12px">${o.rider_name}</div><div style="font-size:10px;color:#94a3b8">${o.rider_id||''}</div>`
-        : `<span style="color:#dc2626;font-size:11px;font-weight:700">Unassigned</span>`;
-
-      html += `<tr style="border-left:3px solid #e63946">
-        <td>
-          <code style="font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${o.order_id}</code>
-          ${slotIcon?`<div style="font-size:10px;margin-top:2px">${slotIcon}</div>`:''}
-        </td>
-        <td>
-          <div style="font-weight:600;font-size:13px;color:#0f172a">${o.name||'—'}</div>
-          <div style="font-size:11px;color:#64748b">${o.phone||''}</div>
-          <div style="font-size:11px;color:#475569;margin-top:2px;max-width:160px;white-space:normal;line-height:1.3">${addrShort}</div>
-        </td>
-        <td style="max-width:140px;font-size:12px;color:#334155;white-space:normal">${itemsStr}</td>
-        <td style="font-size:13px;font-weight:700;color:#0f172a">₹${o.final_amount||0}</td>
-        <td>${(o.source==='admin_bulk')?'<span style="font-size:11px;background:#fee2e2;color:#be123c;padding:2px 6px;border-radius:5px">Bulk</span>':'<span style="font-size:11px;background:#eff6ff;color:#1d4ed8;padding:2px 6px;border-radius:5px">User</span>'}</td>
-        <td><span style="font-size:12px;font-weight:600;color:#334155">${o.payment_status||'—'}</span></td>
-        <td>${payModeBadge(o.payment_mode)}</td>
-        <td>${statusBadge(o.order_status)}</td>
-        <td style="font-size:12px;color:#475569">${o.date||'—'}${o.time?`<div style="font-size:10px;color:#94a3b8">${o.time}</div>`:''}</td>
-        <td>
-          ${riderHtml}
-          <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
-            <button class="act-btn act-btn-update" onclick="openUpdateModal('${o.order_id}','${o.rider_id||''}','${o.order_status||'pending'}','${o.payment_status||'pending'}')"><i class="fa fa-pen-to-square"></i> Update</button>
-          </div>
-        </td>
-      </tr>`;
-    });
-  });
-
-  tbody.innerHTML = html;
-}
-
-// ── Bulk assign rider to all unassigned orders in a zone ──
-function bulkAssignZone(zoneKey) {
-  const unassigned = _allOrders.filter(o => {
-    if (_detectZone(o.address) !== zoneKey) return false;
-    if (o.rider_id) return false;
-    // respect current day/session/status filters
-    const istNow = new Date(Date.now() + 5.5*3600000);
-    const todayIST = istNow.toISOString().slice(0,10);
-    const yesterdayIST = new Date(istNow-86400000).toISOString().slice(0,10);
-    if (_ordDay==='today' && !(o.date||'').startsWith(todayIST)) return false;
-    if (_ordDay==='yesterday' && !(o.date||'').startsWith(yesterdayIST)) return false;
-    if (_ordCat==='morning' && !_isMorning(o)) return false;
-    if (_ordCat==='evening' && !_isEvening(o)) return false;
-    if (_ordStatus!=='all' && _ordStatus!=='unassigned' && o.order_status!==_ordStatus) return false;
-    return true;
-  });
-
-  if (!unassigned.length) {
-    aToast('No unassigned orders in this zone with current filters');
-    return;
-  }
-
-  const zoneLbl = _zoneLabel(zoneKey);
-  const riderBtns = _ridersCache.map(r =>
-    `<button data-rid="${r.rider_id}" data-rname="${(r.name||'').replace(/'/g,"&#39;")}"
-      onclick="_doBulkZoneAssign('${zoneKey}','${r.rider_id}','${(r.name||'').replace(/'/g,"&#39;")}');closeMo()"
-      style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border:2px solid #e2e8f0;border-radius:10px;background:white;cursor:pointer;font-family:var(--ff);font-size:13px;font-weight:600;color:#0f172a;transition:all 160ms;margin-bottom:7px"
-      onmouseover="this.style.borderColor='var(--p)'" onmouseout="this.style.borderColor='#e2e8f0'">
-      <i class="fa fa-motorcycle" style="color:var(--p)"></i>${r.name}
-      <span style="margin-left:auto;font-size:11px;color:#64748b">#${r.rider_id}</span>
-    </button>`
-  ).join('');
-
-  openMo(`<div class="mo-title"><i class="fa fa-motorcycle" style="color:var(--p)"></i> Assign Zone to Rider</div>
-    <p style="color:#64748b;font-size:13px;margin-bottom:4px">Zone: <b>${zoneLbl}</b></p>
-    <p style="color:#64748b;font-size:13px;margin-bottom:16px">Will assign <b>${unassigned.length} unassigned order${unassigned.length!==1?'s':''}</b> to selected rider.</p>
-    ${riderBtns||'<p style="color:#94a3b8;text-align:center;padding:20px">No riders available</p>'}
-    <button class="btn btn-outline" style="margin-top:8px;width:100%" onclick="closeMo()">Cancel</button>`);
-}
-
-async function _doBulkZoneAssign(zoneKey, riderId, riderName) {
-  const unassigned = _allOrders.filter(o => _detectZone(o.address) === zoneKey && !o.rider_id);
-  if (!unassigned.length) { aToast('No unassigned orders in zone'); return; }
-
-  aToast(`Assigning ${unassigned.length} orders to ${riderName}…`);
-  let ok = 0, fail = 0;
-  for (const o of unassigned) {
-    try {
-      await api('updateOrderStatus', { orderId: o.order_id, riderId, status: o.order_status });
-      o.rider_id = riderId; o.rider_name = riderName;
-      ok++;
-    } catch(_) { fail++; }
-  }
-  _ordersStr = JSON.stringify(_allOrders);
-  renderOrdersTable(_allOrders);
-  aToast(`✅ ${ok} orders assigned to ${riderName}${fail?` (${fail} failed)`:''}`);
 }
 
 // ── Assign Rider Modal ──
@@ -3173,7 +2922,6 @@ function openBatchStatusModal() {
   else if (_ordDay === 'yesterday') filtered = filtered.filter(o => (o.date||'').startsWith(yesterdayIST));
   if (_ordCat === 'morning')  filtered = filtered.filter(_isMorning);
   else if (_ordCat === 'evening') filtered = filtered.filter(_isEvening);
-  if (_ordArea !== 'all') filtered = filtered.filter(o => _detectZone(o.address) === _ordArea);
 
   const pending   = filtered.filter(o => o.order_status === 'pending').length;
   const preparing = filtered.filter(o => o.order_status === 'preparing').length;
@@ -3354,8 +3102,7 @@ async function doBulkUpdate(orderId) {
 function generateOrderPDF() {
   const _dayLabel = {today:"Today's Orders",yesterday:"Yesterday's Orders",all:"All Orders"}[_ordDay]||'Orders';
   const _sessLabel = {all:'',morning:' – Morning',evening:' – Evening'}[_ordCat]||'';
-  const _areaLabel = _ordArea !== 'all' ? ' – ' + _zoneLabel(_ordArea) : '';
-  const catLabel = _dayLabel + _sessLabel + _areaLabel;
+  const catLabel = _dayLabel + _sessLabel;
   const statusLabel = _ordStatus!=='all'?' — '+_ordStatus:'';
   // Build a print-friendly page
   const rows = document.querySelectorAll('#orders-tbody tr');
@@ -6268,7 +6015,7 @@ async function gotoOrderById(searchTerm) {
   if (typeof closeSidebar === 'function') closeSidebar();
 
   // Set filter to ALL so any order date is visible
-  _ordDay = 'all'; _ordCat = 'all'; _ordStatus = 'all'; _ordArea = 'all'; _ordGroupArea = false;
+  _ordDay = 'all'; _ordCat = 'all'; _ordStatus = 'all';
   document.querySelectorAll('#ord-day-tabs .ord-cat-btn').forEach(b =>
     b.classList.toggle('act', b.dataset.day === 'all'));
   document.querySelectorAll('#ord-cat-tabs .ord-cat-btn').forEach(b =>
