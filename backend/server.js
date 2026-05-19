@@ -1,8 +1,8 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.8                                    ║
-// ║  Updated : 2026-05-18                               ║
+// ║  Version : v59.9                                    ║
+// ║  Updated : 2026-05-19                               ║
 // ║  Changes : Dead action cleanup — removed 44 dead    ║
 // ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
 // ║            No frontend calls these. Faster switch,   ║
@@ -214,18 +214,34 @@ function _verifyUserToken(token, phone) {
 const SALT_ROUNDS = 10;
 
 // ─── SELF-PING ────────────────────────────────────────────────────────────────
-// Pings own /ping every 12 minutes to prevent Render free-tier sleep.
+// Two independent intervals — intentionally decoupled:
+//   • Render ping   : 12 min — prevents free-tier server sleep
+//   • Supabase warm : 4 min  — prevents PostgREST idle (times out ~5 min)
+// Keeping them separate closes the ~7-min cold gap that caused 20–40s delays.
 // Only runs if RENDER_EXTERNAL_URL is set (i.e. on Render, not local).
 if (process.env.RENDER_EXTERNAL_URL) {
   const PING_URL = process.env.RENDER_EXTERNAL_URL + '/ping';
+
+  // 1. Keep Render awake — 12 min is enough (Render sleeps after 15 min idle)
   setInterval(() => {
     https.get(PING_URL, (res) => {
-      console.log(`[self-ping] ${new Date().toISOString()} → ${res.statusCode}`);
+      console.log(`[render-ping] ${new Date().toISOString()} → ${res.statusCode}`);
     }).on('error', (err) => {
-      console.error('[self-ping] error:', err.message);
+      console.error('[render-ping] error:', err.message);
     });
-  }, 12 * 60 * 1000); // every 12 minutes  (comment fix: was incorrectly labelled "10 minutes")
-  console.log('[self-ping] active →', PING_URL);
+  }, 12 * 60 * 1000);
+
+  // 2. Keep Supabase PostgREST warm — 4 min beats the ~5 min idle timeout.
+  //    HEAD query: zero rows transferred, minimal PostgREST overhead.
+  //    Silent catch: a warmup failure must never crash the interval.
+  setInterval(() => {
+    supabase.from('menu_items')
+      .select('item_id', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .catch(() => {});
+  }, 4 * 60 * 1000);
+
+  console.log('[self-ping] render=12min supabase-warm=4min →', PING_URL);
 }
 
 // ─── AUTO CLEANUP SCHEDULER ──────────────────────────────────────────────────
@@ -297,6 +313,13 @@ const _ANALYTICS_TTL  = 90_000; // 90 seconds
 const _settingsCache  = {};
 const _SETTINGS_TTL   = 5 * 60_000; // 5 minutes
 
+// Menu cache — menu_items rows cached for 60 seconds
+// Avoids a Supabase round-trip on every getHomeData call.
+// Invalidated immediately by addMenuItem / updateMenuItem / deleteMenuItem.
+let _menuItemsCache   = null;
+let _menuItemsCacheTs = 0;
+const _MENU_ITEMS_TTL = 60_000; // 60 seconds
+
 async function getCachedSetting(key) {
   const entry = _settingsCache[key];
   if (entry && (Date.now() - entry.ts) < _SETTINGS_TTL) return entry.val;
@@ -311,6 +334,9 @@ function _invalidateSettingsCache() {
   delete _settingsCache['order_cutoff_config'];
   delete _settingsCache['khata_enabled'];
   delete _settingsCache['auto_tiffin_cutoff'];
+  // Also wipe menu cache — admin may have changed items alongside settings
+  _menuItemsCache   = null;
+  _menuItemsCacheTs = 0;
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -881,8 +907,21 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
       case 'getHomeData': {
-        const [menuRes, scheduleVal, cutoffVal, khataVal] = await Promise.all([
-          supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+        // Serve menu from in-memory cache when fresh (60s TTL).
+        // Settings use their own getCachedSetting cache (5min TTL).
+        // Cache is wiped instantly by addMenuItem / updateMenuItem / deleteMenuItem.
+        const _now = Date.now();
+        let menuItems;
+        if (_menuItemsCache && (_now - _menuItemsCacheTs) < _MENU_ITEMS_TTL) {
+          menuItems = _menuItemsCache; // ~0ms — no Supabase round-trip
+        } else {
+          const menuRes = await supabase.from('menu_items').select('*').eq('is_active', true).order('sort_order', { ascending: true });
+          menuItems = (menuRes.data || []).map(formatMenuItem);
+          _menuItemsCache   = menuItems;
+          _menuItemsCacheTs = _now;
+        }
+
+        const [scheduleVal, cutoffVal, khataVal] = await Promise.all([
           getCachedSetting('weekly_schedule'),
           getCachedSetting('order_cutoff_config'),
           getCachedSetting('khata_enabled')
@@ -891,7 +930,7 @@ app.post('/api', async (req, res) => {
         if (scheduleVal)  { try { schedule = JSON.parse(scheduleVal); } catch { schedule = null; } }
         if (cutoffVal)    { try { config   = JSON.parse(cutoffVal);   } catch { config   = null; } }
         const enabled = JSON.parse(khataVal || 'false') === true;
-        return res.json({ success: true, items: (menuRes.data || []).map(formatMenuItem), schedule, config, enabled });
+        return res.json({ success: true, items: menuItems, schedule, config, enabled });
       }
 
       // ── MERGED: replaces getSubscriberBalance + getSubscriberPauseStatus (same row) ──
@@ -932,6 +971,7 @@ app.post('/api', async (req, res) => {
           created_at:   new Date().toISOString()
         });
         if (miErr) throw new Error(miErr.message || 'Failed to add menu item');
+        _menuItemsCache = null; _menuItemsCacheTs = 0; // invalidate — next getHomeData fetches fresh
         return res.json({ success: true });
       }
 
@@ -942,12 +982,14 @@ app.post('/api', async (req, res) => {
         delete updates.id;
         if (Array.isArray(updates.variants)) updates.variants = JSON.stringify(updates.variants);
         await supabase.from('menu_items').update(updates).eq('item_id', mid);
+        _menuItemsCache = null; _menuItemsCacheTs = 0; // invalidate — next getHomeData fetches fresh
         return res.json({ success: true });
       }
 
       case 'deleteMenuItem': {
         const mid = data.item_id || data.id;
         await supabase.from('menu_items').delete().eq('item_id', mid);
+        _menuItemsCache = null; _menuItemsCacheTs = 0; // invalidate — next getHomeData fetches fresh
         return res.json({ success: true });
       }
 
