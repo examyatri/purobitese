@@ -945,6 +945,9 @@ async function loadOrders() {
   try {
     const res = await api('getRiderPending', _buildFilterParams());
     _pending  = res.orders || [];
+    // Log for debugging zero-order issues (visible in console)
+    console.log('[loadOrders] pending count:', _pending.length, 'params:', JSON.stringify(_buildFilterParams()));
+    if (res._dbError) console.error('[loadOrders] DB error from server:', res._dbError);
     // If delivered tab is open, also refresh it
     if (_activeTab === 'delivered') {
       await _loadDelivered();
