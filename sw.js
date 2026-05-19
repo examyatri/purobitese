@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v29.6  |  Updated : 2026-05-17
+   Version : v29.7  |  Updated : 2026-05-19
 
    CHANGES v29.6:
    - Version bump for v71 release (PTR freshness fix,
@@ -14,7 +14,7 @@
    - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v25';
+const CACHE      = 'tiffo-v26';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.10                                   ║
-     ║  Updated : 2026-05-18                               ║
+     ║  Version : v50.11                                   ║
+     ║  Updated : 2026-05-19                               ║
      ║  Changes : Full SEO & AI overhaul — premium title,  ║
      ║            high-intent meta description, 50+ keyword║
      ║            expansion with voice/AI search terms,    ║
@@ -1288,6 +1288,8 @@ textarea{resize:vertical;min-height:80px}
       <!-- Menu section -->
       <div class="sec-hd" id="menu-section-hd">Menu</div>
       <div id="menu-list"></div>
+      <!-- Slow-load hint: shown after 8s if skeleton still visible (Supabase cold start) -->
+      <div id="menu-slow-hint" style="display:none;text-align:center;padding:16px 0 8px;color:var(--gr);font-size:13px;">⏳ Server warm ho raha hai... thoda wait karo</div>
     </div>
   </div>
 </div>
@@ -1887,7 +1889,7 @@ let _pollTimer   = null;
 let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
-const _REVISIT_THRESHOLD = 90000; // 90s away → trigger silent full refresh
+const _REVISIT_THRESHOLD = 4 * 60 * 1000; // 4 min — aligns with Supabase warmup cycle; user returning after cold window gets silent refresh before interacting
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
 const _MENU_TTL = 10 * 60 * 1000;
@@ -3832,12 +3834,26 @@ function hideMenuSkeletons() {
 async function loadMenu(bypassCache = false, silent = false) {
   if (_menuLoading) return;
   _menuLoading = true;
+  let _slowHintTimer = null;
+  const _showSlowHint = () => {
+    const el = document.getElementById('menu-slow-hint');
+    if (el) el.style.display = 'block';
+  };
+  const _hideSlowHint = () => {
+    clearTimeout(_slowHintTimer);
+    const el = document.getElementById('menu-slow-hint');
+    if (el) el.style.display = 'none';
+  };
   try {
     if (bypassCache) {
       // PTR / post-login: fetch fresh from DB
       // silent=true (tab switch, poll) → no skeleton flash if items already rendered
       // silent=false (PTR, first load) → show skeleton as expected
-      if (!silent || !_fullMenu.length) showMenuSkeletons();
+      if (!silent || !_fullMenu.length) {
+        showMenuSkeletons();
+        // Show hint after 8s if skeleton is still showing — indicates Supabase cold start
+        _slowHintTimer = setTimeout(_showSlowHint, 8000);
+      }
       Store.remove(_MENU_CACHE_KEY); // clear cache so next normal load also gets fresh
       await _fetchFreshMenu();
     } else {
@@ -3854,11 +3870,14 @@ async function loadMenu(bypassCache = false, silent = false) {
         await _fetchFreshMenu().catch(() => {});
       } else {
         showMenuSkeletons();
+        // Show hint after 8s if skeleton is still showing — indicates Supabase cold start
+        _slowHintTimer = setTimeout(_showSlowHint, 8000);
         await _fetchFreshMenu();
       }
     }
   } finally {
     _menuLoading = false;
+    _hideSlowHint(); // always clear — success or error
   }
 }
 
@@ -6220,8 +6239,12 @@ function _transitionToGuestHome() {
   const _planCard = document.getElementById('monthly-plan-card');
   if (_pauseRow) _pauseRow.style.display = 'none';
   if (_planCard) _planCard.style.display = 'flex';
-  // Load menu and schedule for guest (no auth required — getHomeData is public)
-  loadMenu(true, false);
+  // Load menu and schedule for guest (no auth required — getHomeData is public).
+  // bypassCache=false: serve localStorage cache instantly if fresh (<10min), then
+  // silently refresh from DB in the background. On first-ever visit the cache is
+  // empty so it falls through to a normal skeleton + network fetch automatically.
+  // PTR, login, signup, and poll all still call loadMenu(true, …) — unaffected.
+  loadMenu(false, false);
 }
 
 function _showGuestAuthSheet(context) {
