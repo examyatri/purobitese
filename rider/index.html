@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v37.1                                    ║
-     ║  Updated : 2026-05-19                               ║
+     ║  Version : v35.5                                    ║
+     ║  Updated : 2026-05-17                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -135,8 +135,12 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 #r-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1f2e;color:white;border-radius:24px;padding:10px 20px;font-size:14px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none}
 #r-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-/* Route modal (legacy - unused) */
-#route-modal{display:none}
+/* Route modal */
+#route-modal{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:520px;background:white;border-radius:20px 20px 0 0;box-shadow:var(--shl);padding:20px;z-index:1000;transition:transform 350ms cubic-bezier(.4,0,.2,1)}
+#route-modal.open{transform:translateX(-50%) translateY(0)}
+.route-addr-list{max-height:50vh;overflow-y:auto}
+.route-addr-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--lt)}
+.route-num{background:var(--p);color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px}
 
 /* Empty state */
 .empty-state{text-align:center;padding:60px 20px}
@@ -154,113 +158,94 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 /* Loading */
 .loading-wrap{text-align:center;padding:48px 20px;color:var(--mu);font-size:14px}
 
-/* ─── ROUTE MAP MODAL ─────────────────────────────────── */
+/* ─── MAP MODAL ───────────────────────────────────────── */
 #map-modal{
   position:fixed;inset:0;z-index:2000;
   background:#0f172a;
   display:flex;flex-direction:column;
-  transform:translateX(-50%) translateY(100%);
+  transform:translateY(100%);
   transition:transform 350ms cubic-bezier(.4,0,.2,1);
-  max-width:520px;left:50%;width:100%;
+  max-width:520px;left:50%;transform:translateX(-50%) translateY(100%);
+  width:100%;
 }
 #map-modal.open{transform:translateX(-50%) translateY(0)}
 
-/* ── Top bar ── */
+/* Top bar */
 #map-topbar{
-  background:#1a2035;
-  padding:10px 14px 10px 16px;
-  display:flex;align-items:center;gap:10px;
-  flex-shrink:0;
-  border-bottom:1px solid #253047;
+  background:linear-gradient(180deg,#1a2035 0%,#1e293b 100%);
+  padding:12px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;flex-shrink:0;
+  border-bottom:1px solid #334155;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
 #map-title{
   font-family:var(--ff);font-weight:700;font-size:13px;
-  color:#f1f5f9;flex:1;line-height:1.35;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-#live-track-badge{
-  display:none;font-size:10px;color:#22c55e;font-family:var(--ff);
-  font-weight:700;white-space:nowrap;flex-shrink:0;
+  color:#f1f5f9;flex:1;line-height:1.3;
 }
 #map-close-btn{
-  background:#253047;color:#94a3b8;border:none;
-  border-radius:9px;width:36px;height:36px;font-size:16px;
-  cursor:pointer;flex-shrink:0;display:flex;align-items:center;
-  justify-content:center;transition:background 150ms;
+  background:#334155;color:#94a3b8;border:none;
+  border-radius:9px;padding:7px 12px;font-size:14px;
+  cursor:pointer;flex-shrink:0;min-width:38px;min-height:38px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--ff);font-weight:700;
+  transition:background 150ms;
 }
-#map-close-btn:active{background:#334155}
+#map-close-btn:active{background:#475569}
 
-/* ── Map (OpenStreetMap) ── */
-#map-container{
-  flex:0 0 42vh;position:relative;overflow:hidden;
-  background:#0a1020;
-}
-@media (max-height:680px){#map-container{flex:0 0 35vh}}
-@media (min-height:800px){#map-container{flex:0 0 46vh}}
+/* Map container */
+#map-container{flex:0 0 45vh;position:relative;overflow:hidden}
+@media (max-height:700px){#map-container{flex:0 0 38vh}}
+@media (min-height:800px){#map-container{flex:0 0 48vh}}
 #leaflet-map{width:100%;height:100%}
 
-/* ── Pre-delivery action strip ── */
-#map-pre-actions{
-  display:flex;gap:8px;padding:10px 14px;
-  background:#131c2e;border-top:1px solid #1e2d45;
+/* Action buttons row */
+#map-actions{
+  display:flex;gap:6px;padding:8px 12px;
+  background:#1e293b;border-top:1px solid #334155;
   flex-shrink:0;
 }
-#btn-optimize{
-  flex:0 0 auto;background:#1e293b;color:#93c5fd;
-  border:1.5px solid #334155;border-radius:11px;
-  padding:0 14px;height:46px;font-family:var(--ff);font-weight:700;
-  font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;
-  transition:all 180ms;white-space:nowrap;
-}
-#btn-optimize.done{background:#052e16;color:#4ade80;border-color:#166534}
-#btn-optimize:active{opacity:.8}
-#btn-gmaps-route{
-  flex:1;background:linear-gradient(135deg,#1a56db,#1d4ed8);color:#fff;
-  border:none;border-radius:11px;height:46px;
-  font-family:var(--ff);font-weight:800;font-size:13px;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;
-  box-shadow:0 3px 12px rgba(29,78,216,.4);
+.map-action-btn{
+  flex:1;border:none;border-radius:12px;
+  padding:9px 4px;font-family:var(--ff);font-weight:700;
+  font-size:10px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-height:50px;justify-content:center;
   transition:opacity 180ms,transform 120ms;
+  letter-spacing:.1px;
 }
-#btn-gmaps-route:active{opacity:.85;transform:scale(.98)}
-#btn-start-delivery{
-  flex:0 0 auto;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;
-  border:none;border-radius:11px;height:46px;
-  font-family:var(--ff);font-weight:800;font-size:13px;
-  padding:0 16px;cursor:pointer;
-  display:flex;align-items:center;gap:6px;
-  box-shadow:0 3px 12px rgba(220,38,38,.35);
-  transition:all 180ms;white-space:nowrap;
-}
-#btn-start-delivery.active-mode{
-  background:linear-gradient(135deg,#d97706,#b45309);color:#fff;
-}
-#btn-start-delivery:active{opacity:.85;transform:scale(.98)}
+.map-action-btn:active{opacity:.75;transform:scale(.96)}
+#btn-optimize{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff}
+#btn-optimize.done{background:linear-gradient(135deg,#22c55e,#16a34a)}
+#btn-start-delivery{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff}
+#btn-start-delivery.active-mode{background:linear-gradient(135deg,#f59e0b,#d97706);color:#1a1f2e}
 
-/* ── Stop list ── */
+/* Bottom sheet */
 #map-bottom{
-  flex:1;overflow-y:auto;background:#0f172a;
+  flex:1;overflow-y:auto;
+  background:#0f172a;
   -webkit-overflow-scrolling:touch;
   padding:0 0 env(safe-area-inset-bottom,0px);
 }
-#map-stop-list{padding:10px 12px 200px}
+#map-stop-list{padding:10px 14px 220px}
 
 /* Stop card */
 .map-stop-card{
-  background:#1a2540;border-radius:13px;padding:12px 13px;
-  margin-bottom:7px;cursor:pointer;
+  background:#1e293b;border-radius:14px;padding:13px 14px;
+  margin-bottom:8px;cursor:pointer;
   border:2px solid transparent;
   transition:border-color 200ms,background 200ms,box-shadow 200ms;
   display:flex;align-items:flex-start;gap:10px;
+  position:relative;
 }
 .map-stop-card:active{opacity:.9}
 .map-stop-card.active-stop{
-  border-color:#f59e0b;background:#1d1b0a;
-  box-shadow:0 0 0 1px #f59e0b22,0 4px 14px rgba(245,158,11,.18);
+  border-color:#f59e0b;background:#1c1a0d;
+  box-shadow:0 0 0 1px #f59e0b33, 0 4px 16px rgba(245,158,11,.2);
 }
-.map-stop-card.delivered-stop{opacity:.42}
-.map-stop-card.skipped-stop{border-color:#f97316;opacity:.65}
-.map-stop-card.no-coords-stop{opacity:.6}
+.map-stop-card.delivered-stop{opacity:.5}
+.map-stop-card.skipped-stop{border-color:#f97316;opacity:.7}
+.map-stop-card.no-coords-stop{opacity:.65}
 .stop-num{
   width:28px;height:28px;border-radius:50%;
   background:var(--p);color:#fff;
@@ -268,151 +253,116 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   display:flex;align-items:center;justify-content:center;
   flex-shrink:0;margin-top:1px;
 }
-.stop-num.green{background:#16a34a}
-.stop-num.orange{background:#ea580c}
-.stop-num.warn{background:#475569;font-size:15px}
+.stop-num.green{background:#22c55e}
+.stop-num.orange{background:#f97316}
+.stop-num.warn{background:#64748b;font-size:16px}
 .stop-info{flex:1;min-width:0}
-.stop-name{font-family:var(--ff);font-weight:700;font-size:14px;color:#f1f5f9;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.stop-name.strikethrough{text-decoration:line-through;color:#64748b}
-.stop-addr{font-size:12px;color:#64748b;margin-top:2px;line-height:1.4;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.stop-name{font-family:var(--ff);font-weight:600;font-size:14px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-name.strikethrough{text-decoration:line-through;color:#94a3b8}
+.stop-addr{font-size:12px;color:#94a3b8;margin-top:2px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .stop-meta{display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap}
 .stop-slot{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
 .slot-morning{background:#fffbeb;color:#d97706}
 .slot-evening{background:#eef2ff;color:#4f46e5}
-.stop-dist{font-size:11px;color:#475569;font-family:monospace}
+.stop-dist{font-size:11px;color:#64748b;font-family:monospace}
 .stop-status-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700}
 .badge-delivered{background:#dcfce7;color:#166534}
 .badge-skipped{background:#ffedd5;color:#c2410c}
 
-/* Stop quick-action buttons */
-.stop-actions{
-  display:flex;gap:5px;margin-top:8px;
-}
-.stop-act-btn{
-  flex:1;border:none;border-radius:8px;
-  padding:7px 4px;font-family:var(--ff);font-size:10px;font-weight:700;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;
-  min-height:34px;transition:opacity 160ms;
-}
-.stop-act-btn:active{opacity:.75}
-.sab-nav{background:#1d4ed8;color:#fff}
-.sab-call{background:#1e40af;color:#fff}
-.sab-wa{background:#15803d;color:#fff}
-.sab-eta{background:#6d28d9;color:#fff}
-
-/* ── Delivery floating card ── */
+/* ─── DELIVERY BAR (Rider-Friendly Floating Card) ──────── */
 #delivery-bar{
   position:fixed;
   bottom:0;left:50%;transform:translateX(-50%);
   width:100%;max-width:520px;
-  background:#0f172a;
+  background:linear-gradient(180deg,#0f172a 0%,#1a2035 100%);
   border-top:2px solid #f59e0b;
   border-radius:20px 20px 0 0;
-  padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));
+  padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));
   z-index:2500;
   display:none;
-  box-shadow:0 -8px 40px rgba(0,0,0,.6);
+  box-shadow:0 -6px 32px rgba(0,0,0,.55);
 }
 #delivery-bar.show{display:block}
-
-/* Progress row */
-#dbar-progress-row{
+#delivery-bar-header{
   display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:10px;
+  margin-bottom:6px;
 }
 #delivery-bar-label{
-  font-family:var(--ff);font-weight:800;font-size:11px;
-  color:#f59e0b;letter-spacing:.4px;text-transform:uppercase;
+  font-family:var(--ff);font-weight:800;font-size:12px;
+  color:#fbbf24;letter-spacing:.3px;
 }
 #delivery-bar-progress{
-  font-family:var(--ff);font-size:11px;color:#475569;
+  font-family:var(--ff);font-size:11px;color:#64748b;
 }
-
-/* Progress bar track */
-#dbar-track{
-  height:3px;background:#1e293b;border-radius:2px;
-  margin-bottom:12px;overflow:hidden;
-}
-#dbar-fill{
-  height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);
-  border-radius:2px;transition:width 400ms ease;
-  width:0%;
-}
-
-/* Customer info card */
 #delivery-bar-card{
-  background:#1e293b;border-radius:14px;
-  padding:13px 14px;margin-bottom:10px;
-  border:1px solid #253047;display:none;
+  background:#1e293b;
+  border-radius:12px;
+  padding:10px 12px;
+  margin-bottom:8px;
+  display:none;
+  border:1px solid #334155;
 }
 #delivery-bar-card.show{display:block}
-
-/* Name + address row */
-#dbc-info-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
-#dbc-text{flex:1;min-width:0}
 #dbc-name{
-  font-family:var(--ff);font-weight:800;font-size:16px;color:#f1f5f9;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;
+  font-family:var(--ff);font-weight:800;font-size:15px;
+  color:#f1f5f9;margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 #dbc-addr{
-  font-size:12px;color:#64748b;line-height:1.4;
+  font-size:12px;color:#94a3b8;margin-bottom:6px;
+  line-height:1.45;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
 }
+#dbc-meta{
+  display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  padding-top:5px;border-top:1px solid #334155;
+}
+#dbc-amount{font-family:var(--ff);font-weight:800;font-size:14px;color:#22c55e}
+#dbc-pay{
+  font-size:11px;padding:2px 7px;border-radius:8px;
+  background:#334155;color:#94a3b8;font-weight:600;
+}
+#dbc-items{font-size:11px;color:#64748b;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Top row inside card: name + navigate */
+#dbc-top-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
 #dbc-nav-btn{
-  flex-shrink:0;
-  background:linear-gradient(135deg,#1a56db,#1d4ed8);
-  color:#fff;border:none;border-radius:12px;
-  width:64px;height:60px;
-  font-family:var(--ff);font-size:10px;font-weight:800;
-  cursor:pointer;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:3px;
-  box-shadow:0 3px 12px rgba(29,78,216,.45);
+  flex-shrink:0;background:linear-gradient(135deg,#1d4ed8,#2563eb);
+  color:#fff;border:none;border-radius:10px;
+  padding:8px 10px;font-family:var(--ff);font-size:10px;font-weight:800;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;
+  gap:2px;min-height:44px;min-width:52px;justify-content:center;
+  box-shadow:0 2px 8px rgba(37,99,235,.45);
 }
 #dbc-nav-btn:active{opacity:.8}
-#dbc-nav-btn span:first-child{font-size:22px}
-
-/* Payment / items row */
-#dbc-meta{
-  display:flex;gap:8px;align-items:center;
-  padding-top:8px;border-top:1px solid #253047;flex-wrap:wrap;
-}
-#dbc-pay{
-  font-size:11px;padding:3px 9px;border-radius:8px;font-weight:700;
-}
-.dbc-pay-wallet{background:#052e16;color:#4ade80}
-.dbc-pay-cash{background:#451a03;color:#fbbf24}
-#dbc-items{font-size:12px;color:#64748b;flex:1;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-/* Action buttons - Big and clear */
-#delivery-bar-btns{display:flex;gap:7px}
+/* Action buttons */
+#delivery-bar-btns{display:flex;gap:6px}
 .dbar-btn{
-  border:none;border-radius:12px;padding:12px 8px;
-  font-family:var(--ff);font-weight:800;font-size:12px;
-  cursor:pointer;min-height:48px;
-  display:flex;align-items:center;justify-content:center;gap:5px;
-  transition:opacity 180ms,transform 110ms;
+  border:none;border-radius:10px;padding:10px 6px;
+  font-family:var(--ff);font-weight:800;font-size:11px;
+  cursor:pointer;min-height:44px;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  transition:opacity 180ms,transform 120ms;
+  letter-spacing:.1px;
 }
-.dbar-btn:active{opacity:.78;transform:scale(.97)}
+.dbar-btn:active{opacity:.75;transform:scale(.97)}
 #dbar-deliver{
-  flex:2;
-  background:linear-gradient(135deg,#16a34a,#15803d);
-  color:#fff;font-size:14px;
-  box-shadow:0 3px 14px rgba(22,163,74,.4);
+  background:linear-gradient(135deg,#22c55e,#16a34a);
+  color:#fff;flex:2;font-size:13px;
+  box-shadow:0 2px 10px rgba(34,197,94,.4);
 }
-#dbar-deliver.loading{opacity:.6;pointer-events:none}
-#dbar-call{flex:1;background:#1e3a8a;color:#93c5fd}
-#dbar-wa{flex:1;background:#14532d;color:#4ade80}
-#dbar-eta{flex:1;background:#3b0764;color:#c4b5fd}
-#dbar-skip{flex:1;background:#1e293b;color:#64748b}
+#dbar-deliver.loading{opacity:.65;pointer-events:none}
+#dbar-call{background:#1e40af;color:#fff;flex:1}
+#dbar-wa{background:#15803d;color:#fff;flex:1}
+#dbar-eta{background:#7c3aed;color:#fff;flex:1}
+#dbar-skip{background:#334155;color:#94a3b8;flex:1}
 
 /* Celebration overlay */
 #map-celebration{
-  position:absolute;inset:0;background:#0f172a;z-index:100;
-  display:none;flex-direction:column;align-items:center;
-  justify-content:flex-start;overflow-y:auto;
+  position:absolute;inset:0;
+  background:#0f172a;z-index:100;
+  display:none;
+  flex-direction:column;align-items:center;justify-content:flex-start;
+  overflow-y:auto;
 }
 #map-celebration.show{display:flex}
 .celeb-emoji{font-size:72px;animation:bounceIn .6s cubic-bezier(.36,0,.66,-.56) forwards}
@@ -421,36 +371,77 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 .celeb-sub{color:#94a3b8;font-size:15px;line-height:1.6}
 .celeb-close{margin-top:28px;background:var(--p);color:#fff;border:none;border-radius:12px;padding:14px 32px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer}
 
-/* GPS pulse dot */
+/* Blue pulsing GPS dot */
 .gps-pulse-ring{
-  width:14px;height:14px;border-radius:50%;
+  width:16px;height:16px;border-radius:50%;
   background:#3b82f6;border:2px solid #fff;
   box-shadow:0 0 0 0 rgba(59,130,246,.6);
   animation:gps-pulse 1.8s infinite;
 }
 @keyframes gps-pulse{
   0%{box-shadow:0 0 0 0 rgba(59,130,246,.6)}
-  70%{box-shadow:0 0 0 10px rgba(59,130,246,0)}
+  70%{box-shadow:0 0 0 12px rgba(59,130,246,0)}
   100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}
 }
 
-/* Hidden legacy elements kept for JS compatibility */
-#map-mode-toggle,#next-batch-bar,#all-pins-panel,
-#batch-badge,.mmt-btn,.map-action-btn{display:none!important}
-#map-actions{display:none!important}
+/* ─── MAP MODE TOGGLE ─────────────────────────────────── */
+#map-mode-toggle{
+  display:flex;gap:3px;background:#0f172a;border-radius:8px;padding:3px;flex-shrink:0;
+}
+.mmt-btn{
+  border:none;border-radius:6px;padding:5px 9px;font-family:var(--ff);font-weight:700;
+  font-size:10px;cursor:pointer;transition:all 180ms;color:#64748b;background:transparent;
+  white-space:nowrap;
+}
+.mmt-btn.act{background:#3b82f6;color:#fff}
 
-/* Area Suggestion Item */
-.area-suggestion-item{
-  display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:8px;
-  background:#f9fafb;border:1px solid var(--lt);cursor:pointer;
-  font-size:12px;color:var(--tx);transition:background 150ms;
-  font-family:var(--fb);
+/* ─── BATCH BADGE on Navigate button ─────────────────── */
+#batch-badge{
+  position:absolute;top:-4px;right:-4px;
+  background:#f59e0b;color:#1a1f2e;
+  border-radius:10px;padding:1px 5px;font-size:9px;font-weight:800;
+  display:none;pointer-events:none;
 }
-.area-suggestion-item:hover,.area-suggestion-item:active{
-  background:#ecfdf5;border-color:#86efac;color:#15803d;
+#btn-gmaps-nav{position:relative}
+
+/* ─── NEXT BATCH BANNER ───────────────────────────────── */
+#next-batch-bar{
+  display:none;
+  background:linear-gradient(90deg,#f59e0b,#d97706);
+  color:#1a1f2e;
+  padding:8px 14px;
+  align-items:center;justify-content:space-between;
+  flex-shrink:0;
+  border-top:1px solid #fbbf24;
 }
-.area-suggestion-item .asi-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.area-suggestion-item .asi-type{font-size:10px;color:#94a3b8;flex-shrink:0;margin-left:auto}
+#next-batch-bar.show{display:flex}
+#next-batch-bar-text{font-family:var(--ff);font-weight:700;font-size:12px}
+#next-batch-go{
+  background:#1a1f2e;color:#f59e0b;border:none;
+  border-radius:8px;padding:5px 12px;font-family:var(--ff);font-weight:800;font-size:11px;
+  cursor:pointer;
+}
+
+/* ─── ALL PINS OVERLAY (Street Map full view) ─────────── */
+#all-pins-panel{
+  position:absolute;inset:0;z-index:50;
+  background:#0f172a;
+  display:none;flex-direction:column;
+}
+#all-pins-panel.show{display:flex}
+#all-pins-topbar{
+  background:#1e293b;padding:10px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;border-bottom:1px solid #334155;
+}
+#all-pins-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#f1f5f9}
+#all-pins-close{background:#334155;color:#94a3b8;border:none;border-radius:7px;padding:5px 10px;font-size:14px;cursor:pointer}
+#all-pins-leaflet{flex:1;width:100%}
+#all-pins-stats{
+  background:#1e293b;padding:7px 14px;
+  font-family:var(--ff);font-size:11px;color:#64748b;
+  flex-shrink:0;text-align:center;border-top:1px solid #334155;
+}
 
 /* Pull-to-Refresh */
 #ptr-zone-rider{
@@ -510,10 +501,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
       <div class="rider-name" id="rider-name">Rider</div>
       <div class="rider-id"><span class="online-dot"></span><span id="rider-id-display"></span></div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button id="topnav-refresh-btn" onclick="doManualRefresh()" style="background:#e0f2fe;color:#0369a1;border:none;border-radius:8px;padding:8px 12px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">🔄 Refresh</button>
-      <button onclick="doRiderLogout()" style="background:#fee2e2;color:#c1121f;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">Logout</button>
-    </div>
+    <button onclick="doRiderLogout()" style="background:#fee2e2;color:#c1121f;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">Logout</button>
   </nav>
 
   <!-- Stats -->
@@ -560,45 +548,6 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
       </div>
     </div>
 
-    <!-- Layer 3: Area Filter (Optional) -->
-    <div style="margin-bottom:12px" id="area-filter-section">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
-        <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px">📍 Area Filter <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(optional)</span></div>
-        <button id="area-toggle-btn" onclick="toggleAreaFilter()" style="background:#f4f6f9;border:1.5px solid var(--lt);border-radius:8px;padding:4px 10px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;color:var(--mu);transition:all 160ms">+ Add Area</button>
-      </div>
-      <!-- Area input panel (hidden by default) -->
-      <div id="area-input-panel" style="display:none">
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <div style="flex:1;display:flex;align-items:center;gap:6px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="area-wrap-inner">
-            <span style="font-size:13px;color:#94a3b8">🏘</span>
-            <input id="area-search-input" type="text" placeholder="e.g. Saket Nagar, Lanka, BHU"
-              style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13px;background:transparent;color:var(--tx)"
-              onfocus="document.getElementById('area-wrap-inner').style.borderColor='#22c55e'"
-              onblur="setTimeout(()=>{document.getElementById('area-wrap-inner').style.borderColor='transparent'},200)"
-              oninput="onAreaInput(this.value)"
-              onkeydown="if(event.key==='Enter')searchAreaBoundary()">
-            <button onclick="clearAreaFilter()" id="area-clear-x" style="display:none;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1">✕</button>
-          </div>
-          <button onclick="searchAreaBoundary()" id="area-search-btn"
-            style="background:#22c55e;color:white;border:none;border-radius:10px;padding:8px 13px;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:background 160ms">
-            <span id="area-btn-txt">Search</span>
-          </button>
-        </div>
-        <!-- Suggestions dropdown -->
-        <div id="area-suggestions" style="display:none;flex-direction:column;gap:3px;max-height:130px;overflow-y:auto;margin-bottom:6px"></div>
-        <!-- Active area chip -->
-        <div id="area-active-chip" style="display:none;align-items:center;gap:7px;background:#ecfdf5;border:1.5px solid #86efac;border-radius:10px;padding:7px 10px">
-          <span style="font-size:16px">📍</span>
-          <div style="flex:1;min-width:0">
-            <div id="area-chip-name" style="font-family:var(--ff);font-size:12px;font-weight:700;color:#15803d"></div>
-            <div id="area-chip-count" style="font-size:11px;color:#16a34a;margin-top:1px"></div>
-          </div>
-          <button onclick="clearAreaFilter()" style="background:#dcfce7;border:none;border-radius:7px;padding:4px 8px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;color:#166534">✕ Clear</button>
-        </div>
-        <div id="area-hint" style="font-size:11px;color:#94a3b8;text-align:center;margin-top:4px">Area boundary auto-fetched from OpenStreetMap · No repetition of roads</div>
-      </div>
-    </div>
-
     <!-- Search + Buttons Row -->
     <div style="display:flex;gap:8px;align-items:center">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
@@ -633,98 +582,101 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 <div id="map-modal">
   <!-- Top bar -->
   <div id="map-topbar">
-    <div id="map-title">🗺 Route</div>
-    <div id="live-track-badge">
-      <span style="display:inline-block;width:6px;height:6px;background:#22c55e;border-radius:50%;margin-right:4px;animation:gps-pulse 1.5s infinite;vertical-align:middle"></span>LIVE
+    <div style="display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden">
+      <div id="map-title">🗺 Route Planner</div>
+      <div id="live-track-badge" style="display:none;font-size:10px;color:#22c55e;font-family:var(--ff);font-weight:700;margin-top:1px;white-space:nowrap">
+        <span style="display:inline-block;width:6px;height:6px;background:#22c55e;border-radius:50%;margin-right:4px;animation:pulse 1.5s infinite;vertical-align:middle"></span>LIVE TRACKING
+      </div>
+    </div>
+    <div id="map-mode-toggle">
+      <button class="mmt-btn act" id="mmt-street" onclick="setMapMode('street')">🗺 Street</button>
+      <button class="mmt-btn" id="mmt-gmaps" onclick="setMapMode('gmaps')">📍 GMaps</button>
     </div>
     <button id="map-close-btn" onclick="closeRiderMap()">✕</button>
   </div>
 
-  <!-- OpenStreetMap -->
+  <!-- Leaflet Map -->
   <div id="map-container">
     <div id="leaflet-map"></div>
   </div>
 
-  <!-- Clean action strip -->
-  <div id="map-pre-actions">
-    <button id="btn-optimize" onclick="optimizeRoute()">
+  <!-- Action Buttons -->
+  <div id="map-actions">
+    <button class="map-action-btn" id="btn-optimize" onclick="optimizeRoute()">
       <span id="btn-optimize-icon">🧭</span>
-      <span id="btn-optimize-label">Sort</span>
+      <span id="btn-optimize-label">Optimize</span>
     </button>
-    <button id="btn-gmaps-route" onclick="openInMapsFromModal()">
-      <span>🗺</span>
-      <span id="btn-gmaps-label">Open in Google Maps</span>
-    </button>
-    <button id="btn-start-delivery" onclick="toggleDeliveryMode()">
+    <button class="map-action-btn" id="btn-start-delivery" onclick="toggleDeliveryMode()">
       <span id="btn-delivery-icon">▶</span>
       <span id="btn-delivery-label">Start</span>
     </button>
+    <button class="map-action-btn" id="btn-gmaps-nav" onclick="openInMapsFromModal()" style="background:#1a73e8;color:#fff">
+      <span>🗺</span>
+      <span id="btn-gmaps-label">Navigate</span>
+      <span id="batch-badge"></span>
+    </button>
+    <button class="map-action-btn" id="btn-all-pins" onclick="openAllPinsView()" style="background:#0f766e;color:#fff">
+      <span>📌</span>
+      <span>All Pins</span>
+    </button>
   </div>
 
-  <!-- Legacy hidden (JS compatibility) -->
-  <div id="map-actions" style="display:none">
-    <button class="map-action-btn" id="btn-gmaps-nav" onclick="openInMapsFromModal()">
-      <span id="btn-gmaps-label-old">Navigate</span><span id="batch-badge"></span>
-    </button>
-    <button class="map-action-btn" id="btn-all-pins"></button>
+  <!-- Next Batch Banner -->
+  <div id="next-batch-bar">
+    <div id="next-batch-bar-text">✅ Batch done! Next 10 ready</div>
+    <button id="next-batch-go" onclick="loadNextGMapsBatch()">Next Batch →</button>
   </div>
-  <div id="map-mode-toggle" style="display:none">
-    <button class="mmt-btn act" id="mmt-street"></button>
-    <button class="mmt-btn" id="mmt-gmaps"></button>
-  </div>
-  <div id="next-batch-bar" style="display:none">
-    <div id="next-batch-bar-text"></div>
-    <button id="next-batch-go" onclick="loadNextGMapsBatch()"></button>
-  </div>
-  <div id="all-pins-panel" style="display:none">
+
+  <!-- All Pins Overlay Panel -->
+  <div id="all-pins-panel">
     <div id="all-pins-topbar">
-      <div id="all-pins-title"></div>
-      <button id="all-pins-close" onclick="closeAllPinsView()">✕</button>
+      <div id="all-pins-title">📌 All Customer Pins</div>
+      <button id="all-pins-close" onclick="closeAllPinsView()">✕ Close</button>
     </div>
     <div id="all-pins-leaflet"></div>
-    <div id="all-pins-stats"></div>
+    <div id="all-pins-stats">Loading pins…</div>
   </div>
 
-  <!-- Stop list -->
+  <!-- Stop List -->
   <div id="map-bottom">
     <div id="map-stop-list"></div>
   </div>
 
+  <!-- Celebration — content injected dynamically by _showCelebration() -->
   <div id="map-celebration"></div>
 </div>
 
-<!-- Delivery floating card -->
+<!-- Delivery action floating bar -->
 <div id="delivery-bar">
-  <div id="dbar-progress-row">
-    <div id="delivery-bar-label">DELIVERING</div>
+  <div id="delivery-bar-header">
+    <div id="delivery-bar-label">📍 Stop 1 of 5</div>
     <div id="delivery-bar-progress"></div>
   </div>
-  <div id="dbar-track"><div id="dbar-fill"></div></div>
-
   <div id="delivery-bar-card">
-    <div id="dbc-info-row">
-      <div id="dbc-text">
+    <!-- Top row: name + navigate button -->
+    <div id="dbc-top-row">
+      <div style="flex:1;min-width:0">
         <div id="dbc-name"></div>
         <div id="dbc-addr"></div>
       </div>
       <button id="dbc-nav-btn" onclick="openInMapsFromModal()">
-        <span>🗺</span>
+        <span style="font-size:18px">🗺</span>
         <span>Navigate</span>
       </button>
     </div>
+    <!-- Meta row: amount + payment + items -->
     <div id="dbc-meta">
       <span id="dbc-amount"></span>
       <span id="dbc-pay"></span>
       <span id="dbc-items"></span>
     </div>
   </div>
-
   <div id="delivery-bar-btns">
     <button class="dbar-btn" id="dbar-deliver" onclick="deliveryMarkDone()">✅ Delivered</button>
-    <button class="dbar-btn" id="dbar-call" onclick="deliveryCall()" title="Call customer">📞</button>
-    <button class="dbar-btn" id="dbar-wa" onclick="deliveryWA()" title="WhatsApp">💬</button>
-    <button class="dbar-btn" id="dbar-eta" onclick="shareLocationViaWA()" title="Share ETA">📤</button>
-    <button class="dbar-btn" id="dbar-skip" onclick="deliverySkip()" title="Skip">⏭</button>
+    <button class="dbar-btn" id="dbar-call" onclick="deliveryCall()" title="Call customer">📞 Call</button>
+    <button class="dbar-btn" id="dbar-wa" onclick="deliveryWA()" title="WhatsApp">💬 WA</button>
+    <button class="dbar-btn" id="dbar-eta" onclick="shareLocationViaWA()" style="background:#7c3aed;color:#fff" title="Share live location via WA">📤 ETA</button>
+    <button class="dbar-btn" id="dbar-skip" onclick="deliverySkip()" title="Skip this stop">⏭ Skip</button>
   </div>
 </div>
 
@@ -743,11 +695,11 @@ const CFG = {
 
 /* ─── STATE ──────────────────────────────────────────── */
 let _rider          = null;
+let _orders         = [];
 let _pending        = [];
 let _delivered      = [];
 let _activeTab      = 'pending';
 let _routeAddresses = [];
-let _sessionRouteCache = {}; // key → orders array, avoids JSON-in-HTML-attribute bugs
 let _pollTimer      = null;
 
 // Filter state — applied only when Search button is clicked
@@ -786,7 +738,7 @@ function clearRiderCreds() {
 const RiderSession = {
   KEY:             'tf_rider_session',
   VERIFY_KEY:      'tf_rider_session_verified_at',
-  VERIFY_INTERVAL: 10 * 60 * 60 * 1000, // 10 hours — refresh before 12h server token expiry
+  VERIFY_INTERVAL: 48 * 60 * 60 * 1000, // 48 hours in ms
 
   save(rider) {
     localStorage.setItem(this.KEY, JSON.stringify({ rider, savedAt: Date.now() }));
@@ -898,99 +850,37 @@ function showApp() {
   document.getElementById('rider-id-display').textContent = _rider.rider_id || '';
   // Push history state so back button is interceptable
   history.pushState({ riderPg: 'app' }, '', location.href);
-  // Just render cached state — loadOrders() is called separately by the caller
-  renderOrders();
-  updateFilterSummary();
+  applyFilters();
 }
 
 function doRiderLogout() {
   stopPolling();
   clearRiderCreds();
   RiderSession.clear();
-  _rider = null; _pending = []; _delivered = [];
+  _rider = null; _orders = []; _pending = []; _delivered = [];
   document.getElementById('pg-app').style.display  = 'none';
   document.getElementById('pg-auth').style.display = 'flex';
   document.getElementById('r-pw').value = '';
   document.getElementById('auth-creds-hint').style.display = 'none';
 }
 
-/* ─── MANUAL REFRESH (Refresh button in topnav) ──────── */
-async function doManualRefresh() {
-  const btn = document.getElementById('topnav-refresh-btn');
-  if (btn) { btn.innerHTML = '⏳'; btn.disabled = true; }
-  try {
-    await loadOrders();
-    startPolling(); // reset 30s timer
-    rToast('✅ Orders refreshed');
-  } catch (_) {
-    rToast('⚠️ Refresh failed — check connection');
-  } finally {
-    if (btn) { btn.innerHTML = '🔄 Refresh'; btn.disabled = false; }
-  }
-}
-
 /* ─── ORDER LOADING ──────────────────────────────────── */
-// Build filter params from current applied state to push to server
-function _buildFilterParams() {
-  return {
-    riderId:    _rider.rider_id,
-    dateFilter: _appliedDate || 'today',
-    slot:       _appliedSlot || 'all'
-  };
-}
-
-// Load pending orders only (out for delivery). Called by poll + applyFilters.
 async function loadOrders() {
   if (!_rider) return;
   try {
-    const res = await api('getRiderPending', _buildFilterParams());
-    _pending  = res.orders || [];
-    // Log for debugging zero-order issues (visible in console)
-    console.log('[loadOrders] pending count:', _pending.length, 'params:', JSON.stringify(_buildFilterParams()));
-    if (res._dbError) console.error('[loadOrders] DB error from server:', res._dbError);
-    // If delivered tab is open, also refresh it
-    if (_activeTab === 'delivered') {
-      await _loadDelivered();
-    }
+    const res  = await api('getRiderOrders', { riderId: _rider.rider_id });
+    _orders    = res.orders || [];
+    _pending   = _orders.filter(o => {
+      const s = (o.order_status||'').toLowerCase();
+      return s !== 'delivered' && s !== 'rejected' && s !== 'cancelled';
+    });
+    _delivered = _orders.filter(o => o.order_status === 'delivered');
     updateStats();
     renderOrders();
-  } catch(e) {
-    // If session token expired (12h TTL), silently re-login and retry once
-    const isAuthErr = e.message?.includes('401') || e.message?.includes('auth') ||
-                      e.message?.includes('Session') || e.message?.includes('Unauthorized') ||
-                      e.message?.includes('Rider auth');
-    if (isAuthErr) {
-      const creds = getRiderCreds();
-      if (creds) {
-        try {
-          const res2 = await api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0);
-          _rider = { ...res2.rider, sessionToken: res2.sessionToken || '' };
-          RiderSession.save(_rider);
-          RiderSession.markVerified();
-          // Retry with fresh token
-          const res3 = await api('getRiderPending', _buildFilterParams());
-          _pending   = res3.orders || [];
-          updateStats();
-          renderOrders();
-        } catch(_) { /* stay silent on network errors */ }
-      }
-    }
-    /* silent poll error for non-auth failures (network, timeout) */
-  }
-}
-
-// Load delivered orders — called lazily when delivered tab is opened.
-// Server already filters by date+slot so no client-side re-filter needed.
-async function _loadDelivered() {
-  if (!_rider) return;
-  try {
-    const res  = await api('getRiderDelivered', _buildFilterParams());
-    _delivered = res.orders || [];
-  } catch(_) { /* silent — keep stale cache */ }
+  } catch(e) { /* silent poll error */ }
 }
 
 function updateStats() {
-  // Stats are simple counts — server already filtered by date if dateFilter=today
   const today    = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
   const todayDel = _delivered.filter(o => o.date === today);
   const todayPen = _pending.filter(o => o.date === today);
@@ -1100,14 +990,7 @@ function switchTab(tab) {
   _activeTab = tab;
   document.getElementById('tab-pending').classList.toggle('act',   tab === 'pending');
   document.getElementById('tab-delivered').classList.toggle('act', tab === 'delivered');
-  // Lazy-load delivered from server when tab opened — no stale data, no wasted fetch
-  if (tab === 'delivered') {
-    renderOrders(); // show loading state immediately with current cache
-    _loadDelivered().then(() => { updateStats(); renderOrders(); });
-  } else {
-    renderOrders();
-  }
-  updateFilterSummary();
+  applyFilters();
 }
 
 /* ─── FILTER SETTERS (just update state + chip UI, don't render yet) ─── */
@@ -1121,46 +1004,20 @@ function setSlotFilter(val, btn) {
 }
 
 /* ─── APPLY FILTERS (called on Search button click) ─── */
-// Always fetches fresh from DB first, then applies all 3 layers of filters.
-// This ensures newly assigned orders appear immediately without waiting for
-// the 30s auto-poll — rider just clicks Search and gets latest data.
-async function applyFilters() {
-  // Commit filter state immediately (so chips update before network call)
+function applyFilters() {
   _appliedDate  = _filterDate;
   _appliedSlot  = _filterSlot;
   _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
-
-  // Clear delivered cache — filter changed, stale now
-  _delivered = [];
-
-  // Show loading feedback on the Search button
-  const btn = document.querySelector('[onclick="applyFilters()"]');
-  const origHTML = btn ? btn.innerHTML : null;
-  if (btn) { btn.innerHTML = '⏳'; btn.disabled = true; }
-
-  try {
-    await loadOrders(); // fetches pending with new date+slot filters at server level
-    if (_activeTab === 'delivered') {
-      await _loadDelivered(); // also fetch delivered if tab is open
-    }
-    startPolling();     // reset 30s timer so it doesn't fire immediately after Search
-  } catch (_) {
-    // loadOrders is silent on network errors; render whatever we have cached
-    renderOrders();
-  } finally {
-    if (btn && origHTML) { btn.innerHTML = origHTML; btn.disabled = false; }
-  }
-
-  updateFilterSummary(); // always update the filter summary line
+  renderOrders();
+  updateFilterSummary();
 }
 
 function clearFilters() {
   document.getElementById('r-search').value = '';
   _filterDate = 'today'; _filterSlot = 'all'; _appliedDate = 'today'; _appliedSlot = 'all'; _appliedQuery = '';
-  _delivered = []; // clear delivered cache — will lazy-reload on next tab open
   document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === 'today'));
   document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === 'all'));
-  loadOrders(); // re-fetch pending with reset filters
+  renderOrders();
   updateFilterSummary();
 }
 
@@ -1171,14 +1028,8 @@ function updateFilterSummary() {
   const slotLabel = { all:'All Sessions', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot];
   const parts = [dateLabel, slotLabel];
   if (_appliedQuery) parts.push(`"${_appliedQuery}"`);
-  if (_areaFilterActive && _areaName) parts.push('📍 ' + _areaName);
   el.textContent = '↳ Showing: ' + parts.join(' · ');
   el.style.display = 'block';
-  // Update area chip count
-  if (_areaFilterActive) {
-    const chipCount = document.getElementById('area-chip-count');
-    if (chipCount) { const m = _countAreaOrders(); chipCount.textContent = `${m} order${m!==1?'s':''} in this area`; }
-  }
 }
 
 /* ─── DATE HELPERS ───────────────────────────────────── */
@@ -1220,13 +1071,10 @@ function renderOrders() {
           !(o.address||'').toLowerCase().includes(q) &&
           !(o.order_id||'').toLowerCase().includes(q)) return false;
     }
-    // Layer 3: area polygon filter (optional)
-    if (_areaFilterActive && _areaPolygon) {
-      const c = _extractCoordsFromAddress(o.address || '');
-      if (c && !_pointInPolygon(c.lat, c.lng, _areaPolygon)) return false;
-    }
     return true;
   });
+
+  const el = document.getElementById('orders-content');
   if (!list.length) {
     el.innerHTML = `<div class="empty-state"><div class="icon">${_activeTab==='pending'?'🎉':'📦'}</div><p>No orders match the current filter</p></div>`;
     return;
@@ -1258,11 +1106,8 @@ function renderOrders() {
     const grp = grouped[date];
     const showMorning = (_appliedSlot === 'all' || _appliedSlot === 'morning') && grp.morning.length;
     const showEvening = (_appliedSlot === 'all' || _appliedSlot === 'evening') && grp.evening.length;
-    const mKey = date + '_morning';
-    const eKey = date + '_evening';
-    // Store orders in cache so onclick can retrieve safely (no JSON-in-HTML-attribute escaping bugs)
-    if (grp.morning.length) _sessionRouteCache[mKey] = grp.morning;
-    if (grp.evening.length) _sessionRouteCache[eKey] = grp.evening;
+    const mJson = JSON.stringify(grp.morning).replace(/"/g,'&quot;');
+    const eJson = JSON.stringify(grp.evening).replace(/"/g,'&quot;');
     return `<div class="date-section">
       <div class="date-header" onclick="toggleDateSection('${date}')">
         <span class="date-label">${dateLabel(date)}</span>
@@ -1272,14 +1117,14 @@ function renderOrders() {
         ${showMorning ? `<div class="session-group">
           <div class="session-header session-morning">
             <span>☀️ Morning (${grp.morning.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${mKey}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${mJson}')">🗺 Route</button>
           </div>
           ${grp.morning.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
         ${showEvening ? `<div class="session-group">
           <div class="session-header session-evening">
             <span>🌙 Evening (${grp.evening.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${eKey}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${eJson}')">🗺 Route</button>
           </div>
           ${grp.evening.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
@@ -1316,11 +1161,6 @@ function generateRiderPDF() {
       if (!(o.name||'').toLowerCase().includes(q) && !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q)) return false;
     }
-    // Layer 3: area polygon filter
-    if (_areaFilterActive && _areaPolygon) {
-      const c = _extractCoordsFromAddress(o.address || '');
-      if (c && !_pointInPolygon(c.lat, c.lng, _areaPolygon)) return false;
-    }
     return true;
   });
 
@@ -1328,7 +1168,6 @@ function generateRiderPDF() {
 
   const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
   const slotLabel = { all:'All Sessions', morning:'Morning Orders', evening:'Evening Orders' }[_appliedSlot];
-  const areaLabel = (_areaFilterActive && _areaName) ? _areaName : '';
   const tabLabel  = _activeTab === 'pending' ? 'Pending' : 'Delivered';
 
   const rows = filtered.map((o,i) => {
@@ -1382,7 +1221,7 @@ function generateRiderPDF() {
     @media print{.summary-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}.total-row td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>
   <h1>🛵 Tiffo Rider — ${tabLabel} Orders</h1>
-  <div class="meta">Rider: ${_rider?.name||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_appliedQuery+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}${areaLabel?' · 📍 '+areaLabel:''}</div>
+  <div class="meta">Rider: ${_rider?.name||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_appliedQuery+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
   <div class="summary-bar">
     <div class="s-item"><div class="s-val">${filtered.length}</div><div class="s-lbl">Orders</div></div>
 
@@ -1416,14 +1255,13 @@ let _routeLayer      = null;   // OSRM road-following GeoJSON layer
 let _routeDrawing    = false;  // Prevent concurrent OSRM fetches
 let _routeOptimized  = false;
 let _autoOptimizeOnGpsFix = false; // true while waiting for first GPS fix to auto-sort
-let _geocodingQueue      = [];     // stops needing Nominatim geocoding
-let _geocodingActive     = false;  // prevent concurrent geocode runs
-let _geocodingGeneration = 0;      // incremented on each openRiderMap; lets stale geocode loops self-cancel
 let _deliveryActive  = false;
 let _deliveryIdx     = 0;      // current stop index in _mapStops
 let _mapModalOpen    = false;
-let _mapMode         = 'street'; // kept for compat
-let _allPinsMap      = null;     // kept for compat
+let _mapMode         = 'street'; // 'street' | 'gmaps'
+let _gmapsBatchStart = 0;        // offset into sorted stops for current GMaps batch
+const _GMAPS_BATCH   = 10;       // stops per Google Maps batch
+let _allPinsMap      = null;     // separate Leaflet instance for All Pins view
 
 // ── Live tracking state ───────────────────────────────────────
 let _lastRouteRedrawPos  = null; // GPS position at last OSRM redraw
@@ -1478,11 +1316,6 @@ function _buildFilteredStops() {
           !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) &&
           !(o.order_id||'').toLowerCase().includes(q)) return false;
-    }
-    // Layer 3: area polygon filter (optional) — same as renderOrders
-    if (_areaFilterActive && _areaPolygon) {
-      const c = _extractCoordsFromAddress(o.address || '');
-      if (c && !_pointInPolygon(c.lat, c.lng, _areaPolygon)) return false;
     }
     return true;
   });
@@ -1639,7 +1472,7 @@ async function _drawPolyline() {
   _drawFallbackPolyline(pts.map(p => [p.lat, p.lng]));
 
   try {
-    const coords = pts.slice(0, 50).map(p => `${p.lng},${p.lat}`).join(';');
+    const coords = pts.slice(0, 25).map(p => `${p.lng},${p.lat}`).join(';');
     const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
 
     const controller = new AbortController();
@@ -1656,34 +1489,17 @@ async function _drawPolyline() {
     const route   = data.routes[0];
     const geojson = route.geometry;
 
-    // ── Store road distances on ALL stops from OSRM legs ──────────
-    // pts layout depends on GPS availability:
-    //   GPS present : [GPS, s0, s1, s2] -> legs[0]=GPS->s0, legs[1]=s0->s1, legs[2]=s1->s2
-    //   GPS absent  : [s0, s1, s2]      -> legs[0]=s0->s1,  legs[1]=s1->s2
-    //
-    // Each stop's distKm = road distance from the preceding point to this stop.
-    // With GPS:    stop[i].distKm = legs[i].distance  (GPS is the preceding point for s0)
-    // Without GPS: stop[0] IS the origin, has no incoming leg -> keep its haversine value.
-    //              stop[i>0].distKm = legs[i-1].distance
-    if (route.legs?.length) {
-      const hasGps         = !!_gpsPos;
-      const pendingInOrder = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
-      pendingInOrder.forEach((stop, i) => {
-        const legIdx = hasGps ? i : i - 1;  // -1 for no-GPS s0: it has no incoming leg
-        if (legIdx < 0) return;             // skip s0 when no GPS
-        const leg = route.legs[legIdx];
-        if (leg) {
-          stop.distKm      = leg.distance / 1000;
-          stop._distIsRoad = true;
-        }
-      });
-      // Refresh delivery bar with road distance to current stop
-      if (_deliveryActive) {
-        const curStop = _mapStops[_deliveryIdx];
-        if (curStop?.distKm != null) {
-          document.getElementById('delivery-bar-progress').textContent =
-            `${_mapStops.filter(s=>s.delivered).length} done · ${_mapStops.filter(s=>!s.delivered&&!s.skipped).length} left · 🛣 ${curStop.distKm.toFixed(1)}km`;
-        }
+    // ── Store road distance on current stop (replaces haversine) ──
+    if (route.legs?.[0]) {
+      const roadKm = route.legs[0].distance / 1000;
+      const curStop = _mapStops[_deliveryIdx];
+      if (curStop && !curStop.delivered && !curStop.skipped) {
+        curStop.distKm      = roadKm;
+        curStop._distIsRoad = true;
+      }
+      if (_deliveryActive && curStop) {
+        document.getElementById('delivery-bar-progress').textContent =
+          `${_mapStops.filter(s=>s.delivered).length} done · ${_mapStops.filter(s=>!s.delivered&&!s.skipped).length} left · 🛣 ${roadKm.toFixed(1)}km`;
       }
     }
 
@@ -1724,11 +1540,7 @@ function _renderStopList() {
     const statusBadge= s.delivered ? '<span class="stop-status-badge badge-delivered">✅ Done</span>'
                      : s.skipped   ? '<span class="stop-status-badge badge-skipped">⏭ Skipped</span>'
                      : '';
-    const noCoordsBadge = !hasCoords
-      ? (s._geocodeFailed
-          ? '<span style="font-size:10px;color:#dc2626;font-weight:700">❌ Not found</span>'
-          : '<span style="font-size:10px;color:#f59e0b;font-weight:700">⏳ Locating…</span>')
-      : (s._geocodedViaSearch ? '<span style="font-size:10px;color:#f59e0b">⚠ Approx</span>' : '');
+    const noCoordsBadge = !hasCoords ? '<span style="font-size:10px;color:#f97316;font-weight:700">⚠ No GPS</span>' : '';
     const isActive   = _deliveryActive && i === _deliveryIdx;
     const activeClass= isActive ? 'active-stop' : '';
     const delivClass = s.delivered ? 'delivered-stop' : s.skipped ? 'skipped-stop' : '';
@@ -1739,16 +1551,20 @@ function _renderStopList() {
 
     // Quick action buttons on each stop card
     const phone = s.order.phone || '';
-    const navBtn = hasCoords
-      ? `<button onclick="event.stopPropagation();openInMapsFromStop(${i})" class="stop-act-btn sab-nav">🗺 Nav</button>`
+    // View button: always shown when coords exist (works on delivered stops too)
+    const viewBtn = hasCoords
+      ? `<button onclick="openStreetView(${i})" style="flex:1;min-width:44px;background:#0f766e;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Street View">👁 View</button>`
       : '';
+    // Communication + nav buttons: only for active (non-delivered) stops with a phone
     const commBtns = (!s.delivered && phone) ? `
-        <a href="tel:${phone}" onclick="event.stopPropagation()" class="stop-act-btn sab-call" style="text-decoration:none">📞</a>
-        <button onclick="event.stopPropagation();stopWA(${i})" class="stop-act-btn sab-wa">💬</button>
-        <button onclick="event.stopPropagation();shareLocationViaWA(${i})" class="stop-act-btn sab-eta">📤 ETA</button>` : '';
-    const actionBtns = (navBtn || commBtns) ? `
-      <div class="stop-actions" onclick="event.stopPropagation()">
-        ${navBtn}${commBtns}
+        <a href="tel:${phone}" style="flex:1;min-width:44px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px">📞</a>
+        <button onclick="stopWA(${i})" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
+        <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>
+        <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>` : '';
+    const actionBtns = (viewBtn || commBtns) ? `
+      <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap" onclick="event.stopPropagation()">
+        ${commBtns}
+        ${viewBtn}
       </div>` : '';
 
     return `<div class="map-stop-card ${activeClass} ${delivClass} ${noClass}" id="stop-card-${i}" onclick="flyToStop(${i})">
@@ -1774,28 +1590,19 @@ function _renderStopList() {
 }
 
 // ── Place markers on map ──────────────────────────────────────
-// Shows ALL orders — numbered pins for those with coords, grey "?" pins for those still being located.
 function _placeMarkers() {
   // Remove old markers
   _mapStops.forEach(s => { if (s.marker) _map.removeLayer(s.marker); s.marker = null; });
   let seqNum = 0;
   _mapStops.forEach((s, i) => {
+    if (!s.coords) return;
     const isDelivered = s.delivered;
     const isSkipped   = s.skipped;
     const isActive    = _deliveryActive && i === _deliveryIdx;
 
-    // Sequence number: only count pending stops (with or without coords)
+    // Sequence number: only count pending stops
     if (!isDelivered && !isSkipped) seqNum++;
     const label = isDelivered ? '✓' : isSkipped ? '⏭' : seqNum;
-    s.seqNum = isDelivered || isSkipped ? null : seqNum;
-
-    if (!s.coords) {
-      // ── No-coord stop: place a grey "?" placeholder so it's visible on map
-      // We can't place it on leaflet without coords, so we skip map pin BUT ensure
-      // stop list card shows "locating…" status — handled in _renderStopList.
-      // However: if a centroid/fallback exists from geocoding partial result, use it.
-      return; // No coords at all — cannot place on map yet; geocoding will update
-    }
 
     // Color: green=done, orange=skipped, gold=active current, red=pending
     const color = isDelivered ? '#22c55e'
@@ -1803,15 +1610,15 @@ function _placeMarkers() {
                 : isActive    ? '#f59e0b'
                 : '#e63946';
 
+    s.seqNum = isDelivered || isSkipped ? null : seqNum;
     const distLabel = s.distKm != null ? `<br><span style="font-size:11px;color:#64748b">~${s.distKm.toFixed(1)} km away</span>` : '';
-    const geocodeNote = s._geocodedViaSearch ? `<br><span style="font-size:10px;color:#f59e0b">⚠ Approx location</span>` : '';
     const marker = L.marker([s.coords.lat, s.coords.lng], {
       icon: _numIcon(label, color),
       zIndexOffset: isActive ? 500 : isDelivered ? -100 : 0
     })
       .addTo(_map)
       .bindPopup(
-        `<b style="font-size:13px">${s.order.name || '—'}</b>${distLabel}${geocodeNote}` +
+        `<b style="font-size:13px">${s.order.name || '—'}</b>${distLabel}` +
         `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
         `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
       );
@@ -1844,30 +1651,11 @@ function _updateMapTitle(orders) {
   const slotLabel = { all:'', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot] || '';
   const withCoords = _mapStops.filter(s=>s.coords).length;
   const total      = _mapStops.length;
-  const noCoords   = total - withCoords;
-  const geocoding  = _geocodingActive && noCoords > 0;
   const parts = [dateLabel];
   if (slotLabel) parts.push(slotLabel);
-  parts.push(`${total} stop${total!==1?'s':''}`);
-  if (geocoding)       parts.push(`⏳ locating ${noCoords}…`);
-  else if (noCoords)   parts.push(`(${noCoords} without GPS)`);
-  document.getElementById('map-title').textContent = parts.filter(Boolean).join(' · ');
-
-  // Update Google Maps button to show how many stops will be sent
-  if (!_deliveryActive) {
-    const lbl = document.getElementById('btn-gmaps-label');
-    if (!lbl) return;
-    const pending = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped).length;
-    if (pending === 0) {
-      lbl.textContent = 'Open in Google Maps';
-    } else if (pending === 1) {
-      lbl.textContent = 'Navigate (1 stop)';
-    } else {
-      // URL-length cap fits 47+ stops at 6dp coords — covers all real tiffin runs.
-      // Show "All N Stops" always; the rare overflow case is handled in openInMapsFromModal.
-      lbl.textContent = `All ${pending} Stops → Google Maps`;
-    }
-  }
+  parts.push(`${withCoords} stop${withCoords!==1?'s':''}`);
+  if (withCoords !== total) parts.push(`(${total-withCoords} without GPS)`);
+  document.getElementById('map-title').textContent = parts.join(' · ');
 }
 
 // ── OPEN MAP ──────────────────────────────────────────────────
@@ -1875,12 +1663,7 @@ function openRiderMap(ordersParam) {
   // Resolve order list
   let orders;
   if (typeof ordersParam === 'string') {
-    // First check if it's a cache key (safe, no parse needed)
-    if (_sessionRouteCache[ordersParam]) {
-      orders = _sessionRouteCache[ordersParam];
-    } else {
-      try { orders = JSON.parse(ordersParam); } catch { orders = _buildFilteredStops(); }
-    }
+    try { orders = JSON.parse(ordersParam); } catch { orders = _buildFilteredStops(); }
   } else if (Array.isArray(ordersParam)) {
     orders = ordersParam;
   } else {
@@ -1903,18 +1686,15 @@ function openRiderMap(ordersParam) {
   _autoOptimizeOnGpsFix = false;
   _deliveryActive  = false;
   _deliveryIdx     = 0;
-  _geocodingGeneration++;   // cancel any in-flight geocode loop from previous open
-  _geocodingActive = false; // reset geocoding so it can re-run
+  _resetGMapsBatch();
   const lbadge0 = document.getElementById('live-track-badge');
   if (lbadge0) lbadge0.style.display = 'none';
   document.getElementById('btn-optimize').classList.remove('done');
   document.getElementById('btn-optimize-icon').textContent = '🧭';
-  document.getElementById('btn-optimize-label').textContent = 'Sort';
+  document.getElementById('btn-optimize-label').textContent = 'Optimize Route';
   document.getElementById('btn-start-delivery').classList.remove('active-mode');
-  document.getElementById('btn-delivery-icon').textContent  = '▶';
-  document.getElementById('btn-delivery-label').textContent = 'Start';
-  document.getElementById('btn-gmaps-label').textContent    = 'Open in Google Maps';
-  document.getElementById('map-pre-actions').style.display = '';
+  document.getElementById('btn-delivery-icon').textContent = '▶';
+  document.getElementById('btn-delivery-label').textContent = 'Start Delivery';
   document.getElementById('delivery-bar').classList.remove('show');
   document.getElementById('map-celebration').classList.remove('show');
 
@@ -1936,34 +1716,16 @@ function openRiderMap(ordersParam) {
       _map.invalidateSize();
     }
 
-    // Geocode any stops that lack embedded coordinates
-    _geocodeStopsWithoutCoords();
-
     _placeMarkers();
     _updateMapTitle(orders);
     _renderStopList();
-
-    // Auto-sort: always optimize once GPS is known (even if all stops need geocoding now)
-    if (_gpsPos) {
-      // GPS already available — optimize right away after short render delay
-      if (_mapStops.some(s => s.coords)) {
-        setTimeout(() => optimizeRoute(), 300);
-      } else {
-        // No stops have coords yet — geocoding will call optimizeRoute() when done
-        // (since _gpsPos will be set at that point). Show toast so rider knows.
-        rToast('📍 Locating stops — route will auto-sort…');
-      }
-    } else {
-      // Wait for first GPS fix, then optimize (works even if stops get coords via geocoding later)
+    // Auto-sort route once first GPS fix arrives (if 3+ stops have coords)
+    const _stopsWithCoords = _mapStops.filter(s => s.coords);
+    if (_stopsWithCoords.length >= 3) {
       _autoOptimizeOnGpsFix = true;
       rToast('📍 Getting GPS — route will auto-sort…');
     }
     _startGPS();
-
-    // Draw area polygon on map if area filter is active
-    if (_areaFilterActive && _areaPolygon) {
-      setTimeout(() => _drawAreaPolygonOnMap(), 400);
-    }
 
     // Fit bounds after GPS first fix or immediately
     setTimeout(() => { _fitMapBounds(); }, 500);
@@ -1976,11 +1738,7 @@ function closeRiderMap() {
   document.getElementById('delivery-bar').classList.remove('show');
   _stopGPS();
   _mapModalOpen = false;
-  _geocodingGeneration++; // cancel any in-flight geocode loop
-  _geocodingActive = false;
   _deliveryStartTime = null; // reset for next delivery session
-  // Clean up area polygon layer (will be redrawn fresh on next open)
-  if (_areaPolygonLayer && _map) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
   // Clean up markers
   _mapStops.forEach(s => { if (s.marker && _map) _map.removeLayer(s.marker); s.marker = null; });
   if (_gpsMarker && _map)  { _map.removeLayer(_gpsMarker); _gpsMarker = null; }
@@ -2002,7 +1760,6 @@ function flyToStop(idx) {
 // Core greedy TSP from a given lat/lng origin across a set of stops.
 // Returns ordered array of stops (mutates distKm on each stop).
 function _nearestNeighborSort(stopsWithCoords, originLat, originLng) {
-  // Phase 1: Greedy nearest-neighbor from rider's current position
   const toVisit = [...stopsWithCoords];
   const ordered = [];
   let curLat = originLat, curLng = originLng;
@@ -2017,46 +1774,6 @@ function _nearestNeighborSort(stopsWithCoords, originLat, originLng) {
     curLat = stop.coords.lat; curLng = stop.coords.lng;
     ordered.push(stop);
   }
-
-  // Phase 2: 2-opt improvement — reduces backtracking / repeated roads
-  // Tries reversing sub-segments to reduce total route distance.
-  // Open-route 2-opt: no return-to-origin, so the last stop has no exit edge.
-  // Capped at 60 stops: above that the O(n²) cost causes a ~2.7s JS freeze on
-  // mid-range Android. Greedy NN alone gives a good-enough route for large runs.
-  if (ordered.length >= 3 && ordered.length <= 60) {
-    let improved = true;
-    let iterations = 0;
-    while (improved && iterations < 30) {
-      improved = false; iterations++;
-      for (let i = 0; i < ordered.length - 1; i++) {
-        for (let j = i + 1; j < ordered.length; j++) {
-          // Current:  ... prev_i → ordered[i] → ... → ordered[j] → next_j ...
-          // Reversed: ... prev_i → ordered[j] → ... → ordered[i] → next_j ...
-          const prevLat = i === 0 ? originLat : ordered[i-1].coords.lat;
-          const prevLng = i === 0 ? originLng : ordered[i-1].coords.lng;
-          const hasNext = j + 1 < ordered.length;
-          const before = _haversine(prevLat, prevLng, ordered[i].coords.lat, ordered[i].coords.lng)
-                       + (hasNext ? _haversine(ordered[j].coords.lat, ordered[j].coords.lng, ordered[j+1].coords.lat, ordered[j+1].coords.lng) : 0);
-          const after  = _haversine(prevLat, prevLng, ordered[j].coords.lat, ordered[j].coords.lng)
-                       + (hasNext ? _haversine(ordered[i].coords.lat, ordered[i].coords.lng, ordered[j+1].coords.lat, ordered[j+1].coords.lng) : 0);
-          if (after < before - 0.001) { // 1m improvement threshold
-            // Reverse the sub-segment [i .. j]
-            let lo = i, hi = j;
-            while (lo < hi) { [ordered[lo], ordered[hi]] = [ordered[hi], ordered[lo]]; lo++; hi--; }
-            improved = true;
-          }
-        }
-      }
-    }
-  }
-
-  // Recompute distKm on each stop after 2-opt reordering
-  let pLat = originLat, pLng = originLng;
-  ordered.forEach(s => {
-    s.distKm = _haversine(pLat, pLng, s.coords.lat, s.coords.lng);
-    pLat = s.coords.lat; pLng = s.coords.lng;
-  });
-
   return ordered;
 }
 
@@ -2083,6 +1800,7 @@ async function optimizeRoute() {
 
   // ── Single stop: no ordering needed, just draw road route and show distance ──
   if (withCoords.length === 1) {
+    _routeOptimized = true;
     document.getElementById('btn-optimize').classList.add('done');
     document.getElementById('btn-optimize-icon').textContent = '✅';
     document.getElementById('btn-optimize-label').textContent = 'Ready';
@@ -2115,7 +1833,7 @@ async function optimizeRoute() {
   _routeOptimized = true;
   document.getElementById('btn-optimize').classList.add('done');
   document.getElementById('btn-optimize-icon').textContent = '✅';
-  document.getElementById('btn-optimize-label').textContent = 'Sorted';
+  document.getElementById('btn-optimize-label').textContent = 'Optimized';
 
   // Refresh map — draw road route from GPS through all stops in order
   _placeMarkers();
@@ -2123,12 +1841,8 @@ async function optimizeRoute() {
   await _drawPolyline();
   _fitMapBounds();
 
-  // Total km computed AFTER _drawPolyline so legs-based road distances are used.
-  // Falls back cleanly to haversine sum if OSRM was unavailable.
-  const allRoad  = ordered.every(s => s._distIsRoad);
-  const totalKm  = ordered.reduce((sum, s) => sum + (s.distKm || 0), 0);
-  const distLabel= totalKm > 0 ? (allRoad ? `🛣 ${totalKm.toFixed(1)} km` : `~${totalKm.toFixed(1)} km`) : '';
-  rToast(`🧭 ${ordered.length} stops${distLabel ? ' · ' + distLabel : ''} total route`);
+  const totalKm = ordered.reduce((sum, s) => sum + (s.distKm || 0), 0);
+  rToast(`🧭 ${ordered.length} stops · ~${totalKm.toFixed(1)} km total route`);
 }
 
 // ── DELIVERY MODE ─────────────────────────────────────────────
@@ -2157,7 +1871,7 @@ async function _startDeliveryMode() {
       _routeOptimized = true;
       document.getElementById('btn-optimize').classList.add('done');
       document.getElementById('btn-optimize-icon').textContent = '✅';
-      document.getElementById('btn-optimize-label').textContent = 'Sorted';
+      document.getElementById('btn-optimize-label').textContent = 'Optimized';
       _placeMarkers();
       await _drawPolyline();
       rToast('🧭 Auto-optimized from your location!');
@@ -2202,7 +1916,7 @@ function _pauseDeliveryMode() {
   document.getElementById('btn-delivery-icon').textContent  = '▶';
   document.getElementById('btn-delivery-label').textContent = 'Resume';
   const gLabel = document.getElementById('btn-gmaps-label');
-  if (gLabel) gLabel.textContent = 'Open in Google Maps';
+  if (gLabel) gLabel.textContent = 'Google Maps';
   document.getElementById('delivery-bar').classList.remove('show');
   _renderStopList();
 }
@@ -2214,12 +1928,13 @@ function _updateDeliveryBar() {
   const remaining= _mapStops.filter(s => !s.delivered && !s.skipped).length;
   const cur      = _mapStops[_deliveryIdx];
 
-  // Progress row
+  // ── Header ──
   const stopNum = done + skipped + 1;
   document.getElementById('delivery-bar-label').textContent =
-    cur ? `STOP ${stopNum} OF ${total}` : '🎉 ALL DONE!';
+    cur ? `📍 Nearest Stop — ${stopNum} of ${total}` : '🎉 All Done!';
 
-  let progressText = `${done} done · ${remaining} left`;
+  // ── Progress with distance ──
+  let progressText = `${done} delivered · ${remaining} left`;
   if (cur?.distKm != null) {
     progressText += cur._distIsRoad
       ? ` · 🛣 ${cur.distKm.toFixed(1)} km`
@@ -2227,22 +1942,15 @@ function _updateDeliveryBar() {
   }
   document.getElementById('delivery-bar-progress').textContent = progressText;
 
-  // Progress bar fill
-  const fillPct = total > 0 ? Math.round((done / total) * 100) : 0;
-  const fillEl = document.getElementById('dbar-fill');
-  if (fillEl) fillEl.style.width = fillPct + '%';
-
-  // Customer card
+  // ── Detail card ──
   const card = document.getElementById('delivery-bar-card');
   if (cur) {
     card.classList.add('show');
     document.getElementById('dbc-name').textContent = cur.order.name || '—';
     document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address);
-    const isWallet = cur.order.user_type === 'subscriber';
-    const payEl = document.getElementById('dbc-pay');
-    payEl.textContent = isWallet ? '💳 Wallet' : '💵 Cash';
-    payEl.className = isWallet ? 'dbc-pay-wallet' : 'dbc-pay-cash';
+    const payLabel = cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
     document.getElementById('dbc-amount').textContent = '';
+    document.getElementById('dbc-pay').textContent = payLabel;
     const items = (cur.order.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
     document.getElementById('dbc-items').textContent = items || '—';
   } else {
@@ -2323,9 +2031,7 @@ async function deliverySkip() {
 
   const nextSkipStop = _mapStops[_deliveryIdx];
   if (nextSkipStop) {
-    const distTxt = nextSkipStop.distKm != null
-      ? ` · ${nextSkipStop._distIsRoad ? '🛣' : '~'}${nextSkipStop.distKm.toFixed(1)} km`
-      : '';
+    const distTxt = nextSkipStop.distKm != null ? ` · ~${nextSkipStop.distKm.toFixed(1)} km` : '';
     rToast(`📍 Next: ${nextSkipStop.order.name || 'Stop'}${distTxt}`);
   }
 }
@@ -2346,9 +2052,14 @@ async function _advanceDelivery() {
   const nearestIdx = _findNearestRemainingIdx();
   _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
 
-  // Note: distKm for the next stop will be set to road distance by _drawPolyline below.
-  // No haversine overwrite here — that would briefly show a wrong value and then
-  // get clobbered by the OSRM legs update anyway.
+  // Update distance label on the newly targeted stop
+  if (_gpsPos && _mapStops[_deliveryIdx]?.coords) {
+    _mapStops[_deliveryIdx].distKm = _haversine(
+      _gpsPos.lat, _gpsPos.lng,
+      _mapStops[_deliveryIdx].coords.lat,
+      _mapStops[_deliveryIdx].coords.lng
+    );
+  }
 
   // Redraw route line from GPS through remaining stops in optimized order
   _placeMarkers(); // re-number pins: nearest remaining = #1
@@ -2359,6 +2070,16 @@ async function _advanceDelivery() {
 
   // Auto-scroll the stop list to the active card
   setTimeout(() => _scrollToCard(_deliveryIdx), 400);
+
+  // Check if current GMaps batch is now exhausted; auto-advance and notify
+  const remainingCount = _mapStops.filter(s => !s.delivered && !s.skipped && s.coords).length;
+  const batchRemaining = _GMAPS_BATCH - (_gmapsBatchStart % _GMAPS_BATCH || _GMAPS_BATCH);
+  if (remainingCount > 0 && batchRemaining <= 1) {
+    _gmapsBatchStart += _GMAPS_BATCH;
+    if (_gmapsBatchStart >= remainingCount) _gmapsBatchStart = 0;
+    const nextCount = Math.min(_GMAPS_BATCH, remainingCount);
+    _showNextBatchBar(nextCount, _gmapsBatchStart);
+  }
 
   // Show distance to next stop
   const nextStop = _mapStops[_deliveryIdx];
@@ -2516,7 +2237,7 @@ function _gMapsOpen(url, fallbackUrl) {
 
 /* ── Build a Google Maps navigation URL for a single destination ─
    Prefers coords over text address for pin-point accuracy.
-   Uses two-wheeler mode on mobile for Indian delivery context.      */
+   Adds travelmode=two-wheeler on mobile for Indian delivery context. */
 function _gMapsNavUrl(dest, originCoords) {
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const mode     = isMobile ? 'two-wheeler' : 'driving';
@@ -2525,158 +2246,267 @@ function _gMapsNavUrl(dest, originCoords) {
     : '';
 
   if (dest && typeof dest === 'object' && dest.lat) {
+    // Coords: most reliable — opens exactly on the pin
     return `https://www.google.com/maps/dir/?api=1${origin}&destination=${dest.lat},${dest.lng}&travelmode=${mode}`;
   } else if (typeof dest === 'string' && dest.trim()) {
+    // Text address fallback
     return `https://www.google.com/maps/dir/?api=1${origin}&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
   }
   return null;
 }
 
-/* ── Build a full-route Google Maps URL (free URL API, no key) ───
-   Uses the Maps URL dir/?api=1 scheme — no API key, no billing, no quota.
-   Real limit is the 2048-char browser URL ceiling, not a stop count.
-   At 6dp coordinates (~20 chars each) this fits 47+ stops comfortably,
-   covering every real tiffin run. We cap by URL length, not an arbitrary
-   stop count, so the maximum usable stops are always sent.              */
-const _GMAPS_URL_SAFE_LIMIT = 1900; // safe margin under the 2048-char browser URL limit
-
-function _gMapsFullRouteUrl(stops, originCoords) {
+/* ── Build a multi-stop route URL (Google Maps Dir API, free) ────
+   Google Maps allows up to 25 waypoints via URL.
+   stops = array of {coords?, order}
+   batchStart = offset into nearest-neighbor sorted array (default 0).
+   Returns {url, hasMore, batchEnd, sorted}.                          */
+function _gMapsMultiStopUrl(stops, originCoords, batchStart) {
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   const mode     = isMobile ? 'two-wheeler' : 'driving';
 
-  // Only stops with known coordinates can be put in GMaps URL
-  const withCoords = stops.filter(s => s.coords && !s.delivered && !s.skipped);
+  const withCoords = stops.filter(s => s.coords);
   if (!withCoords.length) return null;
 
-  // Use already-optimized order from _mapStops; fall back to NN sort
-  let sorted;
-  if (_routeOptimized) {
-    sorted = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
-  } else {
-    const startLat = originCoords?.lat ?? withCoords[0].coords.lat;
-    const startLng = originCoords?.lng ?? withCoords[0].coords.lng;
-    sorted = _nearestNeighborSort([...withCoords], startLat, startLng);
-  }
+  // Sort nearest-neighbor from origin
+  const startLat = originCoords?.lat ?? withCoords[0].coords.lat;
+  const startLng = originCoords?.lng ?? withCoords[0].coords.lng;
+  const sorted   = _nearestNeighborSort([...withCoords], startLat, startLng);
 
-  // Build URL incrementally, adding stops until we approach the URL length limit.
-  // This is the correct cap — not an arbitrary number.
-  const originStr = originCoords
-    ? `${originCoords.lat},${originCoords.lng}`
-    : `${sorted[0].coords.lat},${sorted[0].coords.lng}`;
-
-  let batch = [];
-  for (const stop of sorted) {
-    batch.push(stop);
-    // Tentatively build the full URL with current batch to measure length
-    const dest    = batch[batch.length - 1].coords;
-    const destStr = `${dest.lat},${dest.lng}`;
-    const mid     = (originCoords ? batch : batch.slice(1)).slice(0, -1);
-    const wpStr   = mid.map(s => `${s.coords.lat},${s.coords.lng}`).join('|');
-    const wpParam = wpStr ? `&waypoints=${encodeURIComponent(wpStr)}` : '';
-    const testUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originStr)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
-    if (testUrl.length > _GMAPS_URL_SAFE_LIMIT) {
-      batch.pop(); // this stop pushed us over — remove it
-      break;
-    }
-  }
-
+  const start    = batchStart || 0;
+  const batch    = sorted.slice(start, start + _GMAPS_BATCH);
   if (!batch.length) return null;
 
-  const hasMore = sorted.length > batch.length;
+  const hasMore  = (start + _GMAPS_BATCH) < sorted.length;
 
-  const dest    = batch[batch.length - 1].coords;
-  const destStr = `${dest.lat},${dest.lng}`;
-  const mid     = (originCoords ? batch : batch.slice(1)).slice(0, -1);
-  const wpStr   = mid.map(s => `${s.coords.lat},${s.coords.lng}`).join('|');
-  const wpParam = wpStr ? `&waypoints=${encodeURIComponent(wpStr)}` : '';
-  const url     = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originStr)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
+  const origin  = originCoords
+    ? `${originCoords.lat},${originCoords.lng}`
+    : `${batch[0].coords.lat},${batch[0].coords.lng}`;
 
-  return { url, total: sorted.length, sent: batch.length, hasMore };
+  const destStop = batch[batch.length - 1];
+  const destStr  = `${destStop.coords.lat},${destStop.coords.lng}`;
+
+  const midStops = (originCoords ? batch : batch.slice(1)).slice(0, -1);
+  const wpStr    = midStops.map(s => `${s.coords.lat},${s.coords.lng}`).join('|');
+  const wpParam  = wpStr ? `&waypoints=${encodeURIComponent(wpStr)}` : '';
+
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
+  return { url, hasMore, batchEnd: start + batch.length, sorted, batchSize: batch.length };
 }
 
-/* ── Navigate to a specific stop by index (from stop card Nav btn) */
+/* ── Navigate to a stop by index (from stop card "Nav" button) ── */
 function openInMapsFromStop(idx) {
   const s = _mapStops[idx];
   if (!s) return;
+  // Priority: coords → Plus Code → text address
   const dest = s.coords || _bestDest(s.order.address);
-  const url  = _gMapsNavUrl(dest, _gpsPos || null);
+  const origin = _gpsPos || null;
+  const url    = _gMapsNavUrl(dest, origin);
   if (!url) { rToast('No address available for navigation'); return; }
   _gMapsOpen(url);
 }
 
-/* ── Main Google Maps button — smart context-aware ──────────────
-   PRE-DELIVERY : Send full optimized route (all stops, URL-length capped) in one URL.
-                  Rider plans the whole run in Google Maps before starting.
-   DURING DELIVERY: Always navigate to the SINGLE nearest next stop.
-                    One stop = instant, zero-quota, perfectly accurate.
-                    After each delivery, tap Navigate again → next nearest. */
+/* ── Street View for a stop (free, no key needed) ────────────── */
+function openStreetView(idx) {
+  const s = _mapStops[idx];
+  if (!s || !s.coords) { rToast('No GPS coordinates for this stop'); return; }
+  const { lat, lng } = s.coords;
+  // Use search?api=1&query= which reliably opens the location pin on all devices.
+  // The pano deep-link (?api=1&map_action=pano) is unreliable on many Android browsers.
+  const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  _gMapsOpen(url);
+}
+
+/* ── Share live location with customer via WhatsApp ─────────────
+   Sends the rider's current GPS as a Google Maps link in WA.    */
+function shareLocationViaWA(idx) {
+  const s = _mapStops[idx] || (_deliveryActive ? _mapStops[_deliveryIdx] : null);
+  if (!s) return;
+  const phone = '91' + (s.order.phone || '');
+  if (!_gpsPos) {
+    rToast('GPS not yet fixed — wait a moment and try again');
+    return;
+  }
+  const mapsLink = `https://maps.google.com/?q=${_gpsPos.lat},${_gpsPos.lng}`;
+  const name     = s.order.name || 'Customer';
+  const msg      = `Hi ${name}! 🛵 I'm on my way with your Tiffo order.\n📍 My location: ${mapsLink}\nExpected arrival in a few minutes. 🙏`;
+  openWA(phone, msg);
+}
+
+/* ── Main "Google Maps" button handler in the map modal ─────────
+   Smart context-aware:
+   • Delivery active  → navigate to CURRENT stop only (one-tap nav)
+   • Not active       → open current batch of 10 optimized stops
+   • After batch done → auto-advance to next batch                 */
 function openInMapsFromModal() {
   if (_deliveryActive) {
-    // ── Delivery mode: single-stop navigation ──────────────────
-    // Always the nearest undelivered stop. Re-evaluated after each delivery.
+    // During delivery: single-stop nav to current nearest stop.
     const cur = _mapStops[_deliveryIdx];
     if (!cur) { rToast('No current stop'); return; }
     const dest = cur.coords || _bestDest(cur.order.address);
     const url  = _gMapsNavUrl(dest, _gpsPos || null);
     if (!url) { rToast('No address for this stop'); return; }
-    const distTxt = cur.distKm != null
-      ? ` · ${cur._distIsRoad ? '🛣' : '~'}${cur.distKm.toFixed(1)} km`
-      : '';
-    rToast(`🗺 ${cur.order.name || 'Stop'}${distTxt}`);
+    if (cur.distKm != null) rToast(`🗺 Navigating to ${cur.order.name || 'Stop'} · ${cur.distKm.toFixed(1)} km`);
     _gMapsOpen(url);
     return;
   }
 
-  // ── Pre-delivery: full route in one shot ───────────────────
+  // Pre-delivery: open current batch from _gmapsBatchStart
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) { rToast('No stops remaining'); return; }
 
   const withCoords = remaining.filter(s => s.coords);
   if (!withCoords.length) {
-    rToast('Locating stops — try again in a moment');
+    rToast('No GPS coords on remaining stops — use individual Nav buttons');
     return;
   }
 
   if (withCoords.length === 1) {
     const url = _gMapsNavUrl(withCoords[0].coords, _gpsPos || null);
-    if (url) { _gMapsOpen(url); rToast('🗺 Navigating to 1 stop'); }
+    if (url) _gMapsOpen(url);
     return;
   }
 
-  const result = _gMapsFullRouteUrl(remaining, _gpsPos || null);
+  const result = _gMapsMultiStopUrl(remaining, _gpsPos || null, _gmapsBatchStart);
   if (!result) { rToast('Could not build route'); return; }
 
   _gMapsOpen(result.url);
 
+  // Update badge and next-batch bar
   if (result.hasMore) {
-    rToast(`🗺 ${result.sent} of ${result.total} stops sent (URL length limit) — Start Delivery for step-by-step`);
+    const nextCount = Math.min(_GMAPS_BATCH, result.sorted.length - result.batchEnd);
+    _showBatchBadge(result.batchEnd, result.sorted.length);
+    _showNextBatchBar(nextCount, result.batchEnd);
+    rToast(`🗺 Batch ${Math.floor(_gmapsBatchStart/_GMAPS_BATCH)+1}: ${result.batchSize} stops · ${result.sorted.length - result.batchEnd} more waiting`);
   } else {
-    rToast(`🗺 All ${result.sent} stops → Google Maps`);
+    _hideBatchBadge();
+    _hideNextBatchBar();
+    rToast(`🗺 Final batch: ${result.batchSize} stops`);
   }
-
-  // Update button label to confirm
-  const lbl = document.getElementById('btn-gmaps-label');
-  if (lbl) lbl.textContent = `✓ ${result.sent} stops opened`;
-  setTimeout(() => {
-    const l2 = document.getElementById('btn-gmaps-label');
-    if (l2) l2.textContent = 'Open in Google Maps';
-  }, 3500);
 }
 
-/* ── Backward compat stubs for batch functions (now no-ops) ─── */
-function loadNextGMapsBatch() { openInMapsFromModal(); }
-function _showBatchBadge()    {}
-function _hideBatchBadge()    {}
-function _showNextBatchBar()  {}
-function _hideNextBatchBar()  {}
-function _resetGMapsBatch()   {}
+/* ── Load the next Google Maps batch ────────────────────────── */
+function loadNextGMapsBatch() {
+  _gmapsBatchStart += _GMAPS_BATCH;
+  const remaining  = _mapStops.filter(s => !s.delivered && !s.skipped);
+  const withCoords = remaining.filter(s => s.coords);
 
-/* ── Map Mode Toggle (legacy stub — Leaflet always shown) ─────── */
-function setMapMode(mode) { _mapMode = mode; }
+  // If batch start exceeds total, reset to 0 (wrap around)
+  if (_gmapsBatchStart >= withCoords.length) _gmapsBatchStart = 0;
 
-/* ── All Pins View (legacy stub — main map always shows all pins) */
-function openAllPinsView()  {}
-function closeAllPinsView() {}
+  openInMapsFromModal();
+}
+
+/* ── Batch badge helpers ─────────────────────────────────────── */
+function _showBatchBadge(done, total) {
+  const badge = document.getElementById('batch-badge');
+  if (!badge) return;
+  badge.textContent = done + '/' + total;
+  badge.style.display = 'block';
+}
+function _hideBatchBadge() {
+  const badge = document.getElementById('batch-badge');
+  if (badge) badge.style.display = 'none';
+}
+function _showNextBatchBar(nextCount, batchEnd) {
+  const bar = document.getElementById('next-batch-bar');
+  const txt = document.getElementById('next-batch-bar-text');
+  if (!bar) return;
+  if (txt) txt.textContent = `✅ Batch done! Next ${nextCount} stops ready (${batchEnd} delivered so far)`;
+  bar.classList.add('show');
+}
+function _hideNextBatchBar() {
+  const bar = document.getElementById('next-batch-bar');
+  if (bar) bar.classList.remove('show');
+}
+
+/* ── Map Mode Toggle ─────────────────────────────────────────── */
+function setMapMode(mode) {
+  _mapMode = mode;
+  document.getElementById('mmt-street').classList.toggle('act', mode === 'street');
+  document.getElementById('mmt-gmaps').classList.toggle('act', mode === 'gmaps');
+
+  const leafletContainer = document.getElementById('map-container');
+  const actionBar        = document.getElementById('map-actions');
+  const nextBatchBar     = document.getElementById('next-batch-bar');
+
+  if (mode === 'street') {
+    // Show Leaflet map
+    leafletContainer.style.display = '';
+    actionBar.style.display = '';
+    if (_map) { requestAnimationFrame(() => _map.invalidateSize()); }
+    // Hide GMaps-only next batch bar if visible (it'll re-appear when Navigate tapped)
+  } else {
+    // GMaps mode: collapse Leaflet (keep it alive so GPS still works)
+    // Show a clean "tap Navigate to open" instruction area
+    leafletContainer.style.display = 'none';
+    // GMaps mode keeps action bar for Navigate/Next-Batch
+  }
+
+  rToast(mode === 'street' ? '🗺 Street map mode' : '📍 Google Maps mode');
+}
+
+/* ── Open All Pins View (full Leaflet map with every stop pin) ── */
+function openAllPinsView() {
+  const panel = document.getElementById('all-pins-panel');
+  panel.classList.add('show');
+
+  requestAnimationFrame(() => {
+    const container = document.getElementById('all-pins-leaflet');
+    if (!_allPinsMap) {
+      _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
+    } else {
+      _allPinsMap.invalidateSize();
+    }
+
+    // Clear old markers
+    _allPinsMap.eachLayer(layer => { if (layer instanceof L.Marker) _allPinsMap.removeLayer(layer); });
+
+    const pts = [];
+    let pinned = 0, noCoords = 0;
+
+    _mapStops.forEach((s, i) => {
+      if (!s.coords) { noCoords++; return; }
+      pinned++;
+      const color = s.delivered ? '#22c55e' : s.skipped ? '#f97316' : '#e63946';
+      const label = s.delivered ? '✓' : s.skipped ? '⏭' : (i + 1);
+      const marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(label, color) })
+        .addTo(_allPinsMap)
+        .bindPopup(
+          `<b style="font-size:13px">${s.order.name || '—'}</b>` +
+          `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
+          `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
+        );
+      pts.push([s.coords.lat, s.coords.lng]);
+    });
+
+    // Add GPS dot if available
+    if (_gpsPos) {
+      L.marker([_gpsPos.lat, _gpsPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_allPinsMap);
+      pts.push([_gpsPos.lat, _gpsPos.lng]);
+    }
+
+    // Fit bounds
+    if (pts.length > 1) _allPinsMap.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 16 });
+    else if (pts.length === 1) _allPinsMap.setView(pts[0], 15);
+
+    // Stats
+    const statsEl = document.getElementById('all-pins-stats');
+    if (statsEl) statsEl.textContent = `${pinned} stops pinned · ${noCoords} without GPS · tap any pin for details`;
+  });
+}
+
+function closeAllPinsView() {
+  document.getElementById('all-pins-panel').classList.remove('show');
+  if (_allPinsMap) _allPinsMap.invalidateSize();
+}
+
+/* ── Reset batch tracking when map is opened/reloaded ─────────── */
+function _resetGMapsBatch() {
+  _gmapsBatchStart = 0;
+  _hideBatchBadge();
+  _hideNextBatchBar();
+}
 
 /* ── Backward compat stubs ────────────────────────────────────── */
 function openRouteModal(orders) { openRiderMap(orders); }
@@ -2704,141 +2534,6 @@ function openWA(phone, msg) {
 
    Both formats are supported simultaneously so old + new orders work.
 */
-/* ── Build Nominatim query candidates from a raw address string ──
-   Strategy (best → fallback):
-   1. Full cleaned address (all meaningful lines joined, India appended)
-   2. Pincode-only query (very reliable for Indian pincodes)
-   3. Street + city (first 2 meaningful lines + India)
-   Returns array of query strings to try in order.                   */
-function _buildGeocodeQueries(rawAddress) {
-  const full = _shortAddr(rawAddress); // removes metadata lines
-  if (!full || full === '—') return [];
-
-  const lines = full.split('\n').map(l => l.trim()).filter(Boolean);
-
-  // Extract 6-digit Indian pincode if present
-  const pinMatch = rawAddress.match(/\b(\d{6})\b/);
-  const pincode = pinMatch ? pinMatch[1] : null;
-
-  const queries = [];
-
-  // Query 1: Full address + India (gives Nominatim best context)
-  const fullWithIndia = lines.join(', ') + ', India';
-  queries.push(fullWithIndia);
-
-  // Query 2: Pincode only — extremely reliable in India (OSM has all pincodes)
-  if (pincode) queries.push(`${pincode}, India`);
-
-  // Query 3: First 2 lines + India (city-level fallback if full address is too specific)
-  if (lines.length > 2) {
-    queries.push(lines.slice(0, 2).join(', ') + ', India');
-  }
-
-  return [...new Set(queries)]; // deduplicate
-}
-
-/* ── Single Nominatim fetch with AbortController timeout ────────
-   Returns {lat, lng} on success, null on failure.                 */
-async function _nominatimFetch(query, timeoutMs = 7000) {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&addressdetails=0&countrycodes=in`,
-      { signal: controller.signal, headers: { 'Accept-Language': 'en', 'User-Agent': 'TiffoRiderApp/1.0' } }
-    );
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data && data[0]) {
-      const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
-      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
-    }
-  } catch (_) { /* timeout or network error */ }
-  return null;
-}
-
-/* ── Geocode stops that have no embedded lat/lng ─────────────────
-   Uses Nominatim (OpenStreetMap, free, no API key) to convert the
-   human-readable part of an address into coordinates.
-   Runs in serial to respect Nominatim's rate limit (1 req/sec).
-   Tries multiple query strategies per stop for better India coverage.
-   After each successful geocode: marker is placed, map redraws.    */
-async function _geocodeStopsWithoutCoords() {
-  if (_geocodingActive) return; // already running
-  // Collect stops that have no coords yet
-  const noCoordStops = _mapStops.filter(s => !s.coords && !s._geocodeFailed && !s.delivered && !s.skipped);
-  if (!noCoordStops.length) return;
-
-  _geocodingActive = true;
-  const myGeneration = _geocodingGeneration; // snapshot: if this changes, we were superseded
-  let anyGeocoded = false;
-
-  for (const stop of noCoordStops) {
-    // Bail out if a new map session started (openRiderMap was called again)
-    if (_geocodingGeneration !== myGeneration) { _geocodingActive = false; return; }
-    // Skip if stop already got coords (e.g. from a parallel path) or was delivered
-    if (stop.coords || stop.delivered) continue;
-
-    const queries = _buildGeocodeQueries(stop.order.address || '');
-    if (!queries.length) { stop._geocodeFailed = true; continue; }
-
-    let resolved = null;
-    let queryIdx = 0;
-    for (const q of queries) {
-      if (_geocodingGeneration !== myGeneration) { _geocodingActive = false; return; }
-      resolved = await _nominatimFetch(q);
-      queryIdx++;
-      if (resolved) break;
-      // Small delay between retries (same stop, different query)
-      if (queryIdx < queries.length) await new Promise(r => setTimeout(r, 700));
-    }
-
-    if (_geocodingGeneration !== myGeneration) { _geocodingActive = false; return; }
-
-    if (resolved) {
-      stop.coords = resolved;
-      stop._geocodedViaSearch = true; // approx accuracy (not embedded GPS)
-      anyGeocoded = true;
-
-      // Live-update: redraw ALL markers so sequence numbers stay correct
-      // and every geocoded stop immediately appears on the map
-      if (_map && _mapModalOpen && _geocodingGeneration === myGeneration) {
-        _placeMarkers();               // re-draw all pins with correct numbers
-        _updateMapTitle(_mapStops.map(s => s.order));
-        _renderStopList();
-        // Expand bounds to include the newly located stop
-        const curPts = _mapStops.filter(s => s.coords).map(s => [s.coords.lat, s.coords.lng]);
-        if (_gpsPos) curPts.push([_gpsPos.lat, _gpsPos.lng]);
-        if (curPts.length > 1) _map.fitBounds(L.latLngBounds(curPts), { padding:[30,30], maxZoom:16 });
-        else if (curPts.length === 1) _map.setView(curPts[0], 15);
-      }
-    } else {
-      stop._geocodeFailed = true;
-    }
-
-    // Nominatim rate limit: 1 request/second minimum between stops
-    await new Promise(r => setTimeout(r, 1100));
-  }
-
-  _geocodingActive = false;
-
-  // After all geocoding done: always do a full re-render so all pins appear
-  // Guard with generation check — if map was reopened, skip stale re-render
-  if (_mapModalOpen && _map && _geocodingGeneration === myGeneration) {
-    _placeMarkers();   // ensure every geocoded stop now has a pin
-    _renderStopList();
-    _fitMapBounds();
-    // Re-optimize if GPS is known (ensures correct nearest-first order)
-    if (_gpsPos) {
-      await optimizeRoute();
-    } else if (anyGeocoded) {
-      // No GPS yet but new coords arrived — waiting for GPS fix to trigger optimize
-      _autoOptimizeOnGpsFix = true;
-    }
-  }
-}
-
 function _extractCoordsFromAddress(address) {
   if (!address) return null;
   let lat, lng;
@@ -2949,7 +2644,7 @@ function startPolling() {
   _pollTimer = setInterval(() => {
     if (document.hidden) return;
     loadOrders();
-  }, 30_000); // 30s auto-refresh — picks up newly assigned orders quickly
+  }, 1000_000);
 }
 
 function stopPolling() {
@@ -3114,14 +2809,11 @@ window.addEventListener('popstate', () => {
       zone.style.height = '52px';
 
       try {
-        // loadOrders always hits DB fresh — picks up newly assigned orders
+        // loadOrders always hits DB fresh — no equality guard in rider
         await loadOrders();
-        // Reset poll timer so auto-refresh countdown restarts from now
+        // Reset background poll timer so it doesn't fire right after PTR
         startPolling();
-        rToast('✅ Orders refreshed');
-      } catch (_) {
-        rToast('⚠️ Refresh failed — check connection');
-      }
+      } catch (_) {}
 
       if (spinner) { spinner.style.display = 'none'; }
       if (arrow)   { arrow.style.display   = 'inline-block'; }
@@ -3131,279 +2823,6 @@ window.addEventListener('popstate', () => {
     if (arrow) arrow.style.transform = 'rotate(0deg)';
   }, { passive: true });
 })();
-</script>
-
-<script>
-/* ═══════════════════════════════════════════════════════════════
-   LAYER 3 — AREA FILTER (OpenStreetMap Boundary-based)
-   ─────────────────────────────────────────────────────────────
-   • Rider types area name → Nominatim returns boundary polygon
-   • Polygon drawn on map (when map opens)
-   • Only orders whose coords fall inside the polygon are shown
-   • Optional: if no area set, all orders show (normal behaviour)
-   • Point-in-polygon: Ray-casting algorithm (works on any shape)
-═══════════════════════════════════════════════════════════════ */
-
-// ── State ──────────────────────────────────────────────────────
-let _areaFilterActive   = false;    // is Layer 3 enabled?
-let _areaPolygon        = null;     // flat array of [lat,lng] pairs (the boundary)
-let _areaPolygonLayer   = null;     // Leaflet polygon layer on the map
-let _areaName           = '';       // display name of the selected area
-let _areaSuggestTimer   = null;     // debounce timer for live suggestions
-let _areaSuggestions    = [];       // last fetched suggestion list
-
-// ── Toggle area panel open/close ───────────────────────────────
-function toggleAreaFilter() {
-  const panel = document.getElementById('area-input-panel');
-  const btn   = document.getElementById('area-toggle-btn');
-  const open  = panel.style.display === 'none';
-  panel.style.display = open ? 'block' : 'none';
-  btn.textContent = open ? '− Hide' : (_areaFilterActive ? '📍 Active' : '+ Add Area');
-  if (open) {
-    setTimeout(() => document.getElementById('area-search-input').focus(), 150);
-  }
-}
-
-// ── Live typing → debounced Nominatim suggestions ─────────────
-function onAreaInput(val) {
-  clearTimeout(_areaSuggestTimer);
-  const x = document.getElementById('area-clear-x');
-  if (x) x.style.display = val.trim() ? 'block' : 'none';
-  if (!val.trim() || val.trim().length < 3) {
-    document.getElementById('area-suggestions').style.display = 'none';
-    return;
-  }
-  _areaSuggestTimer = setTimeout(() => _fetchAreaSuggestions(val.trim()), 450);
-}
-
-async function _fetchAreaSuggestions(query) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ', India')}&format=json&limit=5&addressdetails=1&countrycodes=in&featuretype=settlement,suburb,neighbourhood,quarter,town,village,city`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'TiffoRiderApp/1.0' } }
-    );
-    if (!res.ok) return;
-    const data = await res.json();
-    _areaSuggestions = data;
-    _renderAreaSuggestions(data);
-  } catch (_) {}
-}
-
-function _renderAreaSuggestions(list) {
-  const el = document.getElementById('area-suggestions');
-  if (!list.length) { el.style.display = 'none'; return; }
-  el.style.display = 'flex';
-  el.innerHTML = list.map((item, i) => {
-    const name    = item.display_name.split(',').slice(0, 2).join(', ');
-    const type    = item.type || item.class || '';
-    const typeLabel = { suburb:'Suburb', neighbourhood:'Locality', quarter:'Area', town:'Town', village:'Village', city:'City' }[type] || type;
-    return `<div class="area-suggestion-item" onclick="selectAreaSuggestion(${i})">
-      <span style="font-size:14px">${_areaEmoji(type)}</span>
-      <div style="flex:1;min-width:0">
-        <div class="asi-name">${name}</div>
-      </div>
-      <span class="asi-type">${typeLabel}</span>
-    </div>`;
-  }).join('');
-}
-
-function _areaEmoji(type) {
-  const map = { city:'🏙', town:'🏘', suburb:'🏘', neighbourhood:'📌', quarter:'📍', village:'🌾' };
-  return map[type] || '📍';
-}
-
-// ── User picked a suggestion — fetch its polygon boundary ─────
-async function selectAreaSuggestion(idx) {
-  const item = _areaSuggestions[idx];
-  if (!item) return;
-  document.getElementById('area-suggestions').style.display = 'none';
-  const displayName = item.display_name.split(',').slice(0, 2).join(', ');
-  document.getElementById('area-search-input').value = displayName;
-  await _loadAreaPolygon(item.osm_type, item.osm_id, displayName);
-}
-
-// ── Search button pressed ─────────────────────────────────────
-async function searchAreaBoundary() {
-  const q = document.getElementById('area-search-input').value.trim();
-  if (!q) { rToast('Area name type karo'); return; }
-
-  const btn = document.getElementById('area-search-btn');
-  const txt = document.getElementById('area-btn-txt');
-  txt.textContent = '…'; btn.disabled = true;
-
-  try {
-    // First fetch suggestions if not already done
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', India')}&format=json&limit=1&addressdetails=1&countrycodes=in`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'TiffoRiderApp/1.0' } }
-    );
-    const data = await res.json();
-    if (!data || !data[0]) {
-      rToast('Area nahi mili — dusra naam try karo');
-      txt.textContent = 'Search'; btn.disabled = false;
-      return;
-    }
-    const item = data[0];
-    const displayName = item.display_name.split(',').slice(0, 2).join(', ');
-    await _loadAreaPolygon(item.osm_type, item.osm_id, displayName);
-  } catch (e) {
-    rToast('Network error — try again');
-  } finally {
-    txt.textContent = 'Search'; btn.disabled = false;
-  }
-}
-
-// ── Fetch polygon from Nominatim (OSM boundary) ───────────────
-async function _loadAreaPolygon(osmType, osmId, displayName) {
-  const btn = document.getElementById('area-search-btn');
-  const txt = document.getElementById('area-btn-txt');
-  txt.textContent = '…'; btn.disabled = true;
-
-  try {
-    // Use Nominatim's polygon_geojson=1 to get the actual boundary
-    const typeMap = { node: 'N', way: 'W', relation: 'R' };
-    const osmTypeChar = typeMap[osmType] || 'R';
-
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/details?osmtype=${osmTypeChar}&osmid=${osmId}&format=json&polygon_geojson=1`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'TiffoRiderApp/1.0' } }
-    );
-    if (!res.ok) throw new Error('Nominatim details failed');
-    const detail = await res.json();
-
-    let polygon = null;
-
-    if (detail.geometry) {
-      const geo = detail.geometry;
-      if (geo.type === 'Polygon') {
-        // Single ring — exterior boundary
-        polygon = geo.coordinates[0].map(c => ({ lat: c[1], lng: c[0] }));
-      } else if (geo.type === 'MultiPolygon') {
-        // Use the largest polygon (most rings = most complex = likely main shape)
-        const largest = geo.coordinates.reduce((a, b) => a[0].length >= b[0].length ? a : b);
-        polygon = largest[0].map(c => ({ lat: c[1], lng: c[0] }));
-      } else if (geo.type === 'Point' || geo.type === 'LineString') {
-        // No polygon available — create a small bounding box around the point
-        const lat = geo.coordinates[1] ?? geo.coordinates[0][1];
-        const lng = geo.coordinates[0]  ?? geo.coordinates[0][0];
-        const r   = 0.005; // ~550m radius fallback box
-        polygon = [
-          { lat: lat - r, lng: lng - r },
-          { lat: lat + r, lng: lng - r },
-          { lat: lat + r, lng: lng + r },
-          { lat: lat - r, lng: lng + r },
-        ];
-        rToast('⚠ Exact boundary nahi mili — approximate area use ho raha hai');
-      }
-    }
-
-    if (!polygon || polygon.length < 3) {
-      rToast('Is area ki boundary nahi mili OSM pe — dusra naam try karo');
-      txt.textContent = 'Search'; btn.disabled = false;
-      return;
-    }
-
-    // ── Apply the polygon filter ───────────────────────────────
-    _areaPolygon      = polygon;
-    _areaName         = displayName;
-    _areaFilterActive = true;
-
-    // Update UI
-    _showAreaChip();
-    // Area filter is purely client-side polygon math — no DB fetch needed.
-    // Just re-render existing cached orders with the new polygon applied.
-    renderOrders();
-    updateFilterSummary();
-
-    // Draw on map if it's open
-    if (_map && _mapModalOpen) _drawAreaPolygonOnMap();
-
-    rToast(`📍 ${displayName} — orders filter ho gaye`);
-
-  } catch (e) {
-    rToast('Boundary fetch failed — try again');
-    console.error('Area polygon error:', e);
-  } finally {
-    txt.textContent = 'Search'; btn.disabled = false;
-  }
-}
-
-// ── Show chip for the selected area ──────────────────────────
-function _showAreaChip() {
-  const chip  = document.getElementById('area-active-chip');
-  const btn   = document.getElementById('area-toggle-btn');
-  chip.style.display = 'flex';
-  document.getElementById('area-chip-name').textContent = _areaName;
-  // Count matching orders
-  const match = _countAreaOrders();
-  document.getElementById('area-chip-count').textContent = `${match} order${match !== 1 ? 's' : ''} in this area`;
-  btn.textContent = '📍 Active';
-  btn.style.background = '#ecfdf5';
-  btn.style.borderColor = '#86efac';
-  btn.style.color = '#15803d';
-}
-
-function _countAreaOrders() {
-  if (!_areaFilterActive || !_areaPolygon) return _pending.length;
-  return _pending.filter(o => {
-    const c = _extractCoordsFromAddress(o.address || '');
-    return c ? _pointInPolygon(c.lat, c.lng, _areaPolygon) : false;
-  }).length;
-}
-
-// ── Clear area filter ─────────────────────────────────────────
-function clearAreaFilter() {
-  _areaFilterActive = false;
-  _areaPolygon      = null;
-  _areaName         = '';
-  document.getElementById('area-active-chip').style.display = 'none';
-  document.getElementById('area-search-input').value = '';
-  const x = document.getElementById('area-clear-x');
-  if (x) x.style.display = 'none';
-  const btn = document.getElementById('area-toggle-btn');
-  btn.textContent = '− Hide';
-  btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = '';
-  // Remove polygon from map
-  if (_areaPolygonLayer && _map) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
-  renderOrders();
-  updateFilterSummary();
-  rToast('Area filter hata diya — sab orders dikh rahe hain');
-}
-
-// ── Draw polygon on the map ───────────────────────────────────
-function _drawAreaPolygonOnMap() {
-  if (!_map || !_areaPolygon) return;
-  // Remove old polygon layer
-  if (_areaPolygonLayer) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
-  const latlngs = _areaPolygon.map(p => [p.lat, p.lng]);
-  _areaPolygonLayer = L.polygon(latlngs, {
-    color:       '#22c55e',
-    weight:      2.5,
-    opacity:     0.9,
-    fillColor:   '#22c55e',
-    fillOpacity: 0.08,
-    dashArray:   '6,4'
-  }).addTo(_map);
-  _areaPolygonLayer.bindTooltip(_areaName, { permanent: false, direction: 'center', className: '' });
-  // Zoom map to show the polygon
-  try { _map.fitBounds(_areaPolygonLayer.getBounds(), { padding: [20, 20], maxZoom: 16 }); } catch (_) {}
-}
-
-// ── Ray-casting point-in-polygon ──────────────────────────────
-// Works on any polygon shape — no library needed.
-// polygon: array of {lat, lng} objects
-function _pointInPolygon(lat, lng, polygon) {
-  let inside = false;
-  const n = polygon.length;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = polygon[i].lat, yi = polygon[i].lng;
-    const xj = polygon[j].lat, yj = polygon[j].lng;
-    const intersect = ((yi > lng) !== (yj > lng)) &&
-                      (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
 </script>
 
 <script>
