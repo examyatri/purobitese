@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.7                                    ║
+     ║  Version : v35.8                                    ║
      ║  Updated : 2026-05-20                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
@@ -934,8 +934,8 @@ function updateStats() {
   document.getElementById('stat-delivered').textContent  = todayDel.length;
   document.getElementById('stat-pending').textContent    = todayPen.length;
   document.getElementById('stat-total').textContent      = _delivered.length;
-  document.getElementById('pending-count').textContent   = _pending.length;
-  document.getElementById('delivered-count').textContent = _delivered.length;
+  document.getElementById('pending-count').textContent   = todayPen.length;
+  document.getElementById('delivered-count').textContent = todayDel.length;
 }
 
 /* ─── RENDER ─────────────────────────────────────────── */
@@ -1188,6 +1188,9 @@ function setAreaFilter(val, btn) {
 
 
 function renderOrders() {
+  const today     = _getDateStr(0);
+  const yesterday = _getDateStr(1);
+  const dayBefore = _getDateStr(2);
   const baseList = _activeTab === 'pending' ? _pending : _delivered;
 
   let list = baseList.filter(_passesFilters);
