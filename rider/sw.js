@@ -1,16 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v8.4  |  Updated : 2026-05-17
+   Version : v8.5  |  Updated : 2026-05-20
 
-   CHANGES v8.4:
-   - Version bump for v71 release
-   - Cache bumped → tiffo-rider-v10 (performance indexes migration)
-   - skipWaiting() called immediately in install (faster PWA launch)
-   - Fixed fire-and-forget fetchPromise (was silently dropped)
-   - Manifest id fixed to absolute URL
+   CHANGES v8.5:
+   - Cache bumped → tiffo-rider-v11 (v79 area filter + route re-optimisation)
+   - Area filter (GPS bbox + text fallback) added to rider panel
+   - Central _passesFilters() replacing 3 duplicate inline filter blocks
+   - _reorderRemainingFromGPS(): full NN re-sort after every delivery/skip
+   - Skipped orders get 📞 Call + 💬 WA buttons on celebration screen
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v10';
+const CACHE      = 'tiffo-rider-v11';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 

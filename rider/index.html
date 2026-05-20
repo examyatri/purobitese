@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.5                                    ║
-     ║  Updated : 2026-05-17                               ║
+     ║  Version : v35.6                                    ║
+     ║  Updated : 2026-05-20                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -548,6 +548,19 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
       </div>
     </div>
 
+    <!-- Layer 3: Area Filter -->
+    <div style="margin-bottom:12px">
+      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📍 Area</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="area-chip-row"></div>
+      <!-- Custom area text input — hidden until 'Custom…' chip is active -->
+      <div id="custom-area-wrap" style="display:none;margin-top:8px">
+        <input id="custom-area-input" type="text" placeholder="Type area name, e.g. Pandeypur…"
+          style="width:100%;box-sizing:border-box;border:1.5px solid var(--p);border-radius:10px;padding:8px 12px;font-family:var(--fb);font-size:13px;outline:none;background:#f8fafc;color:var(--tx)"
+          oninput="_customAreaKw=this.value.trim().toLowerCase()"
+          onkeydown="if(event.key==='Enter')applyFilters()">
+      </div>
+    </div>
+
     <!-- Search + Buttons Row -->
     <div style="display:flex;gap:8px;align-items:center">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
@@ -703,13 +716,29 @@ let _routeAddresses = [];
 let _pollTimer      = null;
 
 // Filter state — applied only when Search button is clicked
+// ── Area filter: pre-defined areas with keywords + optional GPS bounding box ──
+// Hybrid match: GPS bbox first (accurate), falls back to address text match.
+// Add new areas here as Tiffo expands; keywords are case-insensitive substrings.
+const RIDER_AREAS = [
+  { id: 'all',       label: 'All Areas',       keywords: [],                                                bbox: null },
+  { id: 'lanka',     label: '🏘 Lanka / BHU',  keywords: ['lanka','bhu','karaundi','nagwa','assi nala'],   bbox: { minLat:25.254, maxLat:25.278, minLng:82.982, maxLng:83.012 } },
+  { id: 'assi',      label: '🛕 Assi / Ghats', keywords: ['assi','tulsi ghat','ravidas','durgakund'],       bbox: { minLat:25.264, maxLat:25.282, minLng:82.994, maxLng:83.022 } },
+  { id: 'sunderpur', label: '🏠 Sunderpur',    keywords: ['sunderpur','sundarpur'],                        bbox: { minLat:25.294, maxLat:25.315, minLng:82.960, maxLng:82.985 } },
+  { id: 'sigra',     label: '🏙 Sigra / Lahurabir', keywords: ['sigra','lahurabir','mahmoorganj'],         bbox: { minLat:25.297, maxLat:25.318, minLng:82.980, maxLng:83.005 } },
+  { id: 'custom',    label: '🔍 Custom…',       keywords: [],                                               bbox: null },
+];
+
 let _filterDate     = 'today';   // 'today' | 'yesterday' | 'day_before' | 'all'
 let _filterSlot     = 'all';     // 'all' | 'morning' | 'evening'
+let _filterArea     = 'all';     // area id from RIDER_AREAS
+let _appliedArea    = 'all';     // committed after Search tap
+let _customAreaKw   = '';        // keyword when area === 'custom'
 let _filterQuery    = '';        // name/phone/address/id text search
 // Applied filters (what is actually rendered — updated on Search click)
 let _appliedDate    = 'today';
 let _appliedSlot    = 'all';
 let _appliedQuery   = '';
+// _appliedArea / _customAreaKw are declared with RIDER_AREAS above
 
 /* ─── CREDENTIAL MANAGEMENT (key: tf_rider_creds) ───── */
 // FIX #17: Password stored obfuscated (base64 + XOR) — not raw plaintext
@@ -850,6 +879,7 @@ function showApp() {
   document.getElementById('rider-id-display').textContent = _rider.rider_id || '';
   // Push history state so back button is interceptable
   history.pushState({ riderPg: 'app' }, '', location.href);
+  _renderAreaChips();
   applyFilters();
 }
 
@@ -1007,6 +1037,7 @@ function setSlotFilter(val, btn) {
 function applyFilters() {
   _appliedDate  = _filterDate;
   _appliedSlot  = _filterSlot;
+  _appliedArea  = _filterArea;
   _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
   renderOrders();
   updateFilterSummary();
@@ -1014,9 +1045,15 @@ function applyFilters() {
 
 function clearFilters() {
   document.getElementById('r-search').value = '';
+  const customInp = document.getElementById('custom-area-input');
+  if (customInp) customInp.value = '';
   _filterDate = 'today'; _filterSlot = 'all'; _appliedDate = 'today'; _appliedSlot = 'all'; _appliedQuery = '';
+  _filterArea = 'all'; _appliedArea = 'all'; _customAreaKw = '';
   document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === 'today'));
   document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === 'all'));
+  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === 'all'));
+  const wrap = document.getElementById('custom-area-wrap');
+  if (wrap) wrap.style.display = 'none';
   renderOrders();
   updateFilterSummary();
 }
@@ -1026,7 +1063,12 @@ function updateFilterSummary() {
   if (!el) return;
   const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
   const slotLabel = { all:'All Sessions', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot];
+  const areaObj   = RIDER_AREAS.find(a => a.id === _appliedArea);
+  const areaLabel = _appliedArea === 'all' ? null
+                  : _appliedArea === 'custom' ? (_customAreaKw ? `"${_customAreaKw}"` : null)
+                  : (areaObj?.label || null);
   const parts = [dateLabel, slotLabel];
+  if (areaLabel) parts.push(areaLabel);
   if (_appliedQuery) parts.push(`"${_appliedQuery}"`);
   el.textContent = '↳ Showing: ' + parts.join(' · ');
   el.style.display = 'block';
@@ -1048,31 +1090,90 @@ function _isSlotMatch(o, slotFilter) {
   return slotFilter === 'morning' ? h24 < 15 : h24 >= 15;
 }
 
-/* ─── RENDER ─────────────────────────────────────────── */
-function renderOrders() {
-  const baseList = _activeTab === 'pending' ? _pending : _delivered;
+/* ── Area matching: GPS bbox first, address text fallback ────────
+   Returns true if this order belongs to the given area.
+   Matching priority:
+     1. GPS coordinates in address → check bounding box (accurate)
+     2. No GPS or no bbox → substring match on address + name text
+   This handles both GPS-saved addresses and manually-typed addresses.
+*/
+function _orderInArea(o, areaId, customKw) {
+  if (areaId === 'all') return true;
+
+  const area = RIDER_AREAS.find(a => a.id === areaId);
+  if (!area) return true;
+
+  // Custom area: pure text match only
+  if (areaId === 'custom') {
+    if (!customKw) return true; // no keyword typed → show all
+    const addr = (o.address || '').toLowerCase();
+    const name = (o.name || '').toLowerCase();
+    return addr.includes(customKw) || name.includes(customKw);
+  }
+
+  // Try GPS bbox first (most accurate — works regardless of address text)
+  const coords = _extractCoordsFromAddress(o.address || '');
+  if (coords && area.bbox) {
+    const { minLat, maxLat, minLng, maxLng } = area.bbox;
+    if (coords.lat >= minLat && coords.lat <= maxLat &&
+        coords.lng >= minLng && coords.lng <= maxLng) return true;
+    // Coords exist but NOT in this bbox → definitely not in this area
+    // Don't fall through to text match — GPS is more reliable than text
+    return false;
+  }
+
+  // No GPS coords in address → fall back to text match
+  // This covers manually-typed addresses and admin-created orders
+  const addr = (o.address || '').toLowerCase();
+  const name = (o.name || '').toLowerCase();
+  return area.keywords.some(kw => addr.includes(kw) || name.includes(kw));
+}
+
+/* ── Central filter: single source of truth for all filter logic ─
+   Used by renderOrders(), _buildFilteredStops(), generateRiderPDF() */
+function _passesFilters(o) {
   const today     = _getDateStr(0);
   const yesterday = _getDateStr(1);
   const dayBefore = _getDateStr(2);
+  const d = o.date || '';
+  if (_appliedDate === 'today'      && d !== today)     return false;
+  if (_appliedDate === 'yesterday'  && d !== yesterday) return false;
+  if (_appliedDate === 'day_before' && d !== dayBefore) return false;
+  if (!_isSlotMatch(o, _appliedSlot)) return false;
+  if (!_orderInArea(o, _appliedArea, _customAreaKw)) return false;
+  if (_appliedQuery) {
+    const q = _appliedQuery;
+    if (!(o.name||'').toLowerCase().includes(q) &&
+        !(o.phone||'').includes(q) &&
+        !(o.address||'').toLowerCase().includes(q) &&
+        !(o.order_id||'').toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
 
-  let list = baseList.filter(o => {
-    // Layer 1: date
-    const d = o.date || '';
-    if (_appliedDate === 'today'      && d !== today)     return false;
-    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
-    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
-    // Layer 2: slot/session
-    if (!_isSlotMatch(o, _appliedSlot)) return false;
-    // Search query
-    if (_appliedQuery) {
-      const q = _appliedQuery;
-      if (!(o.name||'').toLowerCase().includes(q) &&
-          !(o.phone||'').includes(q) &&
-          !(o.address||'').toLowerCase().includes(q) &&
-          !(o.order_id||'').toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+/* ── Render area filter chips from RIDER_AREAS constant ─────── */
+function _renderAreaChips() {
+  const row = document.getElementById('area-chip-row');
+  if (!row) return;
+  row.innerHTML = RIDER_AREAS.map(a =>
+    `<button class="r-filter-chip${_filterArea === a.id ? ' act' : ''}" data-area="${a.id}"
+       onclick="setAreaFilter('${a.id}',this)">${a.label}</button>`
+  ).join('');
+}
+
+function setAreaFilter(val, btn) {
+  _filterArea = val;
+  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === val));
+  const wrap = document.getElementById('custom-area-wrap');
+  if (wrap) wrap.style.display = val === 'custom' ? 'block' : 'none';
+  if (val !== 'custom') _customAreaKw = '';
+}
+
+
+function renderOrders() {
+  const baseList = _activeTab === 'pending' ? _pending : _delivered;
+
+  let list = baseList.filter(_passesFilters);
 
   const el = document.getElementById('orders-content');
   if (!list.length) {
@@ -1146,23 +1247,8 @@ function toggleDateSection(date) {
 /* ─── PDF EXPORT (respects active filters) ───────────── */
 function generateRiderPDF() {
   const baseList = _activeTab === 'pending' ? _pending : _delivered;
-  const today     = _getDateStr(0);
-  const yesterday = _getDateStr(1);
-  const dayBefore = _getDateStr(2);
 
-  const filtered = baseList.filter(o => {
-    const d = o.date || '';
-    if (_appliedDate === 'today'      && d !== today)     return false;
-    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
-    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
-    if (!_isSlotMatch(o, _appliedSlot)) return false;
-    if (_appliedQuery) {
-      const q = _appliedQuery;
-      if (!(o.name||'').toLowerCase().includes(q) && !(o.phone||'').includes(q) &&
-          !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+  const filtered = baseList.filter(_passesFilters);
 
   if (!filtered.length) { rToast('No orders to export'); return; }
 
@@ -1301,24 +1387,7 @@ function _shortAddr(addr) {
 
 // ── Build filter-aware stop list (same logic as renderOrders) ─
 function _buildFilteredStops() {
-  const today     = _getDateStr(0);
-  const yesterday = _getDateStr(1);
-  const dayBefore = _getDateStr(2);
-  return _pending.filter(o => {
-    const d = o.date || '';
-    if (_appliedDate === 'today'      && d !== today)     return false;
-    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
-    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
-    if (!_isSlotMatch(o, _appliedSlot)) return false;
-    if (_appliedQuery) {
-      const q = _appliedQuery;
-      if (!(o.name||'').toLowerCase().includes(q) &&
-          !(o.phone||'').includes(q) &&
-          !(o.address||'').toLowerCase().includes(q) &&
-          !(o.order_id||'').toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+  return _pending.filter(_passesFilters);
 }
 
 // ── Create numbered SVG icon ──────────────────────────────────
@@ -2009,21 +2078,25 @@ async function deliverySkip() {
   _mapStops.push(s);
   // NOTE: do NOT call backend — order stays "pending/out for delivery" in the DB
   // so it remains in the main order list's "For Delivery" section
-  rToast('⏭ Skipped — finding nearest next stop…');
-  _placeMarkers(); // re-number remaining pins
-  await _drawPolyline();
+  rToast('⏭ Skipped — re-optimizing route…');
 
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) {
+    _placeMarkers();
+    await _drawPolyline();
     _renderStopList();
     _showCelebration();
     return;
   }
 
-  // Dynamic: go to nearest remaining stop from current GPS, not sequential
-  const nearestIdx = _findNearestRemainingIdx();
-  _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  // Re-sort remaining stops from current GPS so route stays optimal after skip
+  _reorderRemainingFromGPS();
 
+  // Point cursor at nearest stop (index 0 of pending after re-sort)
+  _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
+
+  _placeMarkers(); // re-number remaining pins in new optimal order
+  await _drawPolyline();
   _renderStopList();
   _updateDeliveryBar();
   flyToStop(_deliveryIdx);
@@ -2034,6 +2107,37 @@ async function deliverySkip() {
     const distTxt = nextSkipStop.distKm != null ? ` · ~${nextSkipStop.distKm.toFixed(1)} km` : '';
     rToast(`📍 Next: ${nextSkipStop.order.name || 'Stop'}${distTxt}`);
   }
+}
+
+/* ── Re-sort ALL remaining (pending+undelivered+unskipped) stops via NN
+   from the rider's current GPS position, then rebuild _mapStops in-place.
+
+   Why this is needed:
+   - optimizeRoute() runs NN once at session start.
+   - After each delivery the rider's GPS has moved. The old NN order is now
+     stale — stops that appeared optimal from position A may create backtracking
+     from position B.
+   - _drawPolyline() and _placeMarkers() iterate _mapStops in ARRAY ORDER, so
+     they must reflect the up-to-date optimal sequence.
+
+   This runs in O(n²) over remaining stops, which for Tiffo's 8-20 stops is
+   < 1ms — completely safe to call on every delivery/skip event.           */
+function _reorderRemainingFromGPS() {
+  if (!_gpsPos) return; // no GPS fix yet — keep existing order
+
+  const delivered = _mapStops.filter(s => s.delivered);
+  const withCoords = _mapStops.filter(s => !s.delivered && !s.skipped && s.coords);
+  const noCoords   = _mapStops.filter(s => !s.delivered && !s.skipped && !s.coords);
+  const skipped    = _mapStops.filter(s => s.skipped);
+
+  if (withCoords.length < 2) return; // 0 or 1 pending GPS stop — no reorder needed
+
+  // Full NN re-sort of all remaining GPS stops from current rider position
+  const reordered = _nearestNeighborSort(withCoords, _gpsPos.lat, _gpsPos.lng);
+
+  // Rebuild: delivered first (preserve history), then NN-ordered pending, then
+  // no-GPS stops (can't place on map), then skipped (always last)
+  _mapStops = [...delivered, ...reordered, ...noCoords, ...skipped];
 }
 
 async function _advanceDelivery() {
@@ -2048,9 +2152,12 @@ async function _advanceDelivery() {
     return;
   }
 
-  // ── Dynamic re-route: find nearest remaining stop from current GPS ──
-  const nearestIdx = _findNearestRemainingIdx();
-  _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  // ── Re-sort ALL remaining stops from current GPS so route + pin numbers
+  //    stay optimal after every delivery, not just the first ──
+  _reorderRemainingFromGPS();
+
+  // Point cursor at first pending stop (now the nearest one after re-sort)
+  _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
 
   // Update distance label on the newly targeted stop
   if (_gpsPos && _mapStops[_deliveryIdx]?.coords) {
@@ -2062,7 +2169,7 @@ async function _advanceDelivery() {
   }
 
   // Redraw route line from GPS through remaining stops in optimized order
-  _placeMarkers(); // re-number pins: nearest remaining = #1
+  _placeMarkers(); // re-number pins: #1 = nearest, #2 = next nearest, etc.
   await _drawPolyline();
   _renderStopList();
   _updateDeliveryBar();
@@ -2140,11 +2247,16 @@ function _showCelebration() {
 
   const skippedRows = skipped.length ? skipped.map(s => {
     const o = s.order;
+    const phone = o.phone || '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
       <div style="width:26px;height:26px;background:#f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⏭</div>
-      <div style="flex:1">
-        <div style="font-weight:600;font-size:13px;color:#fbbf24">${o.name||'—'}</div>
-        <div style="font-size:11px;color:#94a3b8">${o.phone||''}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;color:#fbbf24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.name||'—'}</div>
+        <div style="font-size:11px;color:#94a3b8">${phone}</div>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        ${phone ? `<a href="tel:${phone}" style="background:#1d4ed8;color:#fff;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">📞</a>` : ''}
+        ${phone ? `<button onclick="openWA('91${phone}','Hi ${(o.name||'').replace(/'/g,'')}, your Tiffo order could not be delivered today. Please confirm your availability for redelivery. Thank you!')" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">💬</button>` : ''}
       </div>
     </div>`;
   }).join('') : '';
