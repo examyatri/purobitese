@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.8                                    ║
+// ║  Version : v59.9                                    ║
 // ║  Updated : 2026-05-18                               ║
 // ║  Changes : Dead action cleanup — removed 44 dead    ║
 // ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
@@ -99,7 +99,7 @@ if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 // Secret is separate from API_KEY so rotating one doesn't break the other.
 const SESSION_SECRET = process.env.SESSION_SECRET || SECURE_API_KEY + '_session';
 if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var not set — falling back to derived secret. Set SESSION_SECRET in production.');
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const SESSION_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours — must outlast rider VERIFY_INTERVAL (48h)
 
 function _b64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
