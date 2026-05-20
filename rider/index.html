@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.8                                    ║
+     ║  Version : v36.3                                    ║
      ║  Updated : 2026-05-20                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
@@ -524,64 +524,62 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     </div>
   </div>
 
-  <!-- Filter Panel -->
-  <div id="filter-panel" style="background:white;border-bottom:1px solid var(--lt);padding:12px 16px">
+  <!-- Filter Panel — compact practical layout -->
+  <div id="filter-panel" style="background:white;border-bottom:1px solid var(--lt);padding:10px 12px 8px">
 
-    <!-- Layer 1: Date Filter -->
-    <div style="margin-bottom:10px">
-      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📅 Date</div>
-      <div style="display:flex;gap:6px">
-        <button class="r-filter-chip act" data-date="today"     onclick="setDateFilter('today',this)">Today</button>
-        <button class="r-filter-chip"     data-date="yesterday" onclick="setDateFilter('yesterday',this)">Yesterday</button>
+    <!-- Row 1: Date + Session chips (single scrollable row) -->
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:7px">
+      <div style="display:flex;gap:5px;width:max-content">
+        <button class="r-filter-chip act" data-date="today"      onclick="setDateFilter('today',this)">📅 Today</button>
+        <button class="r-filter-chip"     data-date="yesterday"  onclick="setDateFilter('yesterday',this)">Yesterday</button>
         <button class="r-filter-chip"     data-date="day_before" onclick="setDateFilter('day_before',this)">2 Days Ago</button>
-        <button class="r-filter-chip"     data-date="all"       onclick="setDateFilter('all',this)">All</button>
+        <button class="r-filter-chip"     data-date="all"        onclick="setDateFilter('all',this)">All Dates</button>
+        <div style="width:1px;background:var(--lt);margin:0 3px;flex-shrink:0;align-self:stretch"></div>
+        <button class="r-filter-chip act" data-slot="all"      onclick="setSlotFilter('all',this)">All</button>
+        <button class="r-filter-chip"     data-slot="morning"  onclick="setSlotFilter('morning',this)">☀️ AM</button>
+        <button class="r-filter-chip"     data-slot="evening"  onclick="setSlotFilter('evening',this)">🌙 PM</button>
       </div>
     </div>
 
-    <!-- Layer 2: Session Filter -->
-    <div style="margin-bottom:12px">
-      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">🕐 Session</div>
-      <div style="display:flex;gap:6px">
-        <button class="r-filter-chip act" data-slot="all"     onclick="setSlotFilter('all',this)">All Orders</button>
-        <button class="r-filter-chip"     data-slot="morning" onclick="setSlotFilter('morning',this)">☀️ Morning</button>
-        <button class="r-filter-chip"     data-slot="evening" onclick="setSlotFilter('evening',this)">🌙 Evening</button>
-      </div>
+    <!-- Row 2: Area chips (scrollable) -->
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:8px">
+      <div style="display:flex;gap:5px;width:max-content" id="area-chip-row"></div>
     </div>
 
-    <!-- Layer 3: Area Filter -->
-    <div style="margin-bottom:12px">
-      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📍 Area</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="area-chip-row"></div>
-      <!-- Custom area text input — hidden until 'Custom…' chip is active -->
-      <div id="custom-area-wrap" style="display:none;margin-top:8px">
-        <input id="custom-area-input" type="text" placeholder="Type area name, e.g. Pandeypur…"
-          style="width:100%;box-sizing:border-box;border:1.5px solid var(--p);border-radius:10px;padding:8px 12px;font-family:var(--fb);font-size:13px;outline:none;background:#f8fafc;color:var(--tx)"
-          oninput="_customAreaKw=this.value.trim().toLowerCase()"
-          onkeydown="if(event.key==='Enter')applyFilters()">
-      </div>
+    <!-- Custom area input — shown only when Custom chip active -->
+    <div id="custom-area-wrap" style="display:none;margin-bottom:8px">
+      <input id="custom-area-input" type="text" placeholder="Type area name, e.g. Pandeypur…"
+        style="width:100%;box-sizing:border-box;border:1.5px solid var(--p);border-radius:10px;padding:8px 12px;font-family:var(--fb);font-size:13px;outline:none;background:#fef9f9;color:var(--tx)"
+        oninput="_customAreaKw=this.value.trim().toLowerCase()"
+        onkeydown="if(event.key==='Enter')applyFilters()">
     </div>
 
-    <!-- Search + Buttons Row -->
-    <div style="display:flex;gap:8px;align-items:center">
-      <div style="flex:1;display:flex;align-items:center;gap:8px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
-        <span style="color:#94a3b8;font-size:13px">🔍</span>
+    <!-- Row 3: Search + PDF -->
+    <div style="display:flex;gap:6px;align-items:center">
+      <div style="flex:1;display:flex;align-items:center;gap:6px;background:#f4f6f9;border-radius:10px;padding:7px 11px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
+        <span style="color:#94a3b8;font-size:13px;flex-shrink:0">🔍</span>
         <input id="r-search" type="text" placeholder="Name, phone, address, ID…"
-          style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13.5px;background:transparent;color:var(--tx)"
+          style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13px;background:transparent;color:var(--tx)"
           onfocus="document.getElementById('search-wrap-inner').style.borderColor='var(--p)'"
           onblur="document.getElementById('search-wrap-inner').style.borderColor='transparent'"
           onkeydown="if(event.key==='Enter')applyFilters()">
-        <button onclick="clearFilters()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1">✕</button>
+        <button onclick="clearFilters()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">✕</button>
       </div>
-      <button onclick="applyFilters()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+      <button onclick="applyFilters()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:8px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
         🔍 Search
       </button>
-      <button onclick="generateRiderPDF()" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:9px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
-        📄 PDF
+      <button onclick="generateRiderPDF()" title="Download PDF" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:8px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">
+        📄
       </button>
     </div>
 
-    <!-- Active filter summary -->
-    <div id="filter-summary" style="margin-top:8px;font-family:var(--fb);font-size:12px;color:var(--mu);display:none"></div>
+    <!-- Active filter summary + area map shortcut -->
+    <div id="filter-summary" style="margin-top:6px;font-family:var(--fb);font-size:11px;color:var(--mu);display:none"></div>
+    <div id="area-map-btn-wrap" style="display:none;margin-top:6px">
+      <button onclick="openRiderMap()" style="background:#1d4ed8;color:white;border:none;border-radius:8px;padding:5px 12px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+        🗺 View Area on Map
+      </button>
+    </div>
   </div>
 
   <!-- Orders Content -->
@@ -717,16 +715,38 @@ let _pollTimer      = null;
 
 // Filter state — applied only when Search button is clicked
 // ── Area filter: pre-defined areas with keywords + optional GPS bounding box ──
-// Hybrid match: GPS bbox first (accurate), falls back to address text match.
+// Area definitions: polygon = array of [lat,lng] boundary points (point-in-polygon for GPS orders).
 // Add new areas here as Tiffo expands; keywords are case-insensitive substrings.
+// polygon: array of [lat,lng] pairs forming the area boundary (used for point-in-polygon check + map overlay)
 const RIDER_AREAS = [
-  { id: 'all',       label: 'All Areas',       keywords: [],                                                bbox: null },
-  { id: 'lanka',     label: '🏘 Lanka / BHU',  keywords: ['lanka','bhu','karaundi','nagwa','assi nala'],   bbox: { minLat:25.254, maxLat:25.278, minLng:82.982, maxLng:83.012 } },
-  { id: 'assi',      label: '🛕 Assi / Ghats', keywords: ['assi','tulsi ghat','ravidas','durgakund'],       bbox: { minLat:25.264, maxLat:25.282, minLng:82.994, maxLng:83.022 } },
-  { id: 'sunderpur', label: '🏠 Sunderpur',    keywords: ['sunderpur','sundarpur'],                        bbox: { minLat:25.294, maxLat:25.315, minLng:82.960, maxLng:82.985 } },
-  { id: 'sigra',     label: '🏙 Sigra / Lahurabir', keywords: ['sigra','lahurabir','mahmoorganj'],         bbox: { minLat:25.297, maxLat:25.318, minLng:82.980, maxLng:83.005 } },
-  { id: 'custom',    label: '🔍 Custom…',       keywords: [],                                               bbox: null },
+  { id: 'all',       label: 'All Areas',            color: null,    keywords: [], polygon: null },
+  { id: 'lanka',     label: '🏘 Lanka / BHU',       color: '#e63946', keywords: ['lanka','bhu','karaundi','nagwa','assi nala'],
+    polygon: [[25.278,82.982],[25.278,82.992],[25.273,83.002],[25.268,83.009],[25.262,83.012],[25.257,83.009],[25.254,83.001],[25.254,82.991],[25.258,82.984],[25.265,82.982],[25.278,82.982]] },
+  { id: 'assi',      label: '🛕 Assi / Ghats',      color: '#f4a261', keywords: ['assi','tulsi ghat','ravidas','durgakund'],
+    polygon: [[25.282,82.994],[25.282,83.003],[25.278,83.010],[25.272,83.015],[25.267,83.014],[25.264,83.009],[25.264,83.001],[25.267,82.995],[25.274,82.992],[25.282,82.994]] },
+  { id: 'sunderpur', label: '🏠 Sunderpur',          color: '#2a9d8f', keywords: ['sunderpur','sundarpur'],
+    polygon: [[25.315,82.960],[25.315,82.975],[25.310,82.983],[25.304,82.985],[25.298,82.982],[25.294,82.975],[25.294,82.965],[25.298,82.960],[25.307,82.959],[25.315,82.960]] },
+  { id: 'sigra',     label: '🏙 Sigra / Lahurabir', color: '#4f46e5', keywords: ['sigra','lahurabir','mahmoorganj'],
+    polygon: [[25.318,82.980],[25.318,82.994],[25.314,83.002],[25.308,83.005],[25.302,83.004],[25.297,82.999],[25.297,82.988],[25.301,82.981],[25.309,82.979],[25.318,82.980]] },
+  { id: 'custom',    label: '🔍 Custom…',            color: '#6b7280', keywords: [], polygon: null },
 ];
+
+/* ── Point-in-polygon (ray casting) ─────────────────────────────
+   polygon = array of [lat, lng] pairs.
+   Ray cast horizontally (along longitude axis). */
+function _pointInPolygon(lat, lng, polygon) {
+  if (!polygon || polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const latI = polygon[i][0], lngI = polygon[i][1];
+    const latJ = polygon[j][0], lngJ = polygon[j][1];
+    // Ray cast: horizontal ray from (lat, -∞) → check if it crosses edge i→j
+    const intersect = ((lngI > lng) !== (lngJ > lng)) &&
+                      (lat < (latJ - latI) * (lng - lngI) / (lngJ - lngI) + latI);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
 
 let _filterDate     = 'today';   // 'today' | 'yesterday' | 'day_before' | 'all'
 let _filterSlot     = 'all';     // 'all' | 'morning' | 'evening'
@@ -1056,6 +1076,10 @@ function applyFilters() {
   _appliedSlot  = _filterSlot;
   _appliedArea  = _filterArea;
   _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
+  // Always re-read custom area keyword from input (handles paste/autocomplete edge cases)
+  if (_filterArea === 'custom') {
+    _customAreaKw = (document.getElementById('custom-area-input')?.value || '').trim().toLowerCase();
+  }
   renderOrders();
   updateFilterSummary();
 }
@@ -1071,6 +1095,8 @@ function clearFilters() {
   document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === 'all'));
   const wrap = document.getElementById('custom-area-wrap');
   if (wrap) wrap.style.display = 'none';
+  const mapBtnWrap = document.getElementById('area-map-btn-wrap');
+  if (mapBtnWrap) mapBtnWrap.style.display = 'none';
   renderOrders();
   updateFilterSummary();
 }
@@ -1089,6 +1115,13 @@ function updateFilterSummary() {
   if (_appliedQuery) parts.push(`"${_appliedQuery}"`);
   el.textContent = '↳ Showing: ' + parts.join(' · ');
   el.style.display = 'block';
+
+  // Show "View Area on Map" button only when a polygon area is selected
+  const mapBtnWrap = document.getElementById('area-map-btn-wrap');
+  if (mapBtnWrap) {
+    const showMapBtn = areaObj && areaObj.polygon && _appliedArea !== 'all' && _appliedArea !== 'custom';
+    mapBtnWrap.style.display = showMapBtn ? 'block' : 'none';
+  }
 }
 
 /* ─── DATE HELPERS ───────────────────────────────────── */
@@ -1107,12 +1140,11 @@ function _isSlotMatch(o, slotFilter) {
   return slotFilter === 'morning' ? h24 < 15 : h24 >= 15;
 }
 
-/* ── Area matching: GPS bbox first, address text fallback ────────
+/* ── Area matching: polygon (GPS) first, keyword text fallback ───
    Returns true if this order belongs to the given area.
-   Matching priority:
-     1. GPS coordinates in address → check bounding box (accurate)
-     2. No GPS or no bbox → substring match on address + name text
-   This handles both GPS-saved addresses and manually-typed addresses.
+   Priority:
+     1. GPS coords in address → point-in-polygon check (most accurate)
+     2. No GPS or no polygon → keyword substring on address + name
 */
 function _orderInArea(o, areaId, customKw) {
   if (areaId === 'all') return true;
@@ -1120,27 +1152,28 @@ function _orderInArea(o, areaId, customKw) {
   const area = RIDER_AREAS.find(a => a.id === areaId);
   if (!area) return true;
 
-  // Custom area: pure text match only
+  // Custom area: keyword text match (strip coordinate tokens first)
   if (areaId === 'custom') {
-    if (!customKw) return true; // no keyword typed → show all
-    const addr = (o.address || '').toLowerCase();
+    if (!customKw) return true;
+    const addrClean = (o.address || '')
+      .replace(/\(latitude=[^)]+\)/gi, '')
+      .replace(/Coordinates:[^\n]*/gi, '')
+      .replace(/Plus Code:[^\n]*/gi, '')
+      .replace(/Near:[^\n]*/gi, '')
+      .replace(/Nearby:[^\n]*/gi, '')
+      .toLowerCase();
     const name = (o.name || '').toLowerCase();
-    return addr.includes(customKw) || name.includes(customKw);
+    return addrClean.includes(customKw) || name.includes(customKw);
   }
 
-  // Try GPS bbox first (most accurate — works regardless of address text)
+  // GPS point-in-polygon (primary — works for all customer-saved addresses)
   const coords = _extractCoordsFromAddress(o.address || '');
-  if (coords && area.bbox) {
-    const { minLat, maxLat, minLng, maxLng } = area.bbox;
-    if (coords.lat >= minLat && coords.lat <= maxLat &&
-        coords.lng >= minLng && coords.lng <= maxLng) return true;
-    // Coords exist but NOT in this bbox → definitely not in this area
-    // Don't fall through to text match — GPS is more reliable than text
-    return false;
+  if (coords && area.polygon) {
+    // GPS found → trust polygon result completely (no text fallback)
+    return _pointInPolygon(coords.lat, coords.lng, area.polygon);
   }
 
-  // No GPS coords in address → fall back to text match
-  // This covers manually-typed addresses and admin-created orders
+  // No GPS → keyword fallback (manually typed / admin-created orders)
   const addr = (o.address || '').toLowerCase();
   const name = (o.name || '').toLowerCase();
   return area.keywords.some(kw => addr.includes(kw) || name.includes(kw));
@@ -1728,6 +1761,42 @@ function _fitMapBounds() {
   _map.fitBounds(L.latLngBounds(pts), { padding:[30,30], maxZoom:16 });
 }
 
+/* ── Draw selected area boundary polygon on Leaflet map ──────────
+   Uses dashed border + semi-transparent fill so markers stay visible.
+   Cleared and redrawn each time map opens.                         */
+let _areaPolygonLayer = null;
+function _drawAreaPolygon() {
+  if (!_map) return;
+  // Remove previous polygon + label
+  if (_areaPolygonLayer) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
+
+  const area = RIDER_AREAS.find(a => a.id === _appliedArea);
+  if (!area || !area.polygon || _appliedArea === 'all' || _appliedArea === 'custom') return;
+
+  const color = area.color || '#e63946';
+  const poly = L.polygon(area.polygon, {
+    color, weight: 2.5, opacity: 0.85, dashArray: '8, 6',
+    fillColor: color, fillOpacity: 0.08, interactive: false
+  });
+
+  // Centroid label marker
+  const lats = area.polygon.map(p => p[0]);
+  const lngs = area.polygon.map(p => p[1]);
+  const cLat = lats.reduce((a,b)=>a+b,0)/lats.length;
+  const cLng = lngs.reduce((a,b)=>a+b,0)/lngs.length;
+  const label = L.marker([cLat, cLng], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="background:${color};color:white;padding:3px 8px;border-radius:10px;font-family:'Sora',sans-serif;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);opacity:.9">${area.label}</div>`,
+      iconAnchor: [0, 0]
+    }),
+    interactive: false, zIndexOffset: -100
+  });
+
+  // Group polygon + label so one removeLayer() cleans both
+  _areaPolygonLayer = L.layerGroup([poly, label]).addTo(_map);
+}
+
 // ── Scroll stop card into view ────────────────────────────────
 function _scrollToCard(idx) {
   const card = document.getElementById('stop-card-' + idx);
@@ -1806,6 +1875,7 @@ function openRiderMap(ordersParam) {
     }
 
     _placeMarkers();
+    _drawAreaPolygon();   // draw selected area boundary on map
     _updateMapTitle(orders);
     _renderStopList();
     // Auto-sort route once first GPS fix arrives (if 3+ stops have coords)
@@ -1832,6 +1902,7 @@ function closeRiderMap() {
   _mapStops.forEach(s => { if (s.marker && _map) _map.removeLayer(s.marker); s.marker = null; });
   if (_gpsMarker && _map)  { _map.removeLayer(_gpsMarker); _gpsMarker = null; }
   if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
+  if (_areaPolygonLayer && _map) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
   _clearRouteLayer();
   _routeDrawing = false; // reset in case OSRM fetch was mid-flight
 }
@@ -2579,20 +2650,36 @@ function setMapMode(mode) {
 
 /* ── Open All Pins View (full Leaflet map with every stop pin) ── */
 function openAllPinsView() {
+  // Hide main map elements so only one map is visible at a time
+  const _hideEls = ['map-container','map-actions','map-bottom','next-batch-bar','delivery-bar'];
+  _hideEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
   const panel = document.getElementById('all-pins-panel');
   panel.classList.add('show');
 
   requestAnimationFrame(() => {
-    const container = document.getElementById('all-pins-leaflet');
-    if (!_allPinsMap) {
-      _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
-    } else {
-      _allPinsMap.invalidateSize();
-    }
+    // Always destroy and recreate to avoid stale tile/layer state
+    if (_allPinsMap) { _allPinsMap.remove(); _allPinsMap = null; }
+    _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
 
-    // Clear old markers
-    _allPinsMap.eachLayer(layer => { if (layer instanceof L.Marker) _allPinsMap.removeLayer(layer); });
+    // Draw area polygon on All Pins map
+    const _apArea = RIDER_AREAS.find(a => a.id === _appliedArea);
+    let _apPolyLayer = null;
+    if (_apArea && _apArea.polygon && _appliedArea !== 'all' && _appliedArea !== 'custom') {
+      const aColor = _apArea.color || '#e63946';
+      _apPolyLayer = L.polygon(_apArea.polygon, {
+        color: aColor, weight: 2.5, opacity: 0.85, dashArray: '8,6',
+        fillColor: aColor, fillOpacity: 0.08, interactive: false
+      }).addTo(_allPinsMap);
+      const lats = _apArea.polygon.map(p=>p[0]), lngs = _apArea.polygon.map(p=>p[1]);
+      const cLat = lats.reduce((a,b)=>a+b,0)/lats.length;
+      const cLng = lngs.reduce((a,b)=>a+b,0)/lngs.length;
+      L.marker([cLat, cLng], {
+        icon: L.divIcon({ className:'', html:`<div style="background:${aColor};color:white;padding:3px 8px;border-radius:10px;font-family:'Sora',sans-serif;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);opacity:.9">${_apArea.label}</div>`, iconAnchor:[0,0] }),
+        interactive: false, zIndexOffset: -100
+      }).addTo(_allPinsMap);
+    }
 
     const pts = [];
     let pinned = 0, noCoords = 0;
@@ -2630,7 +2717,13 @@ function openAllPinsView() {
 
 function closeAllPinsView() {
   document.getElementById('all-pins-panel').classList.remove('show');
-  if (_allPinsMap) _allPinsMap.invalidateSize();
+  // Restore main map elements
+  const _restoreEls = { 'map-container':'', 'map-actions':'', 'map-bottom':'' };
+  Object.entries(_restoreEls).forEach(([id, disp]) => { const el = document.getElementById(id); if (el) el.style.display = disp; });
+  // Destroy allPins map — will be recreated fresh next open
+  if (_allPinsMap) { _allPinsMap.remove(); _allPinsMap = null; }
+  // Invalidate main map so it re-renders correctly
+  if (_map) setTimeout(() => _map.invalidateSize(), 100);
 }
 
 /* ── Reset batch tracking when map is opened/reloaded ─────────── */
