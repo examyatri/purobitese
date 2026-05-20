@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.9                                    ║
+// ║  Version : v60.0                                    ║
 // ║  Updated : 2026-05-18                               ║
 // ║  Changes : Dead action cleanup — removed 44 dead    ║
 // ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
@@ -435,8 +435,19 @@ function normOrderDate(v) {
     const [dd, mm, yyyy] = s.split('/');
     return `${yyyy}-${mm}-${dd}`;
   }
-  // YYYY-MM-DD (possibly with time suffix)
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // YYYY-MM-DD (possibly with time suffix / timezone)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    // Full ISO string with time component — convert to IST before extracting date
+    // e.g. "2026-05-19T18:30:00+00:00" (UTC midnight) must become "2026-05-20" (IST)
+    if (s.length > 10) {
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        const ist = new Date(d.getTime() + 5.5 * 3_600_000);
+        return istDateStr(ist);
+      }
+    }
+    return s.slice(0, 10);
+  }
   // Excel serial
   const n = Number(s);
   if (!isNaN(n) && n > 40000) {
