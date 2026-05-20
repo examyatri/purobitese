@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v36.3                                    ║
-     ║  Updated : 2026-05-20                               ║
+     ║  Version : v35.5                                    ║
+     ║  Updated : 2026-05-17                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -524,62 +524,51 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     </div>
   </div>
 
-  <!-- Filter Panel — compact practical layout -->
-  <div id="filter-panel" style="background:white;border-bottom:1px solid var(--lt);padding:10px 12px 8px">
+  <!-- Filter Panel -->
+  <div id="filter-panel" style="background:white;border-bottom:1px solid var(--lt);padding:12px 16px">
 
-    <!-- Row 1: Date + Session chips (single scrollable row) -->
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:7px">
-      <div style="display:flex;gap:5px;width:max-content">
-        <button class="r-filter-chip act" data-date="today"      onclick="setDateFilter('today',this)">📅 Today</button>
-        <button class="r-filter-chip"     data-date="yesterday"  onclick="setDateFilter('yesterday',this)">Yesterday</button>
+    <!-- Layer 1: Date Filter -->
+    <div style="margin-bottom:10px">
+      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📅 Date</div>
+      <div style="display:flex;gap:6px">
+        <button class="r-filter-chip act" data-date="today"     onclick="setDateFilter('today',this)">Today</button>
+        <button class="r-filter-chip"     data-date="yesterday" onclick="setDateFilter('yesterday',this)">Yesterday</button>
         <button class="r-filter-chip"     data-date="day_before" onclick="setDateFilter('day_before',this)">2 Days Ago</button>
-        <button class="r-filter-chip"     data-date="all"        onclick="setDateFilter('all',this)">All Dates</button>
-        <div style="width:1px;background:var(--lt);margin:0 3px;flex-shrink:0;align-self:stretch"></div>
-        <button class="r-filter-chip act" data-slot="all"      onclick="setSlotFilter('all',this)">All</button>
-        <button class="r-filter-chip"     data-slot="morning"  onclick="setSlotFilter('morning',this)">☀️ AM</button>
-        <button class="r-filter-chip"     data-slot="evening"  onclick="setSlotFilter('evening',this)">🌙 PM</button>
+        <button class="r-filter-chip"     data-date="all"       onclick="setDateFilter('all',this)">All</button>
       </div>
     </div>
 
-    <!-- Row 2: Area chips (scrollable) -->
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:8px">
-      <div style="display:flex;gap:5px;width:max-content" id="area-chip-row"></div>
+    <!-- Layer 2: Session Filter -->
+    <div style="margin-bottom:12px">
+      <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">🕐 Session</div>
+      <div style="display:flex;gap:6px">
+        <button class="r-filter-chip act" data-slot="all"     onclick="setSlotFilter('all',this)">All Orders</button>
+        <button class="r-filter-chip"     data-slot="morning" onclick="setSlotFilter('morning',this)">☀️ Morning</button>
+        <button class="r-filter-chip"     data-slot="evening" onclick="setSlotFilter('evening',this)">🌙 Evening</button>
+      </div>
     </div>
 
-    <!-- Custom area input — shown only when Custom chip active -->
-    <div id="custom-area-wrap" style="display:none;margin-bottom:8px">
-      <input id="custom-area-input" type="text" placeholder="Type area name, e.g. Pandeypur…"
-        style="width:100%;box-sizing:border-box;border:1.5px solid var(--p);border-radius:10px;padding:8px 12px;font-family:var(--fb);font-size:13px;outline:none;background:#fef9f9;color:var(--tx)"
-        oninput="_customAreaKw=this.value.trim().toLowerCase()"
-        onkeydown="if(event.key==='Enter')applyFilters()">
-    </div>
-
-    <!-- Row 3: Search + PDF -->
-    <div style="display:flex;gap:6px;align-items:center">
-      <div style="flex:1;display:flex;align-items:center;gap:6px;background:#f4f6f9;border-radius:10px;padding:7px 11px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
-        <span style="color:#94a3b8;font-size:13px;flex-shrink:0">🔍</span>
+    <!-- Search + Buttons Row -->
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="flex:1;display:flex;align-items:center;gap:8px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
+        <span style="color:#94a3b8;font-size:13px">🔍</span>
         <input id="r-search" type="text" placeholder="Name, phone, address, ID…"
-          style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13px;background:transparent;color:var(--tx)"
+          style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13.5px;background:transparent;color:var(--tx)"
           onfocus="document.getElementById('search-wrap-inner').style.borderColor='var(--p)'"
           onblur="document.getElementById('search-wrap-inner').style.borderColor='transparent'"
           onkeydown="if(event.key==='Enter')applyFilters()">
-        <button onclick="clearFilters()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1;flex-shrink:0">✕</button>
+        <button onclick="clearFilters()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1">✕</button>
       </div>
-      <button onclick="applyFilters()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:8px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+      <button onclick="applyFilters()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
         🔍 Search
       </button>
-      <button onclick="generateRiderPDF()" title="Download PDF" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:8px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">
-        📄
+      <button onclick="generateRiderPDF()" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:9px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
+        📄 PDF
       </button>
     </div>
 
-    <!-- Active filter summary + area map shortcut -->
-    <div id="filter-summary" style="margin-top:6px;font-family:var(--fb);font-size:11px;color:var(--mu);display:none"></div>
-    <div id="area-map-btn-wrap" style="display:none;margin-top:6px">
-      <button onclick="openRiderMap()" style="background:#1d4ed8;color:white;border:none;border-radius:8px;padding:5px 12px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
-        🗺 View Area on Map
-      </button>
-    </div>
+    <!-- Active filter summary -->
+    <div id="filter-summary" style="margin-top:8px;font-family:var(--fb);font-size:12px;color:var(--mu);display:none"></div>
   </div>
 
   <!-- Orders Content -->
@@ -714,51 +703,13 @@ let _routeAddresses = [];
 let _pollTimer      = null;
 
 // Filter state — applied only when Search button is clicked
-// ── Area filter: pre-defined areas with keywords + optional GPS bounding box ──
-// Area definitions: polygon = array of [lat,lng] boundary points (point-in-polygon for GPS orders).
-// Add new areas here as Tiffo expands; keywords are case-insensitive substrings.
-// polygon: array of [lat,lng] pairs forming the area boundary (used for point-in-polygon check + map overlay)
-const RIDER_AREAS = [
-  { id: 'all',       label: 'All Areas',            color: null,    keywords: [], polygon: null },
-  { id: 'lanka',     label: '🏘 Lanka / BHU',       color: '#e63946', keywords: ['lanka','bhu','karaundi','nagwa','assi nala'],
-    polygon: [[25.278,82.982],[25.278,82.992],[25.273,83.002],[25.268,83.009],[25.262,83.012],[25.257,83.009],[25.254,83.001],[25.254,82.991],[25.258,82.984],[25.265,82.982],[25.278,82.982]] },
-  { id: 'assi',      label: '🛕 Assi / Ghats',      color: '#f4a261', keywords: ['assi','tulsi ghat','ravidas','durgakund'],
-    polygon: [[25.282,82.994],[25.282,83.003],[25.278,83.010],[25.272,83.015],[25.267,83.014],[25.264,83.009],[25.264,83.001],[25.267,82.995],[25.274,82.992],[25.282,82.994]] },
-  { id: 'sunderpur', label: '🏠 Sunderpur',          color: '#2a9d8f', keywords: ['sunderpur','sundarpur'],
-    polygon: [[25.315,82.960],[25.315,82.975],[25.310,82.983],[25.304,82.985],[25.298,82.982],[25.294,82.975],[25.294,82.965],[25.298,82.960],[25.307,82.959],[25.315,82.960]] },
-  { id: 'sigra',     label: '🏙 Sigra / Lahurabir', color: '#4f46e5', keywords: ['sigra','lahurabir','mahmoorganj'],
-    polygon: [[25.318,82.980],[25.318,82.994],[25.314,83.002],[25.308,83.005],[25.302,83.004],[25.297,82.999],[25.297,82.988],[25.301,82.981],[25.309,82.979],[25.318,82.980]] },
-  { id: 'custom',    label: '🔍 Custom…',            color: '#6b7280', keywords: [], polygon: null },
-];
-
-/* ── Point-in-polygon (ray casting) ─────────────────────────────
-   polygon = array of [lat, lng] pairs.
-   Ray cast horizontally (along longitude axis). */
-function _pointInPolygon(lat, lng, polygon) {
-  if (!polygon || polygon.length < 3) return false;
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const latI = polygon[i][0], lngI = polygon[i][1];
-    const latJ = polygon[j][0], lngJ = polygon[j][1];
-    // Ray cast: horizontal ray from (lat, -∞) → check if it crosses edge i→j
-    const intersect = ((lngI > lng) !== (lngJ > lng)) &&
-                      (lat < (latJ - latI) * (lng - lngI) / (lngJ - lngI) + latI);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
 let _filterDate     = 'today';   // 'today' | 'yesterday' | 'day_before' | 'all'
 let _filterSlot     = 'all';     // 'all' | 'morning' | 'evening'
-let _filterArea     = 'all';     // area id from RIDER_AREAS
-let _appliedArea    = 'all';     // committed after Search tap
-let _customAreaKw   = '';        // keyword when area === 'custom'
 let _filterQuery    = '';        // name/phone/address/id text search
 // Applied filters (what is actually rendered — updated on Search click)
 let _appliedDate    = 'today';
 let _appliedSlot    = 'all';
 let _appliedQuery   = '';
-// _appliedArea / _customAreaKw are declared with RIDER_AREAS above
 
 /* ─── CREDENTIAL MANAGEMENT (key: tf_rider_creds) ───── */
 // FIX #17: Password stored obfuscated (base64 + XOR) — not raw plaintext
@@ -787,7 +738,7 @@ function clearRiderCreds() {
 const RiderSession = {
   KEY:             'tf_rider_session',
   VERIFY_KEY:      'tf_rider_session_verified_at',
-  VERIFY_INTERVAL: 6 * 60 * 60 * 1000,  // 6 hours — keeps sessionToken fresh (TTL is 72h on server)
+  VERIFY_INTERVAL: 48 * 60 * 60 * 1000, // 48 hours in ms
 
   save(rider) {
     localStorage.setItem(this.KEY, JSON.stringify({ rider, savedAt: Date.now() }));
@@ -899,7 +850,6 @@ function showApp() {
   document.getElementById('rider-id-display').textContent = _rider.rider_id || '';
   // Push history state so back button is interceptable
   history.pushState({ riderPg: 'app' }, '', location.href);
-  _renderAreaChips();
   applyFilters();
 }
 
@@ -915,7 +865,7 @@ function doRiderLogout() {
 }
 
 /* ─── ORDER LOADING ──────────────────────────────────── */
-async function loadOrders(_isRetry) {
+async function loadOrders() {
   if (!_rider) return;
   try {
     const res  = await api('getRiderOrders', { riderId: _rider.rider_id });
@@ -927,24 +877,7 @@ async function loadOrders(_isRetry) {
     _delivered = _orders.filter(o => o.order_status === 'delivered');
     updateStats();
     renderOrders();
-  } catch(e) {
-    // Token expired → silently re-login with saved creds and retry once
-    const isAuthErr = e.message?.includes('Rider auth') || e.message?.includes('auth required') || e.message?.includes('401');
-    if (isAuthErr && !_isRetry) {
-      const creds = getRiderCreds();
-      if (creds) {
-        try {
-          const res2 = await api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0);
-          _rider = { ...res2.rider, sessionToken: res2.sessionToken || '' };
-          RiderSession.save(_rider);
-          RiderSession.markVerified();
-          await loadOrders(true); // retry once with fresh token
-        } catch { /* creds invalid or network down — stay silent */ }
-      }
-      return;
-    }
-    // Network / server errors during polling → silent (don't spam rider)
-  }
+  } catch(e) { /* silent poll error */ }
 }
 
 function updateStats() {
@@ -954,8 +887,8 @@ function updateStats() {
   document.getElementById('stat-delivered').textContent  = todayDel.length;
   document.getElementById('stat-pending').textContent    = todayPen.length;
   document.getElementById('stat-total').textContent      = _delivered.length;
-  document.getElementById('pending-count').textContent   = todayPen.length;
-  document.getElementById('delivered-count').textContent = todayDel.length;
+  document.getElementById('pending-count').textContent   = _pending.length;
+  document.getElementById('delivered-count').textContent = _delivered.length;
 }
 
 /* ─── RENDER ─────────────────────────────────────────── */
@@ -1074,29 +1007,16 @@ function setSlotFilter(val, btn) {
 function applyFilters() {
   _appliedDate  = _filterDate;
   _appliedSlot  = _filterSlot;
-  _appliedArea  = _filterArea;
   _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
-  // Always re-read custom area keyword from input (handles paste/autocomplete edge cases)
-  if (_filterArea === 'custom') {
-    _customAreaKw = (document.getElementById('custom-area-input')?.value || '').trim().toLowerCase();
-  }
   renderOrders();
   updateFilterSummary();
 }
 
 function clearFilters() {
   document.getElementById('r-search').value = '';
-  const customInp = document.getElementById('custom-area-input');
-  if (customInp) customInp.value = '';
   _filterDate = 'today'; _filterSlot = 'all'; _appliedDate = 'today'; _appliedSlot = 'all'; _appliedQuery = '';
-  _filterArea = 'all'; _appliedArea = 'all'; _customAreaKw = '';
   document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === 'today'));
   document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === 'all'));
-  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === 'all'));
-  const wrap = document.getElementById('custom-area-wrap');
-  if (wrap) wrap.style.display = 'none';
-  const mapBtnWrap = document.getElementById('area-map-btn-wrap');
-  if (mapBtnWrap) mapBtnWrap.style.display = 'none';
   renderOrders();
   updateFilterSummary();
 }
@@ -1106,22 +1026,10 @@ function updateFilterSummary() {
   if (!el) return;
   const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
   const slotLabel = { all:'All Sessions', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot];
-  const areaObj   = RIDER_AREAS.find(a => a.id === _appliedArea);
-  const areaLabel = _appliedArea === 'all' ? null
-                  : _appliedArea === 'custom' ? (_customAreaKw ? `"${_customAreaKw}"` : null)
-                  : (areaObj?.label || null);
   const parts = [dateLabel, slotLabel];
-  if (areaLabel) parts.push(areaLabel);
   if (_appliedQuery) parts.push(`"${_appliedQuery}"`);
   el.textContent = '↳ Showing: ' + parts.join(' · ');
   el.style.display = 'block';
-
-  // Show "View Area on Map" button only when a polygon area is selected
-  const mapBtnWrap = document.getElementById('area-map-btn-wrap');
-  if (mapBtnWrap) {
-    const showMapBtn = areaObj && areaObj.polygon && _appliedArea !== 'all' && _appliedArea !== 'custom';
-    mapBtnWrap.style.display = showMapBtn ? 'block' : 'none';
-  }
 }
 
 /* ─── DATE HELPERS ───────────────────────────────────── */
@@ -1140,93 +1048,31 @@ function _isSlotMatch(o, slotFilter) {
   return slotFilter === 'morning' ? h24 < 15 : h24 >= 15;
 }
 
-/* ── Area matching: polygon (GPS) first, keyword text fallback ───
-   Returns true if this order belongs to the given area.
-   Priority:
-     1. GPS coords in address → point-in-polygon check (most accurate)
-     2. No GPS or no polygon → keyword substring on address + name
-*/
-function _orderInArea(o, areaId, customKw) {
-  if (areaId === 'all') return true;
-
-  const area = RIDER_AREAS.find(a => a.id === areaId);
-  if (!area) return true;
-
-  // Custom area: keyword text match (strip coordinate tokens first)
-  if (areaId === 'custom') {
-    if (!customKw) return true;
-    const addrClean = (o.address || '')
-      .replace(/\(latitude=[^)]+\)/gi, '')
-      .replace(/Coordinates:[^\n]*/gi, '')
-      .replace(/Plus Code:[^\n]*/gi, '')
-      .replace(/Near:[^\n]*/gi, '')
-      .replace(/Nearby:[^\n]*/gi, '')
-      .toLowerCase();
-    const name = (o.name || '').toLowerCase();
-    return addrClean.includes(customKw) || name.includes(customKw);
-  }
-
-  // GPS point-in-polygon (primary — works for all customer-saved addresses)
-  const coords = _extractCoordsFromAddress(o.address || '');
-  if (coords && area.polygon) {
-    // GPS found → trust polygon result completely (no text fallback)
-    return _pointInPolygon(coords.lat, coords.lng, area.polygon);
-  }
-
-  // No GPS → keyword fallback (manually typed / admin-created orders)
-  const addr = (o.address || '').toLowerCase();
-  const name = (o.name || '').toLowerCase();
-  return area.keywords.some(kw => addr.includes(kw) || name.includes(kw));
-}
-
-/* ── Central filter: single source of truth for all filter logic ─
-   Used by renderOrders(), _buildFilteredStops(), generateRiderPDF() */
-function _passesFilters(o) {
-  const today     = _getDateStr(0);
-  const yesterday = _getDateStr(1);
-  const dayBefore = _getDateStr(2);
-  const d = o.date || '';
-  if (_appliedDate === 'today'      && d !== today)     return false;
-  if (_appliedDate === 'yesterday'  && d !== yesterday) return false;
-  if (_appliedDate === 'day_before' && d !== dayBefore) return false;
-  if (!_isSlotMatch(o, _appliedSlot)) return false;
-  if (!_orderInArea(o, _appliedArea, _customAreaKw)) return false;
-  if (_appliedQuery) {
-    const q = _appliedQuery;
-    if (!(o.name||'').toLowerCase().includes(q) &&
-        !(o.phone||'').includes(q) &&
-        !(o.address||'').toLowerCase().includes(q) &&
-        !(o.order_id||'').toLowerCase().includes(q)) return false;
-  }
-  return true;
-}
-
-/* ── Render area filter chips from RIDER_AREAS constant ─────── */
-function _renderAreaChips() {
-  const row = document.getElementById('area-chip-row');
-  if (!row) return;
-  row.innerHTML = RIDER_AREAS.map(a =>
-    `<button class="r-filter-chip${_filterArea === a.id ? ' act' : ''}" data-area="${a.id}"
-       onclick="setAreaFilter('${a.id}',this)">${a.label}</button>`
-  ).join('');
-}
-
-function setAreaFilter(val, btn) {
-  _filterArea = val;
-  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === val));
-  const wrap = document.getElementById('custom-area-wrap');
-  if (wrap) wrap.style.display = val === 'custom' ? 'block' : 'none';
-  if (val !== 'custom') _customAreaKw = '';
-}
-
-
+/* ─── RENDER ─────────────────────────────────────────── */
 function renderOrders() {
+  const baseList = _activeTab === 'pending' ? _pending : _delivered;
   const today     = _getDateStr(0);
   const yesterday = _getDateStr(1);
   const dayBefore = _getDateStr(2);
-  const baseList = _activeTab === 'pending' ? _pending : _delivered;
 
-  let list = baseList.filter(_passesFilters);
+  let list = baseList.filter(o => {
+    // Layer 1: date
+    const d = o.date || '';
+    if (_appliedDate === 'today'      && d !== today)     return false;
+    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
+    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
+    // Layer 2: slot/session
+    if (!_isSlotMatch(o, _appliedSlot)) return false;
+    // Search query
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) &&
+          !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) &&
+          !(o.order_id||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   const el = document.getElementById('orders-content');
   if (!list.length) {
@@ -1300,8 +1146,23 @@ function toggleDateSection(date) {
 /* ─── PDF EXPORT (respects active filters) ───────────── */
 function generateRiderPDF() {
   const baseList = _activeTab === 'pending' ? _pending : _delivered;
+  const today     = _getDateStr(0);
+  const yesterday = _getDateStr(1);
+  const dayBefore = _getDateStr(2);
 
-  const filtered = baseList.filter(_passesFilters);
+  const filtered = baseList.filter(o => {
+    const d = o.date || '';
+    if (_appliedDate === 'today'      && d !== today)     return false;
+    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
+    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
+    if (!_isSlotMatch(o, _appliedSlot)) return false;
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) && !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   if (!filtered.length) { rToast('No orders to export'); return; }
 
@@ -1440,7 +1301,24 @@ function _shortAddr(addr) {
 
 // ── Build filter-aware stop list (same logic as renderOrders) ─
 function _buildFilteredStops() {
-  return _pending.filter(_passesFilters);
+  const today     = _getDateStr(0);
+  const yesterday = _getDateStr(1);
+  const dayBefore = _getDateStr(2);
+  return _pending.filter(o => {
+    const d = o.date || '';
+    if (_appliedDate === 'today'      && d !== today)     return false;
+    if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
+    if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
+    if (!_isSlotMatch(o, _appliedSlot)) return false;
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) &&
+          !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) &&
+          !(o.order_id||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 }
 
 // ── Create numbered SVG icon ──────────────────────────────────
@@ -1761,42 +1639,6 @@ function _fitMapBounds() {
   _map.fitBounds(L.latLngBounds(pts), { padding:[30,30], maxZoom:16 });
 }
 
-/* ── Draw selected area boundary polygon on Leaflet map ──────────
-   Uses dashed border + semi-transparent fill so markers stay visible.
-   Cleared and redrawn each time map opens.                         */
-let _areaPolygonLayer = null;
-function _drawAreaPolygon() {
-  if (!_map) return;
-  // Remove previous polygon + label
-  if (_areaPolygonLayer) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
-
-  const area = RIDER_AREAS.find(a => a.id === _appliedArea);
-  if (!area || !area.polygon || _appliedArea === 'all' || _appliedArea === 'custom') return;
-
-  const color = area.color || '#e63946';
-  const poly = L.polygon(area.polygon, {
-    color, weight: 2.5, opacity: 0.85, dashArray: '8, 6',
-    fillColor: color, fillOpacity: 0.08, interactive: false
-  });
-
-  // Centroid label marker
-  const lats = area.polygon.map(p => p[0]);
-  const lngs = area.polygon.map(p => p[1]);
-  const cLat = lats.reduce((a,b)=>a+b,0)/lats.length;
-  const cLng = lngs.reduce((a,b)=>a+b,0)/lngs.length;
-  const label = L.marker([cLat, cLng], {
-    icon: L.divIcon({
-      className: '',
-      html: `<div style="background:${color};color:white;padding:3px 8px;border-radius:10px;font-family:'Sora',sans-serif;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);opacity:.9">${area.label}</div>`,
-      iconAnchor: [0, 0]
-    }),
-    interactive: false, zIndexOffset: -100
-  });
-
-  // Group polygon + label so one removeLayer() cleans both
-  _areaPolygonLayer = L.layerGroup([poly, label]).addTo(_map);
-}
-
 // ── Scroll stop card into view ────────────────────────────────
 function _scrollToCard(idx) {
   const card = document.getElementById('stop-card-' + idx);
@@ -1875,7 +1717,6 @@ function openRiderMap(ordersParam) {
     }
 
     _placeMarkers();
-    _drawAreaPolygon();   // draw selected area boundary on map
     _updateMapTitle(orders);
     _renderStopList();
     // Auto-sort route once first GPS fix arrives (if 3+ stops have coords)
@@ -1902,7 +1743,6 @@ function closeRiderMap() {
   _mapStops.forEach(s => { if (s.marker && _map) _map.removeLayer(s.marker); s.marker = null; });
   if (_gpsMarker && _map)  { _map.removeLayer(_gpsMarker); _gpsMarker = null; }
   if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
-  if (_areaPolygonLayer && _map) { _map.removeLayer(_areaPolygonLayer); _areaPolygonLayer = null; }
   _clearRouteLayer();
   _routeDrawing = false; // reset in case OSRM fetch was mid-flight
 }
@@ -2169,25 +2009,21 @@ async function deliverySkip() {
   _mapStops.push(s);
   // NOTE: do NOT call backend — order stays "pending/out for delivery" in the DB
   // so it remains in the main order list's "For Delivery" section
-  rToast('⏭ Skipped — re-optimizing route…');
+  rToast('⏭ Skipped — finding nearest next stop…');
+  _placeMarkers(); // re-number remaining pins
+  await _drawPolyline();
 
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) {
-    _placeMarkers();
-    await _drawPolyline();
     _renderStopList();
     _showCelebration();
     return;
   }
 
-  // Re-sort remaining stops from current GPS so route stays optimal after skip
-  _reorderRemainingFromGPS();
+  // Dynamic: go to nearest remaining stop from current GPS, not sequential
+  const nearestIdx = _findNearestRemainingIdx();
+  _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
 
-  // Point cursor at nearest stop (index 0 of pending after re-sort)
-  _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
-
-  _placeMarkers(); // re-number remaining pins in new optimal order
-  await _drawPolyline();
   _renderStopList();
   _updateDeliveryBar();
   flyToStop(_deliveryIdx);
@@ -2198,37 +2034,6 @@ async function deliverySkip() {
     const distTxt = nextSkipStop.distKm != null ? ` · ~${nextSkipStop.distKm.toFixed(1)} km` : '';
     rToast(`📍 Next: ${nextSkipStop.order.name || 'Stop'}${distTxt}`);
   }
-}
-
-/* ── Re-sort ALL remaining (pending+undelivered+unskipped) stops via NN
-   from the rider's current GPS position, then rebuild _mapStops in-place.
-
-   Why this is needed:
-   - optimizeRoute() runs NN once at session start.
-   - After each delivery the rider's GPS has moved. The old NN order is now
-     stale — stops that appeared optimal from position A may create backtracking
-     from position B.
-   - _drawPolyline() and _placeMarkers() iterate _mapStops in ARRAY ORDER, so
-     they must reflect the up-to-date optimal sequence.
-
-   This runs in O(n²) over remaining stops, which for Tiffo's 8-20 stops is
-   < 1ms — completely safe to call on every delivery/skip event.           */
-function _reorderRemainingFromGPS() {
-  if (!_gpsPos) return; // no GPS fix yet — keep existing order
-
-  const delivered = _mapStops.filter(s => s.delivered);
-  const withCoords = _mapStops.filter(s => !s.delivered && !s.skipped && s.coords);
-  const noCoords   = _mapStops.filter(s => !s.delivered && !s.skipped && !s.coords);
-  const skipped    = _mapStops.filter(s => s.skipped);
-
-  if (withCoords.length < 2) return; // 0 or 1 pending GPS stop — no reorder needed
-
-  // Full NN re-sort of all remaining GPS stops from current rider position
-  const reordered = _nearestNeighborSort(withCoords, _gpsPos.lat, _gpsPos.lng);
-
-  // Rebuild: delivered first (preserve history), then NN-ordered pending, then
-  // no-GPS stops (can't place on map), then skipped (always last)
-  _mapStops = [...delivered, ...reordered, ...noCoords, ...skipped];
 }
 
 async function _advanceDelivery() {
@@ -2243,12 +2048,9 @@ async function _advanceDelivery() {
     return;
   }
 
-  // ── Re-sort ALL remaining stops from current GPS so route + pin numbers
-  //    stay optimal after every delivery, not just the first ──
-  _reorderRemainingFromGPS();
-
-  // Point cursor at first pending stop (now the nearest one after re-sort)
-  _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
+  // ── Dynamic re-route: find nearest remaining stop from current GPS ──
+  const nearestIdx = _findNearestRemainingIdx();
+  _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
 
   // Update distance label on the newly targeted stop
   if (_gpsPos && _mapStops[_deliveryIdx]?.coords) {
@@ -2260,7 +2062,7 @@ async function _advanceDelivery() {
   }
 
   // Redraw route line from GPS through remaining stops in optimized order
-  _placeMarkers(); // re-number pins: #1 = nearest, #2 = next nearest, etc.
+  _placeMarkers(); // re-number pins: nearest remaining = #1
   await _drawPolyline();
   _renderStopList();
   _updateDeliveryBar();
@@ -2338,16 +2140,11 @@ function _showCelebration() {
 
   const skippedRows = skipped.length ? skipped.map(s => {
     const o = s.order;
-    const phone = o.phone || '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
       <div style="width:26px;height:26px;background:#f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⏭</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:13px;color:#fbbf24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.name||'—'}</div>
-        <div style="font-size:11px;color:#94a3b8">${phone}</div>
-      </div>
-      <div style="display:flex;gap:5px;flex-shrink:0">
-        ${phone ? `<a href="tel:${phone}" style="background:#1d4ed8;color:#fff;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">📞</a>` : ''}
-        ${phone ? `<button onclick="openWA('91${phone}','Hi ${(o.name||'').replace(/'/g,'')}, your Tiffo order could not be delivered today. Please confirm your availability for redelivery. Thank you!')" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">💬</button>` : ''}
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px;color:#fbbf24">${o.name||'—'}</div>
+        <div style="font-size:11px;color:#94a3b8">${o.phone||''}</div>
       </div>
     </div>`;
   }).join('') : '';
@@ -2650,36 +2447,20 @@ function setMapMode(mode) {
 
 /* ── Open All Pins View (full Leaflet map with every stop pin) ── */
 function openAllPinsView() {
-  // Hide main map elements so only one map is visible at a time
-  const _hideEls = ['map-container','map-actions','map-bottom','next-batch-bar','delivery-bar'];
-  _hideEls.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
-
   const panel = document.getElementById('all-pins-panel');
   panel.classList.add('show');
 
   requestAnimationFrame(() => {
-    // Always destroy and recreate to avoid stale tile/layer state
-    if (_allPinsMap) { _allPinsMap.remove(); _allPinsMap = null; }
-    _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
-
-    // Draw area polygon on All Pins map
-    const _apArea = RIDER_AREAS.find(a => a.id === _appliedArea);
-    let _apPolyLayer = null;
-    if (_apArea && _apArea.polygon && _appliedArea !== 'all' && _appliedArea !== 'custom') {
-      const aColor = _apArea.color || '#e63946';
-      _apPolyLayer = L.polygon(_apArea.polygon, {
-        color: aColor, weight: 2.5, opacity: 0.85, dashArray: '8,6',
-        fillColor: aColor, fillOpacity: 0.08, interactive: false
-      }).addTo(_allPinsMap);
-      const lats = _apArea.polygon.map(p=>p[0]), lngs = _apArea.polygon.map(p=>p[1]);
-      const cLat = lats.reduce((a,b)=>a+b,0)/lats.length;
-      const cLng = lngs.reduce((a,b)=>a+b,0)/lngs.length;
-      L.marker([cLat, cLng], {
-        icon: L.divIcon({ className:'', html:`<div style="background:${aColor};color:white;padding:3px 8px;border-radius:10px;font-family:'Sora',sans-serif;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25);opacity:.9">${_apArea.label}</div>`, iconAnchor:[0,0] }),
-        interactive: false, zIndexOffset: -100
-      }).addTo(_allPinsMap);
+    const container = document.getElementById('all-pins-leaflet');
+    if (!_allPinsMap) {
+      _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
+    } else {
+      _allPinsMap.invalidateSize();
     }
+
+    // Clear old markers
+    _allPinsMap.eachLayer(layer => { if (layer instanceof L.Marker) _allPinsMap.removeLayer(layer); });
 
     const pts = [];
     let pinned = 0, noCoords = 0;
@@ -2717,13 +2498,7 @@ function openAllPinsView() {
 
 function closeAllPinsView() {
   document.getElementById('all-pins-panel').classList.remove('show');
-  // Restore main map elements
-  const _restoreEls = { 'map-container':'', 'map-actions':'', 'map-bottom':'' };
-  Object.entries(_restoreEls).forEach(([id, disp]) => { const el = document.getElementById(id); if (el) el.style.display = disp; });
-  // Destroy allPins map — will be recreated fresh next open
-  if (_allPinsMap) { _allPinsMap.remove(); _allPinsMap = null; }
-  // Invalidate main map so it re-renders correctly
-  if (_map) setTimeout(() => _map.invalidateSize(), 100);
+  if (_allPinsMap) _allPinsMap.invalidateSize();
 }
 
 /* ── Reset batch tracking when map is opened/reloaded ─────────── */
@@ -2900,7 +2675,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadOrders();
     startPolling();
 
-    // BACKGROUND VERIFY — at most once every 6 hours (keeps sessionToken fresh).
+    // BACKGROUND VERIFY — at most once every 48 hours.
     // Silently re-validates creds when server is quiet.
     // 30s delay so home screen + orders load first.
     const creds = getRiderCreds();
