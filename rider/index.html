@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.6                                    ║
+     ║  Version : v35.7                                    ║
      ║  Updated : 2026-05-20                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
@@ -767,7 +767,7 @@ function clearRiderCreds() {
 const RiderSession = {
   KEY:             'tf_rider_session',
   VERIFY_KEY:      'tf_rider_session_verified_at',
-  VERIFY_INTERVAL: 48 * 60 * 60 * 1000, // 48 hours in ms
+  VERIFY_INTERVAL: 6 * 60 * 60 * 1000,  // 6 hours — keeps sessionToken fresh (TTL is 72h on server)
 
   save(rider) {
     localStorage.setItem(this.KEY, JSON.stringify({ rider, savedAt: Date.now() }));
@@ -895,7 +895,7 @@ function doRiderLogout() {
 }
 
 /* ─── ORDER LOADING ──────────────────────────────────── */
-async function loadOrders() {
+async function loadOrders(_isRetry) {
   if (!_rider) return;
   try {
     const res  = await api('getRiderOrders', { riderId: _rider.rider_id });
@@ -907,7 +907,24 @@ async function loadOrders() {
     _delivered = _orders.filter(o => o.order_status === 'delivered');
     updateStats();
     renderOrders();
-  } catch(e) { /* silent poll error */ }
+  } catch(e) {
+    // Token expired → silently re-login with saved creds and retry once
+    const isAuthErr = e.message?.includes('Rider auth') || e.message?.includes('auth required') || e.message?.includes('401');
+    if (isAuthErr && !_isRetry) {
+      const creds = getRiderCreds();
+      if (creds) {
+        try {
+          const res2 = await api('riderLogin', { riderId: creds.riderId, password: creds.pw }, 0);
+          _rider = { ...res2.rider, sessionToken: res2.sessionToken || '' };
+          RiderSession.save(_rider);
+          RiderSession.markVerified();
+          await loadOrders(true); // retry once with fresh token
+        } catch { /* creds invalid or network down — stay silent */ }
+      }
+      return;
+    }
+    // Network / server errors during polling → silent (don't spam rider)
+  }
 }
 
 function updateStats() {
@@ -2787,7 +2804,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadOrders();
     startPolling();
 
-    // BACKGROUND VERIFY — at most once every 48 hours.
+    // BACKGROUND VERIFY — at most once every 6 hours (keeps sessionToken fresh).
     // Silently re-validates creds when server is quiet.
     // 30s delay so home screen + orders load first.
     const creds = getRiderCreds();

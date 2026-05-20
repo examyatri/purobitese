@@ -3,14 +3,14 @@
    Version : v8.5  |  Updated : 2026-05-20
 
    CHANGES v8.5:
-   - Cache bumped → tiffo-rider-v11 (v79 area filter + route re-optimisation)
+   - Cache bumped → tiffo-rider-v12 (v80 rider auth fix — token TTL + auto re-login)
    - Area filter (GPS bbox + text fallback) added to rider panel
    - Central _passesFilters() replacing 3 duplicate inline filter blocks
    - _reorderRemainingFromGPS(): full NN re-sort after every delivery/skip
    - Skipped orders get 📞 Call + 💬 WA buttons on celebration screen
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v11';
+const CACHE      = 'tiffo-rider-v12';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
