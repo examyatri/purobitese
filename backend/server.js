@@ -187,7 +187,9 @@ const _STAFF_ACTIONS = new Set([
   'setKhataEnabled',
   'setDeliveryZone',
   'setAutoTiffinCutoff',
+  'setDeliveryAreas',
   'adminDeleteUser',
+  'adminSetUserAddress',
   'createRider'
 ]);
 
@@ -908,19 +910,30 @@ app.post('/api', async (req, res) => {
           phone,
           email:         data.email || null,
           address:       data.address || null,
-          area:          _extractArea(data.address || ''),
+          area:          data.area || _extractArea(data.address || ''),
           password_hash: hash,
           created_at:    createdAt
         });
         if (insertErr) return res.json({ success: false, error: 'Registration failed. Please try again.' });
         // ── Fire new-user notification so admin can send welcome coupon ──
         try {
+          // Build a compact 1-line address summary for notification body (v84 multiline → readable)
+          const _addrSummary = (() => {
+            const a = data.address || '';
+            if (!a) return '';
+            const lines = a.split('\n').map(l => l.trim()).filter(Boolean);
+            const room = (lines.find(l => /^Room No:/i.test(l)) || '').replace(/^Room No:\s*/i,'').trim();
+            const pc   = (lines.find(l => /^Plus Code:/i.test(l)) || '').replace(/^Plus Code:\s*/i,'').trim();
+            const area = (lines.find(l => /^Area:/i.test(l)) || '').replace(/^Area:\s*/i,'').trim();
+            const parts = [room, pc, area].filter(Boolean);
+            return parts.length ? parts.join(' · ') : a.split('\n')[0];
+          })();
           await _createNotification({
             type:     'user',
             priority: 'normal',
             group_id: phone,
             title:    `New user joined: ${data.name}`,
-            body:     `${data.name} (${phone}) just registered${data.address ? ' — ' + data.address : ''}`,
+            body:     `${data.name} (${phone}) just registered${_addrSummary ? ' — ' + _addrSummary : ''}`,
             meta:     { phone, name: data.name, address: data.address || '', email: data.email || '' }
           });
         } catch(_) {}
@@ -964,8 +977,9 @@ app.post('/api', async (req, res) => {
         if (data.email   !== undefined) updates.email   = data.email;
         if (data.address !== undefined) {
           updates.address = data.address;
-          updates.area    = _extractArea(data.address || '');
+          updates.area    = data.area || _extractArea(data.address || '');
         }
+        if (data.room_no !== undefined) {} // v84: room_no stored inside address field, not separate column
         await supabase.from('users').update(updates).eq('phone', phone);
         return res.json({ success: true });
       }
@@ -2571,13 +2585,40 @@ app.post('/api', async (req, res) => {
             weeklySchedule:   map['weekly_schedule']       || [],
             khataEnabled:     map['khata_enabled']         === true,
             deliveryZone:     map['delivery_zone']         || null,
-            autoTiffinCutoff: map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' }
+            autoTiffinCutoff: map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' },
+            deliveryAreas:    map['delivery_areas']        || ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur']
           }}); }
+
+      case 'getDeliveryAreas': {
+        const { data: row } = await supabase.from('admin_settings').select('value').eq('key','delivery_areas').single();
+        let areas = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+        if (row?.value) { try { areas = JSON.parse(row.value); } catch(_) {} }
+        return res.json({ success: true, areas });
+      }
+
+      case 'setDeliveryAreas': {
+        const areas = data.areas;
+        if (!Array.isArray(areas) || areas.length === 0) return res.json({ success: false, error: 'At least one area required' });
+        const cleaned = areas.map(a => String(a).trim()).filter(Boolean);
+        await supabase.from('admin_settings').upsert({ key: 'delivery_areas', value: JSON.stringify(cleaned), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache();
+        return res.json({ success: true });
+      }
 
       case 'adminResetUserPassword':
         { const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
           await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
           return res.json({ success: true }); }
+
+      case 'adminSetUserAddress': {
+        const phone = cleanPhone(data.phone);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+        const addr = (data.address || '').trim();
+        const area = (data.area || _extractArea(addr)).trim();
+        if (!addr) return res.json({ success: false, error: 'Address cannot be empty' });
+        await supabase.from('users').update({ address: addr, area }).eq('phone', phone);
+        return res.json({ success: true });
+      }
 
       case 'deleteNotificationRange': {
         // Respects read_only flag — only deletes read notifications, never unread
