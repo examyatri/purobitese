@@ -2107,8 +2107,9 @@ function startPolling() {
         const cur = document.querySelector('.pg-v.act')?.id;
         const loader = _AUTO_REFRESH_TABS[cur];
         if (loader) loader().catch(()=>{});
-        // p-notifs handled by its own dedicated 60s timer
-        fetchNotifCount().catch(()=>{});
+        // p-notifs handled by its own dedicated 60s timer (startNotifAutoRefresh)
+        // Skip fetchNotifCount on that tab — loadNotifications already updates the badge every 60s
+        if (cur !== 'p-notifs') fetchNotifCount().catch(()=>{});
         _pollSeconds = _getPollSeconds();
       }
       schedulePoll();
