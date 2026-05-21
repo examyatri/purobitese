@@ -77,6 +77,11 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   letter-spacing:.2px;
 }
 .route-btn:active{opacity:.88;transform:scale(.98)}
+.suggest-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;font-family:var(--ff);margin-left:6px}
+.suggest-seq{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border-radius:50%;font-size:11px;font-weight:800;font-family:var(--ff);flex-shrink:0;margin-right:4px}
+.smart-route-btn{margin:0 16px 4px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:13px;padding:13px;font-family:var(--ff);font-weight:700;font-size:14px;width:calc(100% - 32px);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(124,58,237,.35);transition:opacity 180ms,transform 120ms;letter-spacing:.2px}
+.smart-route-btn:active{opacity:.88;transform:scale(.98)}
+.smart-route-btn.active{background:linear-gradient(135deg,#059669,#10b981)}
 
 /* Tabs */
 .tabs{display:flex;background:white;border-bottom:1px solid var(--lt)}
@@ -134,6 +139,8 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 /* Toast */
 #r-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1f2e;color:white;border-radius:24px;padding:10px 20px;font-size:14px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none}
 #r-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#r-offline-bar{position:fixed;top:0;left:0;right:0;z-index:10000;background:#ef4444;color:#fff;text-align:center;font-size:13px;font-weight:600;padding:6px 12px;transform:translateY(-100%);transition:transform 250ms ease;letter-spacing:.2px}
+#r-offline-bar.show{transform:translateY(0)}
 
 /* Route modal */
 #route-modal{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:520px;background:white;border-radius:20px 20px 0 0;box-shadow:var(--shl);padding:20px;z-index:1000;transition:transform 350ms cubic-bezier(.4,0,.2,1)}
@@ -512,6 +519,10 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   </div>
 
   <!-- Route Planner -->
+  <button class="smart-route-btn" id="smart-route-btn" onclick="toggleSmartSuggest()">
+    <span id="smart-route-icon">🎯</span>
+    <span id="smart-route-label">Smart Route Suggest</span>
+  </button>
   <button class="route-btn" onclick="openRiderMap()">🗺 Plan Route for Filtered Orders</button>
 
   <!-- Main Tabs -->
@@ -548,18 +559,30 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
       </div>
     </div>
 
+    <!-- Layer 3: Area Filter -->
+    <div style="margin-bottom:12px" id="area-filter-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+        <div style="font-family:var(--ff);font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.6px">📍 Area</div>
+        <div id="area-loading" style="display:none;font-size:11px;color:var(--mu);font-family:var(--fb)">Detecting areas…</div>
+      </div>
+      <!-- Quick-tap chips (auto-populated from order areas) -->
+      <div id="area-chips" style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="r-filter-chip act" data-area="all" onclick="setAreaFilter('all',this)">All Areas</button>
+      </div>
+    </div>
+
     <!-- Search + Buttons Row -->
     <div style="display:flex;gap:8px;align-items:center">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:#f4f6f9;border-radius:10px;padding:8px 12px;border:1.5px solid transparent;transition:border-color 200ms" id="search-wrap-inner">
         <span style="color:#94a3b8;font-size:13px">🔍</span>
-        <input id="r-search" type="text" placeholder="Name, phone, address, ID…"
+        <input id="r-search" type="text" placeholder="Name, phone, area, address, ID…"
           style="border:none;outline:none;flex:1;font-family:var(--fb);font-size:13.5px;background:transparent;color:var(--tx)"
           onfocus="document.getElementById('search-wrap-inner').style.borderColor='var(--p)'"
           onblur="document.getElementById('search-wrap-inner').style.borderColor='transparent'"
-          onkeydown="if(event.key==='Enter')applyFilters()">
+          onkeydown="if(event.key==='Enter')searchOrders()">
         <button onclick="clearFilters()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:14px;padding:0;line-height:1">✕</button>
       </div>
-      <button onclick="applyFilters()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+      <button onclick="searchOrders()" style="background:var(--p);color:white;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
         🔍 Search
       </button>
       <button onclick="generateRiderPDF()" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:9px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
@@ -681,6 +704,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 </div>
 
 <!-- Toast -->
+<div id="r-offline-bar">📵 Internet nahi — orders refresh nahi ho rahe</div>
 <div id="r-toast"></div>
 
 <script>
@@ -710,6 +734,24 @@ let _filterQuery    = '';        // name/phone/address/id text search
 let _appliedDate    = 'today';
 let _appliedSlot    = 'all';
 let _appliedQuery   = '';
+let _filterArea     = 'all';  // area chip state
+let _suggestActive  = false;  // smart suggest mode on/off
+let _suggestSeqMap  = {};     // order_id → {seq, distKm} from TSP
+let _appliedArea    = 'all';  // area actually applied
+
+/* ─── AREA GEOCODE CACHE (key: tf_area_cache) ───────────
+   coords → neighbourhood name, persisted 7 days          */
+const _areaCache = (() => {
+  const KEY  = 'tf_area_cache';
+  const TTL  = 7 * 24 * 3600 * 1000;
+  let _map   = {};
+  try { _map = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+  return {
+    get(k)    { const e = _map[k]; return (e && Date.now() < e.t) ? e.v : null; },
+    set(k, v) { _map[k] = { v, t: Date.now() + TTL }; try { localStorage.setItem(KEY, JSON.stringify(_map)); } catch {} },
+    prune()   { const now = Date.now(); Object.keys(_map).forEach(k => { if (now >= _map[k].t) delete _map[k]; }); try { localStorage.setItem(KEY, JSON.stringify(_map)); } catch {} }
+  };
+})();
 
 /* ─── CREDENTIAL MANAGEMENT (key: tf_rider_creds) ───── */
 // FIX #17: Password stored obfuscated (base64 + XOR) — not raw plaintext
@@ -875,9 +917,158 @@ async function loadOrders() {
       return s !== 'delivered' && s !== 'rejected' && s !== 'cancelled';
     });
     _delivered = _orders.filter(o => o.order_status === 'delivered');
+    _areaCache.prune(); // remove expired geocode cache entries (7-day TTL)
     updateStats();
     renderOrders();
+    enrichAreasAndChips(); // reverse-geocode coords → area names, then rebuild chips
   } catch(e) { /* silent poll error */ }
+}
+
+/* ─── AREA ENRICHMENT — runs after every loadOrders ─────
+   1. Extracts coords from each order's address
+   2. Reverse-geocodes via Nominatim (batched, cached, rate-limited)
+   3. Attaches o._area to each order object
+   4. Rebuilds area chips in filter panel                   */
+/* ─── AREA ENRICHMENT ──────────────────────────────────────────────────────────
+   Priority for setting o._area on each order object:
+     1. o.area  — DB-stored column (set server-side at order creation, v81+).
+                  Always correct, zero network calls, instant.
+     2. Address text parse — "Area: X" tag (v79+ addresses w/ GPS, written by
+                  _buildAddress in customer app). Reliable, instant.
+     3. Nominatim reverse-geocode — only for legacy orders that have GPS coords
+                  but no Area tag and no DB area. Batched, cached, rate-limited.
+     4. Address text fallback — last comma-token of road+area line. Best-effort.
+   ─────────────────────────────────────────────────────────────────────────── */
+async function enrichAreasAndChips() {
+  const allOrders = [..._pending, ..._delivered];
+  if (!allOrders.length) return;
+
+  // ── Step 1: Use DB-stored area (most reliable — v81+) ──
+  allOrders.forEach(o => {
+    if (!o._area && o.area) o._area = o.area; // area column from server
+  });
+
+  // ── Step 2: Parse "Area:" tag from address text (v79+ GPS orders) ──
+  allOrders.forEach(o => {
+    if (o._area) return;
+    const addr = (o.address || '');
+    for (const line of addr.split('\n').map(l => l.trim())) {
+      const m = line.match(/^Area:\s*(.+)$/i);
+      if (m) { o._area = m[1].trim(); return; }
+    }
+  });
+
+  // ── Step 3: Nominatim reverse-geocode for legacy orders with coords but no area ──
+  function _coordKey(addr) {
+    if (!addr) return null;
+    const m = addr.match(/Coordinates\s*:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i)
+           || addr.match(/latitude\s*=\s*([+-]?\d+\.?\d*)[,\s]+longitude\s*=\s*([+-]?\d+\.?\d*)/i);
+    return m ? `${parseFloat(m[1]).toFixed(3)},${parseFloat(m[2]).toFixed(3)}` : null;
+  }
+
+  async function _reverseGeocode(lat, lon) {
+    const key = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+    const cached = _areaCache.get(key);
+    if (cached) return cached;
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-Rider/1.0' } }
+      );
+      const d = await r.json();
+      const a = d.address || {};
+      const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.town || a.county || '').trim();
+      if (area) _areaCache.set(key, area);
+      return area;
+    } catch { return ''; }
+  }
+
+  // Only geocode orders missing area that have GPS coords (legacy orders, rare in v81+)
+  const needsGeocode = allOrders.filter(o => {
+    if (o._area) return false;
+    const key = _coordKey(o.address);
+    if (!key) return false;
+    const cached = _areaCache.get(key);
+    if (cached) { o._area = cached; return false; } // from cache — instant
+    return true;
+  });
+
+  if (needsGeocode.length) {
+    const loadingEl = document.getElementById('area-loading');
+    if (loadingEl) loadingEl.style.display = 'block';
+    for (let i = 0; i < needsGeocode.length; i++) {
+      const o = needsGeocode[i];
+      const key = _coordKey(o.address);
+      if (!key) continue;
+      const [lat, lon] = key.split(',');
+      const area = await _reverseGeocode(lat, lon);
+      if (area) o._area = area;
+      if (i < needsGeocode.length - 1) await new Promise(r => setTimeout(r, 300));
+    }
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+
+  // ── Step 4: Text fallback for orders with no coords and no Area tag (pre-v74) ──
+  allOrders.forEach(o => {
+    if (o._area) return;
+    const lines = (o.address || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const _isMeta = l => /^(coordinates:|plus code:|area:|near\b)/i.test(l)
+                      || /\d{5,6}/.test(l) || /india$/i.test(l);
+    const _areaToken = l => {
+      const parts = l.split(',').map(p => p.trim()).filter(Boolean);
+      const c = parts[parts.length - 1] || '';
+      return (c.length > 1 && c.length < 30 && !/\d{3,}/.test(c)
+              && !/\bno\.?\s*\d+\s*$/i.test(c)) ? c : null;
+    };
+    if (lines.length >= 2 && !_isMeta(lines[1])) {
+      const a = _areaToken(lines[1]);
+      if (a) { o._area = a; return; }
+    }
+    if (lines.length >= 1 && !_isMeta(lines[0]) && !lines[0].includes(',')) {
+      const l0 = lines[0].trim();
+      if (l0.length > 1 && l0.length < 25 && !/\d{3,}/.test(l0)
+          && !/\bno\.?\s*\d+\s*$/i.test(l0)) { o._area = l0; return; }
+    }
+    const SKIP = /^(coordinates:|plus code:|area:)/i;
+    for (const line of lines) {
+      if (SKIP.test(line) || /\d{5,6}/.test(line) || /india$/i.test(line) || /^near\b/i.test(line)) continue;
+      const parts = line.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length < 2) continue;
+      const last = parts[parts.length - 1];
+      if (/^(no\.?\s*\d|[a-z]-\d|\d+$)/i.test(last) || /\bno\.?\s*\d+\s*$/i.test(last)) continue;
+      if (last.length < 25 && !/\d{3,}/.test(last)) { o._area = last; return; }
+    }
+  });
+
+  _rebuildAreaChips();
+  renderOrders();
+  updateFilterSummary();
+}
+
+function _rebuildAreaChips() {
+  const allOrders = [..._pending, ..._delivered];
+  const areas = [...new Set(
+    allOrders.map(o => o._area || '').filter(Boolean)
+  )].sort();
+
+  const container = document.getElementById('area-chips');
+  if (!container) return;
+
+  // "All Areas" chip always first
+  const allActive = _appliedArea === 'all';
+  container.innerHTML = `<button class="r-filter-chip${allActive ? ' act' : ''}" data-area="all" onclick="setAreaFilter('all',this)">All Areas</button>`;
+
+  areas.forEach(area => {
+    const isAct = _appliedArea === area;
+    const btn = document.createElement('button');
+    btn.className = 'r-filter-chip' + (isAct ? ' act' : '');
+    btn.dataset.area = area;
+    btn.onclick = function() { setAreaFilter(area, this); };
+    // Count pending orders in this area
+    const count = _pending.filter(o => (o._area||'') === area).length;
+    btn.textContent = area + (count ? ` (${count})` : '');
+    container.appendChild(btn);
+  });
 }
 
 function updateStats() {
@@ -915,12 +1106,21 @@ function renderOrderCard(o) {
       <button class="o-btn o-btn-done" id="del-btn-${o.order_id}" onclick="markDelivered('${o.order_id}')">✅ Done</button>`;
   }
 
+  // Smart suggest badge
+  const _seq = (_suggestActive && !isDone && _suggestSeqMap[o.order_id]);
+  const _seqBadge = _seq
+    ? `<span class="suggest-seq">${_seq.seq}</span>`
+    : '';
+  const _distBadge = (_seq && _seq.distKm != null)
+    ? `<span class="suggest-badge">📍 ${_seq.distKm < 1 ? Math.round(_seq.distKm*1000)+'m' : _seq.distKm.toFixed(1)+'km'}</span>`
+    : '';
+
   return `
-  <div class="o-card ${isDone ? 'done' : ''}" id="card-${o.order_id}">
+  <div class="o-card ${isDone ? 'done' : ''}" id="card-${o.order_id}" style="${_seq && _seq.seq === 1 ? 'border:2px solid #7c3aed;border-radius:14px' : ''}">
     <div class="o-card-row">
       <div style="display:flex;flex-direction:column;gap:3px">
-        <span class="o-id">${o.order_id}</span>
-        ${slotBadge}
+        <span class="o-id">${_seqBadge}${o.order_id}</span>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${slotBadge}${_distBadge}</div>
       </div>
       <span class="${payClass}">${payLabel}</span>
     </div>
@@ -976,6 +1176,27 @@ async function markDelivered(orderId) {
       _delivered.unshift(order);
     }
     updateStats();
+    // Re-number suggest sequence — delivered order removed, renumber remaining
+    if (_suggestActive) {
+      delete _suggestSeqMap[orderId];
+      // Re-sequence remaining in current order
+      const remaining = Object.entries(_suggestSeqMap)
+        .sort((a, b) => a[1].seq - b[1].seq);
+      remaining.forEach(([id, val], i) => { _suggestSeqMap[id] = { ...val, seq: i + 1 }; });
+      // Update button label count
+      const lbl = document.getElementById('smart-route-label');
+      if (lbl) {
+        const total = Object.keys(_suggestSeqMap).length;
+        const totalKm = Object.values(_suggestSeqMap).reduce((s,v) => s + (v.distKm||0), 0);
+        lbl.textContent = total > 0
+          ? `${total} stops · ~${totalKm.toFixed(1)}km · Tap to clear`
+          : 'All done! Tap to clear';
+        if (total === 0) {
+          document.getElementById('smart-route-btn').classList.remove('active');
+          document.getElementById('smart-route-icon').textContent = '🎉';
+        }
+      }
+    }
     renderOrders();
     rToast('✅ Delivered!');
   } catch(e) {
@@ -1002,21 +1223,41 @@ function setSlotFilter(val, btn) {
   _filterSlot = val;
   document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === val));
 }
+function setAreaFilter(val, btn) {
+  _filterArea   = val;
+  _appliedArea  = val;  // area chips apply immediately (no Search click needed)
+  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === val));
+  renderOrders();
+  updateFilterSummary();
+}
 
 /* ─── APPLY FILTERS (called on Search button click) ─── */
 function applyFilters() {
   _appliedDate  = _filterDate;
   _appliedSlot  = _filterSlot;
+  _appliedArea  = _filterArea;
   _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
   renderOrders();
   updateFilterSummary();
 }
 
+/* ─── SEARCH BUTTON / ENTER — fetch fresh orders then filter ─── */
+async function searchOrders() {
+  _appliedDate  = _filterDate;
+  _appliedSlot  = _filterSlot;
+  _appliedArea  = _filterArea;
+  _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
+  await loadOrders(); // fresh server fetch → enrichAreasAndChips → renderOrders + updateFilterSummary inside
+}
+
 function clearFilters() {
   document.getElementById('r-search').value = '';
   _filterDate = 'today'; _filterSlot = 'all'; _appliedDate = 'today'; _appliedSlot = 'all'; _appliedQuery = '';
+  _filterArea = 'all'; _appliedArea = 'all';
+  if (_suggestActive) { _suggestActive = false; _suggestSeqMap = {}; document.getElementById('smart-route-btn')?.classList.remove('active'); document.getElementById('smart-route-icon').textContent='🎯'; document.getElementById('smart-route-label').textContent='Smart Route Suggest'; }
   document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === 'today'));
   document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === 'all'));
+  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === 'all'));
   renderOrders();
   updateFilterSummary();
 }
@@ -1027,6 +1268,7 @@ function updateFilterSummary() {
   const dateLabel = { today:'Today', yesterday:'Yesterday', day_before:'2 Days Ago', all:'All Dates' }[_appliedDate];
   const slotLabel = { all:'All Sessions', morning:'☀️ Morning', evening:'🌙 Evening' }[_appliedSlot];
   const parts = [dateLabel, slotLabel];
+  if (_appliedArea !== 'all') parts.push(`📍 ${_appliedArea}`);
   if (_appliedQuery) parts.push(`"${_appliedQuery}"`);
   el.textContent = '↳ Showing: ' + parts.join(' · ');
   el.style.display = 'block';
@@ -1063,13 +1305,19 @@ function renderOrders() {
     if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
     // Layer 2: slot/session
     if (!_isSlotMatch(o, _appliedSlot)) return false;
-    // Search query
+    // Layer 3: area
+    if (_appliedArea !== 'all') {
+      const oArea = (o._area || '').toLowerCase();
+      if (!oArea.includes(_appliedArea.toLowerCase())) return false;
+    }
+    // Search query — also checks _area so typing area name in search also works
     if (_appliedQuery) {
       const q = _appliedQuery;
       if (!(o.name||'').toLowerCase().includes(q) &&
           !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) &&
-          !(o.order_id||'').toLowerCase().includes(q)) return false;
+          !(o.order_id||'').toLowerCase().includes(q) &&
+          !(o._area||'').toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -1156,10 +1404,15 @@ function generateRiderPDF() {
     if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
     if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
     if (!_isSlotMatch(o, _appliedSlot)) return false;
+    if (_appliedArea !== 'all') {
+      const oArea = (o._area || '').toLowerCase();
+      if (!oArea.includes(_appliedArea.toLowerCase())) return false;
+    }
     if (_appliedQuery) {
       const q = _appliedQuery;
       if (!(o.name||'').toLowerCase().includes(q) && !(o.phone||'').includes(q) &&
-          !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q)) return false;
+          !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q) &&
+          !(o._area||'').toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -1290,6 +1543,7 @@ function _shortAddr(addr) {
     /^Plus Code\s*:/i,                            // Plus Code: 8Q4M+C2
     /^[\w\s]+,\s*India\s*$/i,                  // Uttar Pradesh, India  (exact line)
     /^\s*\(latitude=[^)]+\)\s*$/i,             // OLD: (latitude=x, longitude=y)
+    /^Area\s*:/i,                              // Area: Lanka (stored for DB, not shown)
   ];
   return addr
     .split('\n')
@@ -1310,12 +1564,17 @@ function _buildFilteredStops() {
     if (_appliedDate === 'yesterday'  && d !== yesterday)  return false;
     if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
     if (!_isSlotMatch(o, _appliedSlot)) return false;
+    if (_appliedArea !== 'all') {
+      const oArea = (o._area || '').toLowerCase();
+      if (!oArea.includes(_appliedArea.toLowerCase())) return false;
+    }
     if (_appliedQuery) {
       const q = _appliedQuery;
       if (!(o.name||'').toLowerCase().includes(q) &&
           !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) &&
-          !(o.order_id||'').toLowerCase().includes(q)) return false;
+          !(o.order_id||'').toLowerCase().includes(q) &&
+          !(o._area||'').toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -1791,6 +2050,99 @@ function _findNearestRemainingIdx() {
     if (d < bestDist) { bestDist = d; bestIdx = i; }
   });
   return bestIdx;
+}
+
+/* ─── SMART ROUTE SUGGEST ──────────────────────────────
+   1. Get rider GPS
+   2. Run TSP (nearest-neighbour) on filtered pending orders with coords
+   3. Assign seq numbers + distances to _suggestSeqMap
+   4. Re-render cards to show badges
+   5. "Start Smart Route" button opens map with optimized sequence   */
+async function toggleSmartSuggest() {
+  if (_suggestActive) {
+    // Turn off
+    _suggestActive = false;
+    _suggestSeqMap = {};
+    document.getElementById('smart-route-btn').classList.remove('active');
+    document.getElementById('smart-route-icon').textContent = '🎯';
+    document.getElementById('smart-route-label').textContent = 'Smart Route Suggest';
+    renderOrders();
+    return;
+  }
+  await _runSmartSuggest();
+}
+
+async function _runSmartSuggest() {
+  const btn = document.getElementById('smart-route-btn');
+  const lbl = document.getElementById('smart-route-label');
+  lbl.textContent = 'Getting GPS…';
+  btn.disabled = true;
+
+  let riderLat, riderLng;
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 30000 })
+    );
+    riderLat = pos.coords.latitude;
+    riderLng = pos.coords.longitude;
+  } catch {
+    rToast('📍 GPS unavailable — using first order as start');
+    riderLat = null; riderLng = null;
+  }
+
+  // Get filtered pending orders that have coordinates
+  const baseList = _buildFilteredStops();
+  const withCoords = baseList
+    .filter(o => _extractCoordsFromAddress(o.address))
+    .map(o => ({ order: o, coords: _extractCoordsFromAddress(o.address) }));
+
+  if (!withCoords.length) {
+    rToast('No orders with GPS coordinates to suggest');
+    lbl.textContent = 'Smart Route Suggest';
+    btn.disabled = false;
+    return;
+  }
+
+  // Use rider GPS or first order as origin
+  const startLat = riderLat ?? withCoords[0].coords.lat;
+  const startLng = riderLng ?? withCoords[0].coords.lng;
+
+  // TSP — nearest neighbour (reuse shared function)
+  const ordered = _nearestNeighborSort([...withCoords], startLat, startLng);
+
+  // Build seq map
+  _suggestSeqMap = {};
+  ordered.forEach((s, i) => {
+    _suggestSeqMap[s.order.order_id] = { seq: i + 1, distKm: s.distKm };
+  });
+
+  const totalKm    = ordered.reduce((sum, s) => sum + (s.distKm || 0), 0);
+  const totalAll   = baseList.length;          // all filtered pending orders
+  const routedCnt  = ordered.length;           // only those with GPS coords
+  const skippedCnt = totalAll - routedCnt;     // orders missing coordinates
+
+  _suggestActive = true;
+  btn.classList.add('active');
+  document.getElementById('smart-route-icon').textContent = '✅';
+  // If some orders lack GPS coords, show "X of Y stops" so rider knows
+  lbl.textContent = skippedCnt > 0
+    ? `${routedCnt} of ${totalAll} stops · ~${totalKm.toFixed(1)}km · Tap to clear`
+    : `${routedCnt} stops · ~${totalKm.toFixed(1)}km · Tap to clear`;
+  btn.disabled = false;
+
+  // Re-render with badges, scroll first order into view
+  renderOrders();
+  setTimeout(() => {
+    const firstCard = document.getElementById('card-' + ordered[0]?.order?.order_id);
+    if (firstCard) firstCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
+
+  // Toast — warn if some orders were skipped from route
+  if (skippedCnt > 0) {
+    rToast(`🎯 ${routedCnt} of ${totalAll} optimized · ⚠️ ${skippedCnt} order${skippedCnt>1?'s':''} have no GPS`);
+  } else {
+    rToast(`🎯 ${routedCnt} orders optimized · Start from #1`);
+  }
 }
 
 async function optimizeRoute() {
@@ -2644,7 +2996,7 @@ function startPolling() {
   _pollTimer = setInterval(() => {
     if (document.hidden) return;
     loadOrders();
-  }, 1000_000);
+  }, 60_000); // 60s — rider needs timely order updates; 1000000ms (16.6 min) was a typo
 }
 
 function stopPolling() {
@@ -2844,6 +3196,21 @@ if ('serviceWorker' in navigator) {
     if (!_swRefresh) { _swRefresh = true; location.reload(); }
   });
 }
+
+// ── Offline / Online banner ────────────────────────────────────────
+(function() {
+  const bar = document.getElementById('r-offline-bar');
+  if (!bar) return;
+  function setOffline() { bar.classList.add('show'); }
+  function setOnline()  {
+    bar.classList.remove('show');
+    // Reload orders silently when reconnected
+    loadOrders().catch(() => {});
+  }
+  window.addEventListener('offline', setOffline);
+  window.addEventListener('online',  setOnline);
+  if (!navigator.onLine) setOffline();
+})();
 </script>
 </body>
 </html>
