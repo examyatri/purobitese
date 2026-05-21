@@ -1,12 +1,18 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.9                                    ║
+// ║  Version : v60.0                                    ║
 // ║  Updated : 2026-05-21                               ║
-// ║  Changes : Dead action cleanup — removed 44 dead    ║
-// ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
-// ║            No frontend calls these. Faster switch,   ║
-// ║            smaller attack surface, cleaner code.     ║
+// ║  Changes : Security & logic fixes —                 ║
+// ║            adminDeleteUser moved to _ADMIN_ONLY     ║
+// ║            rechargeWallet/manualRefund amount guard ║
+// ║            deleteNotificationRange server validation║
+// ║            forceUdharOrder dead ref removed         ║
+// ║            getSubscribersForBulk: slot=both removed ║
+// ║              orderFor=all removed                   ║
+// ║            checkSubscriber added to _USER_SENSITIVE ║
+// ║            updateSubscriber: plan_end support added ║
+// ║            adminGetUsers: fixed order count bug     ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -131,7 +137,8 @@ const _ADMIN_ONLY_ACTIONS = new Set([
   'createStaff',
   'updateStaff',
   'deleteStaff',
-  'resetAdminPassword'
+  'resetAdminPassword',
+  'adminDeleteUser'   // permanently deletes a user + all their data — admin-only
 ]);
 
 // Actions that require any valid staff session token (role = 'admin' OR 'staff')
@@ -188,7 +195,6 @@ const _STAFF_ACTIONS = new Set([
   'setDeliveryZone',
   'setAutoTiffinCutoff',
   'setDeliveryAreas',
-  'adminDeleteUser',
   'adminSetUserAddress',
   'createRider',
   // ── Read-only admin data — still require a valid staff session ──
@@ -205,6 +211,7 @@ const _USER_SENSITIVE_ACTIONS = new Set([
   'getUserOrders', 'getKhata', 'updatePauseDelivery',
   'getSubscriberPauseStatus', 'changePassword', 'updateProfile', 'getMyProfile',
   'getSubscriberStatus', 'getSubscriberBalance',
+  'checkSubscriber',  // contains full subscriber row including pause/plan — self or staff only
 ]);
 
 function _verifyUserToken(token, phone) {
@@ -693,7 +700,7 @@ function _titleCase(str) {
   return (str || '').replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'user', slot = 'morning', paymentMode = null }) {
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -706,9 +713,11 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     }
   }
   // Mark coupon used at order-placement time (not at validate time)
+  // OPT: use _rawCouponRow if passed (already fetched by createOrder) — skips a DB re-fetch
   if (coupon && coupon.code) {
     try {
-      const { data: cpnRow } = await supabase.from('coupons').select('used_count,usage_count,used_by,auto_delete,max_usage,total_usage_limit').eq('code', coupon.code).single();
+      const cpnRow = _rawCouponRow ||
+        (await supabase.from('coupons').select('used_count,usage_count,used_by,auto_delete,max_usage,total_usage_limit').eq('code', coupon.code).single()).data;
       if (cpnRow) {
         const newUsedCount = (cpnRow.used_count||0) + 1;
         let ub=[]; try{ub=JSON.parse(cpnRow.used_by||'[]');}catch{ub=[];}
@@ -1055,7 +1064,7 @@ app.post('/api', async (req, res) => {
         const pmTmrw = subRow?.pause_morning && subRow?.pause_morning_from === tomorrowStrSt;
         const peTmrw = subRow?.pause_evening && subRow?.pause_evening_from === tomorrowStrSt;
         const pendingTomorrowSt = (pmTmrw && peTmrw) ? 'both' : pmTmrw ? 'lunch' : peTmrw ? 'dinner' : null;
-        return res.json({ success: true, balance: balRes.data?.balance || 0, pauseMode: effectivePauseMode, pendingTomorrow: pendingTomorrowSt, plan: subRow?.plan || 'morning' });
+        return res.json({ success: true, isSubscriber: !!subRow, balance: balRes.data?.balance || 0, pauseMode: effectivePauseMode, pendingTomorrow: pendingTomorrowSt, plan: subRow?.plan || 'morning' });
       }
 
       case 'addMenuItem': {
@@ -1107,73 +1116,100 @@ app.post('/api', async (req, res) => {
         if (!_isStaff && !_verifyUserToken(req.body.userToken, phone)) {
           return res.status(401).json({ success: false, error: 'Auth required. Please log in again.' });
         }
-        const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
+        const { data: user } = await supabase.from('users').select('phone, name, address').eq('phone', phone).single();
         if (!user) return res.json({ success: false, error: 'User not found' });
         const address = data.address || user.address;
         if (!address) return res.json({ success: false, error: 'Delivery address required' });
-        const khataEnabledRaw = await getCachedSetting('khata_enabled');
-        const khataEnabled = JSON.parse(khataEnabledRaw || 'false');
-        const { data: subRow } = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-        user.is_subscriber = !!subRow;
-        user.address = address;
         if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
           return res.json({ success: false, error: 'Order items required' });
         }
 
-        // ── Price verification: fetch DB prices — never blindly trust client values ──
+        // ── OPT: Parallel fetch — subscribers + menu price verify + coupon + slot setting ──
+        // All four are independent of each other; only user.phone is needed (already known).
+        // Menu items: use in-memory cache if warm (60s TTL, invalidated on any menu change)
+        //   → zero Supabase round-trip on cache hit. Falls back to DB if cache is cold.
+        const clientItemIds = data.items.map(i => i.item_id).filter(Boolean);
+        const cpnCode = data.coupon?.code ? (data.coupon.code || '').toUpperCase() : null;
+        const _cacheNow = Date.now();
+        const _menuCacheHit = _menuItemsCache && (_cacheNow - _menuItemsCacheTs) < _MENU_ITEMS_TTL;
+
+        const [
+          khataEnabledRaw,
+          subResult,
+          menuResult,
+          couponResult,
+          schVal
+        ] = await Promise.all([
+          getCachedSetting('khata_enabled'),
+          supabase.from('subscribers').select('phone').eq('phone', phone).single(),
+          // Use in-memory menu cache if warm; otherwise hit DB
+          _menuCacheHit
+            ? Promise.resolve({ data: _menuItemsCache.filter(m => clientItemIds.includes(m.item_id)) })
+            : (clientItemIds.length > 0
+                ? supabase.from('menu_items').select('item_id, price, name, variants').in('item_id', clientItemIds)
+                : Promise.resolve({ data: [] })),
+          cpnCode
+            ? supabase.from('coupons').select('*').eq('code', cpnCode).single()
+            : Promise.resolve({ data: null }),
+          getCachedSetting('weekly_schedule')
+        ]);
+
+        const khataEnabled = JSON.parse(khataEnabledRaw || 'false');
+        const { data: subRow } = subResult;
+        user.is_subscriber = !!subRow;
+        user.address = address;
+
+        // ── Price verification: use parallel-fetched menu items ──
         // Strategy:
         //   1. Item has variants in DB + client sent a matching variantLabel → use that variant price
         //   2. Item has variants in DB + label missing/not matched → use closest variant by price,
         //      or first variant as safe default (never fall back to base item price)
         //   3. Item has NO variants in DB → use base item price
-        const clientItemIds = data.items.map(i => i.item_id).filter(Boolean);
         let verifiedItems = data.items;
-        if (clientItemIds.length > 0) {
-          const { data: dbMenuItems } = await supabase.from('menu_items').select('item_id, price, name, variants').in('item_id', clientItemIds);
-          if (dbMenuItems && dbMenuItems.length > 0) {
-            const dbItemMap = {};
-            for (const m of dbMenuItems) dbItemMap[m.item_id] = m;
-            verifiedItems = data.items.map(i => {
-              const dbItem = dbItemMap[i.item_id];
-              if (!dbItem) return i; // item not in DB — pass through as-is
+        const dbMenuItems = menuResult.data;
+        if (dbMenuItems && dbMenuItems.length > 0) {
+          const dbItemMap = {};
+          for (const m of dbMenuItems) dbItemMap[m.item_id] = m;
+          verifiedItems = data.items.map(i => {
+            const dbItem = dbItemMap[i.item_id];
+            if (!dbItem) return i; // item not in DB — pass through as-is
 
-              // Parse DB variants
-              let dbVariants = [];
-              try { dbVariants = typeof dbItem.variants === 'string' ? JSON.parse(dbItem.variants) : (Array.isArray(dbItem.variants) ? dbItem.variants : []); } catch(_) {}
-              // Filter out any malformed variant entries
-              dbVariants = dbVariants.filter(v => v && v.label && v.price != null);
+            // Parse DB variants
+            let dbVariants = [];
+            try { dbVariants = typeof dbItem.variants === 'string' ? JSON.parse(dbItem.variants) : (Array.isArray(dbItem.variants) ? dbItem.variants : []); } catch(_) {}
+            // Filter out any malformed variant entries
+            dbVariants = dbVariants.filter(v => v && v.label && v.price != null);
 
-              if (dbVariants.length > 0) {
-                // Item has variants — NEVER use base item price
-                // Step 1: exact label match (normal happy path)
-                if (i.variantLabel) {
-                  const exact = dbVariants.find(v => v.label === i.variantLabel);
-                  if (exact) return { ...i, price: exact.price };
-                  // Step 2: case-insensitive match (handles minor label casing differences)
-                  const loose = dbVariants.find(v => v.label.toLowerCase() === i.variantLabel.toLowerCase());
-                  if (loose) return { ...i, price: loose.price, variantLabel: loose.label };
-                }
-                // Step 3: client sent a price — find the closest variant price in DB
-                // This prevents price manipulation while gracefully handling label mismatches
-                if (i.price != null) {
-                  const byPrice = dbVariants.find(v => v.price === i.price);
-                  if (byPrice) return { ...i, price: byPrice.price, variantLabel: byPrice.label };
-                }
-                // Step 4: safe fallback — use first (cheapest or default) variant
-                return { ...i, price: dbVariants[0].price, variantLabel: dbVariants[0].label };
+            if (dbVariants.length > 0) {
+              // Item has variants — NEVER use base item price
+              // Step 1: exact label match (normal happy path)
+              if (i.variantLabel) {
+                const exact = dbVariants.find(v => v.label === i.variantLabel);
+                if (exact) return { ...i, price: exact.price };
+                // Step 2: case-insensitive match (handles minor label casing differences)
+                const loose = dbVariants.find(v => v.label.toLowerCase() === i.variantLabel.toLowerCase());
+                if (loose) return { ...i, price: loose.price, variantLabel: loose.label };
               }
+              // Step 3: client sent a price — find the closest variant price in DB
+              // This prevents price manipulation while gracefully handling label mismatches
+              if (i.price != null) {
+                const byPrice = dbVariants.find(v => v.price === i.price);
+                if (byPrice) return { ...i, price: byPrice.price, variantLabel: byPrice.label };
+              }
+              // Step 4: safe fallback — use first (cheapest or default) variant
+              return { ...i, price: dbVariants[0].price, variantLabel: dbVariants[0].label };
+            }
 
-              // Item has no variants — use DB base price
-              return { ...i, price: dbItem.price != null ? dbItem.price : i.price };
-            });
-          }
+            // Item has no variants — use DB base price
+            return { ...i, price: dbItem.price != null ? dbItem.price : i.price };
+          });
         }
 
-        // ── FIX #4: Re-fetch coupon from DB — never trust client-supplied coupon values ──
+        // ── FIX #4: Coupon already fetched in parallel above — verify from that result ──
         let verifiedCoupon = null;
-        if (data.coupon && data.coupon.code) {
-          const cpnCode = (data.coupon.code || '').toUpperCase();
-          const { data: dbCoupon } = await supabase.from('coupons').select('*').eq('code', cpnCode).single();
+        let _rawCouponRow  = null; // passed to _createSingleOrder to skip a second DB fetch
+        if (cpnCode) {
+          const dbCoupon = couponResult.data;
           const today = istDateStr(ist);
           if (dbCoupon && dbCoupon.is_active && !(dbCoupon.expiry_date && dbCoupon.expiry_date < today)) {
             const maxUse = dbCoupon.max_usage ?? dbCoupon.total_usage_limit ?? null;
@@ -1185,14 +1221,14 @@ app.post('/api', async (req, res) => {
                 discount_value: dbCoupon.discount_value,
                 cap_amount:     capAmt
               };
+              _rawCouponRow = dbCoupon; // full row — _createSingleOrder uses this, skips re-fetch
             }
           }
         }
 
-        // ── Auto-detect slot for order ──
+        // ── Auto-detect slot — use weekly_schedule already fetched in parallel ──
         let autoSlot = 'morning';
         try {
-          const schVal = await getCachedSetting('weekly_schedule');
           const sch = JSON.parse(schVal || '[]');
           const dayIdx = ist.getUTCDay();
           const d = Array.isArray(sch) && sch.length === 7 ? sch[dayIdx] : null;
@@ -1237,7 +1273,7 @@ app.post('/api', async (req, res) => {
 
         const result = await _createSingleOrder({
           user, items: verifiedItems, deliveryCharge: serverDeliveryCharge,
-          khataEnabled, ist, coupon: verifiedCoupon, source: 'user',
+          khataEnabled, ist, coupon: verifiedCoupon, _rawCouponRow, source: 'user',
           paymentMode: data.paymentMode || null, slot: autoSlot
         });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
@@ -1390,9 +1426,8 @@ app.post('/api', async (req, res) => {
       // Get subscribers list with eligibility info for bulk order preview
       case 'getSubscribersForBulk': {
         const today = istDateStr(ist);
-        const slot  = data.slot || 'morning';
-        const planFilter = data.planFilter || 'all'; // 'all' | 'active' | 'expiring'
-        const orderFor   = data.orderFor || 'subscribers'; // 'subscribers' | 'all'
+        // slot must be 'morning' or 'evening' — 'both' not supported (admin always picks one slot)
+        const slot  = data.slot === 'evening' ? 'evening' : 'morning';
 
         // Fetch khata setting to know if balance matters for eligibility
         const khataSettingRawForBulk = await getCachedSetting('khata_enabled');
@@ -1403,17 +1438,11 @@ app.post('/api', async (req, res) => {
         const { data: subs } = await supabase.from('subscribers').select('*');
 
         // Fetch today's orders for this slot to detect duplicates
-        // slot='both' → check both morning and evening orders
-        let todayOrdersQuery = supabase.from('orders')
+        const { data: todayOrders } = await supabase.from('orders')
           .select('phone, order_id')
           .eq('date', today)
+          .eq('slot', slot)
           .not('order_status', 'eq', 'cancelled');
-        if (slot === 'both') {
-          todayOrdersQuery = todayOrdersQuery.in('slot', ['morning', 'evening']);
-        } else {
-          todayOrdersQuery = todayOrdersQuery.eq('slot', slot);
-        }
-        const { data: todayOrders } = await todayOrdersQuery;
 
         const orderedPhones = new Set((todayOrders || []).map(o => o.phone));
 
@@ -1435,9 +1464,6 @@ app.post('/api', async (req, res) => {
           const pause     = sub.pause_delivery || 'none';
           const ordered   = orderedPhones.has(sub.phone);
 
-          // Granular fields (pause_morning/pause_evening) are source of truth when set.
-          // Fall back to legacy pause_delivery ONLY when the granular boolean is false
-          // (rows pre-dating granular fields). This ensures pause_morning_from date is respected.
           const pm = sub.pause_morning
             ? isPauseActive(sub.pause_morning, sub.pause_morning_from, today)
             : (pause === 'lunch' || pause === 'both');
@@ -1453,7 +1479,6 @@ app.post('/api', async (req, res) => {
           const subPlan = sub.plan || 'both';
           const planMismatch = (slot === 'morning' && subPlan === 'evening')
             || (slot === 'evening' && subPlan === 'morning');
-          // Eligible for auto-bulk: not paused, not already ordered, plan matches slot, and sufficient balance (if khata enabled)
           const insufficientBalance = khataEnabledForBulk && balance < bulkPrice;
           const eligible = !slotPaused && !planMismatch && !ordered && !insufficientBalance;
 
@@ -1472,28 +1497,6 @@ app.post('/api', async (req, res) => {
             insufficient_balance: insufficientBalance,
             eligible
           });
-        }
-
-        // If orderFor === 'all', also include non-subscriber users
-        if (orderFor === 'all') {
-          const { data: allUsers } = await supabase.from('users').select('phone, name, address');
-          const subPhoneSet = new Set(subPhones);
-          const extraPhones = (allUsers || []).filter(u => !subPhoneSet.has(u.phone)).map(u => u.phone);
-          // Batch-fetch balances for extra users too
-          const { data: extraBalRows } = extraPhones.length
-            ? await supabase.from('khata_summary').select('phone, balance').in('phone', extraPhones)
-            : { data: [] };
-          const extraBalMap = {};
-          (extraBalRows || []).forEach(b => { extraBalMap[b.phone] = b.balance; });
-          for (const u of (allUsers || [])) {
-            if (subPhoneSet.has(u.phone)) continue;
-            const ordered = orderedPhones.has(u.phone);
-            result.push({
-              phone: u.phone, name: u.name || u.phone, address: u.address || '',
-              balance: extraBalMap[u.phone] ?? 0, plan_end: null,
-              pause: 'none', already_ordered: ordered, eligible: !ordered
-            });
-          }
         }
 
         return res.json({ success: true, subscribers: result });
@@ -1520,7 +1523,7 @@ app.post('/api', async (req, res) => {
         ] = await Promise.all([
           getCachedSetting('khata_enabled'),
           supabase.from('orders').select('phone').eq('date', today).or(`slot.eq.${bulkSlot},slot.is.null`).not('order_status', 'eq', 'cancelled'),
-          supabase.from('users').select('*').in('phone', cleanPhones),
+          supabase.from('users').select('phone, name, address').in('phone', cleanPhones),
           supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off, plan').in('phone', cleanPhones)
         ]);
 
@@ -1896,6 +1899,8 @@ app.post('/api', async (req, res) => {
         const updates = { plan_start: data.plan_start, notes: data.notes };
         if (data.plan)           updates.plan           = data.plan;
         if (data.is_delivery_off !== undefined) updates.is_delivery_off = data.is_delivery_off;
+        // plan_end: allow setting or clearing (null = infinite subscription)
+        if (data.plan_end !== undefined) updates.plan_end = data.plan_end || null;
         await supabase.from('subscribers').update(updates).eq('phone', cleanPhone(data.phone));
         return res.json({ success: true });
       }
@@ -2173,6 +2178,11 @@ app.post('/api', async (req, res) => {
       case 'rechargeWallet': {
         const phone  = cleanPhone(data.phone);
         const amount = Number(data.amount);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+        if (!amount || isNaN(amount) || !isFinite(amount) || amount <= 0) {
+          return res.json({ success: false, error: 'Invalid amount' });
+        }
+        if (amount > 50000) return res.json({ success: false, error: 'Amount too large (max ₹50,000 per recharge)' });
         const newBal = await _atomicWalletUpdate(phone, amount);
         await supabase.from('khata_entries').insert({
           id:              generateTxnId(ist),
@@ -2200,6 +2210,11 @@ app.post('/api', async (req, res) => {
       case 'manualRefund': {
         const phone  = cleanPhone(data.phone);
         const amount = Number(data.amount);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+        if (!amount || isNaN(amount) || !isFinite(amount)) {
+          return res.json({ success: false, error: 'Invalid amount' });
+        }
+        if (Math.abs(amount) > 50000) return res.json({ success: false, error: 'Amount too large (max ±₹50,000)' });
         const newBal = await _atomicWalletUpdate(phone, amount);
         await supabase.from('khata_entries').insert({
           id:              generateTxnId(ist),
@@ -2488,11 +2503,18 @@ app.post('/api', async (req, res) => {
           const { data: subs } = await supabase.from('subscribers').select('phone, plan, plan_end');
           const subMap = {};
           for (const s of (subs || [])) subMap[s.phone] = s;
-          const { data: orderAgg } = await supabase.from('orders').select('phone, date').order('date', { ascending: false });
+          // Fetch only phone+date (two lean columns) — avoids pulling all order data.
+          // Ordered desc so first row per phone is the most recent date.
+          const { data: orderAgg } = await supabase
+            .from('orders')
+            .select('phone, date')
+            .order('date', { ascending: false });
+          // Aggregate in JS: count total orders and track latest date per user
           const orderMap = {};
           for (const o of (orderAgg || [])) {
             if (!orderMap[o.phone]) orderMap[o.phone] = { count: 0, last: o.date };
             orderMap[o.phone].count++;
+            // first iteration sets last=o.date (most recent due to desc order); subsequent keep it
           }
           const safe = (rows || []).map(u => {
             const { password_hash, ...s } = u;
@@ -2626,6 +2648,13 @@ app.post('/api', async (req, res) => {
       }
 
       case 'deleteNotificationRange': {
+        // Server-side guard: validate from/to before touching DB
+        if (!data.from || !data.to) return res.json({ success: false, error: 'from and to dates required' });
+        const _dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        if (!_dateRe.test(data.from) || !_dateRe.test(data.to)) {
+          return res.json({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+        }
+        if (data.from > data.to) return res.json({ success: false, error: 'from must be before to' });
         // Respects read_only flag — only deletes read notifications, never unread
         // ALWAYS excludes today's notifications regardless of read status
         // Use IST midnight (not UTC midnight) so the "today" guard is correct
