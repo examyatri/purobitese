@@ -503,8 +503,11 @@ async function _authenticateUser(phone, password) {
   if (!user) return { success: false, error: 'Session invalid' };
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return { success: false, error: 'Session invalid' };
-  const { data: sub }    = await supabase.from('subscribers').select('*').eq('phone', phone).single();
-  const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+  // Parallel fetch — subscriber + balance in one round trip instead of two sequential calls
+  const [{ data: sub }, { data: balRow }] = await Promise.all([
+    supabase.from('subscribers').select('*').eq('phone', phone).single(),
+    supabase.from('khata_summary').select('balance').eq('phone', phone).single()
+  ]);
   const { password_hash, ...safeUser } = user;
   // Issue a signed user token — 30-day TTL so customers never face forced re-login
   const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -604,6 +607,87 @@ async function _deductMenuStock(items) {
   }));
 }
 
+/* ─── TIFFO DELIVERY ZONES (server-side mirror of client zone table) ─────────
+   Used in _extractArea as a last resort for orders that have GPS coords in the
+   address string but no "Area:" tag (placed before v81 customer app update).
+   Keep in sync with _TIFFO_ZONES in index.html. ─── */
+const _SERVER_ZONES = [
+  ['BHU Campus',       25.2580, 82.9860, 25.2750, 83.0040],
+  ['Lanka',            25.2620, 82.9820, 25.2720, 82.9910],
+  ['Sunderpur',        25.2750, 82.9860, 25.2860, 83.0000],
+  ['Hyderabad Colony', 25.2480, 82.9900, 25.2620, 83.0050],
+  ['Durgakund',        25.2900, 82.9980, 25.3020, 83.0100],
+  ['Ravindrapuri',     25.2860, 83.0000, 25.2970, 83.0180],
+  ['Assi Ghat',        25.2810, 83.0080, 25.2960, 83.0200],
+  ['Trauma Centre',    25.2550, 82.9990, 25.2680, 83.0100],
+  ['Nagwa',            25.2700, 83.0050, 25.2840, 83.0200],
+  ['Shivpur',          25.2960, 82.9780, 25.3100, 82.9960],
+];
+
+function _zoneFromCoords(lat, lng) {
+  for (const [name, s, w, n, e] of _SERVER_ZONES) {
+    if (lat >= s && lat <= n && lng >= w && lng <= e) return name;
+  }
+  return '';
+}
+
+/* ─── AREA EXTRACTION ────────────────────────────────────────────────────────
+   Extract the delivery area from a structured address string.
+   Priority:
+     1. Explicit "Area: X" tag  (written by customer app v79+ with GPS)
+     2. Last comma-token of line 1 (road+area line from _buildAddress)
+     3. Line 0 if it is a single short token with no digits (bare area like "Lanka")
+     4. GPS coords in address → zone lookup (for pre-v81 orders without Area tag)
+   Returns a title-cased area string, or '' if none found.
+   Server-side: zero external calls, always reliable, works for all address formats. */
+function _extractArea(address) {
+  if (!address) return '';
+  const lines = address.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Priority 1: explicit "Area: Lanka" tag
+  for (const line of lines) {
+    const m = line.match(/^Area:\s*(.+)$/i);
+    if (m) return _titleCase(m[1].trim());
+  }
+
+  const _isMeta = l => /^(coordinates:|plus code:|area:|near\b)/i.test(l)
+                    || /\d{5,6}/.test(l)
+                    || /india$/i.test(l);
+
+  const _areaToken = l => {
+    const parts = l.split(',').map(p => p.trim()).filter(Boolean);
+    const c = parts[parts.length - 1] || '';
+    return (c.length > 1 && c.length < 30 && !/\d{3,}/.test(c)
+            && !/\bno\.?\s*\d+\s*$/i.test(c)) ? c : null;
+  };
+
+  // Priority 2: last comma-token of line[1] (road+area line)
+  if (lines.length >= 2 && !_isMeta(lines[1])) {
+    const a = _areaToken(lines[1]);
+    if (a) return _titleCase(a);
+  }
+
+  // Priority 3: line[0] is a single short non-numeric token
+  if (lines.length >= 1 && !_isMeta(lines[0]) && !lines[0].includes(',')) {
+    const l0 = lines[0].trim();
+    if (l0.length > 1 && l0.length < 25 && !/\d{3,}/.test(l0)
+        && !/\bno\.?\s*\d+\s*$/i.test(l0)) return _titleCase(l0);
+  }
+
+  // Priority 4: GPS coords in address → zone lookup (pre-v81 orders)
+  const coordMatch = address.match(/Coordinates\s*:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i);
+  if (coordMatch) {
+    const zone = _zoneFromCoords(parseFloat(coordMatch[1]), parseFloat(coordMatch[2]));
+    if (zone) return zone;
+  }
+
+  return '';
+}
+
+function _titleCase(str) {
+  return (str || '').replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
 async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
@@ -657,6 +741,7 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     name:            user.name,
     phone:           user.phone,
     address:         user.address,
+    area:            _extractArea(user.address),
     items:           JSON.stringify(items),
     total_amount:    subtotal,
     delivery_charge: deliveryCharge,
@@ -823,6 +908,7 @@ app.post('/api', async (req, res) => {
           phone,
           email:         data.email || null,
           address:       data.address || null,
+          area:          _extractArea(data.address || ''),
           password_hash: hash,
           created_at:    createdAt
         });
@@ -876,7 +962,10 @@ app.post('/api', async (req, res) => {
         const updates = {};
         if (data.name    !== undefined) updates.name    = data.name;
         if (data.email   !== undefined) updates.email   = data.email;
-        if (data.address !== undefined) updates.address = data.address;
+        if (data.address !== undefined) {
+          updates.address = data.address;
+          updates.area    = _extractArea(data.address || '');
+        }
         await supabase.from('users').update(updates).eq('phone', phone);
         return res.json({ success: true });
       }
@@ -1539,6 +1628,7 @@ app.post('/api', async (req, res) => {
             name:            user.name,
             phone:           cleanPh,
             address:         user.address || '',
+            area:            _extractArea(user.address || ''),
             items:           itemsJson,
             total_amount:    priceNum,
             delivery_charge: 0,
@@ -1855,6 +1945,7 @@ app.post('/api', async (req, res) => {
           phone,
           email:         data.email || null,
           address:       data.address || null,
+          area:          _extractArea(data.address || ''),
           password_hash: hash,
           created_at:    new Date().toISOString()
         });
