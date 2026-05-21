@@ -958,7 +958,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   border-top-color:var(--p);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://purobitese-api.onrender.com/config.js" async></script>
+<script src="https://purobitese-api.onrender.com/config.js"></script>
 </head>
 <body>
 
@@ -1928,7 +1928,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 const CFG = {
   API: 'https://purobitese-api.onrender.com/api',
   // Lazy getter — reads window.__TIFFO_API_KEY__ on each access, not at definition time.
-  // Async config.js may not have run yet when this inline script parses.
+  // config.js is synchronous so the key is normally set before DOMContentLoaded;
+  // this getter is a fallback in case of a failed /config.js load.
   get KEY() { return window.__TIFFO_API_KEY__ || ''; },
   WA:  '919889760350'
 };
@@ -1987,8 +1988,24 @@ function doAdminLogout() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  // ── KEY GUARD: config.js async — fetch key if not yet available ──────────
-  if (!CFG.KEY) await _refreshApiKey();
+  // ── KEY GUARD: ensure API key is available before any API call ───────────
+  // config.js is now a synchronous blocking script, so CFG.KEY is almost
+  // always set before this point. _refreshApiKey() is a safety net for the
+  // rare edge case where Render's /config.js request failed at page load.
+  if (!CFG.KEY) {
+    const gotKey = await _refreshApiKey();
+    if (!gotKey) {
+      // Key could not be fetched after retries — show a clear error instead
+      // of silently booting with an empty key and producing cryptic failures.
+      document.getElementById('auth-pg').innerHTML =
+        '<div style="padding:40px;text-align:center;font-family:system-ui">' +
+        '<p style="font-size:16px;font-weight:700;color:#dc2626">Connection error</p>' +
+        '<p style="color:#64748b;margin-bottom:20px">Could not reach the server. Check your connection and try again.</p>' +
+        '<button onclick="location.reload()" style="padding:10px 24px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Retry</button>' +
+        '</div>';
+      return; // abort boot — do not proceed with empty key
+    }
+  }
 
   const session = AdminAuth.get();
   // ── PROACTIVE EXPIRY CHECK ───────────────────────────────────────────────
@@ -2128,10 +2145,17 @@ function _onTabChange() {
   startPolling();
 }
 
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
   if (document.hidden) { stopPolling(); stopNotifAutoRefresh(); }
   else if (AdminAuth.get()) {
-    // When browser tab regains focus, reload whatever admin page is active
+    // When browser tab regains focus, ensure the API key is present before
+    // firing any API call. On a very slow connection or after Render cold-start,
+    // the key might not yet be set (defensive guard — normally it is already set).
+    if (!CFG.KEY) {
+      const gotKey = await _refreshApiKey();
+      if (!gotKey) return; // key still unavailable — skip this reload cycle
+    }
+    // Reload whatever admin page is active
     const cur = document.querySelector('.pg-v.act')?.id;
     const visLoaders = {
       'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
@@ -2429,16 +2453,22 @@ function guardedApi(key, fn) {
 let _sessionExpiredHandled = false;
 
 async function _refreshApiKey() {
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
-  try {
-    const r = await fetch('https://purobitese-api.onrender.com/config.js', {
-      cache: 'no-store', signal: ctrl.signal
-    });
-    const txt = await r.text();
-    const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
-    if (m && m[1]) { window.__TIFFO_API_KEY__ = m[1]; return true; }
-  } catch {} finally { clearTimeout(timer); }
+  // Try up to 2 attempts (initial + one retry with a short back-off).
+  // Covers Render cold-starts and transient network blips that previously
+  // caused a silent empty-key boot leading to "Dashboard load failed".
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const r = await fetch('https://purobitese-api.onrender.com/config.js', {
+        cache: 'no-store', signal: ctrl.signal
+      });
+      const txt = await r.text();
+      const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
+      if (m && m[1]) { window.__TIFFO_API_KEY__ = m[1]; clearTimeout(timer); return true; }
+    } catch (_) {} finally { clearTimeout(timer); }
+  }
   return false;
 }
 
