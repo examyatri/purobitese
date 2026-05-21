@@ -1982,9 +1982,8 @@ function doAdminLogout() {
   stopNotifAutoRefresh(); // stop dedicated notif timer if running
   AdminAuth.clear();
   _sessionExpiredHandled = false; // reset so next login gets a clean 401-recovery path
-  document.getElementById('main-layout').style.display = 'none';
-  document.getElementById('auth-pg').style.display = 'flex';
-  document.getElementById('a-password').value = '';
+  // Hard reload — clears all in-memory state, form autofill, and any missed field.
+  location.reload();
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -2471,7 +2470,7 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRet
       // then logout fires on the next tick — no double-toast race.
       if (!_tokenRetried && !_sessionExpiredHandled) {
         _sessionExpiredHandled = true;
-        setTimeout(() => doAdminLogout(), 0);
+        setTimeout(() => doAdminLogout(), 1500); // 1.5s delay so session-expired toast is visible before reload
       }
       throw new Error('Session expired. Please log in again.');
     }
