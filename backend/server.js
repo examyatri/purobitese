@@ -2791,14 +2791,28 @@ app.post('/api', async (req, res) => {
         if (slot === 'morning') summaryQuery = summaryQuery.eq('slot', 'morning');
         else if (slot === 'evening') summaryQuery = summaryQuery.eq('slot', 'evening');
 
+        // Build slot-aware locked-sessions query:
+        // When slot='morning' or 'evening', only exclude orders locked under matching slot (or 'all').
+        // When slot='all', exclude orders locked under any slot.
+        let lockQuery = supabase.from('cooking_sessions').select('locked_order_ids')
+          .lte('from_date', toDate).gte('to_date', fromDate);
+        if (slot === 'morning') lockQuery = lockQuery.in('slot', ['morning', 'all']);
+        else if (slot === 'evening') lockQuery = lockQuery.in('slot', ['evening', 'all']);
+
+        // Session list query: same slot filter for the lower Cooking Sessions panel
+        let sesListQuery = supabase.from('cooking_sessions').select('*')
+          .lte('from_date', toDate).gte('to_date', fromDate).order('created_at', { ascending: false });
+        if (slot === 'morning') sesListQuery = sesListQuery.in('slot', ['morning', 'all']);
+        else if (slot === 'evening') sesListQuery = sesListQuery.in('slot', ['evening', 'all']);
+
         const [
           { data: lockSessions },
           { data: orders },
           { data: allSessions, error: sesErr }
         ] = await Promise.all([
-          supabase.from('cooking_sessions').select('locked_order_ids').lte('from_date', toDate).gte('to_date', fromDate),
+          lockQuery,
           summaryQuery,
-          supabase.from('cooking_sessions').select('*').lte('from_date', toDate).gte('to_date', fromDate).order('created_at', { ascending: false })
+          sesListQuery
         ]);
 
         // ── Build locked set ──────────────────────────────────────────────
