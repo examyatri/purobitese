@@ -6254,6 +6254,7 @@ function _adminShortAddr(addr) {
     /^Plus Code\s*:/i,
     /^[\w\s]+,\s*India\s*$/i,
     /^\s*\(latitude=[^)]+\)\s*$/i,
+    /^Area\s*:/i,                    // Area: Lanka — stored for DB, not shown in UI
   ];
   return addr.split('\n').map(l => l.trim()).filter(l => l && !META.some(re => re.test(l))).join(', ').trim();
 }
