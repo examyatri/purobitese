@@ -430,24 +430,26 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 }
 
 /* ─── ALL PINS OVERLAY (Street Map full view) ─────────── */
-#all-pins-panel{
-  position:absolute;inset:0;z-index:50;
-  background:#0f172a;
-  display:none;flex-direction:column;
+/* ── All-Pins expanded mode ── */
+#all-pins-bar{
+  position:absolute;bottom:0;left:0;right:0;z-index:20;
+  background:rgba(15,23,42,.88);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:space-between;
+  padding:7px 12px;border-top:1px solid #334155;
+  font-family:var(--ff);font-size:11px;color:#94a3b8;
 }
-#all-pins-panel.show{display:flex}
-#all-pins-topbar{
-  background:#1e293b;padding:10px 14px;
-  display:flex;align-items:center;justify-content:space-between;
-  flex-shrink:0;border-bottom:1px solid #334155;
+#all-pins-bar.show{display:flex}
+#all-pins-stats{flex:1}
+#all-pins-close{
+  background:#334155;color:#e2e8f0;border:none;
+  border-radius:7px;padding:5px 12px;font-size:12px;
+  font-family:var(--ff);font-weight:700;cursor:pointer;
+  white-space:nowrap;margin-left:10px;
 }
-#all-pins-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#f1f5f9}
-#all-pins-close{background:#334155;color:#94a3b8;border:none;border-radius:7px;padding:5px 10px;font-size:14px;cursor:pointer}
-#all-pins-leaflet{flex:1;width:100%}
-#all-pins-stats{
-  background:#1e293b;padding:7px 14px;
-  font-family:var(--ff);font-size:11px;color:#64748b;
-  flex-shrink:0;text-align:center;border-top:1px solid #334155;
+#all-pins-close:active{background:#475569}
+#map-container.all-pins-expanded{
+  flex:0 0 88vh!important;
+  transition:flex-basis 280ms ease;
 }
 
 /* Pull-to-Refresh */
@@ -617,6 +619,11 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   <!-- Leaflet Map -->
   <div id="map-container">
     <div id="leaflet-map"></div>
+    <!-- All-Pins stats bar — overlaid at bottom of map when expanded -->
+    <div id="all-pins-bar">
+      <span id="all-pins-stats"></span>
+      <button id="all-pins-close" onclick="closeAllPinsView()">✕ Collapse</button>
+    </div>
   </div>
 
   <!-- Action Buttons -->
@@ -646,15 +653,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     <button id="next-batch-go" onclick="loadNextGMapsBatch()">Next Batch →</button>
   </div>
 
-  <!-- All Pins Overlay Panel -->
-  <div id="all-pins-panel">
-    <div id="all-pins-topbar">
-      <div id="all-pins-title">📌 All Customer Pins</div>
-      <button id="all-pins-close" onclick="closeAllPinsView()">✕ Close</button>
-    </div>
-    <div id="all-pins-leaflet"></div>
-    <div id="all-pins-stats">Loading pins…</div>
-  </div>
+  <!-- All Pins: stats bar overlaid on existing map (no separate panel) -->
 
   <!-- Smart Route Suggest — lives here in the Route page, not on home -->
   <button class="smart-route-btn" id="smart-route-btn" onclick="toggleSmartSuggest()">
@@ -1557,8 +1556,19 @@ let _deliveryIdx     = 0;      // current stop index in _mapStops
 let _mapModalOpen    = false;
 let _mapMode         = 'street'; // 'street' | 'gmaps'
 let _gmapsBatchStart = 0;        // offset into sorted stops for current GMaps batch
-const _GMAPS_BATCH   = 10;       // stops per Google Maps batch
-let _allPinsMap      = null;     // separate Leaflet instance for All Pins view
+const _GMAPS_BATCH   = 9;        // Google Maps URL: origin + up to 8 waypoints + destination = 9 stops (safety margin below free limit of 9 waypoints)
+
+// ── Smart Sector Batches ──────────────────────────────────────
+let _sectorBatches   = [];       // [{label:'A', color, stops:[...mapStop indices]}]
+let _activeBatchIdx  = 0;        // which batch is currently open in GMaps
+const _BATCH_COLORS  = [
+  { bg:'#1d4ed8', label:'A' }, // blue
+  { bg:'#ea580c', label:'B' }, // orange
+  { bg:'#7c3aed', label:'C' }, // purple
+  { bg:'#16a34a', label:'D' }, // green
+  { bg:'#be185d', label:'E' }, // pink
+  { bg:'#0891b2', label:'F' }, // cyan
+];
 
 // ── Live tracking state ───────────────────────────────────────
 let _lastRouteRedrawPos  = null; // GPS position at last OSRM redraw
@@ -1661,7 +1671,13 @@ function _startGPS() {
       // ── Auto-optimize on first GPS fix ──────────────────────
       if (_autoOptimizeOnGpsFix) {
         _autoOptimizeOnGpsFix = false; // fire once only
-        setTimeout(() => optimizeRoute(), 200); // small delay so map is ready
+        setTimeout(() => {
+          optimizeRoute();
+          // Rebuild batches now that we have real rider GPS
+          _buildSectorBatches();
+          _placeMarkers();
+          _activeBatchIdx = 0;
+        }, 200); // small delay so map is ready
       }
       if (!_map) return;
 
@@ -1911,21 +1927,26 @@ function _placeMarkers() {
     if (!isDelivered && !isSkipped) seqNum++;
     const label = isDelivered ? '✓' : isSkipped ? '⏭' : seqNum;
 
-    // Color: green=done, orange=skipped, gold=active current, red=pending
+    // Color priority: delivered=green, skipped=orange, active=gold,
+    // batch color (if batches built), else default red
+    const batchColor = (!isDelivered && !isSkipped && !isActive && s.batchColor) ? s.batchColor : null;
     const color = isDelivered ? '#22c55e'
                 : isSkipped   ? '#f97316'
                 : isActive    ? '#f59e0b'
-                : '#e63946';
+                : batchColor  || '#e63946';
 
     s.seqNum = isDelivered || isSkipped ? null : seqNum;
-    const distLabel = s.distKm != null ? `<br><span style="font-size:11px;color:#64748b">~${s.distKm.toFixed(1)} km away</span>` : '';
+    const distLabel  = s.distKm != null ? `<br><span style="font-size:11px;color:#64748b">~${s.distKm.toFixed(1)} km away</span>` : '';
+    const batchBadge = (!isDelivered && !isSkipped && s.batchLabel)
+      ? `<br><span style="font-size:10px;font-weight:800;background:${s.batchColor};color:#fff;border-radius:4px;padding:1px 5px">Batch ${s.batchLabel}</span>`
+      : '';
     const marker = L.marker([s.coords.lat, s.coords.lng], {
       icon: _numIcon(label, color),
       zIndexOffset: isActive ? 500 : isDelivered ? -100 : 0
     })
       .addTo(_map)
       .bindPopup(
-        `<b style="font-size:13px">${s.order.name || '—'}</b>${distLabel}` +
+        `<b style="font-size:13px">${s.order.name || '—'}</b>${distLabel}${batchBadge}` +
         `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
         `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
       );
@@ -2032,6 +2053,10 @@ function openRiderMap(ordersParam) {
       _autoOptimizeOnGpsFix = true;
       rToast('📍 Getting GPS — route will auto-sort…');
     }
+    // Build sector batches immediately (centroid fallback; refreshed on first GPS fix)
+    _buildSectorBatches();
+    _placeMarkers(); // re-place with batch colors
+    _activeBatchIdx = 0;
     _startGPS();
 
     // Fit bounds after GPS first fix or immediately
@@ -2479,14 +2504,37 @@ async function _advanceDelivery() {
   // Auto-scroll the stop list to the active card
   setTimeout(() => _scrollToCard(_deliveryIdx), 400);
 
-  // Check if current GMaps batch is now exhausted; auto-advance and notify
-  const remainingCount = _mapStops.filter(s => !s.delivered && !s.skipped && s.coords).length;
-  const batchRemaining = _GMAPS_BATCH - (_gmapsBatchStart % _GMAPS_BATCH || _GMAPS_BATCH);
-  if (remainingCount > 0 && batchRemaining <= 1) {
-    _gmapsBatchStart += _GMAPS_BATCH;
-    if (_gmapsBatchStart >= remainingCount) _gmapsBatchStart = 0;
-    const nextCount = Math.min(_GMAPS_BATCH, remainingCount);
-    _showNextBatchBar(nextCount, _gmapsBatchStart);
+  // Rebuild sector batches after each delivery so colors + batch membership stay accurate
+  _buildSectorBatches();
+  // Re-anchor active batch: find which batch now contains the current delivery stop.
+  // Rebuild re-sorts from current GPS, so batch membership can shift.
+  // Without this, _activeBatchIdx can point to the wrong batch → "Next Batch" banner misfires.
+  const _curStopIdx = _deliveryIdx;
+  const _reanchor = _sectorBatches.findIndex(b => b.indices.includes(_curStopIdx));
+  if (_reanchor !== -1) _activeBatchIdx = _reanchor;
+  _placeMarkers(); // re-color pins with updated batch assignments
+
+  // Check if current batch is now fully delivered → show Next Batch banner
+  if (_sectorBatches.length > 0) {
+    const curBatch = _sectorBatches[_activeBatchIdx];
+    const curBatchDone = curBatch
+      ? curBatch.indices.every(i => _mapStops[i].delivered || _mapStops[i].skipped)
+      : true;
+    if (curBatchDone) {
+      // Find next pending batch
+      let nextIdx = _activeBatchIdx + 1;
+      while (nextIdx < _sectorBatches.length) {
+        const hasPend = _sectorBatches[nextIdx].indices
+          .some(i => !_mapStops[i].delivered && !_mapStops[i].skipped);
+        if (hasPend) break;
+        nextIdx++;
+      }
+      if (nextIdx < _sectorBatches.length) {
+        const nb = _sectorBatches[nextIdx];
+        const nbCount = nb.indices.filter(i => !_mapStops[i].delivered && !_mapStops[i].skipped).length;
+        _showNextBatchBar(nbCount, nextIdx);
+      }
+    }
   }
 
   // Show distance to next stop
@@ -2758,49 +2806,95 @@ function openInMapsFromModal() {
     return;
   }
 
-  // Pre-delivery: open current batch from _gmapsBatchStart
-  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
-  if (!remaining.length) { rToast('No stops remaining'); return; }
-
-  const withCoords = remaining.filter(s => s.coords);
-  if (!withCoords.length) {
-    rToast('No GPS coords on remaining stops — use individual Nav buttons');
+  // Pre-delivery: use sector batches if available
+  if (_sectorBatches.length > 0) {
+    _openSectorBatch(_activeBatchIdx);
     return;
   }
 
+  // Fallback (no batches): old single-batch behavior
+  const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
+  if (!remaining.length) { rToast('No stops remaining'); return; }
+  const withCoords = remaining.filter(s => s.coords);
+  if (!withCoords.length) { rToast('No GPS coords — use individual Nav buttons'); return; }
   if (withCoords.length === 1) {
     const url = _gMapsNavUrl(withCoords[0].coords, _gpsPos || null);
     if (url) _gMapsOpen(url);
     return;
   }
-
   const result = _gMapsMultiStopUrl(remaining, _gpsPos || null, _gmapsBatchStart);
   if (!result) { rToast('Could not build route'); return; }
-
   _gMapsOpen(result.url);
+}
 
-  // Update badge and next-batch bar
-  if (result.hasMore) {
-    const nextCount = Math.min(_GMAPS_BATCH, result.sorted.length - result.batchEnd);
-    _showBatchBadge(result.batchEnd, result.sorted.length);
-    _showNextBatchBar(nextCount, result.batchEnd);
-    rToast(`🗺 Batch ${Math.floor(_gmapsBatchStart/_GMAPS_BATCH)+1}: ${result.batchSize} stops · ${result.sorted.length - result.batchEnd} more waiting`);
-  } else {
+/* ── Open a specific sector batch in Google Maps ─────────────── */
+function _openSectorBatch(bIdx) {
+  // Skip batches that are fully delivered (check live _mapStops via .indices)
+  while (bIdx < _sectorBatches.length) {
+    const hasPending = _sectorBatches[bIdx].indices
+      .some(i => !_mapStops[i].delivered && !_mapStops[i].skipped);
+    if (hasPending) break;
+    bIdx++;
+  }
+  if (bIdx >= _sectorBatches.length) {
+    rToast('🎉 All batches complete!');
     _hideBatchBadge();
     _hideNextBatchBar();
-    rToast(`🗺 Final batch: ${result.batchSize} stops`);
+    return;
+  }
+  _activeBatchIdx = bIdx;
+  const batch = _sectorBatches[bIdx];
+  const url   = _batchToGMapsUrl(bIdx);
+  if (!url) { rToast('No GPS coords in this batch'); return; }
+
+  _gMapsOpen(url);
+
+  // Count live pending stops across all batches for accurate badge
+  const totalPending = _sectorBatches.reduce((s, b) =>
+    s + b.indices.filter(i => !_mapStops[i].delivered && !_mapStops[i].skipped).length, 0);
+  const thisPending  = batch.indices.filter(i =>
+    !_mapStops[i].delivered && !_mapStops[i].skipped).length;
+  const doneSoFar    = _sectorBatches.slice(0, bIdx).reduce((s, b) =>
+    s + b.indices.filter(i => _mapStops[i].delivered).length, 0);
+
+  _showBatchBadge(doneSoFar + thisPending, totalPending + doneSoFar);
+
+  const hasMore = bIdx + 1 < _sectorBatches.length &&
+    _sectorBatches.slice(bIdx + 1).some(b =>
+      b.indices.some(i => !_mapStops[i].delivered && !_mapStops[i].skipped));
+
+  if (hasMore) {
+    // Find next non-empty batch for the label
+    let nextIdx = bIdx + 1;
+    while (nextIdx < _sectorBatches.length) {
+      const hasPend = _sectorBatches[nextIdx].indices
+        .some(i => !_mapStops[i].delivered && !_mapStops[i].skipped);
+      if (hasPend) break;
+      nextIdx++;
+    }
+    const nextBatch  = _sectorBatches[nextIdx];
+    const nextCount  = nextBatch
+      ? nextBatch.indices.filter(i => !_mapStops[i].delivered && !_mapStops[i].skipped).length
+      : 0;
+    _showNextBatchBar(nextCount, nextIdx);
+    rToast(`🗺 Batch ${batch.label}: ${thisPending} stops · ~${batch.totalKm.toFixed(1)}km`);
+  } else {
+    _hideNextBatchBar();
+    rToast(`🗺 Final Batch ${batch.label}: ${thisPending} stops · ~${batch.totalKm.toFixed(1)}km`);
   }
 }
 
 /* ── Load the next Google Maps batch ────────────────────────── */
 function loadNextGMapsBatch() {
+  if (_sectorBatches.length > 0) {
+    _openSectorBatch(_activeBatchIdx + 1);
+    return;
+  }
+  // Fallback: old behavior
   _gmapsBatchStart += _GMAPS_BATCH;
   const remaining  = _mapStops.filter(s => !s.delivered && !s.skipped);
   const withCoords = remaining.filter(s => s.coords);
-
-  // If batch start exceeds total, reset to 0 (wrap around)
   if (_gmapsBatchStart >= withCoords.length) _gmapsBatchStart = 0;
-
   openInMapsFromModal();
 }
 
@@ -2815,11 +2909,15 @@ function _hideBatchBadge() {
   const badge = document.getElementById('batch-badge');
   if (badge) badge.style.display = 'none';
 }
-function _showNextBatchBar(nextCount, batchEnd) {
+function _showNextBatchBar(nextCount, batchEndOrIdx) {
   const bar = document.getElementById('next-batch-bar');
   const txt = document.getElementById('next-batch-bar-text');
   if (!bar) return;
-  if (txt) txt.textContent = `✅ Batch done! Next ${nextCount} stops ready (${batchEnd} delivered so far)`;
+  // batchEndOrIdx is now the next batch index (letter-based)
+  const nextLabel = _sectorBatches.length > 0 && _sectorBatches[batchEndOrIdx]
+    ? `Batch ${_sectorBatches[batchEndOrIdx].label}`
+    : `Next batch`;
+  if (txt) txt.textContent = `✅ Done! ${nextLabel}: ${nextCount} stops ready →`;
   bar.classList.add('show');
 }
 function _hideNextBatchBar() {
@@ -2853,65 +2951,239 @@ function setMapMode(mode) {
   rToast(mode === 'street' ? '🗺 Street map mode' : '📍 Google Maps mode');
 }
 
-/* ── Open All Pins View (full Leaflet map with every stop pin) ── */
-function openAllPinsView() {
-  const panel = document.getElementById('all-pins-panel');
-  panel.classList.add('show');
+/* ── Sector-Sweep Batch Builder ──────────────────────────────────────────────
+   Strategy (used by Swiggy/Zomato style routing for Indian cities):
+   1. Compute angle of each stop from rider position (atan2)
+   2. Sort stops by angle (360° sweep)
+   3. Group into BATCH_SIZE sectors so each batch is a geographic wedge
+   4. Within each batch, sort by nearest-neighbor for road efficiency
+   5. Result: Batch A = nearest sector, no area/road repeated across batches
+   Free, offline, no API key needed. Works perfectly in Indian city grids.    */
+/* ── Distance-Ring Batch Builder ─────────────────────────────────────────
+   Strategy (practical for Indian city tiffin routes):
+   1. Compute distance and angle of each stop from rider position
+   2. Sort stops by distance → closest stops first (not by angle)
+   3. Slice into rings of BATCH_SIZE → Batch A = closest 9 stops, Batch B = next 9, etc.
+   4. Within each ring, sort by angle so the delivery path sweeps the area
+      in a circular arc (no criss-crossing within a batch)
+   5. Within each batch, nearest-neighbor sort for road-efficient delivery order
+   Result: Batch A is always the physically nearest cluster. No avg-distance
+   fooling by outliers. Rider works outward ring by ring, never backtracks.
+   Free, offline, no API key needed.
+   Design decisions:
+   - _GMAPS_BATCH = 9: origin + 8 waypoints + destination = safe below Google's 9-waypoint limit
+   - Stores only indices (pointers to live _mapStops[]) — delivered/skipped always fresh
+   - Called after: map open, GPS fix, every delivery mark (with _activeBatchIdx re-anchor)
+   ─────────────────────────────────────────────────────────────────────── */
+function _buildSectorBatches() {
+  // Work only with pending stops that have coordinates
+  const pending = _mapStops
+    .map((s, i) => ({ i }))
+    .filter(({ i }) => {
+      const s = _mapStops[i];
+      return s.coords && !s.delivered && !s.skipped;
+    });
 
-  requestAnimationFrame(() => {
-    const container = document.getElementById('all-pins-leaflet');
-    if (!_allPinsMap) {
-      _allPinsMap = L.map('all-pins-leaflet', { zoomControl: true, attributionControl: false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_allPinsMap);
-    } else {
-      _allPinsMap.invalidateSize();
+  if (!pending.length) { _sectorBatches = []; return; }
+
+  // Origin: rider GPS or geographic centroid (fallback before GPS fix)
+  let oLat, oLng;
+  if (_gpsPos) {
+    oLat = _gpsPos.lat; oLng = _gpsPos.lng;
+  } else {
+    oLat = pending.reduce((s, { i }) => s + _mapStops[i].coords.lat, 0) / pending.length;
+    oLng = pending.reduce((s, { i }) => s + _mapStops[i].coords.lng, 0) / pending.length;
+  }
+
+  // Step 1: Annotate each stop with angle (0–360°) and distance from origin
+  const annotated = pending.map(({ i }) => {
+    const s     = _mapStops[i];
+    const dlat  = s.coords.lat - oLat;
+    const dlng  = s.coords.lng - oLng;
+    const angle = ((Math.atan2(dlng, dlat) * 180 / Math.PI) + 360) % 360;
+    const dist  = _haversine(oLat, oLng, s.coords.lat, s.coords.lng);
+    return { i, angle, dist };
+  });
+
+  // Step 2: Sort by distance from rider → nearest stops first
+  // More reliable than angle-sweep for real Indian city tiffin routes where
+  // orders cluster in 2–3 localities. Ensures Batch A = closest cluster,
+  // Batch B = next ring out — never fooled by an outlier inflating avg distance.
+  annotated.sort((a, b) => a.dist - b.dist);
+
+  // Step 3: Slice into distance-rings of _GMAPS_BATCH stops each
+  const slices = [];
+  for (let k = 0; k < annotated.length; k += _GMAPS_BATCH) {
+    slices.push(annotated.slice(k, k + _GMAPS_BATCH));
+  }
+
+  // Step 4: Within each distance-ring, sort by angle so road path stays compact
+  // (rider sweeps the ring area in a circular arc without criss-crossing)
+  slices.forEach(slice => slice.sort((a, b) => a.angle - b.angle));
+
+  // Step 5: Within each batch, nearest-neighbor sort from origin for efficient road order
+  _sectorBatches = slices.map((slice, bIdx) => {
+    const colorInfo = _BATCH_COLORS[bIdx % _BATCH_COLORS.length];
+
+    // NN sort — works on origIdx references to live _mapStops
+    const toVisit = slice.map(x => x.i); // indices into _mapStops
+    const ordered = []; // will hold origIdx values in delivery order
+    let curLat = oLat, curLng = oLng;
+    while (toVisit.length) {
+      let best = 0, bestDist = Infinity;
+      toVisit.forEach((idx, j) => {
+        const d = _haversine(curLat, curLng, _mapStops[idx].coords.lat, _mapStops[idx].coords.lng);
+        if (d < bestDist) { bestDist = d; best = j; }
+      });
+      const idx = toVisit.splice(best, 1)[0];
+      curLat = _mapStops[idx].coords.lat;
+      curLng = _mapStops[idx].coords.lng;
+      ordered.push(idx);
     }
 
-    // Clear old markers
-    _allPinsMap.eachLayer(layer => { if (layer instanceof L.Marker) _allPinsMap.removeLayer(layer); });
+    // Tag each live _mapStop with its batch info (used by _placeMarkers for pin colors)
+    ordered.forEach(idx => {
+      _mapStops[idx].batchIdx   = bIdx;
+      _mapStops[idx].batchLabel = colorInfo.label;
+      _mapStops[idx].batchColor = colorInfo.bg;
+    });
+
+    const totalKm = ordered.reduce((sum, idx, j) => {
+      const s = _mapStops[idx];
+      if (j === 0) return sum + _haversine(oLat, oLng, s.coords.lat, s.coords.lng);
+      const prev = _mapStops[ordered[j - 1]];
+      return sum + _haversine(prev.coords.lat, prev.coords.lng, s.coords.lat, s.coords.lng);
+    }, 0);
+
+    return {
+      label:   colorInfo.label,
+      color:   colorInfo.bg,
+      indices: ordered,          // origIdx pointers into live _mapStops — never stale
+      totalKm
+    };
+  });
+}
+
+/* ── Build GMaps URL for one sector batch ────────────────────────
+   Google Maps free URL limit: origin + 9 waypoints + destination = 10 stops.
+   We skip already-delivered/skipped stops from the URL at call time
+   (since indices point to live _mapStops, status is always fresh).        */
+function _batchToGMapsUrl(batchIdx) {
+  const batch = _sectorBatches[batchIdx];
+  if (!batch) return null;
+
+  // Get live pending stops for this batch (filters out any delivered since batch was built)
+  const stops = batch.indices
+    .map(i => _mapStops[i])
+    .filter(s => s && s.coords && !s.delivered && !s.skipped);
+
+  if (!stops.length) return null;
+
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mode     = isMobile ? 'two-wheeler' : 'driving';
+
+  // Origin = rider GPS (most accurate); fallback = first stop
+  const origin  = _gpsPos
+    ? `${_gpsPos.lat},${_gpsPos.lng}`
+    : `${stops[0].coords.lat},${stops[0].coords.lng}`;
+
+  const dest    = stops[stops.length - 1];
+  const destStr = `${dest.coords.lat},${dest.coords.lng}`;
+
+  // Waypoints = everything between origin and destination
+  // With GPS origin: stops.slice(0,-1) → max 8 waypoints (batch=9) ✓
+  // Without GPS origin: stops.slice(1,-1) → max 7 waypoints ✓
+  // Both safely within Google Maps free limit of 9 waypoints per URL
+  const midStops = _gpsPos ? stops.slice(0, -1) : stops.slice(1, -1);
+  const wpStr    = midStops.map(s => `${s.coords.lat},${s.coords.lng}`).join('|');
+  const wpParam  = wpStr ? `&waypoints=${encodeURIComponent(wpStr)}` : '';
+
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destStr)}${wpParam}&travelmode=${mode}`;
+}
+
+/* ── All Pins: expand existing map, plot all stops inline ── */
+function openAllPinsView() {
+  if (!_map) return;
+  const mapContainer  = document.getElementById('map-container');
+  const actionsEl     = document.getElementById('map-actions');
+  const bottomEl      = document.getElementById('map-bottom');
+  const smartBtn      = document.getElementById('smart-route-btn');
+  const nextBatchBar  = document.getElementById('next-batch-bar');
+  const bar           = document.getElementById('all-pins-bar');
+  const statsEl       = document.getElementById('all-pins-stats');
+
+  // Rebuild batches so all-pins view reflects current GPS
+  _buildSectorBatches();
+  _placeMarkers();
+
+  // Expand map to near full-screen, hide stop list & action buttons
+  mapContainer.classList.add('all-pins-expanded');
+  if (actionsEl)    actionsEl.style.display    = 'none';
+  if (bottomEl)     bottomEl.style.display     = 'none';
+  if (smartBtn)     smartBtn.style.display     = 'none';
+  if (nextBatchBar) nextBatchBar.style.display = 'none';
+  if (bar)          bar.classList.add('show');
+
+  // Let CSS transition finish, then resize map and fit all pins
+  requestAnimationFrame(() => {
+    _map.invalidateSize();
 
     const pts = [];
     let pinned = 0, noCoords = 0;
-
-    _mapStops.forEach((s, i) => {
+    _mapStops.forEach(s => {
       if (!s.coords) { noCoords++; return; }
       pinned++;
-      const color = s.delivered ? '#22c55e' : s.skipped ? '#f97316' : '#e63946';
-      const label = s.delivered ? '✓' : s.skipped ? '⏭' : (i + 1);
-      const marker = L.marker([s.coords.lat, s.coords.lng], { icon: _numIcon(label, color) })
-        .addTo(_allPinsMap)
-        .bindPopup(
-          `<b style="font-size:13px">${s.order.name || '—'}</b>` +
-          `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
-          `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
-        );
       pts.push([s.coords.lat, s.coords.lng]);
     });
+    if (_gpsPos) pts.push([_gpsPos.lat, _gpsPos.lng]);
 
-    // Add GPS dot if available
-    if (_gpsPos) {
-      L.marker([_gpsPos.lat, _gpsPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_allPinsMap);
-      pts.push([_gpsPos.lat, _gpsPos.lng]);
+    if (pts.length > 1)        _map.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 16 });
+    else if (pts.length === 1) _map.setView(pts[0], 15);
+
+    // Build batch legend text
+    if (statsEl) {
+      if (_sectorBatches.length > 1) {
+        const legend = _sectorBatches.map(b => {
+          const cnt = b.indices.filter(i => !_mapStops[i].delivered && !_mapStops[i].skipped).length;
+          return `<span style="background:${b.color};color:#fff;border-radius:4px;padding:1px 6px;font-weight:800;margin-right:3px">` +
+            `${b.label}:${cnt}</span>`;
+        }).join('');
+        statsEl.innerHTML = `${pinned} stops · ${legend}· tap pin for details`;
+      } else {
+        statsEl.textContent = `${pinned} stops pinned · ${noCoords} without GPS · tap any pin for details`;
+      }
     }
-
-    // Fit bounds
-    if (pts.length > 1) _allPinsMap.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 16 });
-    else if (pts.length === 1) _allPinsMap.setView(pts[0], 15);
-
-    // Stats
-    const statsEl = document.getElementById('all-pins-stats');
-    if (statsEl) statsEl.textContent = `${pinned} stops pinned · ${noCoords} without GPS · tap any pin for details`;
   });
 }
 
 function closeAllPinsView() {
-  document.getElementById('all-pins-panel').classList.remove('show');
-  if (_allPinsMap) _allPinsMap.invalidateSize();
+  const mapContainer = document.getElementById('map-container');
+  const actionsEl    = document.getElementById('map-actions');
+  const bottomEl     = document.getElementById('map-bottom');
+  const smartBtn     = document.getElementById('smart-route-btn');
+  const bar          = document.getElementById('all-pins-bar');
+  const nextBatchBar = document.getElementById('next-batch-bar');
+
+  // Restore layout
+  mapContainer.classList.remove('all-pins-expanded');
+  if (actionsEl)    actionsEl.style.display    = '';
+  if (bottomEl)     bottomEl.style.display     = '';
+  if (smartBtn)     smartBtn.style.display     = '';
+  if (bar)          bar.classList.remove('show');
+  if (nextBatchBar) nextBatchBar.style.display = '';
+
+  // Resize and re-fit route bounds
+  requestAnimationFrame(() => {
+    _map.invalidateSize();
+    _fitMapBounds();
+  });
 }
 
 /* ── Reset batch tracking when map is opened/reloaded ─────────── */
 function _resetGMapsBatch() {
   _gmapsBatchStart = 0;
+  _sectorBatches   = [];
+  _activeBatchIdx  = 0;
   _hideBatchBadge();
   _hideNextBatchBar();
 }
