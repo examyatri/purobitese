@@ -193,7 +193,6 @@ const _STAFF_ACTIONS = new Set([
   'createRider',
   // ── Read-only admin data — still require a valid staff session ──
   'getSettings',           // returns full admin_settings (cutoff, zone, schedule, etc.)
-  'getDeliveryAreas',      // returns delivery area list from admin_settings
   'getOrderTransactions',  // returns user's khata_entries — sensitive financial data
 ]);
 
@@ -2590,13 +2589,15 @@ app.post('/api', async (req, res) => {
             khataEnabled:     map['khata_enabled']         === true,
             deliveryZone:     map['delivery_zone']         || null,
             autoTiffinCutoff: map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' },
-            deliveryAreas:    map['delivery_areas']        || ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur']
+            deliveryAreas:    map['delivery_areas']        || []
           }}); }
 
       case 'getDeliveryAreas': {
         const { data: row } = await supabase.from('admin_settings').select('value').eq('key','delivery_areas').single();
-        let areas = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
-        if (row?.value) { try { areas = JSON.parse(row.value); } catch(_) {} }
+        if (!row?.value) return res.json({ success: false, error: 'No delivery areas configured' });
+        let areas = [];
+        try { areas = JSON.parse(row.value); } catch(_) {}
+        if (!areas.length) return res.json({ success: false, error: 'No delivery areas configured' });
         return res.json({ success: true, areas });
       }
 
