@@ -2009,22 +2009,29 @@ const SessionCache = {
 };
 
 // Refetch the API key from server and update CFG.KEY — called automatically on 401
+// Singleton: if multiple concurrent api() calls all get 401 at the same time,
+// they all share one fetch instead of hammering /config.js in parallel.
+let _refreshApiKeyPromise = null;
 async function _refreshApiKey() {
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000); // 15s — Render cold start can take ~10-15s
-  try {
-    const r = await fetch('https://purobitese-api.onrender.com/config.js', {
-      cache: 'no-store', signal: ctrl.signal
-    });
-    const txt = await r.text();
-    // Extract key from: window.__TIFFO_API_KEY__ = "...";
-    const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
-    if (m && m[1]) {
-      window.__TIFFO_API_KEY__ = m[1];
-      return true;
-    }
-  } catch {} finally { clearTimeout(timer); }
-  return false;
+  if (_refreshApiKeyPromise) return _refreshApiKeyPromise;
+  _refreshApiKeyPromise = (async () => {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000); // 15s — Render cold start can take ~10-15s
+    try {
+      const r = await fetch('https://purobitese-api.onrender.com/config.js', {
+        cache: 'no-store', signal: ctrl.signal
+      });
+      const txt = await r.text();
+      // Extract key from: window.__TIFFO_API_KEY__ = "...";
+      const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
+      if (m && m[1]) {
+        window.__TIFFO_API_KEY__ = m[1];
+        return true;
+      }
+    } catch {} finally { clearTimeout(timer); }
+    return false;
+  })();
+  try { return await _refreshApiKeyPromise; } finally { _refreshApiKeyPromise = null; }
 }
 
 // Silent userToken refresh — called automatically when a 401 suggests token expiry.
@@ -4432,11 +4439,18 @@ async function loadOrders(forceRender = false, silent = false) {
     _lastOrders = newStr;
     renderOrderList(res.orders);
   } catch(e) {
-    // On non-silent load, show an error row so user knows what happened (not a blank page)
+    // On failure: try to show cached data so user isn't left with a blank/error screen.
+    // Only show error row if there's genuinely nothing to display (no cache, no prior render).
     if (!silent) {
       const list = document.getElementById('orders-list');
       if (list && !list.innerHTML) {
-        list.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--gr);font-size:13px"><i class="fa-solid fa-triangle-exclamation" style="font-size:24px;margin-bottom:8px;display:block"></i>Orders load nahi ho sake.<br><span style="font-size:12px">Pull to refresh ya thodi der baad try karein.</span></div>';
+        const fallback = Store.getJSON('_orders_cache_' + (Auth.get()?.phone || ''));
+        if (fallback && fallback.length >= 0) {
+          // Stale cache is better than an error message — render it silently
+          renderOrderList(fallback);
+        } else {
+          list.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--gr);font-size:13px"><i class="fa-solid fa-triangle-exclamation" style="font-size:24px;margin-bottom:8px;display:block"></i>Orders load nahi ho sake.<br><span style="font-size:12px">Pull to refresh ya thodi der baad try karein.</span></div>';
+        }
       }
     }
   } finally {
@@ -5052,7 +5066,14 @@ async function loadUserKhata(forceRender = false, silent = false) {
     if (!silent) {
       const list = document.getElementById('khata-list');
       if (list && !list.innerHTML) {
-        list.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--gr);font-size:13px"><i class="fa-solid fa-triangle-exclamation" style="font-size:24px;margin-bottom:8px;display:block"></i>Transactions load nahi ho sake.<br><span style="font-size:12px">Refresh karein ya thodi der baad try karein.</span></div>';
+        const fallback = Store.getJSON('_khata_cache');
+        if (fallback && fallback.length > 0) {
+          // Stale cache beats error screen
+          _khataAllEntries = fallback;
+          filterKhata();
+        } else {
+          list.innerHTML = '<div style="text-align:center;padding:32px 16px;color:var(--gr);font-size:13px"><i class="fa-solid fa-triangle-exclamation" style="font-size:24px;margin-bottom:8px;display:block"></i>Transactions load nahi ho sake.<br><span style="font-size:12px">Refresh karein ya thodi der baad try karein.</span></div>';
+        }
       }
     }
   }
@@ -5598,11 +5619,11 @@ async function _runPollTick() {
   const cur = document.querySelector('.pg.here')?.id;
   // ── Opt 2: Skip orders poll when there are no active orders (and user isn't watching orders tab) ──
   if (_hasActiveOrders || cur === 'pg-orders') {
-    if (cur === 'pg-orders') loadOrders(true, false).catch(() => {});
+    if (cur === 'pg-orders') loadOrders(true, true).catch(() => {});  // silent=true: poll is background, never show error toast
     else                     loadOrders(true, true).catch(() => {});  // keep memory warm silently
   }
   // ── Opt 3: Only poll khata if on khata tab, or subscriber has visited it before ──
-  if (cur === 'pg-khata')  loadUserKhata(true, false).catch(() => {});
+  if (cur === 'pg-khata')  loadUserKhata(true, true).catch(() => {});  // silent=true: poll is background
   else if (_session?.is_subscriber && _khataEnabled && _khataEverVisited) loadUserKhata(true, true).catch(() => {}); // warm only if visited
   // ── Opt 4: Skip menu re-poll if freshly fetched within _MENU_POLL_SKIP window ──
   if (cur === 'pg-home' && Date.now() - _menuFreshTs > _MENU_POLL_SKIP) {
@@ -6437,7 +6458,9 @@ function doLogout() {
 
   closeAllSheets();
   _pendingCartNav = false;
-  _transitionToGuestHome();  // show home for browsing; auth sheet appears when they tap cart
+  // Hard reload — clears all in-memory state, form autofill, and any missed field.
+  // Ensures next user always starts completely fresh.
+  location.reload();
 }
 
 /* ═══════════════════════════════════════════
