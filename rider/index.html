@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.5                                    ║
-     ║  Updated : 2026-05-17                               ║
+     ║  Version : v35.6                                    ║
+     ║  Updated : 2026-05-21                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -79,7 +79,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 .route-btn:active{opacity:.88;transform:scale(.98)}
 .suggest-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;font-family:var(--ff);margin-left:6px}
 .suggest-seq{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border-radius:50%;font-size:11px;font-weight:800;font-family:var(--ff);flex-shrink:0;margin-right:4px}
-.smart-route-btn{margin:0 16px 4px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:13px;padding:13px;font-family:var(--ff);font-weight:700;font-size:14px;width:calc(100% - 32px);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(124,58,237,.35);transition:opacity 180ms,transform 120ms;letter-spacing:.2px}
+.smart-route-btn{margin:8px 12px 0;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:13px;padding:11px 13px;font-family:var(--ff);font-weight:700;font-size:13px;width:calc(100% - 24px);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(124,58,237,.40);transition:opacity 180ms,transform 120ms;letter-spacing:.2px}
 .smart-route-btn:active{opacity:.88;transform:scale(.98)}
 .smart-route-btn.active{background:linear-gradient(135deg,#059669,#10b981)}
 
@@ -519,10 +519,6 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   </div>
 
   <!-- Route Planner -->
-  <button class="smart-route-btn" id="smart-route-btn" onclick="toggleSmartSuggest()">
-    <span id="smart-route-icon">🎯</span>
-    <span id="smart-route-label">Smart Route Suggest</span>
-  </button>
   <button class="route-btn" onclick="openRiderMap()">🗺 Plan Route for Filtered Orders</button>
 
   <!-- Main Tabs -->
@@ -660,6 +656,12 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     <div id="all-pins-stats">Loading pins…</div>
   </div>
 
+  <!-- Smart Route Suggest — lives here in the Route page, not on home -->
+  <button class="smart-route-btn" id="smart-route-btn" onclick="toggleSmartSuggest()">
+    <span id="smart-route-icon">🎯</span>
+    <span id="smart-route-label">Smart Route Suggest</span>
+  </button>
+
   <!-- Stop List -->
   <div id="map-bottom">
     <div id="map-stop-list"></div>
@@ -718,13 +720,14 @@ const CFG = {
 };
 
 /* ─── STATE ──────────────────────────────────────────── */
-let _rider          = null;
-let _orders         = [];
-let _pending        = [];
-let _delivered      = [];
-let _activeTab      = 'pending';
-let _routeAddresses = [];
-let _pollTimer      = null;
+let _rider                 = null;
+let _orders                = [];
+let _pending               = [];
+let _delivered             = [];
+let _activeTab             = 'pending';
+let _routeAddresses        = [];
+let _pollTimer             = null;
+let _sessionExpiredHandled = false; // guard: prevent duplicate logout toasts on parallel 401s
 
 // Filter state — applied only when Search button is clicked
 let _filterDate     = 'today';   // 'today' | 'yesterday' | 'day_before' | 'all'
@@ -820,7 +823,30 @@ async function _refreshApiKey() {
   return false;
 }
 
-async function api(action, data = {}, _retry = 2, _keyRetried = false) {
+// Silent session refresh — uses saved creds to re-login and get a fresh sessionToken.
+// Returns true if a new token was obtained and _rider was updated.
+async function _refreshRiderSession() {
+  const creds = getRiderCreds();
+  if (!creds || !creds.riderId || !creds.pw) return false;
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  try {
+    const r = await fetch(CFG.API, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'riderLogin', data: { riderId: creds.riderId, password: creds.pw }, apiKey: CFG.KEY })
+    });
+    if (!r.ok) return false;
+    const json = await r.json();
+    if (!json.success || !json.sessionToken) return false;
+    // Update in-memory rider and persist fresh token to storage
+    _rider = { ...(_rider || {}), ...json.rider, sessionToken: json.sessionToken };
+    RiderSession.save(_rider);
+    return true;
+  } catch { return false; } finally { clearTimeout(timer); }
+}
+
+async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRetried = false) {
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
@@ -830,10 +856,28 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
       body: JSON.stringify({ action, data, apiKey: CFG.KEY, sessionToken: (_rider?.sessionToken || '') })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
-    if (res.status === 401 && !_keyRetried) {
-      const gotKey = await _refreshApiKey();
-      if (gotKey) return api(action, data, _retry, true);
-      throw new Error('Server error 401');
+    if (res.status === 401) {
+      // Step 1: refresh the API key (covers server restart / key rotation).
+      // Only try once — _keyRetried guards against infinite loop when key is already correct.
+      if (!_keyRetried) {
+        const gotKey = await _refreshApiKey();
+        if (gotKey) return api(action, data, _retry, true, _tokenRetried);
+      }
+      // Step 2: session token has expired (12h TTL).
+      // Re-login silently with saved creds to get a fresh sessionToken and retry.
+      // _tokenRetried guards so we only attempt this once per original request.
+      if (!_tokenRetried) {
+        const refreshed = await _refreshRiderSession();
+        if (refreshed) return api(action, data, _retry, _keyRetried, true);
+      }
+      // Step 3: Both fixes failed (bad creds / account deactivated / no saved creds).
+      // Show a friendly Hindi toast once and auto-logout.
+      if (!_sessionExpiredHandled) {
+        _sessionExpiredHandled = true;
+        rToast('Session expire ho gayi. Dobara login karein. 🔐');
+        setTimeout(() => { _sessionExpiredHandled = false; doRiderLogout(); }, 1800);
+      }
+      throw new Error('Session expired. Please log in again.');
     }
     if (!res.ok) throw new Error('Server error ' + res.status);
     const json = await res.json();
@@ -844,7 +888,7 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
     const isNetworkErr = e.name === 'AbortError' || e.name === 'TypeError' || (e.message || '').startsWith('Server error 5');
     if (_retry > 0 && isNetworkErr) {
       await new Promise(r => setTimeout(r, 500 * (3 - _retry)));
-      return api(action, data, _retry - 1, _keyRetried);
+      return api(action, data, _retry - 1, _keyRetried, _tokenRetried);
     }
     throw e;
   } finally {
@@ -1545,12 +1589,16 @@ function _shortAddr(addr) {
     /^\s*\(latitude=[^)]+\)\s*$/i,             // OLD: (latitude=x, longitude=y)
     /^Area\s*:/i,                              // Area: Lanka (stored for DB, not shown)
   ];
-  return addr
+  const visible = addr
     .split('\n')
     .map(l => l.trim())
     .filter(l => l && !META.some(re => re.test(l)))
     .join('\n')
-    .trim() || '—';
+    .trim();
+  if (visible) return visible;
+  // v84 fallback: no Room No → show Area so rider knows the zone
+  const areaLine = addr.split('\n').map(l => l.trim()).find(l => /^Area\s*:/i.test(l));
+  return areaLine ? areaLine.replace(/^Area:\s*/i, '') : '—';
 }
 
 // ── Build filter-aware stop list (same logic as renderOrders) ─
@@ -2004,6 +2052,14 @@ function closeRiderMap() {
   if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
   _clearRouteLayer();
   _routeDrawing = false; // reset in case OSRM fetch was mid-flight
+  // Reset smart suggest state so btn shows clean on next open
+  const srBtn = document.getElementById('smart-route-btn');
+  const srLbl = document.getElementById('smart-route-label');
+  const srIco = document.getElementById('smart-route-icon');
+  if (srBtn) { srBtn.classList.remove('active'); srBtn.disabled = false; }
+  if (srLbl) srLbl.textContent = 'Smart Route Suggest';
+  if (srIco) srIco.textContent = '🎯';
+  _suggestActive = false; _suggestSeqMap = {};
 }
 
 // ── FLY TO STOP ───────────────────────────────────────────────
@@ -3020,9 +3076,30 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const cachedRider = RiderSession.get();
   if (cachedRider) {
+    // ── PROACTIVE TOKEN EXPIRY CHECK ──────────────────────────────────────────
+    // Decode JWT exp from the cached sessionToken (12h TTL).
+    // If expired and creds are available, refresh silently before showing the app
+    // so the first loadOrders() call doesn't waste a round trip on a 401.
+    // If expired and no creds saved, go straight to login screen.
+    if (cachedRider.sessionToken) {
+      try {
+        const payload = JSON.parse(atob(cachedRider.sessionToken.split('.')[1]));
+        if (payload.exp && Date.now() > payload.exp) {
+          const creds = getRiderCreds();
+          if (creds && creds.riderId && creds.pw) {
+            // Re-login silently — updates _rider + RiderSession in place
+            const ok = await _refreshRiderSession();
+            if (!ok) { autofillCreds(); return; } // login failed → stay on auth screen
+          } else {
+            autofillCreds(); return; // no creds → auth screen
+          }
+        }
+      } catch(_) { /* malformed token — let api() 401 handler deal with it */ }
+    }
+
     // FAST PATH — restore from cache instantly, zero network call
     // Same pattern as index.html: no "signing you in…" spinner
-    _rider = cachedRider;
+    _rider = RiderSession.get() || cachedRider; // pick up refreshed rider if token was just renewed
     showApp();
     loadOrders();
     startPolling();

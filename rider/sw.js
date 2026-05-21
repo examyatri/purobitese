@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v8.4  |  Updated : 2026-05-17
+   Version : v8.5  |  Updated : 2026-05-21
+
+   CHANGES v8.5:
+   - Version bump for v84 clean release (2026-05-21)
 
    CHANGES v8.4:
    - Version bump for v71 release
