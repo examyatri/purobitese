@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v20.3                                    ║
+     ║  Version : v20.5                                    ║
      ║  Updated : 2026-05-21                               ║
      ║  Changes : Fixed doRejectOrder NOT_SUBSCRIBER bug   ║
      ║            — moved modal to catch block so friendly ║
@@ -6939,14 +6939,22 @@ function setKitchenToday() {
 
 function setKitchenSlot(slot, btn) {
   _kitchenSlot = slot;
-  document.querySelectorAll('.kitchen-slot-btn').forEach(b => {
-    b.style.background = '#fff';
-    b.style.color      = '#334155';
-    b.style.borderColor = '#e2e8f0';
+  _kitchenSessionsFilter = slot; // keep sessions panel in sync
+  document.querySelectorAll(".kitchen-slot-btn").forEach(b => {
+    b.style.background = "#fff";
+    b.style.color      = "#334155";
+    b.style.borderColor = "#e2e8f0";
   });
-  btn.style.background  = '#0f172a';
-  btn.style.color       = '#fff';
-  btn.style.borderColor = '#0f172a';
+  btn.style.background  = "#0f172a";
+  btn.style.color       = "#fff";
+  btn.style.borderColor = "#0f172a";
+  // sync KS filter buttons visual state
+  document.querySelectorAll(".ks-filter-btn").forEach(b => {
+    const isActive = b.dataset.ksf === slot;
+    b.style.background  = isActive ? "#0f172a" : "#fff";
+    b.style.color       = isActive ? "#fff"    : "#334155";
+    b.style.borderColor = isActive ? "#0f172a" : "#e2e8f0";
+  });
   // Don't auto-search — user presses Search button
 }
 
@@ -7038,15 +7046,27 @@ function _renderKitchenSessions(sessions) {
 }
 
 function setKSFilter(filter, btn) {
+  // KS panel filter must stay in sync with the top slot filter —
+  // backend is source of truth, so update _kitchenSlot and re-fetch.
   _kitchenSessionsFilter = filter;
+  _kitchenSlot = filter;
+  // Sync top slot buttons visual state
+  document.querySelectorAll('.kitchen-slot-btn').forEach(b => {
+    const isActive = b.dataset.slot === filter;
+    b.style.background  = isActive ? '#0f172a' : '#fff';
+    b.style.color       = isActive ? '#fff'    : '#334155';
+    b.style.borderColor = isActive ? '#0f172a' : '#e2e8f0';
+  });
+  // Sync KS panel buttons visual state
   document.querySelectorAll('.ks-filter-btn').forEach(b => {
     const isActive = b === btn;
     b.className = 'ks-filter-btn' + (isActive ? ' ks-act' : '');
-    b.style.background = isActive ? '#0f172a' : '#fff';
-    b.style.color      = isActive ? '#fff'    : '#334155';
-    b.style.borderColor= isActive ? '#0f172a' : '#e2e8f0';
+    b.style.background  = isActive ? '#0f172a' : '#fff';
+    b.style.color       = isActive ? '#fff'    : '#334155';
+    b.style.borderColor = isActive ? '#0f172a' : '#e2e8f0';
   });
-  _applyKitchenSessionsFilter();
+  // Re-fetch from backend with updated slot
+  loadKitchen();
 }
 
 function _applyKitchenSessionsFilter() {
@@ -7057,13 +7077,9 @@ function _applyKitchenSessionsFilter() {
   const rangeLabel = fd === td ? fd : `${fd} → ${td}`;
   if (titleEl) titleEl.textContent = `🕒 Cooking Sessions (${rangeLabel})`;
 
-  // Apply slot filter
+  // Sessions are already slot-filtered by the backend (sesListQuery).
+  // No client-side slot re-filter needed — just render what was returned.
   let sessions = _allKitchenSessions;
-  if (_kitchenSessionsFilter === 'morning') {
-    sessions = sessions.filter(s => s.slot === 'morning' || s.slot === 'all');
-  } else if (_kitchenSessionsFilter === 'evening') {
-    sessions = sessions.filter(s => s.slot === 'evening' || s.slot === 'all');
-  }
 
   if (!sessions.length) {
     wrap.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">No cooking sessions for this filter.</div>';
