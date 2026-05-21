@@ -2791,19 +2791,22 @@ app.post('/api', async (req, res) => {
         if (slot === 'morning') summaryQuery = summaryQuery.eq('slot', 'morning');
         else if (slot === 'evening') summaryQuery = summaryQuery.eq('slot', 'evening');
 
-        // Build slot-aware locked-sessions query:
-        // When slot='morning' or 'evening', only exclude orders locked under matching slot (or 'all').
-        // When slot='all', exclude orders locked under any slot.
-        let lockQuery = supabase.from('cooking_sessions').select('locked_order_ids')
+        // Lock exclusion: fetch ALL sessions for the date range regardless of slot.
+        // A locked order_id must be excluded from ANY slot view — the session's slot tag
+        // reflects the admin UI filter at lock-time, NOT the orders' actual slot values.
+        // Slot separation is handled entirely by summaryQuery filtering orders by slot field.
+        const lockQuery = supabase.from('cooking_sessions').select('locked_order_ids')
           .lte('from_date', toDate).gte('to_date', fromDate);
-        if (slot === 'morning') lockQuery = lockQuery.in('slot', ['morning', 'all']);
-        else if (slot === 'evening') lockQuery = lockQuery.in('slot', ['evening', 'all']);
 
-        // Session list query: same slot filter for the lower Cooking Sessions panel
+        // Session list query: for the Cooking Sessions history panel.
+        // 'all' filter → show every session. 'morning'/'evening' → exact match only.
+        // Do NOT include slot='all' sessions in morning/evening views — session.slot
+        // is the admin's UI choice at lock-time, not derived from order content,
+        // so mixing 'all' sessions into slot-specific panels causes false bleed-through.
         let sesListQuery = supabase.from('cooking_sessions').select('*')
           .lte('from_date', toDate).gte('to_date', fromDate).order('created_at', { ascending: false });
-        if (slot === 'morning') sesListQuery = sesListQuery.in('slot', ['morning', 'all']);
-        else if (slot === 'evening') sesListQuery = sesListQuery.in('slot', ['evening', 'all']);
+        if (slot === 'morning') sesListQuery = sesListQuery.eq('slot', 'morning');
+        else if (slot === 'evening') sesListQuery = sesListQuery.eq('slot', 'evening');
 
         const [
           { data: lockSessions },
