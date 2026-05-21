@@ -2097,7 +2097,7 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRet
     // Only retry on network/timeout errors, never on logical failures (wrong password etc.)
     const isNetworkErr = e.name === 'AbortError' || e.name === 'TypeError' || (e.message || '').startsWith('Server error 5');
     if (e.message === 'RATE_LIMITED') {
-      const isOrderAction = action === 'createOrder' || action === 'forceUdharOrder';
+      const isOrderAction = action === 'createOrder';
       throw new Error(isOrderAction
         ? 'Aapne kuch samay pehle order place kiya hai. Thoda rukkar 30 second baad dobara try karein. 🙏'
         : 'Bahut zyada requests. Thodi der baad try karein. 🙏');
@@ -5680,12 +5680,70 @@ async function refreshPauseStatus(force = false) {
 }
 
 // ── Merged poll tick subscriber call: replaces separate refreshWalletBalance + refreshPauseStatus ──
-// Uses getSubscriberStatus (single DB round-trip for both balance and pause_delivery)
-async function refreshSubscriberStatusMerged() {
-  if (!_session?.is_subscriber) return;
+// Uses getSubscriberStatus (single DB round-trip for both balance and pause_delivery).
+// forceSubCheck=true: also verifies if user is still a subscriber (used on app revisit).
+//   Server now returns isSubscriber flag so we can detect admin-triggered unsubscription
+//   without a separate checkSubscriber round-trip.
+async function refreshSubscriberStatusMerged(forceSubCheck = false) {
+  if (!_session?.is_subscriber && !forceSubCheck) return;
+  if (!_session?.phone) return;
   try {
     const res = await api('getSubscriberStatus', { phone: _session.phone });
-    // Balance update
+
+    // ── Subscription state change detection (only on revisit / forced) ───────
+    if (forceSubCheck) {
+      // Demotion: admin removed user from subscribers while app was in background
+      if (res.isSubscriber === false && _session.is_subscriber) {
+        _session.is_subscriber = false;
+        _walletBal = 0;
+        updateWalletUI(0);
+        _applySubscriberUI();
+        applyKhataVisibility();
+        _pauseMode = 'none';
+        applyPauseState('none');
+        _lastPauseMode = 'none';
+        SessionCache.save({
+          user:          _session,
+          is_subscriber: false,
+          walletBalance: 0,
+          pauseMode:     'none',
+          khataEnabled:  _khataEnabled,
+          userToken:     SessionCache.get()?.userToken || ''
+        });
+        return;
+      }
+      // Promotion: admin added user as subscriber while app was in background
+      // Use balance + pause already in res — no extra DB calls needed
+      if (res.isSubscriber === true && !_session.is_subscriber) {
+        _session.is_subscriber = true;
+        Auth.patch({ is_subscriber: true });
+        _walletBal     = res.balance || 0;
+        _lastBalance   = _walletBal;
+        _walletFreshTs = Date.now();
+        if (_khataEnabled) updateWalletUI(_walletBal);
+        const promoMode = (res.pendingTomorrow && (res.pauseMode || 'none') === 'none')
+          ? res.pendingTomorrow + '-tomorrow'
+          : (res.pauseMode || 'none');
+        _pauseMode     = res.pauseMode || 'none';
+        _lastPauseMode = promoMode;
+        _pauseFreshTs  = Date.now();
+        applyPauseState(promoMode);
+        if (res.plan) Auth.patch({ plan: res.plan });
+        _applySubscriberUI();
+        applyKhataVisibility();
+        SessionCache.save({
+          user:          _session,
+          is_subscriber: true,
+          walletBalance: _walletBal,
+          pauseMode:     _pauseMode,
+          khataEnabled:  _khataEnabled,
+          userToken:     SessionCache.get()?.userToken || ''
+        });
+        return;
+      }
+    }
+
+    // ── Normal merged update: balance + pause + plan ─────────────────────────
     if (_khataEnabled && res.balance !== _lastBalance) {
       _lastBalance = res.balance;
       updateWalletUI(res.balance);
@@ -5699,6 +5757,10 @@ async function refreshSubscriberStatusMerged() {
       _lastPauseMode = mergedDisplayMode;
       applyPauseState(mergedDisplayMode);
     }
+    // Sync plan to session (same as loadPauseState does)
+    if (res.plan) Auth.patch({ plan: res.plan });
+    _pauseFreshTs  = Date.now();
+    _walletFreshTs = Date.now();
   } catch {
     // On failure fall back to individual calls so UI isn't left stale
     refreshWalletBalance().catch(() => {});
@@ -5730,11 +5792,14 @@ document.addEventListener('visibilitychange', () => {
       _resetSettingsCache();
       Promise.all([
         loadMenu(true, true).catch(() => {}),      // bypassCache=true, silent=true → fresh DB hit, no skeleton
-        refreshPauseStatus(true).catch(() => {}),
-        refreshSubscriberStatus(true).catch(() => {}),
-        (_session?.is_subscriber && _khataEnabled)
-          ? refreshWalletBalance(true).catch(() => {})
-          : Promise.resolve()
+        // OPT: Single merged call replaces 3 separate calls (checkSubscriber +
+        //   getSubscriberPauseStatus + getSubscriberBalance) — server fetches
+        //   khata_summary + subscribers in parallel and returns isSubscriber flag
+        //   so unsubscription by admin while away is correctly detected.
+        //   forceSubCheck=true enables the unsubscription detection path.
+        (_session
+          ? refreshSubscriberStatusMerged(true).catch(() => {})
+          : Promise.resolve())
       ]).finally(() => { startPolling(); });
     } else {
       // Short absence — just resume normal poll cycle
