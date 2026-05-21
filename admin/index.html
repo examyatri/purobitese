@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v20.5                                    ║
+     ║  Version : v20.6                                    ║
      ║  Updated : 2026-05-21                               ║
      ║  Changes : Fixed doRejectOrder NOT_SUBSCRIBER bug   ║
      ║            — moved modal to catch block so friendly ║
@@ -1958,6 +1958,7 @@ async function doAdminLogin() {
     const res = await api('adminLogin', { username: user, password: pw });
     const role = res.staff?.role || 'staff'; // role comes from DB, not UI
     AdminAuth.set({ role, username: user, name: res.staff?.name || user, staff: res.staff, sessionToken: res.sessionToken || '' });
+    _sessionExpiredHandled = false; // reset so 401-recovery path is active for this new session
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(role);
@@ -1980,6 +1981,7 @@ function doAdminLogout() {
   stopPolling();
   stopNotifAutoRefresh(); // stop dedicated notif timer if running
   AdminAuth.clear();
+  _sessionExpiredHandled = false; // reset so next login gets a clean 401-recovery path
   document.getElementById('main-layout').style.display = 'none';
   document.getElementById('auth-pg').style.display = 'flex';
   document.getElementById('a-password').value = '';
@@ -2149,9 +2151,13 @@ async function fetchNotifCount() {
   try {
     const res = await api('getNotifications');
     const badge = document.getElementById('notif-badge');
-    if (!badge) return;
-    badge.textContent = res.unreadCount;
-    badge.style.display = res.unreadCount > 0 ? 'inline' : 'none';
+    if (badge) {
+      badge.textContent = res.unreadCount;
+      badge.style.display = res.unreadCount > 0 ? 'inline' : 'none';
+    }
+    // Trigger beep if unread count increased — so admin gets alerted on any tab
+    if (_prevUnreadCount >= 0 && res.unreadCount > _prevUnreadCount) _startBeepLoop();
+    _prevUnreadCount = res.unreadCount;
   } catch {}
 }
 
