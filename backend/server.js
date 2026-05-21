@@ -1,8 +1,8 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v59.8                                    ║
-// ║  Updated : 2026-05-18                               ║
+// ║  Version : v59.9                                    ║
+// ║  Updated : 2026-05-21                               ║
 // ║  Changes : Dead action cleanup — removed 44 dead    ║
 // ║            _STAFF_ACTIONS, 38 dead case handlers.    ║
 // ║            No frontend calls these. Faster switch,   ║
