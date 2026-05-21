@@ -3322,15 +3322,23 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ── Searchable Area Dropdown for Signup ──────────────────────────────────── */
-let _suAreaList = []; // loaded from API
+let _suAreaList    = [];   // loaded from API
+let _suAreaLoading = false; // in-flight guard — prevents parallel duplicate fetches
+let _suAreaFailed  = false; // true after a failed fetch — stops infinite retry loop
 
 async function _loadSignupAreas() {
+  if (_suAreaLoading) return;      // already fetching — don't fire another
+  if (_suAreaList.length) return;  // already loaded — nothing to do
+  _suAreaLoading = true;
+  _suAreaFailed  = false;
   try {
     const r = await api('getDeliveryAreas');
     if (r.areas && r.areas.length) _suAreaList = r.areas;
+    else _suAreaFailed = true;
   } catch(_) {
-    // fallback hardcoded list
-    _suAreaList = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+    _suAreaFailed = true;
+  } finally {
+    _suAreaLoading = false;
   }
 }
 
@@ -3353,7 +3361,19 @@ function _suAreaSearchClose() {
 function _suAreaRenderDropdown(filter) {
   const dd = document.getElementById('su-area-dropdown');
   if (!dd) return;
-  const list = _suAreaList.length ? _suAreaList : ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+  if (!_suAreaList.length) {
+    if (_suAreaFailed) {
+      // API failed — show tap-to-retry instead of looping forever
+      dd.innerHTML = `<div onclick="_suAreaRetry()" style="padding:12px 14px;color:#dc2626;font-size:13px;cursor:pointer">⚠️ Could not load areas — tap to retry</div>`;
+    } else {
+      // Still fetching — show loading and re-render once done
+      dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">Loading areas…</div>`;
+      _loadSignupAreas().then(() => _suAreaRenderDropdown(filter));
+    }
+    dd.style.display = 'block';
+    return;
+  }
+  const list = _suAreaList;
   const filtered = filter ? list.filter(a => a.toLowerCase().includes(filter)) : list;
   if (!filtered.length) {
     dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">No area found</div>`;
@@ -3379,10 +3399,14 @@ function _suAreaSelect(val) {
   _suAreaSearchClose();
 }
 
+function _suAreaRetry() {
+  _suAreaFailed = false;
+  _loadSignupAreas().then(() => _suAreaRenderDropdown(''));
+}
+
 function _suAreaSetValue(val, fromGPS) {
   // Match against loaded list (case-insensitive)
-  const list = _suAreaList.length ? _suAreaList : [];
-  const match = list.find(a => a.toLowerCase() === val.toLowerCase()) || val;
+  const match = _suAreaList.find(a => a.toLowerCase() === val.toLowerCase()) || val;
   _suAreaSelect(match);
   if (fromGPS) {
     const search = document.getElementById('su-area-search');
@@ -4849,7 +4873,17 @@ function _acctAreaSearchClose() {
 function _acctAreaRenderDropdown(filter) {
   const dd = document.getElementById('acct-area-dropdown');
   if (!dd) return;
-  const list = _suAreaList.length ? _suAreaList : ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+  if (!_suAreaList.length) {
+    if (_suAreaFailed) {
+      dd.innerHTML = `<div onclick="_acctAreaRetry()" style="padding:12px 14px;color:#dc2626;font-size:13px;cursor:pointer">⚠️ Could not load areas — tap to retry</div>`;
+    } else {
+      dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">Loading areas…</div>`;
+      _loadSignupAreas().then(() => _acctAreaRenderDropdown(filter));
+    }
+    dd.style.display = 'block';
+    return;
+  }
+  const list = _suAreaList;
   const filtered = filter ? list.filter(a => a.toLowerCase().includes(filter)) : list;
   if (!filtered.length) {
     dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">No area found</div>`;
@@ -4877,9 +4911,12 @@ function _acctAreaSelect(val) {
     if (box) box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, val);
   }
 }
+function _acctAreaRetry() {
+  _suAreaFailed = false;
+  _loadSignupAreas().then(() => _acctAreaRenderDropdown(''));
+}
 function _acctAreaSetValue(val) {
-  const list = _suAreaList.length ? _suAreaList : [];
-  const match = list.find(a => a.toLowerCase() === val.toLowerCase()) || val;
+  const match = _suAreaList.find(a => a.toLowerCase() === val.toLowerCase()) || val;
   _acctAreaSelect(match);
 }
 
@@ -5799,6 +5836,10 @@ async function bootApp() {
   // ── KEY GUARD: config.js loads async; if it hasn't run by the time bootApp
   //    fires, fetch the key now before any api() call is attempted. ──────────
   if (!CFG.KEY) await _refreshApiKey();
+
+  // Pre-load delivery areas now that CFG.KEY is guaranteed ready.
+  // Non-blocking — signup dropdown will be populated well before user reaches it.
+  _loadSignupAreas();
 
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
