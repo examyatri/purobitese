@@ -3124,8 +3124,10 @@ function openAllPinsView() {
   if (nextBatchBar) nextBatchBar.style.display = 'none';
   if (bar)          bar.classList.add('show');
 
-  // Let CSS transition finish, then resize map and fit all pins
-  requestAnimationFrame(() => {
+  // Wait for CSS flex-basis transition (280ms) to finish before resizing map and fitting pins.
+  // Using requestAnimationFrame here fires too early — map container is still mid-animation,
+  // so Leaflet calculates bounds against the old height and pins land off-screen.
+  setTimeout(() => {
     _map.invalidateSize();
 
     const pts = [];
@@ -3137,7 +3139,7 @@ function openAllPinsView() {
     });
     if (_gpsPos) pts.push([_gpsPos.lat, _gpsPos.lng]);
 
-    if (pts.length > 1)        _map.fitBounds(L.latLngBounds(pts), { padding: [32, 32], maxZoom: 16 });
+    if (pts.length > 1)        _map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 15 });
     else if (pts.length === 1) _map.setView(pts[0], 15);
 
     // Build batch legend text
@@ -3153,7 +3155,7 @@ function openAllPinsView() {
         statsEl.textContent = `${pinned} stops pinned · ${noCoords} without GPS · tap any pin for details`;
       }
     }
-  });
+  }, 320);
 }
 
 function closeAllPinsView() {
@@ -3172,11 +3174,11 @@ function closeAllPinsView() {
   if (bar)          bar.classList.remove('show');
   if (nextBatchBar) nextBatchBar.style.display = '';
 
-  // Resize and re-fit route bounds
-  requestAnimationFrame(() => {
+  // Wait for collapse transition before re-fitting
+  setTimeout(() => {
     _map.invalidateSize();
     _fitMapBounds();
-  });
+  }, 320);
 }
 
 /* ── Reset batch tracking when map is opened/reloaded ─────────── */
