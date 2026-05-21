@@ -434,19 +434,24 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 #all-pins-bar{
   position:absolute;bottom:0;left:0;right:0;z-index:20;
   background:rgba(15,23,42,.88);backdrop-filter:blur(4px);
-  display:none;align-items:center;justify-content:space-between;
+  display:none;align-items:center;
   padding:7px 12px;border-top:1px solid #334155;
   font-family:var(--ff);font-size:11px;color:#94a3b8;
 }
 #all-pins-bar.show{display:flex}
 #all-pins-stats{flex:1}
+/* Collapse button: fixed top-left, always on-screen, visible above map */
 #all-pins-close{
-  background:#334155;color:#e2e8f0;border:none;
-  border-radius:7px;padding:5px 12px;font-size:12px;
+  display:none;
+  position:fixed;top:12px;left:12px;z-index:9999;
+  background:#0f172a;color:#e2e8f0;border:none;
+  border-radius:9px;padding:8px 14px;font-size:13px;
   font-family:var(--ff);font-weight:700;cursor:pointer;
-  white-space:nowrap;margin-left:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  white-space:nowrap;
 }
-#all-pins-close:active{background:#475569}
+#all-pins-close.show{display:block}
+#all-pins-close:active{background:#334155}
 #map-container.all-pins-expanded{
   flex:0 0 88vh!important;
   transition:flex-basis 280ms ease;
@@ -601,6 +606,8 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
      IN-APP ROUTE MAP MODAL
 ═══════════════════════════════════════════════════════ -->
 <div id="map-modal">
+  <!-- Collapse button: position:fixed inside map-modal context, top-left, always on screen -->
+  <button id="all-pins-close" onclick="closeAllPinsView()">✕ Collapse</button>
   <!-- Top bar -->
   <div id="map-topbar">
     <div style="display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden">
@@ -622,10 +629,8 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     <!-- All-Pins stats bar — overlaid at bottom of map when expanded -->
     <div id="all-pins-bar">
       <span id="all-pins-stats"></span>
-      <button id="all-pins-close" onclick="closeAllPinsView()">✕ Collapse</button>
     </div>
   </div>
-
   <!-- Action Buttons -->
   <div id="map-actions">
     <button class="map-action-btn" id="btn-optimize" onclick="optimizeRoute()">
@@ -3123,6 +3128,8 @@ function openAllPinsView() {
   if (smartBtn)     smartBtn.style.display     = 'none';
   if (nextBatchBar) nextBatchBar.style.display = 'none';
   if (bar)          bar.classList.add('show');
+  const closeBtn = document.getElementById('all-pins-close');
+  if (closeBtn)     closeBtn.classList.add('show');
 
   // Wait for CSS flex-basis transition (280ms) to finish before resizing map and fitting pins.
   // Using requestAnimationFrame here fires too early — map container is still mid-animation,
@@ -3173,6 +3180,8 @@ function closeAllPinsView() {
   if (smartBtn)     smartBtn.style.display     = '';
   if (bar)          bar.classList.remove('show');
   if (nextBatchBar) nextBatchBar.style.display = '';
+  const closeBtn = document.getElementById('all-pins-close');
+  if (closeBtn)     closeBtn.classList.remove('show');
 
   // Wait for collapse transition before re-fitting
   setTimeout(() => {
