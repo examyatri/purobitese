@@ -541,6 +541,8 @@ body{font-family:var(--fb);background:var(--lt);color:var(--dk);overflow:hidden;
 /* Toast */
 #toast{position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;border-radius:24px;padding:10px 20px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none;font-family:var(--fb);font-size:14px}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#offline-bar{position:fixed;top:0;left:0;right:0;z-index:10000;background:#ef4444;color:#fff;text-align:center;font-size:13px;font-weight:600;padding:6px 12px;transform:translateY(-100%);transition:transform 250ms ease;letter-spacing:.2px}
+#offline-bar.show{transform:translateY(0)}
 /* Cart Pill */
 #cart-pill{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-100%);background:var(--g);color:#fff;padding:8px 20px;border-radius:0 0 16px 16px;z-index:9998;transition:transform 300ms;font-family:var(--ff);font-size:13px;font-weight:600}
 #cart-pill.show{transform:translateX(-50%) translateY(0)}
@@ -1010,6 +1012,7 @@ textarea{resize:vertical;min-height:80px}
   <button class="retry-btn btn-primary">Try Again</button>
 </div>
 
+<div id="offline-bar">📵 Internet nahi hai — cached data dikh raha hai</div>
 <div id="toast"></div>
 <div id="coupon-celebrate"></div>
 <div id="cart-pill"></div>
@@ -1185,14 +1188,40 @@ textarea{resize:vertical;min-height:80px}
           <span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:4px">— type your full address</span>
         </label>
         <textarea id="su-addr-manual" rows="3"
-          placeholder="e.g. Your Hostel Name, Near by, Varanasi — 221005"
+          placeholder="e.g. Hostel name, building name, nearby landmark — 221005"
           style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff;transition:border-color 200ms"
           autocomplete="off" oninput="_suManualAddrWatcher()"
           onfocus="this.style.borderColor='#e63946'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
         <div style="margin-top:5px;font-size:11px;color:#94a3b8;font-family:var(--fb);line-height:1.5">
-          ✏️ Include hostel/colony name, nearby landmark &amp; PIN code
+          ✏️ Include hostel / building name and a nearby landmark
         </div>
         <div class="field-error" id="su-addr-err"></div>
+      </div>
+
+      <!-- ── Delivery Area Selector ── -->
+      <div class="form-group" style="margin-top:14px" id="su-area-wrap">
+        <label>Delivery Area <span style="color:#dc2626;font-size:11px">*</span></label>
+        <div style="font-size:12px;color:#475569;font-family:var(--fb);line-height:1.6;margin-bottom:8px;padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+          📍 Select the area closest to your delivery address. This helps us assign the right delivery rider to your orders.
+        </div>
+        <select id="su-area" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:14px;color:#1e293b;background:#fff;outline:none;transition:border-color 200ms;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%236b7280%22><path fill-rule=%22evenodd%22 d=%22M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z%22 clip-rule=%22evenodd%22/></svg>');background-repeat:no-repeat;background-position:right 14px center;background-size:18px;padding-right:40px"
+          onfocus="this.style.borderColor='#e63946'" onblur="this.style.borderColor='#e2e8f0'">
+          <option value="">— Select your area —</option>
+          <option value="Lanka">Lanka</option>
+          <option value="BHU Campus">BHU Campus</option>
+          <option value="Sunderpur">Sunderpur</option>
+          <option value="Hyderabad Colony">Hyderabad Colony</option>
+          <option value="Trauma Centre">Trauma Centre</option>
+          <option value="Durgakund">Durgakund</option>
+          <option value="Ravindrapuri">Ravindrapuri</option>
+          <option value="Assi Ghat">Assi Ghat</option>
+          <option value="Nagwa">Nagwa</option>
+          <option value="Shivpur">Shivpur</option>
+        </select>
+        <div style="margin-top:5px;font-size:11px;color:#94a3b8;font-family:var(--fb);line-height:1.5">
+          Not sure? Pick the area name you hear most often for your location.
+        </div>
+        <div class="field-error" id="su-area-err"></div>
       </div>
 
       <div class="form-group" style="margin-top:16px">
@@ -2954,12 +2983,56 @@ async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
   } catch(e) { return []; }
 }
 
+/* ─── TIFFO DELIVERY ZONE LOOKUP ─────────────────────────────────────────────
+   Maps GPS coordinates to a named delivery area using bounding boxes.
+   Used to guarantee the "Area:" tag is always written even when Nominatim
+   returns an empty neighbourhood/suburb for Varanasi (sparse OSM coverage).
+
+   HOW TO READ / EDIT:
+   Each zone is: [ name, south_lat, west_lng, north_lat, east_lng ]
+   Boxes overlap intentionally — first match wins (ordered most-specific first).
+   To add a new area: add a row with the bounding box from Google Maps.
+   To verify: https://boundingbox.klokantech.com/ → draw box → copy CSV.
+
+   Current zones cover Tiffo's full delivery radius around BHU, Varanasi. ─── */
+const _TIFFO_ZONES = [
+  // ── BHU Campus (inside university walls — most specific, check first) ──
+  ['BHU Campus',       25.2580, 82.9860, 25.2750, 83.0040],
+  // ── Lanka (main market + residential, BHU south gate area) ──
+  ['Lanka',            25.2620, 82.9820, 25.2720, 82.9910],
+  // ── Sunderpur (north of BHU) ──
+  ['Sunderpur',        25.2750, 82.9860, 25.2860, 83.0000],
+  // ── Hyderabad Colony ──
+  ['Hyderabad Colony', 25.2480, 82.9900, 25.2620, 83.0050],
+  // ── Durgakund ──
+  ['Durgakund',        25.2900, 82.9980, 25.3020, 83.0100],
+  // ── Ravindrapuri ──
+  ['Ravindrapuri',     25.2860, 83.0000, 25.2970, 83.0180],
+  // ── Assi Ghat (riverfront area) ──
+  ['Assi Ghat',        25.2810, 83.0080, 25.2960, 83.0200],
+  // ── Trauma Centre / BHU Hospital area ──
+  ['Trauma Centre',    25.2550, 82.9990, 25.2680, 83.0100],
+  // ── Nagwa ──
+  ['Nagwa',            25.2700, 83.0050, 25.2840, 83.0200],
+  // ── Shivpur / Tilak Nagar ──
+  ['Shivpur',          25.2960, 82.9780, 25.3100, 82.9960],
+];
+
+/* Returns the zone name for given GPS coords, or '' if outside all zones.
+   Simple point-in-bounding-box check — fast, zero network, works offline. */
+function _getZoneArea(lat, lng) {
+  for (const [name, s, w, n, e] of _TIFFO_ZONES) {
+    if (lat >= s && lat <= n && lng >= w && lng <= e) return name;
+  }
+  return '';
+}
+
 /* Reverse-geocode via Nominatim — returns rich structured address object.
    Also fires a parallel nearby-search for richer landmark context. */
 async function _nominatimReverseGeocode(lat, lng) {
   try {
     const revRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&extratags=1&zoom=19`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&extratags=1&zoom=14`,
       { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-App/1.0' } }
     );
 
@@ -2989,7 +3062,9 @@ async function _nominatimReverseGeocode(lat, lng) {
     const road     = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
 
     // ── 3. Neighbourhood / locality ──
-    const area = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || a.city_block || '').trim();
+    // Try Nominatim first; fall back to Tiffo zone lookup when OSM coverage is sparse.
+    const _nominatimArea = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || a.city_block || '').trim();
+    const area = _nominatimArea || _getZoneArea(lat, lng);
 
     // ── 4. City / town — never let district masquerade as city ──
     // Varanasi Sadar is state_district not city — pick the most specific urban name
@@ -3097,11 +3172,12 @@ function _buildAddress(roomVal, geoOrStr, lat, lng, extraDetail) {
     const cityPin = [geo.city, _districtPart].filter(Boolean).join(', ') +
                     (geo.pincode ? ` - ${geo.pincode}` : '');
     const line5 = geo.state ? `${geo.state}, India` : 'India';
+    const areaStr  = geo.area ? `Area: ${geo.area}` : '';           // explicit area tag for rider
     const coordStr = (finalLat !== null && finalLng !== null)
       ? `Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)}` : '';
     const plusStr = (finalLat !== null && finalLng !== null)
       ? `Plus Code: ${_getPlusCode(parseFloat(finalLat), parseFloat(finalLng))}` : '';
-    return [line1, line2, line3, cityPin, line5, coordStr, plusStr]
+    return [line1, line2, line3, cityPin, line5, areaStr, coordStr, plusStr]
       .map(l => l.trim()).filter(Boolean).join('\n');
   }
 
@@ -3355,6 +3431,9 @@ async function _updateAddressFromPin(lat, lng) {
     _showGeocodingBanner(false);
   }
 
+  // Zone fallback: if Nominatim returned no area (sparse OSM), inject from zone table
+  if (geo && !geo.area) geo.area = _getZoneArea(lat, lng);
+
   _lastGeoResult = geo; // cache for room-watcher rebuilds
 
   const room     = document.getElementById('su-room')?.value || '';
@@ -3366,6 +3445,20 @@ async function _updateAddressFromPin(lat, lng) {
   // Update hidden textarea
   const addrBox = document.getElementById('su-addr');
   if (addrBox) { addrBox.removeAttribute('readonly'); addrBox.value = fullAddr; }
+
+  // Auto-fill area dropdown from GPS-detected zone (and lock it)
+  const areaSelect = document.getElementById('su-area');
+  if (areaSelect && geo?.area) {
+    const detectedArea = geo.area.trim();
+    // Match against dropdown options (case-insensitive)
+    const matchOpt = Array.from(areaSelect.options).find(o => o.value.toLowerCase() === detectedArea.toLowerCase());
+    if (matchOpt) {
+      areaSelect.value = matchOpt.value;
+      areaSelect.style.background = '#f0fdf4';
+      areaSelect.style.borderColor = '#86efac';
+      areaSelect.disabled = false; // keep editable — user can override if GPS slightly off
+    }
+  }
 
   // Show compact address chip
   _updateAddrChip('su-addr-chip', 'su-addr-chip-text', geo, lat, lng);
@@ -3721,14 +3814,20 @@ async function doSignup() {
   const room    = document.getElementById('su-room')?.value.trim() || '';
   const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
   const pw      = document.getElementById('su-pw').value;
+  const selectedArea = (document.getElementById('su-area')?.value || '').trim();
 
   // Final address: manual typed text + geo-detected block (road, city, coords, plus code)
   let address;
   if (_pendingLat !== null && _pendingLng !== null) {
     const geoAddr = _buildAddress(room, _lastGeoResult || '', _pendingLat, _pendingLng, '');
     address = _buildCombinedAddress(manual, geoAddr);
+    // If GPS-derived area tag is missing but user selected area, append it
+    if (selectedArea && !/^Area:\s*.+/im.test(address)) {
+      address = address + '\nArea: ' + selectedArea;
+    }
   } else {
-    address = manual;
+    // No GPS: build address from manual text + append area tag
+    address = manual + (selectedArea ? '\nArea: ' + selectedArea : '');
   }
 
   const setErr = (id, msg) => {
@@ -3755,12 +3854,13 @@ async function doSignup() {
   const locOk = document.getElementById('su-loc-ok').value === '1';
 
   // Clear all errors first
-  ['su-name-err','su-phone-err','su-addr-err','su-pw-err'].forEach(id => setErr(id, ''));
+  ['su-name-err','su-phone-err','su-addr-err','su-area-err','su-pw-err'].forEach(id => setErr(id, ''));
 
   // Validate each field with clear human-readable messages
   if (!name) setErr('su-name-err', '👤 Please enter your full name');
   if (!phone || phone.length !== 10) setErr('su-phone-err', '📱 Enter a valid 10-digit WhatsApp number');
-  if (!address) setErr('su-addr-err', '📍 Please type your address in the address box above');
+  if (!manual) setErr('su-addr-err', '📍 Please type your address in the address box above');
+  if (!selectedArea) setErr('su-area-err', '📍 Please select your delivery area from the list');
   if (!pw || pw.length < 6) setErr('su-pw-err', '🔒 Password must be at least 6 characters');
 
   if (!locOk) {
@@ -5042,6 +5142,8 @@ async function _acctUpdateAddress(lat, lng) {
   const hint = document.getElementById('acct-geocode-hint');
   if (hint) hint.textContent = '⏳ Fetching address from map…';
   const geo = await _nominatimReverseGeocode(lat, lng);
+  // Zone fallback: if Nominatim returned no area (sparse OSM), inject from zone table
+  if (geo && !geo.area) geo.area = _getZoneArea(lat, lng);
   _acctGeoResult = geo;
   const room    = document.getElementById('acct-room')?.value || '';
   const manual  = (document.getElementById('acct-addr-manual')?.value || '').trim();
@@ -6491,14 +6593,17 @@ function doLogout() {
   });
 
   // Clear signup form completely
-  ['su-name','su-phone','su-room','su-addr','su-pw'].forEach(id => {
+  ['su-name','su-phone','su-room','su-addr','su-addr-manual','su-pw'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  ['su-name-err','su-phone-err','su-room-err','su-addr-err','su-pw-err'].forEach(id => {
+  ['su-name-err','su-phone-err','su-room-err','su-addr-err','su-area-err','su-pw-err'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '';
   });
+  // Reset area dropdown
+  const suArea = document.getElementById('su-area');
+  if (suArea) { suArea.value = ''; suArea.style.background = ''; suArea.style.borderColor = ''; }
   // Reset location state
   const suLocOk = document.getElementById('su-loc-ok');
   if (suLocOk) suLocOk.value = '0';
@@ -6625,6 +6730,21 @@ document.addEventListener('DOMContentLoaded', () => {
   bootApp();
   initPullToRefresh();
 });
+
+// ── Offline / Online banner ────────────────────────────────────────
+(function() {
+  const bar = document.getElementById('offline-bar');
+  if (!bar) return;
+  function setOffline() { bar.classList.add('show'); }
+  function setOnline()  {
+    bar.classList.remove('show');
+    // Reload fresh data silently when reconnected
+    if (typeof loadMenu === 'function') loadMenu(true, true).catch(() => {});
+  }
+  window.addEventListener('offline', setOffline);
+  window.addEventListener('online',  setOnline);
+  if (!navigator.onLine) setOffline(); // already offline on load
+})();
 </script>
 </body>
 </html>
