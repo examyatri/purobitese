@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v35.6                                    ║
+     ║  Version : v35.9                                    ║
      ║  Updated : 2026-05-21                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
@@ -73,15 +73,14 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   font-size:14px;width:calc(100% - 32px);cursor:pointer;
   display:flex;align-items:center;justify-content:center;gap:8px;
   box-shadow:0 4px 14px rgba(37,99,235,.35);
-  transition:opacity 180ms,transform 120ms;
+  transition:background 300ms,opacity 180ms,transform 120ms;
   letter-spacing:.2px;
 }
 .route-btn:active{opacity:.88;transform:scale(.98)}
-.suggest-badge{display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;font-family:var(--ff);margin-left:6px}
-.suggest-seq{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border-radius:50%;font-size:11px;font-weight:800;font-family:var(--ff);flex-shrink:0;margin-right:4px}
-.smart-route-btn{margin:8px 12px 0;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;border:none;border-radius:13px;padding:11px 13px;font-family:var(--ff);font-weight:700;font-size:13px;width:calc(100% - 24px);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(124,58,237,.40);transition:opacity 180ms,transform 120ms;letter-spacing:.2px}
-.smart-route-btn:active{opacity:.88;transform:scale(.98)}
-.smart-route-btn.active{background:linear-gradient(135deg,#059669,#10b981)}
+.route-btn.loading{background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:not-allowed}
+.route-btn.ready{background:linear-gradient(135deg,#059669,#10b981)}
+
+
 
 /* Tabs */
 .tabs{display:flex;background:white;border-bottom:1px solid var(--lt)}
@@ -411,6 +410,41 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 }
 #btn-gmaps-nav{position:relative}
 
+/* ─── BATCH STRIP (above stop list, visible when 2+ batches) ─── */
+#batch-strip{
+  display:none;
+  flex-direction:column;
+  background:#0f172a;
+  padding:8px 10px 6px;
+  gap:6px;
+  flex-shrink:0;
+  border-bottom:1px solid #1e293b;
+}
+#batch-strip.show{display:flex}
+.batch-strip-row{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.batch-strip-label{
+  font-family:var(--ff);font-size:10px;font-weight:700;
+  color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;
+  flex-shrink:0;min-width:56px;
+}
+.batch-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  border-radius:20px;padding:4px 10px;
+  font-family:var(--ff);font-size:11px;font-weight:800;
+  cursor:pointer;border:2px solid transparent;
+  transition:opacity 150ms,transform 100ms,border-color 150ms;
+  color:#fff;
+}
+.batch-pill:active{opacity:.8;transform:scale(.96)}
+.batch-pill.current{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.batch-pill.done{opacity:.38;cursor:default}
+.batch-pill-count{
+  background:rgba(0,0,0,.3);border-radius:10px;
+  padding:1px 5px;font-size:10px;font-weight:700;
+}
+
 /* ─── NEXT BATCH BANNER ───────────────────────────────── */
 #next-batch-bar{
   display:none;
@@ -525,8 +559,11 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     <div class="stat-item"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Total Delivered</div></div>
   </div>
 
-  <!-- Route Planner -->
-  <button class="route-btn" onclick="openRiderMap()">🗺 Plan Route for Filtered Orders</button>
+  <!-- Route Planner — one button: GPS → optimize → open map with road route ready -->
+  <button class="route-btn" id="plan-route-btn" onclick="planAndGo()">
+    <span id="plan-route-icon">🗺</span>
+    <span id="plan-route-label">Plan &amp; Go — Optimized Route</span>
+  </button>
 
   <!-- Main Tabs -->
   <div class="tabs">
@@ -652,6 +689,14 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
     </button>
   </div>
 
+  <!-- Batch Strip — compact overview of all batches, tap to switch -->
+  <div id="batch-strip">
+    <div class="batch-strip-row">
+      <span class="batch-strip-label">Batches</span>
+      <div id="batch-pills"></div>
+    </div>
+  </div>
+
   <!-- Next Batch Banner -->
   <div id="next-batch-bar">
     <div id="next-batch-bar-text">✅ Batch done! Next 10 ready</div>
@@ -660,11 +705,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
 
   <!-- All Pins: stats bar overlaid on existing map (no separate panel) -->
 
-  <!-- Smart Route Suggest — lives here in the Route page, not on home -->
-  <button class="smart-route-btn" id="smart-route-btn" onclick="toggleSmartSuggest()">
-    <span id="smart-route-icon">🎯</span>
-    <span id="smart-route-label">Smart Route Suggest</span>
-  </button>
+
 
   <!-- Stop List -->
   <div id="map-bottom">
@@ -742,8 +783,7 @@ let _appliedDate    = 'today';
 let _appliedSlot    = 'all';
 let _appliedQuery   = '';
 let _filterArea     = 'all';  // area chip state
-let _suggestActive  = false;  // smart suggest mode on/off
-let _suggestSeqMap  = {};     // order_id → {seq, distKm} from TSP
+
 let _appliedArea    = 'all';  // area actually applied
 
 /* ─── AREA GEOCODE CACHE (key: tf_area_cache) ───────────
@@ -947,6 +987,10 @@ function doRiderLogout() {
   stopPolling();
   clearRiderCreds();
   RiderSession.clear();
+  // Clear orders cache — so next login (possibly different rider) starts clean
+  if (_rider?.rider_id) {
+    try { localStorage.removeItem('_rcache_' + _rider.rider_id); } catch(_) {}
+  }
   _rider = null; _orders = []; _pending = []; _delivered = [];
   document.getElementById('pg-app').style.display  = 'none';
   document.getElementById('pg-auth').style.display = 'flex';
@@ -957,6 +1001,25 @@ function doRiderLogout() {
 /* ─── ORDER LOADING ──────────────────────────────────── */
 async function loadOrders() {
   if (!_rider) return;
+
+  // ── Instant render from cache (stale-while-revalidate) ──────────────────────
+  // Shows last-known orders immediately on app open / revisit — no blank screen.
+  // The live fetch below ALWAYS fires and overwrites with fresh data.
+  // Cache key is per-rider so switching riders never shows wrong data.
+  const _RCACHE_KEY = '_rcache_' + _rider.rider_id;
+  try {
+    const _cached = localStorage.getItem(_RCACHE_KEY);
+    if (_cached) {
+      const _cachedOrders = JSON.parse(_cached);
+      _orders    = _cachedOrders;
+      _pending   = _orders.filter(o => { const s=(o.order_status||'').toLowerCase(); return s!=='delivered'&&s!=='rejected'&&s!=='cancelled'; });
+      _delivered = _orders.filter(o => o.order_status === 'delivered');
+      updateStats();
+      renderOrders(); // instant — user sees data before network round-trip
+    }
+  } catch(_) { /* corrupt cache — ignore, live fetch still runs */ }
+
+  // ── Always fetch fresh from server — PTR, poll, login all hit DB ────────────
   try {
     const res  = await api('getRiderOrders', { riderId: _rider.rider_id });
     _orders    = res.orders || [];
@@ -965,6 +1028,8 @@ async function loadOrders() {
       return s !== 'delivered' && s !== 'rejected' && s !== 'cancelled';
     });
     _delivered = _orders.filter(o => o.order_status === 'delivered');
+    // Update cache with fresh data for next open/revisit
+    try { localStorage.setItem(_RCACHE_KEY, JSON.stringify(_orders)); } catch(_) {}
     _areaCache.prune(); // remove expired geocode cache entries (7-day TTL)
     updateStats();
     renderOrders();
@@ -1154,13 +1219,14 @@ function renderOrderCard(o) {
       <button class="o-btn o-btn-done" id="del-btn-${o.order_id}" onclick="markDelivered('${o.order_id}')">✅ Done</button>`;
   }
 
-  // Smart suggest badge
-  const _seq = (_suggestActive && !isDone && _suggestSeqMap[o.order_id]);
-  const _seqBadge = _seq
-    ? `<span class="suggest-seq">${_seq.seq}</span>`
+  // Smart suggest badge — look up this order's stop in _mapStops (set by openRiderMap)
+  const _seq = _mapStops.find(s => s.order?.order_id === o.order_id) || null;
+
+  const _seqBadge = (_seq && _seq.seqNum != null)
+    ? `<span style="background:#7c3aed;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:4px">${_seq.seqNum}</span>`
     : '';
   const _distBadge = (_seq && _seq.distKm != null)
-    ? `<span class="suggest-badge">📍 ${_seq.distKm < 1 ? Math.round(_seq.distKm*1000)+'m' : _seq.distKm.toFixed(1)+'km'}</span>`
+    ? `<span style="background:#f0fdf4;color:#166534;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:600">~${_seq.distKm.toFixed(1)}km</span>`
     : '';
 
   return `
@@ -1225,26 +1291,7 @@ async function markDelivered(orderId) {
     }
     updateStats();
     // Re-number suggest sequence — delivered order removed, renumber remaining
-    if (_suggestActive) {
-      delete _suggestSeqMap[orderId];
-      // Re-sequence remaining in current order
-      const remaining = Object.entries(_suggestSeqMap)
-        .sort((a, b) => a[1].seq - b[1].seq);
-      remaining.forEach(([id, val], i) => { _suggestSeqMap[id] = { ...val, seq: i + 1 }; });
-      // Update button label count
-      const lbl = document.getElementById('smart-route-label');
-      if (lbl) {
-        const total = Object.keys(_suggestSeqMap).length;
-        const totalKm = Object.values(_suggestSeqMap).reduce((s,v) => s + (v.distKm||0), 0);
-        lbl.textContent = total > 0
-          ? `${total} stops · ~${totalKm.toFixed(1)}km · Tap to clear`
-          : 'All done! Tap to clear';
-        if (total === 0) {
-          document.getElementById('smart-route-btn').classList.remove('active');
-          document.getElementById('smart-route-icon').textContent = '🎉';
-        }
-      }
-    }
+
     renderOrders();
     rToast('✅ Delivered!');
   } catch(e) {
@@ -1302,7 +1349,7 @@ function clearFilters() {
   document.getElementById('r-search').value = '';
   _filterDate = 'today'; _filterSlot = 'all'; _appliedDate = 'today'; _appliedSlot = 'all'; _appliedQuery = '';
   _filterArea = 'all'; _appliedArea = 'all';
-  if (_suggestActive) { _suggestActive = false; _suggestSeqMap = {}; document.getElementById('smart-route-btn')?.classList.remove('active'); document.getElementById('smart-route-icon').textContent='🎯'; document.getElementById('smart-route-label').textContent='Smart Route Suggest'; }
+
   document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === 'today'));
   document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === 'all'));
   document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === 'all'));
@@ -1682,6 +1729,7 @@ function _startGPS() {
           _buildSectorBatches();
           _placeMarkers();
           _activeBatchIdx = 0;
+          _updateBatchStrip();
         }, 200); // small delay so map is ready
       }
       if (!_map) return;
@@ -2052,9 +2100,9 @@ function openRiderMap(ordersParam) {
     _placeMarkers();
     _updateMapTitle(orders);
     _renderStopList();
-    // Auto-sort route once first GPS fix arrives (if 3+ stops have coords)
+    // Auto-sort route once first GPS fix arrives (1+ stop with coords)
     const _stopsWithCoords = _mapStops.filter(s => s.coords);
-    if (_stopsWithCoords.length >= 3) {
+    if (_stopsWithCoords.length >= 1) {
       _autoOptimizeOnGpsFix = true;
       rToast('📍 Getting GPS — route will auto-sort…');
     }
@@ -2062,6 +2110,7 @@ function openRiderMap(ordersParam) {
     _buildSectorBatches();
     _placeMarkers(); // re-place with batch colors
     _activeBatchIdx = 0;
+    _updateBatchStrip();
     _startGPS();
 
     // Fit bounds after GPS first fix or immediately
@@ -2082,14 +2131,7 @@ function closeRiderMap() {
   if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
   _clearRouteLayer();
   _routeDrawing = false; // reset in case OSRM fetch was mid-flight
-  // Reset smart suggest state so btn shows clean on next open
-  const srBtn = document.getElementById('smart-route-btn');
-  const srLbl = document.getElementById('smart-route-label');
-  const srIco = document.getElementById('smart-route-icon');
-  if (srBtn) { srBtn.classList.remove('active'); srBtn.disabled = false; }
-  if (srLbl) srLbl.textContent = 'Smart Route Suggest';
-  if (srIco) srIco.textContent = '🎯';
-  _suggestActive = false; _suggestSeqMap = {};
+
 }
 
 // ── FLY TO STOP ───────────────────────────────────────────────
@@ -2138,98 +2180,9 @@ function _findNearestRemainingIdx() {
   return bestIdx;
 }
 
-/* ─── SMART ROUTE SUGGEST ──────────────────────────────
-   1. Get rider GPS
-   2. Run TSP (nearest-neighbour) on filtered pending orders with coords
-   3. Assign seq numbers + distances to _suggestSeqMap
-   4. Re-render cards to show badges
-   5. "Start Smart Route" button opens map with optimized sequence   */
-async function toggleSmartSuggest() {
-  if (_suggestActive) {
-    // Turn off
-    _suggestActive = false;
-    _suggestSeqMap = {};
-    document.getElementById('smart-route-btn').classList.remove('active');
-    document.getElementById('smart-route-icon').textContent = '🎯';
-    document.getElementById('smart-route-label').textContent = 'Smart Route Suggest';
-    renderOrders();
-    return;
-  }
-  await _runSmartSuggest();
-}
 
-async function _runSmartSuggest() {
-  const btn = document.getElementById('smart-route-btn');
-  const lbl = document.getElementById('smart-route-label');
-  lbl.textContent = 'Getting GPS…';
-  btn.disabled = true;
 
-  let riderLat, riderLng;
-  try {
-    const pos = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 30000 })
-    );
-    riderLat = pos.coords.latitude;
-    riderLng = pos.coords.longitude;
-  } catch {
-    rToast('📍 GPS unavailable — using first order as start');
-    riderLat = null; riderLng = null;
-  }
 
-  // Get filtered pending orders that have coordinates
-  const baseList = _buildFilteredStops();
-  const withCoords = baseList
-    .filter(o => _extractCoordsFromAddress(o.address))
-    .map(o => ({ order: o, coords: _extractCoordsFromAddress(o.address) }));
-
-  if (!withCoords.length) {
-    rToast('No orders with GPS coordinates to suggest');
-    lbl.textContent = 'Smart Route Suggest';
-    btn.disabled = false;
-    return;
-  }
-
-  // Use rider GPS or first order as origin
-  const startLat = riderLat ?? withCoords[0].coords.lat;
-  const startLng = riderLng ?? withCoords[0].coords.lng;
-
-  // TSP — nearest neighbour (reuse shared function)
-  const ordered = _nearestNeighborSort([...withCoords], startLat, startLng);
-
-  // Build seq map
-  _suggestSeqMap = {};
-  ordered.forEach((s, i) => {
-    _suggestSeqMap[s.order.order_id] = { seq: i + 1, distKm: s.distKm };
-  });
-
-  const totalKm    = ordered.reduce((sum, s) => sum + (s.distKm || 0), 0);
-  const totalAll   = baseList.length;          // all filtered pending orders
-  const routedCnt  = ordered.length;           // only those with GPS coords
-  const skippedCnt = totalAll - routedCnt;     // orders missing coordinates
-
-  _suggestActive = true;
-  btn.classList.add('active');
-  document.getElementById('smart-route-icon').textContent = '✅';
-  // If some orders lack GPS coords, show "X of Y stops" so rider knows
-  lbl.textContent = skippedCnt > 0
-    ? `${routedCnt} of ${totalAll} stops · ~${totalKm.toFixed(1)}km · Tap to clear`
-    : `${routedCnt} stops · ~${totalKm.toFixed(1)}km · Tap to clear`;
-  btn.disabled = false;
-
-  // Re-render with badges, scroll first order into view
-  renderOrders();
-  setTimeout(() => {
-    const firstCard = document.getElementById('card-' + ordered[0]?.order?.order_id);
-    if (firstCard) firstCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 100);
-
-  // Toast — warn if some orders were skipped from route
-  if (skippedCnt > 0) {
-    rToast(`🎯 ${routedCnt} of ${totalAll} optimized · ⚠️ ${skippedCnt} order${skippedCnt>1?'s':''} have no GPS`);
-  } else {
-    rToast(`🎯 ${routedCnt} orders optimized · Start from #1`);
-  }
-}
 
 async function optimizeRoute() {
   const withCoords = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
@@ -2518,6 +2471,7 @@ async function _advanceDelivery() {
   const _reanchor = _sectorBatches.findIndex(b => b.indices.includes(_curStopIdx));
   if (_reanchor !== -1) _activeBatchIdx = _reanchor;
   _placeMarkers(); // re-color pins with updated batch assignments
+  _updateBatchStrip();
 
   // Check if current batch is now fully delivered → show Next Batch banner
   if (_sectorBatches.length > 0) {
@@ -2980,6 +2934,47 @@ function setMapMode(mode) {
    - Stores only indices (pointers to live _mapStops[]) — delivered/skipped always fresh
    - Called after: map open, GPS fix, every delivery mark (with _activeBatchIdx re-anchor)
    ─────────────────────────────────────────────────────────────────────── */
+/* ── Batch strip: shows all batches as pills, highlights active ── */
+function _updateBatchStrip() {
+  const strip = document.getElementById('batch-strip');
+  const pills = document.getElementById('batch-pills');
+  if (!strip || !pills) return;
+
+  // Hide only when no batches exist — show even for 1 batch so UI is always consistent
+  if (_sectorBatches.length < 1) { strip.classList.remove('show'); return; }
+
+  strip.classList.add('show');
+
+  pills.innerHTML = _sectorBatches.map((b, idx) => {
+    const pending  = b.indices.filter(i => !_mapStops[i].delivered && !_mapStops[i].skipped).length;
+    const total    = b.indices.length;
+    const isDone   = pending === 0;
+    const isCur    = idx === _activeBatchIdx;
+
+    const doneClass    = isDone  ? ' done'    : '';
+    const activeClass  = isCur   ? ' current' : '';
+    const icon         = isDone  ? '✅' : (isCur ? '📍' : '');
+    const countLabel   = isDone  ? `${total}/${total}` : `${pending}`;
+
+    return `<span class="batch-pill${doneClass}${activeClass}"
+      style="background:${b.color}"
+      onclick="_onBatchPillTap(${idx})"
+      title="Batch ${b.label}: ${pending} of ${total} pending">
+      ${icon ? icon + ' ' : ''}${b.label}
+      <span class="batch-pill-count">${countLabel}</span>
+    </span>`;
+  }).join('');
+}
+
+function _onBatchPillTap(idx) {
+  if (_sectorBatches[idx]?.indices.every(i => _mapStops[i].delivered || _mapStops[i].skipped)) {
+    rToast(`Batch ${_sectorBatches[idx].label} already complete`);
+    return;
+  }
+  _openSectorBatch(idx);
+  _updateBatchStrip();
+}
+
 function _buildSectorBatches() {
   // Work only with pending stops that have coordinates
   const pending = _mapStops
@@ -3112,7 +3107,6 @@ function openAllPinsView() {
   const mapContainer  = document.getElementById('map-container');
   const actionsEl     = document.getElementById('map-actions');
   const bottomEl      = document.getElementById('map-bottom');
-  const smartBtn      = document.getElementById('smart-route-btn');
   const nextBatchBar  = document.getElementById('next-batch-bar');
   const bar           = document.getElementById('all-pins-bar');
   const statsEl       = document.getElementById('all-pins-stats');
@@ -3120,13 +3114,15 @@ function openAllPinsView() {
   // Rebuild batches so all-pins view reflects current GPS
   _buildSectorBatches();
   _placeMarkers();
+  _updateBatchStrip();
 
   // Expand map to near full-screen, hide stop list & action buttons
   mapContainer.classList.add('all-pins-expanded');
   if (actionsEl)    actionsEl.style.display    = 'none';
   if (bottomEl)     bottomEl.style.display     = 'none';
-  if (smartBtn)     smartBtn.style.display     = 'none';
   if (nextBatchBar) nextBatchBar.style.display = 'none';
+  const batchStrip = document.getElementById('batch-strip');
+  if (batchStrip)   batchStrip.style.display   = 'none';
   if (bar)          bar.classList.add('show');
   const closeBtn = document.getElementById('all-pins-close');
   if (closeBtn)     closeBtn.classList.add('show');
@@ -3169,7 +3165,6 @@ function closeAllPinsView() {
   const mapContainer = document.getElementById('map-container');
   const actionsEl    = document.getElementById('map-actions');
   const bottomEl     = document.getElementById('map-bottom');
-  const smartBtn     = document.getElementById('smart-route-btn');
   const bar          = document.getElementById('all-pins-bar');
   const nextBatchBar = document.getElementById('next-batch-bar');
 
@@ -3177,9 +3172,10 @@ function closeAllPinsView() {
   mapContainer.classList.remove('all-pins-expanded');
   if (actionsEl)    actionsEl.style.display    = '';
   if (bottomEl)     bottomEl.style.display     = '';
-  if (smartBtn)     smartBtn.style.display     = '';
   if (bar)          bar.classList.remove('show');
   if (nextBatchBar) nextBatchBar.style.display = '';
+  const batchStrip = document.getElementById('batch-strip');
+  if (batchStrip)   batchStrip.style.display   = '';
   const closeBtn = document.getElementById('all-pins-close');
   if (closeBtn)     closeBtn.classList.remove('show');
 
