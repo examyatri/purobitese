@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v20.2                                    ║
-     ║  Updated : 2026-05-18                               ║
+     ║  Version : v20.3                                    ║
+     ║  Updated : 2026-05-21                               ║
      ║  Changes : Fixed doRejectOrder NOT_SUBSCRIBER bug   ║
      ║            — moved modal to catch block so friendly ║
      ║            "Cannot Refund to Wallet" dialog shows   ║
@@ -1673,6 +1673,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <div class="si-icon" style="background:#e0f2fe"><i class="fa fa-map-location-dot" style="color:#0369a1"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Delivery Zone</span>
             </div>
+            <div class="settings-item" onclick="showSettingPanel('delivery-areas',this)">
+              <div class="si-icon" style="background:#fdf4ff"><i class="fa fa-location-pin" style="color:#9333ea"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Delivery Areas</span>
+            </div>
             <div class="settings-item act" onclick="showSettingPanel('cutoff',this)">
               <div class="si-icon" style="background:#fef3c7"><i class="fa fa-clock" style="color:#d97706"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Order Cutoff</span>
@@ -1986,7 +1990,21 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (!CFG.KEY) await _refreshApiKey();
 
   const session = AdminAuth.get();
-  if (session) {
+  // ── PROACTIVE EXPIRY CHECK ───────────────────────────────────────────────
+  // Decode the JWT exp field without a library (it's just base64 JSON).
+  // If the token has expired, clear the session and show the login screen
+  // immediately — no need to wait for a 401 from the first API call.
+  if (session?.sessionToken) {
+    try {
+      const payload = JSON.parse(atob(session.sessionToken.split('.')[1]));
+      if (payload.exp && Date.now() > payload.exp) {
+        AdminAuth.clear();
+        // session is now null — fall through to login screen below
+      }
+    } catch(_) { /* malformed token — let the API call catch it */ }
+  }
+
+  if (AdminAuth.get()) {
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(session.role);
@@ -2394,7 +2412,7 @@ async function _refreshApiKey() {
   return false;
 }
 
-async function api(action, data = {}, _retry = 2, _keyRetried = false) {
+async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRetried = false) {
   const ctrl = new AbortController();
   // 15s timeout — safe now that bulkGenerateOrders uses batch DB calls (3 round
   // trips regardless of user count) instead of the old N×3 sequential loop.
@@ -2406,15 +2424,21 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
       body: JSON.stringify({ action, data, apiKey: CFG.KEY, sessionToken: (AdminAuth.get() || {}).sessionToken || '' })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
-    if (res.status === 401 && !_keyRetried) {
-      // Step 1: try refreshing the API key (covers server restart / key rotation)
-      const gotKey = await _refreshApiKey();
-      if (gotKey) return api(action, data, _retry, true);
-      // Step 2: API key refresh didn't help → session token has expired (12h TTL).
-      // Schedule logout once (guard prevents duplicate calls from parallel requests).
+    if (res.status === 401) {
+      // Step 1: refresh the API key (covers server restart / key rotation).
+      // _keyRetried guards so we only attempt this once — _refreshApiKey always
+      // returns true if /config.js responds (even when key is unchanged), so without
+      // this guard the retry would loop: 401 → refresh → retry → 401 → refresh → …
+      if (!_keyRetried) {
+        const gotKey = await _refreshApiKey();
+        if (gotKey) return api(action, data, _retry, true, _tokenRetried);
+      }
+      // Step 2: session token has expired (12h TTL) — key was fine but token is stale.
+      // Admin stores no password, so silent re-login is not possible. Log out once.
+      // _tokenRetried flag prevents this block running twice on the same request chain.
       // setTimeout(0) lets the caller's catch run first (showing its error toast),
       // then logout fires on the next tick — no double-toast race.
-      if (!_sessionExpiredHandled) {
+      if (!_tokenRetried && !_sessionExpiredHandled) {
         _sessionExpiredHandled = true;
         setTimeout(() => doAdminLogout(), 0);
       }
@@ -2429,7 +2453,7 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
     const isNetworkErr = e.name === 'AbortError' || e.name === 'TypeError' || (e.message || '').startsWith('Server error 5');
     if (_retry > 0 && isNetworkErr) {
       await new Promise(r => setTimeout(r, 500 * (3 - _retry)));
-      return api(action, data, _retry - 1, _keyRetried);
+      return api(action, data, _retry - 1, _keyRetried, _tokenRetried);
     }
     throw e;
   } finally { clearTimeout(timer); }
@@ -4502,10 +4526,14 @@ function renderUsersTable(users) {
               style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
               <i class="fa fa-key" style="font-size:10px"></i> Reset PW
             </button>
-            <button class="btn btn-danger" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 2px 6px rgba(239,68,68,.30);transition:opacity .15s" onclick="deleteUserFromAllTab('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}')" title="Delete User" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+            <button class="btn btn-danger" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 2px 6px rgba(239,68,68,.30);transition:opacity .15s" onclick="deleteUserFromAllTab('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}') " title="Delete User" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
               <i class="fa fa-trash" style="font-size:10px"></i> Delete
             </button>
           </div>
+          <button onclick="openEditUserAddress('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}','${(u.address||'').replace(/\n/g,'\\n').replace(/'/g,"\\'")}','${(u.area||'').replace(/'/g,"\\'")}' )" title="Edit Delivery Address"
+            style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 2px 6px rgba(14,165,233,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+            <i class="fa fa-location-dot" style="font-size:10px"></i> Edit Address
+          </button>
           ${!u.is_subscriber ? `<button onclick="promoteUserFromAllTab('${u.phone}')" title="Promote to Subscriber" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.35);letter-spacing:.2px;transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-arrow-up" style="font-size:10px"></i> Promote to Subscriber</button>` : `<div style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border-radius:7px;background:#dcfce7;color:#16a34a;"><i class="fa fa-crown" style="font-size:10px"></i> Subscribed</div>`}
         </div>
       </td>
@@ -4529,6 +4557,129 @@ async function deleteUserFromAllTab(phone, name) {
   );
 }
 
+// ── Edit User Address — Admin ─────────────────────────────
+let _editAddrPhone = null;
+let _editAddrAreaList = [];
+
+async function openEditUserAddress(phone, name, currentAddr, currentArea) {
+  _editAddrPhone = phone;
+
+  // Load area list if not already cached
+  if (!_editAddrAreaList.length) {
+    try {
+      const r = await api('getDeliveryAreas');
+      if (r.areas && r.areas.length) _editAddrAreaList = r.areas;
+    } catch(e) {}
+    if (!_editAddrAreaList.length) {
+      _editAddrAreaList = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+    }
+  }
+
+  const areaOptions = _editAddrAreaList.map(a =>
+    `<option value="${a}"${a === currentArea ? ' selected' : ''}>${a}</option>`
+  ).join('');
+
+  // Parse address nicely for display
+  const addrLines = (currentAddr || '').replace(/\\n/g, '\n');
+  const hasCoords = /Coordinates:/i.test(addrLines);
+  const coordLine = (addrLines.split('\n').find(l => /^Coordinates:/i.test(l)) || '').replace(/^Coordinates:\s*/i,'').trim();
+  const plusLine  = (addrLines.split('\n').find(l => /^Plus Code:/i.test(l)) || '').replace(/^Plus Code:\s*/i,'').trim();
+  const roomLine  = (addrLines.split('\n').find(l => /^Room No:/i.test(l)) || '').replace(/^Room No:\s*/i,'').trim();
+
+  openMo(`
+    <div class="mo-title"><i class="fa fa-location-dot" style="color:#0284c7"></i> Edit Address — ${name || phone}</div>
+
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;font-family:var(--ff);color:#0369a1;line-height:1.7">
+      ${hasCoords
+        ? `<div><i class="fa fa-crosshairs" style="width:14px"></i> <strong>${coordLine}</strong></div>
+           ${plusLine ? `<div><i class="fa fa-qrcode" style="width:14px"></i> Plus Code: ${plusLine}</div>` : ''}`
+        : `<div style="color:#b45309"><i class="fa fa-triangle-exclamation"></i> No GPS coordinates saved</div>`
+      }
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">
+        Room / Flat <span style="font-weight:400;color:#94a3b8">(optional)</span>
+      </label>
+      <input id="eua-room" type="text" value="${roomLine.replace(/"/g,'&quot;')}" placeholder="e.g. Room 12, Flat B-4"
+        style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:var(--ff);color:#1e293b;outline:none;box-sizing:border-box"
+        oninput="_euaRebuild()" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e2e8f0'">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">
+        Delivery Area <span style="color:#dc2626">*</span>
+      </label>
+      <div style="position:relative">
+        <select id="eua-area" onchange="_euaRebuild()"
+          style="width:100%;padding:10px 36px 10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:var(--ff);color:#1e293b;outline:none;appearance:none;background:#fff;cursor:pointer;box-sizing:border-box">
+          <option value="">— Select Area —</option>
+          ${areaOptions}
+        </select>
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none">▾</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">
+        Full Address <span style="font-size:11px;font-weight:400;color:#94a3b8">(auto-built · editable)</span>
+      </label>
+      <textarea id="eua-addr" rows="5"
+        style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:12px;font-family:monospace;color:#374151;outline:none;resize:vertical;line-height:1.7;box-sizing:border-box"
+        onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e2e8f0'"
+        placeholder="Address will appear here…">${addrLines.replace(/</g,'&lt;')}</textarea>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px;font-family:var(--ff)">
+        Changing Room or Area above auto-rebuilds this. You can also type directly.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
+      <button class="btn btn-p" onclick="saveUserAddress()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);border:none">
+        <i class="fa fa-floppy-disk"></i> Save Address
+      </button>
+    </div>
+  `);
+
+  // Store GPS lines for rebuild
+  window._euaCoordLine = coordLine;
+  window._euaPlusLine  = plusLine;
+}
+
+function _euaRebuild() {
+  const room = (document.getElementById('eua-room')?.value || '').trim();
+  const area = (document.getElementById('eua-area')?.value || '').trim();
+  const parts = [];
+  if (room) parts.push(`Room No: ${room}`);
+  if (window._euaCoordLine) parts.push(`Coordinates: ${window._euaCoordLine}`);
+  if (window._euaPlusLine)  parts.push(`Plus Code: ${window._euaPlusLine}`);
+  if (area) parts.push(`Area: ${area}`);
+  const ta = document.getElementById('eua-addr');
+  if (ta) ta.value = parts.join('\n');
+}
+
+async function saveUserAddress() {
+  const phone = _editAddrPhone;
+  if (!phone) return;
+  const area = (document.getElementById('eua-area')?.value || '').trim();
+  const addr = (document.getElementById('eua-addr')?.value || '').trim();
+
+  if (!area) { aToast('Please select a delivery area'); return; }
+  if (!addr) { aToast('Address cannot be empty'); return; }
+
+  try {
+    await api('adminSetUserAddress', { phone, address: addr, area });
+    // Update local cache so table re-renders correctly without full reload
+    const u = _allUsers.find(x => x.phone === phone);
+    if (u) { u.address = addr; u.area = area; }
+    filterUsers();
+    closeMo();
+    aToast('✅ Address updated');
+  } catch(e) {
+    aToast('Save failed: ' + e.message);
+  }
+}
+
 // ── Promote to Subscriber — from All Users Tab ────────────
 // Pre-fills user data so admin doesn't have to type anything again
 function promoteUserFromAllTab(phone) {
@@ -4543,7 +4694,7 @@ function promoteUserFromAllTab(phone) {
       <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;flex-shrink:0">${(name||'?')[0].toUpperCase()}</div>
       <div>
         <div style="font-weight:700;font-size:14px;color:#0f172a">${name||'—'}</div>
-        <div style="font-size:12px;color:#64748b">${phone}${address ? ' · ' + address.substring(0,30) + (address.length>30?'…':'') : ''}</div>
+        <div style="font-size:12px;color:#64748b">${phone}${address ? ' · ' + (_adminShortAddr(address)||address.split('\n')[0]).substring(0,35) : ''}</div>
       </div>
     </div>
     <div class="field"><label>Plan</label>
@@ -5002,6 +5153,7 @@ function showSettingPanel(type, el) {
     cleanup:      renderCleanupPanel,
     'master-del': renderMasterDelPanel,
     'delivery-zone': renderDeliveryZonePanel,
+    'delivery-areas': renderDeliveryAreasPanel,
     'auto-tiffin-cutoff': renderAutoTiffinCutoffPanel
   };
   if (panels[type]) panels[type](area);
@@ -5482,6 +5634,110 @@ function renderDeliveryZonePanel(area) {
       document.getElementById('dz-radius-val').textContent = z.radiusKm + ' km';
     }
   }).catch(()=>{});
+}
+
+function renderDeliveryAreasPanel(container) {
+  container.innerHTML = `
+    <div class="settings-panel" style="border:2px solid #e9d5ff">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div style="width:44px;height:44px;border-radius:12px;background:#fdf4ff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📍</div>
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:16px;color:#7e22ce">Delivery Areas</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.4">Areas shown in signup dropdown.<br>Riders filter orders by these areas.</div>
+        </div>
+      </div>
+
+      <div id="da-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <div style="color:#94a3b8;font-size:13px;padding:10px 0">Loading…</div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input id="da-new-input" type="text" placeholder="New area name (e.g. Karaundi)" maxlength="40"
+          style="flex:1;padding:10px 13px;border:1.5px solid #e9d5ff;border-radius:10px;font-family:var(--fb);font-size:13px;outline:none"
+          onfocus="this.style.borderColor='#9333ea'" onblur="this.style.borderColor='#e9d5ff'"
+          onkeydown="if(event.key==='Enter')_daAddArea()">
+        <button class="btn" style="background:#9333ea;color:#fff;border:none;padding:10px 18px;border-radius:10px;font-weight:600;cursor:pointer;white-space:nowrap" onclick="_daAddArea()">
+          <i class="fa fa-plus"></i> Add
+        </button>
+      </div>
+
+      <button class="btn btn-p" style="background:#7e22ce;width:100%" onclick="_daSave()">
+        <i class="fa fa-save"></i> Save Areas
+      </button>
+      <div id="da-status" style="margin-top:10px;font-size:13px;display:none;padding:9px 13px;border-radius:9px;font-family:var(--fb)"></div>
+    </div>`;
+
+  // Load current areas
+  api('getSettings').then(r => {
+    _daCurrentAreas = r.settings?.deliveryAreas || [];
+    _daRenderList();
+  }).catch(() => {
+    _daCurrentAreas = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+    _daRenderList();
+  });
+}
+
+let _daCurrentAreas = [];
+
+function _daRenderList() {
+  const list = document.getElementById('da-list');
+  if (!list) return;
+  if (!_daCurrentAreas.length) {
+    list.innerHTML = `<div style="color:#94a3b8;font-size:13px;padding:8px 0">No areas yet. Add one below.</div>`;
+    return;
+  }
+  list.innerHTML = _daCurrentAreas.map((a, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#fdf4ff;border:1.5px solid #e9d5ff;border-radius:10px">
+      <span style="flex:1;font-family:var(--fb);font-size:13px;color:#3b0764">${a}</span>
+      <button onclick="_daMoveArea(${i},-1)" title="Move up" style="border:none;background:none;color:#9333ea;cursor:pointer;font-size:13px;padding:2px 6px" ${i===0?'disabled style="opacity:.3"':''}>↑</button>
+      <button onclick="_daMoveArea(${i},1)" title="Move down" style="border:none;background:none;color:#9333ea;cursor:pointer;font-size:13px;padding:2px 6px" ${i===_daCurrentAreas.length-1?'disabled style="opacity:.3"':''}>↓</button>
+      <button onclick="_daRemoveArea(${i})" title="Remove" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;padding:2px 6px"><i class="fa fa-trash"></i></button>
+    </div>`).join('');
+}
+
+function _daAddArea() {
+  const inp = document.getElementById('da-new-input');
+  if (!inp) return;
+  const val = inp.value.trim();
+  if (!val) { inp.focus(); return; }
+  if (_daCurrentAreas.some(a => a.toLowerCase() === val.toLowerCase())) {
+    inp.style.borderColor = '#dc2626';
+    setTimeout(() => inp.style.borderColor = '#e9d5ff', 1500);
+    return;
+  }
+  _daCurrentAreas.push(val);
+  inp.value = '';
+  inp.focus();
+  _daRenderList();
+}
+
+function _daRemoveArea(i) {
+  _daCurrentAreas.splice(i, 1);
+  _daRenderList();
+}
+
+function _daMoveArea(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= _daCurrentAreas.length) return;
+  [_daCurrentAreas[i], _daCurrentAreas[j]] = [_daCurrentAreas[j], _daCurrentAreas[i]];
+  _daRenderList();
+}
+
+async function _daSave() {
+  const status = document.getElementById('da-status');
+  const showSt = (msg, ok) => {
+    if (!status) return;
+    status.style.display = 'block';
+    status.style.background = ok ? '#dcfce7' : '#fee2e2';
+    status.style.color = ok ? '#166534' : '#991b1b';
+    status.textContent = msg;
+  };
+  if (!_daCurrentAreas.length) { showSt('❌ Add at least one area', false); return; }
+  try {
+    await api('setDeliveryAreas', { areas: _daCurrentAreas });
+    showSt(`✅ Saved ${_daCurrentAreas.length} area(s) successfully`, true);
+    setTimeout(() => { if (status) status.style.display = 'none'; }, 3000);
+  } catch(e) { showSt('❌ ' + (e.message || 'Save failed'), false); }
 }
 
 function previewDeliveryZone() {
@@ -6256,7 +6512,11 @@ function _adminShortAddr(addr) {
     /^\s*\(latitude=[^)]+\)\s*$/i,
     /^Area\s*:/i,                    // Area: Lanka — stored for DB, not shown in UI
   ];
-  return addr.split('\n').map(l => l.trim()).filter(l => l && !META.some(re => re.test(l))).join(', ').trim();
+  const visible = addr.split('\n').map(l => l.trim()).filter(l => l && !META.some(re => re.test(l))).join(', ').trim();
+  if (visible) return visible;
+  // v84 fallback: no Room No → show Area so cell isn't blank
+  const areaLine = addr.split('\n').map(l => l.trim()).find(l => /^Area\s*:/i.test(l));
+  return areaLine ? areaLine.replace(/^Area:\s*/i, '') : '';
 }
 
 function relTime(ts) {

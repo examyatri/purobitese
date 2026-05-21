@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v7.4  |  Updated : 2026-05-17
+   Version : v7.5  |  Updated : 2026-05-21
+
+   CHANGES v7.5:
+   - Version bump for v84 clean release (2026-05-21)
 
    CHANGES v7.4:
    - Version bump for v71 release
