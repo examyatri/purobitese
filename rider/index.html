@@ -992,10 +992,8 @@ function doRiderLogout() {
     try { localStorage.removeItem('_rcache_' + _rider.rider_id); } catch(_) {}
   }
   _rider = null; _orders = []; _pending = []; _delivered = [];
-  document.getElementById('pg-app').style.display  = 'none';
-  document.getElementById('pg-auth').style.display = 'flex';
-  document.getElementById('r-pw').value = '';
-  document.getElementById('auth-creds-hint').style.display = 'none';
+  // Hard reload — clears all in-memory state, form autofill, and any missed field.
+  location.reload();
 }
 
 /* ─── ORDER LOADING ──────────────────────────────────── */
@@ -1167,19 +1165,31 @@ function _rebuildAreaChips() {
   const container = document.getElementById('area-chips');
   if (!container) return;
 
+  // Pre-compute counts so we can reset active filter BEFORE rendering chips.
+  // This ensures "All Areas" gets the correct 'act' class if the active area
+  // just became empty (e.g. last order in Lanka was delivered).
+  const _areaCounts = {};
+  areas.forEach(area => {
+    _areaCounts[area] = _pending.filter(o => (o._area||'') === area).length;
+  });
+  if (_appliedArea !== 'all' && !_areaCounts[_appliedArea]) {
+    _appliedArea = 'all';
+    _filterArea  = 'all';
+  }
+
   // "All Areas" chip always first
   const allActive = _appliedArea === 'all';
   container.innerHTML = `<button class="r-filter-chip${allActive ? ' act' : ''}" data-area="all" onclick="setAreaFilter('all',this)">All Areas</button>`;
 
   areas.forEach(area => {
+    const count = _areaCounts[area];
+    if (!count) return; // no pending orders — hide chip
     const isAct = _appliedArea === area;
     const btn = document.createElement('button');
     btn.className = 'r-filter-chip' + (isAct ? ' act' : '');
     btn.dataset.area = area;
     btn.onclick = function() { setAreaFilter(area, this); };
-    // Count pending orders in this area
-    const count = _pending.filter(o => (o._area||'') === area).length;
-    btn.textContent = area + (count ? ` (${count})` : '');
+    btn.textContent = area + ` (${count})`;
     container.appendChild(btn);
   });
 }
