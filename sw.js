@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v29.6  |  Updated : 2026-05-17
+   Version : v29.7  |  Updated : 2026-05-21
+
+   CHANGES v29.7:
+   - Version bump for v84 clean release (2026-05-21)
 
    CHANGES v29.6:
    - Version bump for v71 release (PTR freshness fix,

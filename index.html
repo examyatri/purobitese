@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.10                                   ║
-     ║  Updated : 2026-05-18                               ║
+     ║  Version : v50.11                                   ║
+     ║  Updated : 2026-05-21                               ║
      ║  Changes : Full SEO & AI overhaul — premium title,  ║
      ║            high-intent meta description, 50+ keyword║
      ║            expansion with voice/AI search terms,    ║
@@ -1129,13 +1129,6 @@ textarea{resize:vertical;min-height:80px}
         <div class="field-error" id="su-phone-err"></div>
       </div>
 
-      <div class="form-group">
-        <label>Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
-        <input type="text" id="su-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off">
-        <div class="field-error" id="su-room-err"></div>
-        <div style="margin-top:4px;font-size:11px;color:#94a3b8;font-family:var(--fb)">No room number? Enter 0</div>
-      </div>
-
       <!-- ── Location Pin Card ── -->
       <div class="loc-section">
         <div class="loc-section-title">
@@ -1164,7 +1157,7 @@ textarea{resize:vertical;min-height:80px}
             <div id="su-leaflet-map" style="width:100%;height:260px;display:block"></div>
             <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
               <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
-                📌 Drag the red pin or tap the map to fine-tune your exact location.
+                📌 Drag the red pin to your exact spot — coordinates will be saved automatically.
               </div>
             </div>
           </div>
@@ -1182,45 +1175,19 @@ textarea{resize:vertical;min-height:80px}
         <textarea id="su-addr" style="display:none" readonly></textarea>
       </div>
 
-      <!-- ── Manual Address Input ── -->
-      <div class="form-group" style="margin-top:14px">
-        <label>Your Address <span style="color:#dc2626;font-size:11px">*</span>
-          <span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:4px">— type your full address</span>
-        </label>
-        <textarea id="su-addr-manual" rows="3"
-          placeholder="e.g. Hostel name, building name, nearby landmark — 221005"
-          style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff;transition:border-color 200ms"
-          autocomplete="off" oninput="_suManualAddrWatcher()"
-          onfocus="this.style.borderColor='#e63946'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
-        <div style="margin-top:5px;font-size:11px;color:#94a3b8;font-family:var(--fb);line-height:1.5">
-          ✏️ Include hostel / building name and a nearby landmark
-        </div>
-        <div class="field-error" id="su-addr-err"></div>
-      </div>
-
-      <!-- ── Delivery Area Selector ── -->
+      <!-- ── Delivery Area Selector with search ── -->
       <div class="form-group" style="margin-top:14px" id="su-area-wrap">
         <label>Delivery Area <span style="color:#dc2626;font-size:11px">*</span></label>
-        <div style="font-size:12px;color:#475569;font-family:var(--fb);line-height:1.6;margin-bottom:8px;padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
-          📍 Select the area closest to your delivery address. This helps us assign the right delivery rider to your orders.
+        <div id="su-area-search-wrap" style="position:relative">
+          <input type="text" id="su-area-search" placeholder="Search area…" autocomplete="off"
+            style="width:100%;padding:12px 40px 12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:14px;color:#1e293b;background:#fff;outline:none;box-sizing:border-box;transition:border-color 200ms"
+            onfocus="this.style.borderColor='#e63946';_suAreaSearchOpen()"
+            oninput="_suAreaSearchFilter(this.value)"
+            onblur="setTimeout(()=>_suAreaSearchClose(),200)">
+          <span style="position:absolute;right:13px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:13px">▾</span>
+          <div id="su-area-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:999;max-height:200px;overflow-y:auto;font-family:var(--fb);font-size:13px"></div>
         </div>
-        <select id="su-area" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:14px;color:#1e293b;background:#fff;outline:none;transition:border-color 200ms;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%236b7280%22><path fill-rule=%22evenodd%22 d=%22M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z%22 clip-rule=%22evenodd%22/></svg>');background-repeat:no-repeat;background-position:right 14px center;background-size:18px;padding-right:40px"
-          onfocus="this.style.borderColor='#e63946'" onblur="this.style.borderColor='#e2e8f0'">
-          <option value="">— Select your area —</option>
-          <option value="Lanka">Lanka</option>
-          <option value="BHU Campus">BHU Campus</option>
-          <option value="Sunderpur">Sunderpur</option>
-          <option value="Hyderabad Colony">Hyderabad Colony</option>
-          <option value="Trauma Centre">Trauma Centre</option>
-          <option value="Durgakund">Durgakund</option>
-          <option value="Ravindrapuri">Ravindrapuri</option>
-          <option value="Assi Ghat">Assi Ghat</option>
-          <option value="Nagwa">Nagwa</option>
-          <option value="Shivpur">Shivpur</option>
-        </select>
-        <div style="margin-top:5px;font-size:11px;color:#94a3b8;font-family:var(--fb);line-height:1.5">
-          Not sure? Pick the area name you hear most often for your location.
-        </div>
+        <input type="hidden" id="su-area" value="">
         <div class="field-error" id="su-area-err"></div>
       </div>
 
@@ -1531,8 +1498,9 @@ textarea{resize:vertical;min-height:80px}
         <!-- Hidden update form (shown when toggle clicked) -->
         <div id="acct-addr-update-form" style="display:none">
           <div class="form-group" style="margin-bottom:8px">
-            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Room / Flat / House Number</label>
-            <input type="text" id="acct-room" placeholder="Room 12 / Flat B-4 / House 5A…" autocomplete="off" oninput="_acctRoomWatcher()">
+            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Room / Flat / House Number <span style="font-size:11px;color:#94a3b8;font-weight:400">(optional)</span></label>
+            <input type="text" id="acct-room" placeholder="e.g. Room 12, Flat B-4, House 5A" autocomplete="off" oninput="_acctRoomWatcher()">
+            <div style="margin-top:4px;font-size:11px;color:#94a3b8;font-family:var(--fb)">Will be combined with your map location</div>
           </div>
 
           <!-- Detect / Map -->
@@ -1553,7 +1521,7 @@ textarea{resize:vertical;min-height:80px}
               <div id="acct-leaflet-map" style="width:100%;height:240px;display:block"></div>
               <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
                 <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
-                  📌 Drag the pin or tap the map to fine-tune your exact location.
+                  📌 Drag the pin to your exact spot — coordinates + plus code saved automatically.
                 </div>
               </div>
             </div>
@@ -1563,19 +1531,19 @@ textarea{resize:vertical;min-height:80px}
             </div>
           </div>
 
-          <!-- Manual address textarea -->
+          <!-- Delivery Area selector for settings -->
           <div class="form-group" style="margin-top:12px;margin-bottom:8px">
-            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">
-              Your Address <span style="color:#dc2626">*</span>
-              <span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:4px">— type your full address</span>
-            </label>
-            <textarea id="acct-addr-manual" rows="3"
-              placeholder="e.g. Room 12, Dhanwantri Hostel, Semi Circle Road, BHU Campus, Varanasi — 221005"
-              style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:none;outline:none;line-height:1.55;box-sizing:border-box;background:#fff"
-              autocomplete="off" oninput="_acctManualAddrWatcher()"></textarea>
-            <div style="margin-top:5px;font-size:11px;color:#64748b;font-family:var(--fb);line-height:1.5">
-              🗺 Auto-detected details (building, road, GPS, pincode) will be <strong>appended automatically</strong> on save.
+            <label style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px;display:block">Delivery Area <span style="color:#dc2626">*</span></label>
+            <div style="position:relative">
+              <input type="text" id="acct-area-search" placeholder="Search area…" autocomplete="off"
+                style="width:100%;padding:11px 36px 11px 13px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:13px;color:#1e293b;background:#fff;outline:none;box-sizing:border-box;transition:border-color 200ms"
+                onfocus="this.style.borderColor='#e63946';_acctAreaSearchOpen()"
+                oninput="_acctAreaSearchFilter(this.value)"
+                onblur="setTimeout(()=>_acctAreaSearchClose(),200)">
+              <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:12px">▾</span>
+              <div id="acct-area-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:999;max-height:180px;overflow-y:auto;font-family:var(--fb);font-size:13px"></div>
             </div>
+            <input type="hidden" id="acct-area" value="">
           </div>
 
           <!-- Hidden field stores full address -->
@@ -2084,7 +2052,7 @@ async function _refreshUserToken() {
   } catch { return false; } finally { clearTimeout(timer); }
 }
 
-async function api(action, data = {}, _retry = 2, _keyRetried = false) {
+async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRetried = false) {
   const TIMEOUT = 12000; // 12s — better for slow Indian 4G; was 8s
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
@@ -2096,20 +2064,30 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
       body: JSON.stringify({ action, data, apiKey: CFG.KEY, userToken: (SessionCache.get()?.userToken || '') })
     });
     if (res.status === 429) throw new Error('RATE_LIMITED');
-    // 401 = API key mismatch (key rotated or loaded empty during server restart)
-    // Auto-heal: refetch key from /config.js and retry the request once
-    if (res.status === 401 && !_keyRetried) {
-      // Attempt both fixes in parallel — key rotation AND token expiry can both cause 401.
-      // Run them together so _refreshUserToken is never skipped because _refreshApiKey succeeded.
-      const [gotKey, refreshed] = await Promise.all([_refreshApiKey(), _refreshUserToken()]);
-      if (gotKey || refreshed) return api(action, data, _retry, true);
-      // Both refreshes failed — session is unrecoverable. Auto-logout once.
+    if (res.status === 401) {
+      // Step 1 + 2 run in parallel — API key rotation and userToken expiry can both
+      // cause 401 and are independent. Run together so neither is skipped.
+      // _keyRetried / _tokenRetried are tracked separately so each fix is tried
+      // exactly once regardless of whether the other one succeeded.
+      if (!_keyRetried || !_tokenRetried) {
+        const [gotKey, refreshed] = await Promise.all([
+          _keyRetried   ? Promise.resolve(false) : _refreshApiKey(),
+          _tokenRetried ? Promise.resolve(false) : _refreshUserToken(),
+        ]);
+        if (gotKey || refreshed) {
+          return api(action, data, _retry,
+            _keyRetried   || gotKey,
+            _tokenRetried || refreshed);
+        }
+      }
+      // Both fixes attempted and failed — session is unrecoverable.
+      // Auto-logout once: show a friendly Hindi toast then wipe + login screen.
       if (!_sessionExpiredHandled) {
         _sessionExpiredHandled = true;
         showToast('Session expire ho gayi. Dobara login karein. 🔐');
         setTimeout(() => { _sessionExpiredHandled = false; _wipeAndShowLogin(); }, 1500);
       }
-      throw new Error('Server error 401');
+      throw new Error('Session expired. Please log in again.');
     }
     if (!res.ok) throw new Error('Server error ' + res.status);
     const json = await res.json();
@@ -2127,7 +2105,7 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false) {
     if (_retry > 0 && isNetworkErr) {
       // Exponential backoff: 400ms → 800ms between retries
       await new Promise(r => setTimeout(r, 400 * (3 - _retry)));
-      return api(action, data, _retry - 1, _keyRetried);
+      return api(action, data, _retry - 1, _keyRetried, _tokenRetried);
     }
     throw e;
   } finally {
@@ -2667,6 +2645,8 @@ function switchTab(tab) {
     signupTab.style.display = 'block';
     btnSignup.classList.add('active');
     btnLogin.classList.remove('active');
+    // Load areas from server (non-blocking)
+    if (!_suAreaList.length) _loadSignupAreas();
   }
 }
 
@@ -2872,11 +2852,8 @@ function _evaluateLocation(lat, lng) {
 let _leafletMap    = null;
 let _leafletMarker = null;
 let _pendingLat    = null;
-let _geocodeInFlight = false;   // true while Nominatim reverse-geocode is running
-let _pendingSignup   = false;   // true if user clicked Create Account while geocode was in-flight
 let _pendingLng    = null;
 let _pinConfirmed  = false;  // true once user clicks Save Location
-let _lastGeoResult = null;  // cached geocode object from last successful reverse-geocode
 
 /* ── Open Location Code (Plus Code) encoder ─────────────────────────────
    Minimal implementation — no external library needed.                    */
@@ -2908,80 +2885,6 @@ function _getPlusCode(lat, lng) {
   try { return window._encodePlusCode(lat, lng, 10); } catch(e) { return ''; }
 }
 
-/* ── Nominatim nearby-landmark search (runs in parallel with reverse) ──
-   Fetches named buildings within ~300 m of the pin, sorted by distance.
-   Uses 4 parallel queries covering all building/amenity types for dense
-   campus/hostel areas like BHU where OSM tags vary widely.
-   Returns array of unique display names, filtered against already-known tokens. */
-async function _fetchNearbyLandmarks(lat, lng, excludeSet) {
-  try {
-    // Small box ~0.003 deg ≈ 300 m — wide enough for hostel clusters
-    const d    = 0.003;
-    const dSm  = 0.0015; // ~150 m for tighter building-specific queries
-    const box  = `${lng-d},${lat-d},${lng+d},${lat+d}`;
-    const boxSm= `${lng-dSm},${lat-dSm},${lng+dSm},${lat+dSm}`;
-    const seen = new Set(excludeSet);
-    const out  = [];
-    const HDR  = { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-App/2.0' } };
-
-    // 4 parallel queries — cast wide net across all relevant OSM tag types
-    // Query A: amenity-based (hostel, dormitory, student_accommodation, university)
-    // Query B: building types residential/dormitory/yes in tight box
-    // Query C: tourism (guest_house, hotel) — some hostels use this tag
-    // Query D: broad building search in wider box with q= trick (returns named nodes)
-    const [rA, rB, rC, rD] = await Promise.allSettled([
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&amenity=student_accommodation`, HDR),
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&addressdetails=1&namedetails=1&bounded=1&viewbox=${boxSm}&building=residential`, HDR),
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=10&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&amenity=university`, HDR),
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=12&addressdetails=1&namedetails=1&bounded=1&viewbox=${box}&building=dormitory`, HDR),
-    ]);
-
-    const lists = [];
-    for (const r of [rA, rB, rC, rD]) {
-      if (r.status === 'fulfilled') {
-        try {
-          const j = await r.value.json();
-          if (Array.isArray(j)) lists.push(...j);
-        } catch(e) {}
-      }
-    }
-
-    // Deduplicate by osm_id, then sort by proximity
-    const seen_ids = new Set();
-    const unique = lists.filter(r => {
-      const id = `${r.osm_type}${r.osm_id}`;
-      if (seen_ids.has(id)) return false;
-      seen_ids.add(id);
-      return true;
-    });
-
-    unique.sort((a, b) => {
-      const da = Math.hypot((+a.lat||0) - lat, (+a.lon||0) - lng);
-      const db = Math.hypot((+b.lat||0) - lat, (+b.lon||0) - lng);
-      return da - db;
-    });
-
-    for (const r of unique) {
-      // Prefer namedetails.name, then display_name first segment, then address.building
-      const name = (
-        r.namedetails?.name ||
-        r.namedetails?.['name:en'] ||
-        (r.address && (r.address.amenity || r.address.building_name || r.address.house_name)) ||
-        r.display_name?.split(',')[0] ||
-        ''
-      ).trim();
-      if (!name || name.length < 3) continue;
-      // Skip generic OSM type words
-      if (/^(yes|no|building|residential|dormitory|university|hostel)$/i.test(name)) continue;
-      const k = name.toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push(name);
-      if (out.length >= 5) break;
-    }
-    return out;
-  } catch(e) { return []; }
-}
 
 /* ─── TIFFO DELIVERY ZONE LOOKUP ─────────────────────────────────────────────
    Maps GPS coordinates to a named delivery area using bounding boxes.
@@ -3027,229 +2930,16 @@ function _getZoneArea(lat, lng) {
   return '';
 }
 
-/* Reverse-geocode via Nominatim — returns rich structured address object.
-   Also fires a parallel nearby-search for richer landmark context. */
-async function _nominatimReverseGeocode(lat, lng) {
-  try {
-    const revRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&namedetails=1&extratags=1&zoom=14`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-App/1.0' } }
-    );
 
-    const data = await revRes.json();
-    if (!data || data.error) return null;
-    const a = data.address || {};
-    const x = data.extratags || {};
 
-    // ── 1. Building / named place at pin ──
-    // Priority chain: namedetails.name > extratags.name > address amenity fields >
-    //   a.building (only if it looks like a real name, not a generic OSM type)
-    const _GENERIC_BUILDING = /^(yes|no|building|residential|commercial|dormitory|university|apartments|house|detached|terrace|semidetached_house|static_caravan|cabin|hut|shed|garage|garages|roof|ruins)$/i;
-    const namedPlace = (data.namedetails?.name || data.namedetails?.['name:en'] || data.name || x.name || '').trim();
-    const buildingTag = (a.building || '').trim();
-    const buildingFallback = (!_GENERIC_BUILDING.test(buildingTag) && buildingTag.length > 3) ? buildingTag : '';
-    const building = (
-      namedPlace ||
-      a.amenity || a.leisure || a.tourism ||
-      a.office  || a.shop   || a.historic || a.place_of_worship ||
-      a.allotments || a.man_made ||
-      buildingFallback || ''
-    ).trim();
-
-    // ── 2. Street / road ──
-    const houseNo  = (a.house_number || '').trim();
-    const roadRaw  = (a.road || a.pedestrian || a.footway || a.path || a.cycleway || a.service || a.residential || '').trim();
-    const road     = houseNo && roadRaw ? `${houseNo}, ${roadRaw}` : (houseNo || roadRaw);
-
-    // ── 3. Neighbourhood / locality ──
-    // Try Nominatim first; fall back to Tiffo zone lookup when OSM coverage is sparse.
-    const _nominatimArea = (a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.locality || a.city_block || '').trim();
-    const area = _nominatimArea || _getZoneArea(lat, lng);
-
-    // ── 4. City / town — never let district masquerade as city ──
-    // Varanasi Sadar is state_district not city — pick the most specific urban name
-    const city = (a.city || a.town || a.municipality || '').trim() ||
-                 (a.city_district && a.city_district !== (a.county||'') ? a.city_district : '').trim();
-
-    // ── 5. District ──
-    const district = (a.county || a.state_district || '').trim();
-
-    // ── 6. State ──
-    const state = (a.state || '').trim();
-
-    // ── 7. Pincode ──
-    const pincode = (a.postcode || '').trim();
-
-    // ── 8. Nearby landmarks — multi-source strategy ──
-    //   Source A: Nominatim address fields (fast, from reverse response)
-    //   Source B: Nominatim /search in viewbox (parallel, richer results, 4 queries)
-    const usedLower = new Set([building, road, area, city, district, state, pincode]
-      .map(s => s.toLowerCase()).filter(Boolean));
-
-    // Source A candidates from address fields (all named tags that aren't already used)
-    const candidatesA = [
-      a.amenity, a.leisure, a.tourism, a.shop, a.office,
-      a.historic, a.place_of_worship, a.man_made,
-      a.hamlet, a.locality, a.quarter, a.house_name
-    ].map(s => (s || '').trim()).filter(s => s && s.length > 2 && !_GENERIC_BUILDING.test(s) && !usedLower.has(s.toLowerCase()));
-
-    // Source B: parallel nearby building search (non-blocking, expanded queries)
-    let candidatesB = [];
-    try {
-      candidatesB = await _fetchNearbyLandmarks(lat, lng, usedLower);
-    } catch(e) { /* silent fallback */ }
-
-    // Merge A + B, deduplicate, prefer B (richer named results) over A
-    const nearSeen = new Set(usedLower);
-    const nearAll = [...candidatesB, ...candidatesA].filter(s => {
-      const k = s.toLowerCase();
-      if (nearSeen.has(k)) return false;
-      nearSeen.add(k);
-      return true;
-    });
-
-    // When building found: first 1 = Near, next 2 = Nearby
-    // When no building:    first 1 = Near (acts as main building), next 2 = Nearby
-    const hasBuilding = Boolean(building);
-    const nearFirst = nearAll.slice(0, hasBuilding ? 1 : 1);
-    const nearExtra = nearAll.slice(hasBuilding ? 1 : 1, hasBuilding ? 3 : 3);
-
-    // Compose full address string (for storage)
-    const parts = [building, road, area, city, district, state, pincode]
-      .map(p => p.trim()).filter(Boolean);
-    const deduped = parts.filter((v, i) => i === 0 || v.toLowerCase() !== parts[i-1].toLowerCase());
-
-    return deduped.length
-      ? { full: deduped.join(', '), building, road, area, city, district, state, pincode,
-          nearFirst, nearExtra }
-      : { full: data.display_name?.split(',').slice(0, 5).join(', ') || null,
-          building:'', road:'', area:'', city:'', district:'', state:'', pincode:'',
-          nearFirst:[], nearExtra:[] };
-
-  } catch(e) { return null; }
-}
-
-/* Build the final address string in structured multiline format:
-   [Room/Flat/House], [Building/Hotel/Hostel]
-   [Street/Road/Area]
-   [Near Landmark] / [Nearby Landmarks]
-   [extra detail]
-   [City], [District] - [PIN]
-   [State], India
-   Coordinates: lat, lng
-   Plus Code: XXXX+XX
-*/
-function _buildAddress(roomVal, geoOrStr, lat, lng, extraDetail) {
-  const room   = (roomVal || '').trim();
-  const extra  = (extraDetail || '').trim();
-  const geo    = (typeof geoOrStr === 'object' && geoOrStr !== null) ? geoOrStr : null;
-  const locStr = geo ? (geo.full || '').trim() : (geoOrStr || '').trim();
-
-  const finalLat = (lat !== undefined && lat !== null) ? lat : _pendingLat;
-  const finalLng = (lng !== undefined && lng !== null) ? lng : _pendingLng;
-
-  if (geo) {
-    const line1Parts = [room, geo.building].map(p => p.trim()).filter(Boolean);
-    const line1 = line1Parts.join(', ');
-    const line2 = [geo.road, geo.area].map(p => p.trim()).filter(Boolean).join(', ');
-
-    // Support both new (nearFirst/nearExtra arrays) and legacy (nearLine string)
-    const nearFirst  = Array.isArray(geo.nearFirst) ? geo.nearFirst : [];
-    const nearExtra  = Array.isArray(geo.nearExtra) ? geo.nearExtra : [];
-    const legacyNear = typeof geo.nearLine === 'string' ? geo.nearLine.trim() : '';
-
-    let nearLine = '';
-    if (nearFirst.length) {
-      nearLine = 'Near ' + nearFirst[0];
-      if (nearExtra.length) nearLine += ' / Opp. ' + nearExtra.join(', ');
-    } else if (legacyNear) {
-      nearLine = legacyNear;
-    }
-
-    const line3Parts = [nearLine, extra].filter(Boolean);
-    const line3 = line3Parts.join(' / ');
-    const _districtPart = (geo.district && geo.district.toLowerCase() !== (geo.city||'').toLowerCase()) ? geo.district : '';
-    const cityPin = [geo.city, _districtPart].filter(Boolean).join(', ') +
-                    (geo.pincode ? ` - ${geo.pincode}` : '');
-    const line5 = geo.state ? `${geo.state}, India` : 'India';
-    const areaStr  = geo.area ? `Area: ${geo.area}` : '';           // explicit area tag for rider
-    const coordStr = (finalLat !== null && finalLng !== null)
-      ? `Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)}` : '';
-    const plusStr = (finalLat !== null && finalLng !== null)
-      ? `Plus Code: ${_getPlusCode(parseFloat(finalLat), parseFloat(finalLng))}` : '';
-    return [line1, line2, line3, cityPin, line5, areaStr, coordStr, plusStr]
-      .map(l => l.trim()).filter(Boolean).join('\n');
-  }
-
-  const bodyParts = [room, locStr, extra].map(p => p.trim()).filter(Boolean);
-  const coordStr = (finalLat !== null && finalLng !== null)
-    ? ` (Coordinates: ${parseFloat(finalLat).toFixed(6)}, ${parseFloat(finalLng).toFixed(6)})` : '';
-  return bodyParts.join(', ') + coordStr;
-}
-
-/* Render a structured address card HTML from geo object + extras */
-function _renderAddrCard(cardBodyEl, geo, roomVal, lat, lng, extraDetail) {
-  if (!cardBodyEl) return;
-  const room  = (roomVal || '').trim();
-  const extra = (extraDetail || '').trim();
-
-  if (!geo || !geo.full) {
-    cardBodyEl.innerHTML = `<div class="addr-card-row row-coords"><i class="ai fa fa-crosshairs"></i><span class="av muted">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></div>`;
-    return;
-  }
-
-  const plusCode = _getPlusCode(lat, lng);
-  const rows = []; // [rowClass, icon, label, value, muted]
-
-  // Room / Flat
-  if (room) rows.push(['row-room', 'fa-door-open', '', room, false]);
-
-  // Building — your pin location
-  if (geo.building) rows.push(['row-building', 'fa-building', '', geo.building, false]);
-
-  // Road + area
-  const roadArea = [geo.road, geo.area].filter(Boolean).join(', ');
-  if (roadArea) rows.push(['row-road', 'fa-road', '', roadArea, false]);
-
-  // ── Nearby landmarks (semantic Near / Nearby split) ──
-  const nearFirst  = Array.isArray(geo.nearFirst) ? geo.nearFirst : [];
-  const nearExtra  = Array.isArray(geo.nearExtra) ? geo.nearExtra : [];
-  const legacyNear = typeof geo.nearLine === 'string' ? geo.nearLine.replace(/^Near\s+/i,'').trim() : '';
-
-  if (nearFirst.length) {
-    nearFirst.forEach(n => rows.push(['row-near', 'fa-map-pin', 'Near', n, false]));
-    if (nearExtra.length) rows.push(['row-nearby', 'fa-location-dot', 'Nearby', nearExtra.join(', '), false]);
-  } else if (legacyNear) {
-    rows.push([geo.building ? 'row-nearby' : 'row-near',
-               geo.building ? 'fa-location-dot' : 'fa-map-pin',
-               geo.building ? 'Nearby' : 'Near', legacyNear, false]);
-  }
-
-  // Manual extra detail (user-typed)
-  if (extra) rows.push(['row-extra', 'fa-pencil', '', extra, false]);
-
-  // City + district + pincode
-  const cityLine = [geo.city, geo.district].filter(Boolean).join(', ') + (geo.pincode ? ` – ${geo.pincode}` : '');
-  if (cityLine.trim()) rows.push(['row-city', 'fa-city', '', cityLine, false]);
-
-  // State
-  if (geo.state) rows.push(['row-state', 'fa-flag', '', `${geo.state}, India`, false]);
-
-  // Coordinates + Plus Code (muted metadata)
-  rows.push(['row-coords', 'fa-crosshairs', '', `${lat.toFixed(6)}, ${lng.toFixed(6)}`, true]);
-  if (plusCode) rows.push(['row-coords', 'fa-qrcode', '', `Plus Code: ${plusCode}`, true]);
-
-  cardBodyEl.innerHTML = rows.map(([cls, icon, label, val, muted]) => {
-    const labelHtml = label
-      ? `<span style="font-size:10px;font-weight:700;color:#94a3b8;margin-right:4px;text-transform:uppercase;letter-spacing:.35px">${label}</span>`
-      : '';
-    return `<div class="addr-card-row ${cls}"><i class="ai fa ${icon}"></i><span class="av${muted?' muted':''}">${labelHtml}${val}</span></div>`;
-  }).join('');
-}
 
 /* Render the *saved* address string (multiline text from DB) into a pretty card.
-   Used in settings page to show the current stored address beautifully.
-   Parses the structured lines produced by _buildAddress. */
+   v84 format lines:
+     Room No: X          (optional)
+     Coordinates: lat, lng
+     Plus Code: XXXX+XX
+     Area: X
+   Legacy formats (pre-v84 with road/city/state) still display gracefully. */
 function _renderSavedAddrDisplay(containerEl, rawAddr) {
   if (!containerEl) return;
   if (!rawAddr || !rawAddr.trim()) {
@@ -3258,32 +2948,31 @@ function _renderSavedAddrDisplay(containerEl, rawAddr) {
   }
 
   const lines = rawAddr.split('\n').map(l => l.trim()).filter(Boolean);
-
-  // Detect GPS presence
   const hasCoords = lines.some(l => /^Coordinates:/i.test(l));
-
-  // Parse each line into typed rows for display
   const rows = [];
+
   for (const line of lines) {
-    if (/^Coordinates:/i.test(line)) {
-      rows.push(['row-coords', 'fa-crosshairs', '', line.replace(/^Coordinates:\s*/i,''), true]);
+    if (/^Room No:/i.test(line)) {
+      rows.push(['row-room', 'fa-door-open', '', line.replace(/^Room No:\s*/i, ''), false]);
+    } else if (/^Coordinates:/i.test(line)) {
+      rows.push(['row-coords', 'fa-crosshairs', '', line.replace(/^Coordinates:\s*/i, ''), true]);
     } else if (/^Plus Code:/i.test(line)) {
       rows.push(['row-coords', 'fa-qrcode', '', line, true]);
+    } else if (/^Area:/i.test(line)) {
+      rows.push(['row-area', 'fa-map-location-dot', 'Area', line.replace(/^Area:\s*/i, ''), false]);
     } else if (/^Near\b/i.test(line)) {
-      const val = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ')[0];
+      // Legacy pre-v84 near line
+      const val = line.replace(/^Near\s+/i, '').split(' \/ Opp\. ')[0];
       rows.push(['row-near', 'fa-map-pin', 'Near', val, false]);
-      // If "Opp." extras exist
-      const oppParts = line.replace(/^Near\s+/i,'').split(' \/ Opp\. ').slice(1);
-      if (oppParts.length) rows.push(['row-nearby','fa-location-dot','Nearby', oppParts.join(', '), false]);
+      const oppParts = line.replace(/^Near\s+/i, '').split(' \/ Opp\. ').slice(1);
+      if (oppParts.length) rows.push(['row-nearby', 'fa-location-dot', 'Nearby', oppParts.join(', '), false]);
     } else if (/India$/.test(line)) {
       rows.push(['row-state', 'fa-flag', '', line, false]);
     } else if (/\d{5,6}/.test(line) && (line.includes(',') || line.includes('–') || line.includes('-'))) {
       rows.push(['row-city', 'fa-city', '', line, false]);
-    } else if (/^(Semi Circle|Road|Street|Lane|Marg|Nagar|Colony|Campus|Path|Way|Ave)/i.test(line) ||
-               /Road|Street|Lane|Marg|Colony/i.test(line)) {
+    } else if (/Road|Street|Lane|Marg|Colony/i.test(line)) {
       rows.push(['row-road', 'fa-road', '', line, false]);
     } else if (rows.length === 0) {
-      // First line — likely room + building
       rows.push(['row-building', 'fa-building', '', line, false]);
     } else {
       rows.push(['row-road', 'fa-road', '', line, false]);
@@ -3309,183 +2998,88 @@ function _renderSavedAddrDisplay(containerEl, rawAddr) {
     </div>`;
 }
 
-/* ── Build combined address: manual typed text + auto-detected geo string ──
-   manual = what the user typed in the textarea
-   geoStr = structured string from _buildAddress (contains road, city, coords, etc.)
-   Result is stored in hidden #su-addr / #acct-addr-box for submission. */
-function _buildCombinedAddress(manual, geoStr) {
-  const m = (manual || '').trim();
-  const g = (geoStr || '').trim();
-  if (!m && !g) return '';
-  if (!m) return g;
-  if (!g) return m;
 
-  // Build a token set from the geo block (excluding metadata lines).
-  // Any manual line whose every token already exists in geo is redundant — drop it.
-  const GEO_META = /^(Coordinates:|Plus Code:|India$)/i;
-  const geoTokens = new Set(
-    g.split('\n')
-     .filter(l => !GEO_META.test(l.trim()))
-     .join(' ')
-     .toLowerCase()
-     .split(/[\s,\-\/\.]+/)
-     .filter(t => t.length >= 3)
-  );
 
-  const cleanManual = m.split('\n')
-    .map(l => l.trim())
-    .filter(l => {
-      if (!l) return false;
-      const tokens = l.toLowerCase().split(/[\s,\-\/\.]+/).filter(t => t.length >= 3);
-      // Keep line if it has at least one token NOT already in geo
-      return !tokens.length || !tokens.every(t => geoTokens.has(t));
-    })
-    .join('\n')
-    .trim();
-
-  if (!cleanManual) return g;
-  return cleanManual + '\n' + g;
-}
-
-/* ── Render compact address "chip" — shows only a simple confirmation, no raw geo details ── */
-function _updateAddrChip(chipId, textId, geo, lat, lng) {
-  const chip     = document.getElementById(chipId);
-  const chipText = document.getElementById(textId);
-  if (!chip || !chipText) return;
-
-  if (!geo || !geo.full) {
-    chip.style.display = 'none';
-    return;
-  }
-
-  // Only show a simple confirmation — all geo details are used silently in the address
-  chipText.innerHTML = '✅ Location detected — your address will be saved with GPS coordinates.';
-  chip.style.display = 'block';
-}
-
-/* ── Watcher: manual address input in signup form ── */
-function _suManualAddrWatcher() {
-  if (_pendingLat === null || _pendingLng === null) return; // map not shown yet
-  const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
-  const room    = document.getElementById('su-room')?.value || '';
-  const geoAddr = _buildAddress(room, _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`, _pendingLat, _pendingLng, '');
-  const addrBox = document.getElementById('su-addr');
-  if (addrBox) addrBox.value = _buildCombinedAddress(manual, geoAddr);
-}
+/* ── Watcher: manual address input in signup form — no-op (removed in v83) ── */
+function _suManualAddrWatcher() {}
 
 /* Update the su-addr textarea from current pin position */
-/* ── Geocoding-in-progress banner ─────────────────────────────────────────
-   Shows/hides a smart banner above Create Account button while Nominatim
-   is running in the background. Automatically hides when done. */
-function _showGeocodingBanner(show) {
-  let banner = document.getElementById('su-geocode-banner');
-  const btn  = document.getElementById('su-btn');
-
-  if (show) {
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'su-geocode-banner';
-      banner.style.cssText = [
-        'display:flex', 'align-items:center', 'gap:10px',
-        'background:#eff6ff', 'border:1.5px solid #93c5fd',
-        'border-radius:12px', 'padding:11px 14px',
-        'font-family:var(--fb)', 'font-size:13px', 'color:#1d4ed8',
-        'line-height:1.5', 'margin-bottom:10px',
-        'animation:fadeIn .25s ease'
-      ].join(';');
-      banner.innerHTML = `
-        <span style="font-size:20px;animation:spin 1s linear infinite;display:inline-block">🔄</span>
-        <span>
-          <strong>Saving your location…</strong><br>
-          <span style="font-size:12px;color:#3b82f6">
-            Just a second — we're pinning your exact address.
-            <br>Your account will be created automatically once done!
-          </span>
-        </span>`;
-      // Insert banner just before the Create Account button
-      if (btn && btn.parentNode) {
-        btn.parentNode.insertBefore(banner, btn);
-      }
-    }
-    banner.style.display = 'flex';
-    if (btn) { btn.disabled = true; btn.style.opacity = '0.55'; }
-  } else {
-    if (banner) banner.style.display = 'none';
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
-  }
-}
 
 async function _updateAddressFromPin(lat, lng) {
+  // v84: No Nominatim — signup stores coordinates + plus code only.
+  // Area is selected manually by the user.
+
+  // Build minimal address: coords + plus code (area appended at submit)
+  const plusCode = _getPlusCode(lat, lng);
+  const addrBox  = document.getElementById('su-addr');
+  if (addrBox) {
+    addrBox.removeAttribute('readonly');
+    addrBox.value = _buildSignupAddress(lat, lng, '');
+  }
+
+  // Show chip: just confirm GPS pinned
+  const chip     = document.getElementById('su-addr-chip');
+  const chipText = document.getElementById('su-addr-chip-text');
+  if (chip && chipText) {
+    chipText.innerHTML = `✅ GPS pinned — ${lat.toFixed(5)}, ${lng.toFixed(5)}${plusCode ? ` · ${plusCode}` : ''}`;
+    chip.style.display = 'block';
+  }
+
   const hint = document.getElementById('su-geocode-hint');
-  if (hint) hint.textContent = '⏳ Fetching address from map…';
-
-  // Mark geocode as in-flight so Create Account knows to wait
-  _geocodeInFlight = true;
-  _showGeocodingBanner(true);
-
-  let geo;
-  try {
-    geo = await _nominatimReverseGeocode(lat, lng);
-  } finally {
-    _geocodeInFlight = false;
-    _showGeocodingBanner(false);
-  }
-
-  // Zone fallback: if Nominatim returned no area (sparse OSM), inject from zone table
-  if (geo && !geo.area) geo.area = _getZoneArea(lat, lng);
-
-  _lastGeoResult = geo; // cache for room-watcher rebuilds
-
-  const room     = document.getElementById('su-room')?.value || '';
-  const manual   = (document.getElementById('su-addr-manual')?.value || '').trim();
-  const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  const geoAddr  = _buildAddress(room, geo || fallback, lat, lng, '');
-  const fullAddr = _buildCombinedAddress(manual, geoAddr);
-
-  // Update hidden textarea
-  const addrBox = document.getElementById('su-addr');
-  if (addrBox) { addrBox.removeAttribute('readonly'); addrBox.value = fullAddr; }
-
-  // Auto-fill area dropdown from GPS-detected zone (and lock it)
-  const areaSelect = document.getElementById('su-area');
-  if (areaSelect && geo?.area) {
-    const detectedArea = geo.area.trim();
-    // Match against dropdown options (case-insensitive)
-    const matchOpt = Array.from(areaSelect.options).find(o => o.value.toLowerCase() === detectedArea.toLowerCase());
-    if (matchOpt) {
-      areaSelect.value = matchOpt.value;
-      areaSelect.style.background = '#f0fdf4';
-      areaSelect.style.borderColor = '#86efac';
-      areaSelect.disabled = false; // keep editable — user can override if GPS slightly off
-    }
-  }
-
-  // Show compact address chip
-  _updateAddrChip('su-addr-chip', 'su-addr-chip-text', geo, lat, lng);
-
   if (hint) {
-    if (geo?.full) {
-      const bldg = geo.building ? `<strong>${geo.building}</strong>` : '';
-      const near = (geo.nearFirst||[]).concat(geo.nearExtra||[]).slice(0,1).join('');
-      const sub  = bldg ? (near ? ` · near ${near}` : '') : (near ? near : '');
-      hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ ${bldg || 'Location'} detected${sub ? ` ${sub}` : ''} — drag pin to fine-tune</span>`;
-    } else {
-      hint.innerHTML =
-        `⚠️ Address not detected — drag pin to refine.<br>` +
-        `<span style="color:#64748b;font-size:11px">📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>`;
-    }
+    hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
+      <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)}${plusCode ? ` · Plus Code: ${plusCode}` : ''}</span>`;
   }
 
   // Auto-confirm the pin silently
   await _autoConfirmSignupPin(lat, lng);
 
-  // If user already tapped Create Account while geocoding was running,
-  // now proceed automatically — no second tap needed
-  if (_pendingSignup) {
-    _pendingSignup = false;
-    doSignup();
-  }
 }
+
+/* Build the minimal signup address string: Coordinates + Plus Code only.
+   Area is appended at submit time from the user's dropdown selection. */
+function _buildSignupAddress(lat, lng, area) {
+  const parts = [];
+  if (lat !== null && lng !== null) {
+    parts.push(`Coordinates: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
+    const pc = _getPlusCode(parseFloat(lat), parseFloat(lng));
+    if (pc) parts.push(`Plus Code: ${pc}`);
+  }
+  if (area && area.trim()) parts.push(`Area: ${area.trim()}`);
+  return parts.join('\n');
+}
+
+/* Build the settings address string: Room No (optional) + Coordinates + Plus Code + Area. */
+function _buildSettingsAddress(room, lat, lng, area) {
+  const parts = [];
+  if (room && room.trim()) parts.push(`Room No: ${room.trim()}`);
+  if (lat !== null && lng !== null) {
+    parts.push(`Coordinates: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
+    const pc = _getPlusCode(parseFloat(lat), parseFloat(lng));
+    if (pc) parts.push(`Plus Code: ${pc}`);
+  }
+  if (area && area.trim()) parts.push(`Area: ${area.trim()}`);
+  return parts.join('\n');
+}
+/* Collapse a v84 multiline address into a compact 1-line string for WA messages
+   and any single-line display context (print, khata PDF, etc).
+   v84 format: Room No / Coordinates / Plus Code / Area
+   Output:  "Room 12 · 7Q3C+4X · Lanka"  or  "7Q3C+4X · Lanka"  or just "Lanka"        */
+function _waAddr(addr) {
+  if (!addr) return 'Address not set';
+  const lines = addr.split('\n').map(l => l.trim()).filter(Boolean);
+  const room  = (lines.find(l => /^Room No:/i.test(l)) || '').replace(/^Room No:\s*/i, '').trim();
+  const pc    = (lines.find(l => /^Plus Code:/i.test(l)) || '').replace(/^Plus Code:\s*/i, '').trim();
+  const area  = (lines.find(l => /^Area:/i.test(l)) || '').replace(/^Area:\s*/i, '').trim();
+  const parts = [room, pc, area].filter(Boolean);
+  // Legacy fallback: if nothing matched (old pre-v84 address), return first non-meta line
+  if (!parts.length) {
+    const fallback = lines.find(l => !/^Coordinates:/i.test(l) && !/India$/i.test(l));
+    return fallback || addr.split('\n')[0];
+  }
+  return parts.join(' · ');
+}
+
 /* Init or move the Leaflet map to given coords */
 function _showMapPin(lat, lng) {
   const wrap = document.getElementById('su-map-pin-area');
@@ -3641,13 +3235,10 @@ async function _confirmLeafletPin() {
     showStatus('✅ Location saved. Delivery zone not configured yet — proceeding.', false, true);
   }
 
-  // Rebuild full address from cached geo + confirmed pin coords
-  const room   = document.getElementById('su-room')?.value.trim() || '';
-  const manual = (document.getElementById('su-addr-manual')?.value || '').trim();
+  // Rebuild address from GPS only (area appended at submit)
   const addrBox = document.getElementById('su-addr');
   if (addrBox) {
-    const geoAddr = _buildAddress(room, _lastGeoResult || '', _pendingLat, _pendingLng, '');
-    addrBox.value = _buildCombinedAddress(manual, geoAddr);
+    addrBox.value = _buildSignupAddress(_pendingLat, _pendingLng, '');
   }
 
   _pinConfirmed = true;
@@ -3709,35 +3300,13 @@ async function _autoConfirmSignupPin(lat, lng) {
   }
 }
 
-/* Watch room number field — live-update address preview + clear error */
+/* Watch area search — live-clear error */
 document.addEventListener('DOMContentLoaded', () => {
-  const roomInput = document.getElementById('su-room');
-  if (roomInput) {
-    roomInput.addEventListener('input', () => {
-      // Clear room error as user types
-      const err = document.getElementById('su-room-err');
-      if (err) { err.classList.remove('show'); err.textContent = ''; }
-      roomInput.style.borderColor = '';
-
-      if (_pendingLat === null) return; // map not shown yet — nothing to rebuild
-      const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
-      const addrBox = document.getElementById('su-addr');
-      if (!addrBox) return;
-      const geoAddr = _buildAddress(
-        roomInput.value,
-        _lastGeoResult || `${_pendingLat.toFixed(5)}, ${_pendingLng.toFixed(5)}`,
-        _pendingLat, _pendingLng, ''
-      );
-      addrBox.value = _buildCombinedAddress(manual, geoAddr);
-    });
-  }
-
   // Live-clear errors on all signup fields as user types/changes
   const fieldErrMap = {
-    'su-name':        'su-name-err',
-    'su-phone':       'su-phone-err',
-    'su-addr-manual': 'su-addr-err',
-    'su-pw':          'su-pw-err',
+    'su-name':  'su-name-err',
+    'su-phone': 'su-phone-err',
+    'su-pw':    'su-pw-err',
   };
   Object.entries(fieldErrMap).forEach(([inputId, errId]) => {
     const input = document.getElementById(inputId);
@@ -3751,6 +3320,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+/* ── Searchable Area Dropdown for Signup ──────────────────────────────────── */
+let _suAreaList = []; // loaded from API
+
+async function _loadSignupAreas() {
+  try {
+    const r = await api('getDeliveryAreas');
+    if (r.areas && r.areas.length) _suAreaList = r.areas;
+  } catch(_) {
+    // fallback hardcoded list
+    _suAreaList = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+  }
+}
+
+function _suAreaSearchOpen() {
+  _suAreaRenderDropdown('');
+}
+
+function _suAreaSearchFilter(val) {
+  _suAreaRenderDropdown(val.trim().toLowerCase());
+  // Clear hidden value when user types
+  const hidden = document.getElementById('su-area');
+  if (hidden) hidden.value = '';
+}
+
+function _suAreaSearchClose() {
+  const dd = document.getElementById('su-area-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function _suAreaRenderDropdown(filter) {
+  const dd = document.getElementById('su-area-dropdown');
+  if (!dd) return;
+  const list = _suAreaList.length ? _suAreaList : ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+  const filtered = filter ? list.filter(a => a.toLowerCase().includes(filter)) : list;
+  if (!filtered.length) {
+    dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">No area found</div>`;
+  } else {
+    dd.innerHTML = filtered.map(a => `
+      <div onclick="_suAreaSelect('${a.replace(/'/g,"\\'")}');return false"
+        style="padding:11px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 150ms"
+        onmousedown="event.preventDefault()"
+        onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">
+        ${a}
+      </div>`).join('');
+  }
+  dd.style.display = 'block';
+}
+
+function _suAreaSelect(val) {
+  const search = document.getElementById('su-area-search');
+  const hidden = document.getElementById('su-area');
+  const errEl  = document.getElementById('su-area-err');
+  if (search) { search.value = val; search.style.borderColor = '#86efac'; }
+  if (hidden) hidden.value = val;
+  if (errEl)  { errEl.classList.remove('show'); errEl.textContent = ''; }
+  _suAreaSearchClose();
+}
+
+function _suAreaSetValue(val, fromGPS) {
+  // Match against loaded list (case-insensitive)
+  const list = _suAreaList.length ? _suAreaList : [];
+  const match = list.find(a => a.toLowerCase() === val.toLowerCase()) || val;
+  _suAreaSelect(match);
+  if (fromGPS) {
+    const search = document.getElementById('su-area-search');
+    if (search) search.style.borderColor = '#86efac';
+  }
+}
 
 async function detectSignupLocation() {
   const btn    = document.getElementById('su-loc-btn');
@@ -3793,42 +3431,16 @@ async function detectSignupLocation() {
 }
 
 async function doSignup() {
-  // ── If GPS address is still being fetched in the background, queue this
-  //    attempt and let _updateAddressFromPin fire it automatically when done.
-  //    Show the user a smart banner — no confusing error, no manual retry. ──
-  if (_geocodeInFlight) {
-    _pendingSignup = true;
-    _showGeocodingBanner(true); // ensure banner is visible (may have been dismissed)
-    // Scroll banner into view
-    setTimeout(() => {
-      const b = document.getElementById('su-geocode-banner');
-      if (b) b.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 80);
-    return;
-  }
-
   let valid = true;
-  const name    = document.getElementById('su-name').value.trim();
-  const phone   = document.getElementById('su-phone').value.replace(/\D/g,'');
-  const email   = '';
-  const room    = document.getElementById('su-room')?.value.trim() || '';
-  const manual  = (document.getElementById('su-addr-manual')?.value || '').trim();
-  const pw      = document.getElementById('su-pw').value;
+  const name         = document.getElementById('su-name').value.trim();
+  const phone        = document.getElementById('su-phone').value.replace(/\D/g,'');
+  const email        = '';
   const selectedArea = (document.getElementById('su-area')?.value || '').trim();
 
-  // Final address: manual typed text + geo-detected block (road, city, coords, plus code)
-  let address;
-  if (_pendingLat !== null && _pendingLng !== null) {
-    const geoAddr = _buildAddress(room, _lastGeoResult || '', _pendingLat, _pendingLng, '');
-    address = _buildCombinedAddress(manual, geoAddr);
-    // If GPS-derived area tag is missing but user selected area, append it
-    if (selectedArea && !/^Area:\s*.+/im.test(address)) {
-      address = address + '\nArea: ' + selectedArea;
-    }
-  } else {
-    // No GPS: build address from manual text + append area tag
-    address = manual + (selectedArea ? '\nArea: ' + selectedArea : '');
-  }
+  // Build address: Coordinates + Plus Code + Area (no Nominatim, no room at signup)
+  const address = _buildSignupAddress(_pendingLat, _pendingLng, selectedArea);
+
+  const pw = document.getElementById('su-pw').value;
 
   const setErr = (id, msg) => {
     const el = document.getElementById(id);
@@ -3852,35 +3464,30 @@ async function doSignup() {
   };
 
   const locOk = document.getElementById('su-loc-ok').value === '1';
+  const su_lat = document.getElementById('su-lat').value;
+  const locBtnTxt = document.getElementById('su-loc-btn-txt').textContent;
+  // Hard block only if GPS was used but is outside delivery zone
+  const isOutside = su_lat && locBtnTxt.includes('Outside');
 
   // Clear all errors first
-  ['su-name-err','su-phone-err','su-addr-err','su-area-err','su-pw-err'].forEach(id => setErr(id, ''));
+  ['su-name-err','su-phone-err','su-area-err','su-pw-err'].forEach(id => setErr(id, ''));
 
   // Validate each field with clear human-readable messages
   if (!name) setErr('su-name-err', '👤 Please enter your full name');
   if (!phone || phone.length !== 10) setErr('su-phone-err', '📱 Enter a valid 10-digit WhatsApp number');
-  if (!manual) setErr('su-addr-err', '📍 Please type your address in the address box above');
-  if (!selectedArea) setErr('su-area-err', '📍 Please select your delivery area from the list');
+  if (!selectedArea) setErr('su-area-err', '📍 Please select your delivery area');
   if (!pw || pw.length < 6) setErr('su-pw-err', '🔒 Password must be at least 6 characters');
 
-  if (!locOk) {
+  if (isOutside) {
     const locStatus = document.getElementById('su-loc-status');
     locStatus.style.display = 'block';
-    const su_lat = document.getElementById('su-lat').value;
-    const locBtnTxt = document.getElementById('su-loc-btn-txt').textContent;
-    if (su_lat && locBtnTxt.includes('Outside')) {
-      locStatus.textContent = '🚫 Sorry! Your location is outside our delivery area. We cannot register accounts from this location.';
-      locStatus.style.background = '#fee2e2';
-      locStatus.style.color = '#991b1b';
-    } else {
-      locStatus.textContent = '📍 Please tap "Detect My Location" to verify your delivery area first.';
-      locStatus.style.background = '#fef9c3';
-      locStatus.style.color = '#854d0e';
-    }
+    locStatus.textContent = '🚫 Sorry! Your location is outside our delivery area. We cannot register accounts from this location.';
+    locStatus.style.background = '#fee2e2';
+    locStatus.style.color = '#991b1b';
     valid = false;
-    // Scroll the location section into view
     setTimeout(() => document.getElementById('su-loc-btn')?.scrollIntoView({behavior:'smooth',block:'center'}), 100);
   }
+  // If no GPS at all — that's fine, address will be area-only
 
   if (!valid) {
     // Scroll to first visible error
@@ -3894,7 +3501,7 @@ async function doSignup() {
   setAuthStatus('signup-status', 'su-btn', 'Setting up your account...', 'info', 0);
 
   try {
-    const res = await api('signup', { name, phone, email, address, password: pw });
+    const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw });
     // ✅ Success — stays disabled (navigating away)
     Creds.save(phone, pw);
     Auth.set(res.user);
@@ -4611,7 +4218,7 @@ async function placeOrder() {
             const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
             const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
             openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${user.address || 'Address not set'}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
+              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${_waAddr(user.address)}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
           };
         }
       }, 500);
@@ -4693,7 +4300,7 @@ async function confirmInsufOrder() {
     const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
     _insufWAData = {
       phone: CFG.TIFFIN,
-      msg: `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${_u?.name || 'Customer'} | 📞 ${_u?.phone || ''}\n📍 ${_u?.address || 'Address not set'}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
+      msg: `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${_u?.name || 'Customer'} | 📞 ${_u?.phone || ''}\n📍 ${_waAddr(_u?.address)}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
     };
 
     // Populate and show the dedicated insuf success page
@@ -4893,7 +4500,7 @@ function renderOrderList(orders) {
     const _ordItemLines = items.map(i => `• ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\n');
     const _discLine  = o.discount > 0 ? `\n🎟️ Discount: −₹${o.discount}` : '';
     const _delLine   = o.delivery_charge > 0 ? `\n🚴 Delivery: ₹${o.delivery_charge}` : '';
-    const _baseBlock = `🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${_user?.name || 'Customer'} | 📞 ${_user?.phone || ''}\n📍 ${_user?.address || 'Address not set'}\n\n*Items:*\n${_ordItemLines}${_discLine}${_delLine}\n✅ *Total: ₹${ordAmt}*`;
+    const _baseBlock = `🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${_user?.name || 'Customer'} | 📞 ${_user?.phone || ''}\n📍 ${_waAddr(_user?.address)}\n\n*Items:*\n${_ordItemLines}${_discLine}${_delLine}\n✅ *Total: ₹${ordAmt}*`;
 
     if (!isWallet) {
       // Store the correct message for this order in the map so sendOrderWA() can use it
@@ -5035,7 +4642,6 @@ let _acctMap       = null;
 let _acctMarker    = null;
 let _acctPendingLat = null;
 let _acctPendingLng = null;
-let _acctGeoResult  = null;
 let _acctPinConfirmed = false;
 
 function toggleAddrUpdateForm() {
@@ -5046,10 +4652,56 @@ function toggleAddrUpdateForm() {
   form.style.display = showing ? 'none' : 'block';
   btn.textContent = showing ? '📍 Update Address with Map' : '✕ Cancel Update';
   if (!showing) {
-    // Pre-fill room from current address if possible
-    const raw = Auth.get()?.address || '';
-    const roomMatch = raw.match(/^([^,]+),/);
-    // Don't auto-fill room — let user type it fresh
+    // Load areas for the dropdown
+    if (!_suAreaList.length) _loadSignupAreas().then(() => _acctAreaRenderDropdown(''));
+    else _acctAreaRenderDropdown('');
+    const user = Auth.get();
+    const savedAddr = user?.address || '';
+
+    // Pre-fill room from address field (Room No: line)
+    const roomMatch = savedAddr.split('\n').map(l => l.trim()).find(l => /^Room No:/i.test(l));
+    if (roomMatch) {
+      const roomEl = document.getElementById('acct-room');
+      if (roomEl && !roomEl.value) roomEl.value = roomMatch.replace(/^Room No:\s*/i, '').trim();
+    }
+
+    // Pre-fill area
+    const curArea = user?.area || '';
+    if (curArea) {
+      const areaSearch = document.getElementById('acct-area-search');
+      const areaHidden = document.getElementById('acct-area');
+      if (areaSearch) areaSearch.value = curArea;
+      if (areaHidden) areaHidden.value = curArea;
+    }
+
+    // ── v84: Pre-load existing GPS coords so user can update Area/Room without re-pinning ──
+    const coordMatch = savedAddr.match(/Coordinates:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i);
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lng = parseFloat(coordMatch[2]);
+      _acctPendingLat = lat;
+      _acctPendingLng = lng;
+      _acctPinConfirmed = true;
+      // Mark GPS as OK so Save works without re-detecting
+      const locOkEl = document.getElementById('acct-loc-ok');
+      if (locOkEl) locOkEl.value = '1';
+      // Show chip with existing coords info
+      const chip     = document.getElementById('acct-addr-chip');
+      const chipText = document.getElementById('acct-addr-chip-text');
+      if (chip && chipText) {
+        chipText.innerHTML = `✅ Using saved GPS — ${lat.toFixed(5)}, ${lng.toFixed(5)} &nbsp;<span style="font-size:10px;color:#64748b">(Re-detect to update pin)</span>`;
+        chip.style.display = 'block';
+      }
+      // Show the map area so rider is clear about the current pin
+      const mapArea = document.getElementById('acct-map-pin-area');
+      if (mapArea) {
+        mapArea.style.display = 'block';
+        _acctShowMap(lat, lng);
+      }
+      // Update loc btn label
+      const btnTxtEl = document.getElementById('acct-loc-btn-txt');
+      if (btnTxtEl) btnTxtEl.textContent = 'Re-detect Location';
+    }
   }
 }
 
@@ -5139,34 +4791,31 @@ function _acctRecenter() {
 }
 
 async function _acctUpdateAddress(lat, lng) {
-  const hint = document.getElementById('acct-geocode-hint');
-  if (hint) hint.textContent = '⏳ Fetching address from map…';
-  const geo = await _nominatimReverseGeocode(lat, lng);
-  // Zone fallback: if Nominatim returned no area (sparse OSM), inject from zone table
-  if (geo && !geo.area) geo.area = _getZoneArea(lat, lng);
-  _acctGeoResult = geo;
-  const room    = document.getElementById('acct-room')?.value || '';
-  const manual  = (document.getElementById('acct-addr-manual')?.value || '').trim();
-  const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  const geoAddr = _buildAddress(room, geo || fallback, lat, lng, '');
-  const fullAddr = _buildCombinedAddress(manual, geoAddr);
+  // v84: No Nominatim — address stored = Room + Coordinates + Plus Code + Area only.
+  const plusCode = _getPlusCode(lat, lng);
+
+  const room         = document.getElementById('acct-room')?.value.trim() || '';
+  const selectedArea = document.getElementById('acct-area')?.value.trim() || '';
+  const addr = _buildSettingsAddress(room, lat, lng, selectedArea);
+
   const box = document.getElementById('acct-addr-box');
-  if (box) { box.removeAttribute('readonly'); box.value = fullAddr; }
+  if (box) { box.removeAttribute('readonly'); box.value = addr; }
 
   // Show compact chip
-  _updateAddrChip('acct-addr-chip', 'acct-addr-chip-text', geo, lat, lng);
-
-  if (hint) {
-    if (geo?.full) {
-      const bldg = geo.building ? `<strong>${geo.building}</strong>` : '';
-      const near = (geo.nearFirst||[]).concat(geo.nearExtra||[]).slice(0,1).join('');
-      const sub  = bldg ? (near ? ` · near ${near}` : '') : (near ? near : '');
-      hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ ${bldg || 'Location'} detected${sub ? ` ${sub}` : ''} — drag pin to fine-tune</span>`;
-    } else {
-      hint.innerHTML = `⚠️ Address not detected — drag pin to refine.<br><span style="color:#64748b;font-size:11px">📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
-    }
+  const chip     = document.getElementById('acct-addr-chip');
+  const chipText = document.getElementById('acct-addr-chip-text');
+  if (chip && chipText) {
+    chipText.innerHTML = `✅ GPS pinned — ${lat.toFixed(5)}, ${lng.toFixed(5)}${plusCode ? ` · ${plusCode}` : ''}`;
+    chip.style.display = 'block';
   }
-  // Auto-confirm pin — no button click needed
+
+  const hint = document.getElementById('acct-geocode-hint');
+  if (hint) {
+    hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
+      <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)}${plusCode ? ` · Plus Code: ${plusCode}` : ''}</span>`;
+  }
+
+  // Auto-confirm pin
   document.getElementById('acct-lat').value = lat;
   document.getElementById('acct-lng').value = lng;
   document.getElementById('acct-loc-ok').value = '1';
@@ -5175,39 +4824,74 @@ async function _acctUpdateAddress(lat, lng) {
 
 function _acctRoomWatcher() {
   if (_acctPendingLat === null) return;
-  const room   = document.getElementById('acct-room')?.value || '';
-  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
-  const box    = document.getElementById('acct-addr-box');
+  const room = document.getElementById('acct-room')?.value.trim() || '';
+  const selectedArea = document.getElementById('acct-area')?.value.trim() || '';
+  const box  = document.getElementById('acct-addr-box');
   if (!box) return;
-  const geoAddr = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng, '');
-  box.value = _buildCombinedAddress(manual, geoAddr);
+  box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea);
 }
 
-function _acctManualAddrWatcher() {
-  if (_acctPendingLat === null) return;
-  const room   = document.getElementById('acct-room')?.value || '';
-  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
-  const box    = document.getElementById('acct-addr-box');
-  if (!box) return;
-  const geoAddr = _buildAddress(room, _acctGeoResult || `${_acctPendingLat.toFixed(5)}, ${_acctPendingLng.toFixed(5)}`, _acctPendingLat, _acctPendingLng, '');
-  box.value = _buildCombinedAddress(manual, geoAddr);
-}
+function _acctManualAddrWatcher() {} // no-op — removed in v83
 
-function _acctDetailWatcher() {
-  // Legacy stub — kept for backward compat, now routes to manual watcher
-  _acctManualAddrWatcher();
+function _acctDetailWatcher() {} // legacy stub
+
+/* ── Searchable Area Dropdown for Settings ── */
+function _acctAreaSearchOpen() { _acctAreaRenderDropdown(''); }
+function _acctAreaSearchFilter(val) {
+  _acctAreaRenderDropdown(val.trim().toLowerCase());
+  const hidden = document.getElementById('acct-area');
+  if (hidden) hidden.value = '';
+}
+function _acctAreaSearchClose() {
+  const dd = document.getElementById('acct-area-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+function _acctAreaRenderDropdown(filter) {
+  const dd = document.getElementById('acct-area-dropdown');
+  if (!dd) return;
+  const list = _suAreaList.length ? _suAreaList : ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+  const filtered = filter ? list.filter(a => a.toLowerCase().includes(filter)) : list;
+  if (!filtered.length) {
+    dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">No area found</div>`;
+  } else {
+    dd.innerHTML = filtered.map(a => `
+      <div onclick="_acctAreaSelect('${a.replace(/'/g,"\\'")}');return false"
+        style="padding:11px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 150ms"
+        onmousedown="event.preventDefault()"
+        onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">
+        ${a}
+      </div>`).join('');
+  }
+  dd.style.display = 'block';
+}
+function _acctAreaSelect(val) {
+  const search = document.getElementById('acct-area-search');
+  const hidden = document.getElementById('acct-area');
+  if (search) { search.value = val; search.style.borderColor = '#86efac'; }
+  if (hidden) hidden.value = val;
+  _acctAreaSearchClose();
+  // Rebuild address with new area if coords already pinned
+  if (_acctPendingLat !== null) {
+    const room = document.getElementById('acct-room')?.value.trim() || '';
+    const box  = document.getElementById('acct-addr-box');
+    if (box) box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, val);
+  }
+}
+function _acctAreaSetValue(val) {
+  const list = _suAreaList.length ? _suAreaList : [];
+  const match = list.find(a => a.toLowerCase() === val.toLowerCase()) || val;
+  _acctAreaSelect(match);
 }
 
 async function _confirmAcctPin() {
   if (_acctPendingLat === null || _acctPendingLng === null) { toast('No pin placed yet'); return; }
   const btn = document.getElementById('acct-confirm-pin-btn');
   if (btn) { btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i>&nbsp;Verifying…'; btn.disabled = true; }
-  const room   = document.getElementById('acct-room')?.value.trim() || '';
-  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
-  const box    = document.getElementById('acct-addr-box');
+  const room = document.getElementById('acct-room')?.value.trim() || '';
+  const selectedArea = document.getElementById('acct-area')?.value.trim() || '';
+  const box  = document.getElementById('acct-addr-box');
   if (box) {
-    const geoAddr = _buildAddress(room, _acctGeoResult || '', _acctPendingLat, _acctPendingLng, '');
-    box.value = _buildCombinedAddress(manual, geoAddr);
+    box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea);
   }
   document.getElementById('acct-lat').value = _acctPendingLat;
   document.getElementById('acct-lng').value = _acctPendingLng;
@@ -5217,30 +4901,28 @@ async function _confirmAcctPin() {
 }
 
 async function saveAddress() {
-  const box    = document.getElementById('acct-addr-box');
-  const locOk  = document.getElementById('acct-loc-ok')?.value === '1';
-  const manual = (document.getElementById('acct-addr-manual')?.value || '').trim();
+  const locOk        = document.getElementById('acct-loc-ok')?.value === '1';
+  const selectedArea = (document.getElementById('acct-area')?.value || '').trim();
+  const room         = document.getElementById('acct-room')?.value.trim() || '';
 
-  if (!manual && !locOk) {
-    toast('Please type your address and/or detect your location first.');
+  if (!locOk) {
+    toast('Please detect your location on the map first.');
+    return;
+  }
+  if (!selectedArea) {
+    toast('Please select your delivery area.');
     return;
   }
 
-  let addr;
-  if (_acctPendingLat !== null) {
-    // Always rebuild fresh to guarantee coords are embedded
-    const room = document.getElementById('acct-room')?.value.trim() || '';
-    const geoAddr = _buildAddress(room, _acctGeoResult || '', _acctPendingLat, _acctPendingLng, '');
-    addr = _buildCombinedAddress(manual, geoAddr);
-  } else {
-    addr = manual || (box ? box.value.trim() : '');
-  }
+  // Build address: Room No (optional) + Coordinates + Plus Code + Area
+  const addr = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea);
 
-  if (!addr) { toast('Address is empty — please type your address.'); return; }
+  if (!addr) { toast('Address is empty — please detect your location.'); return; }
 
   try {
-    await api('updateProfile', { phone: Auth.get()?.phone, address: addr, password: Creds.get()?.pw });
-    Auth.patch({ address: addr });
+    // room_no stored inside address, not as separate column
+    await api('updateProfile', { phone: Auth.get()?.phone, address: addr, area: selectedArea, password: Creds.get()?.pw });
+    Auth.patch({ address: addr, area: selectedArea });
     // Refresh display
     const addrDisplay = document.getElementById('acct-addr-display');
     if (addrDisplay) _renderSavedAddrDisplay(addrDisplay, addr);
@@ -5251,10 +4933,16 @@ async function saveAddress() {
     if (form) form.style.display = 'none';
     if (toggleBtn) toggleBtn.textContent = '📍 Update Address with Map';
     // Reset state
-    _acctPendingLat = null; _acctPendingLng = null; _acctGeoResult = null; _acctPinConfirmed = false;
+    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false;
     const chip = document.getElementById('acct-addr-chip');
     if (chip) chip.style.display = 'none';
-    toast('✅ Address saved with GPS coordinates!');
+    const locOkEl2 = document.getElementById('acct-loc-ok');
+    if (locOkEl2) locOkEl2.value = '0';
+    const btnTxtEl2 = document.getElementById('acct-loc-btn-txt');
+    if (btnTxtEl2) btnTxtEl2.textContent = 'Detect My Location';
+    const mapArea2 = document.getElementById('acct-map-pin-area');
+    if (mapArea2) mapArea2.style.display = 'none';
+    toast('✅ Address saved!');
   } catch(e) { toast(e.message || 'Save failed'); }
 }
 
@@ -5490,7 +5178,7 @@ function generateKhataPDF() {
       '<div class="sub">Ghar Ka Tiffin 😍<br>&#x260E; '+(CFG&&CFG.WA?CFG.WA:'9889760350')+'<br>Wallet Statement</div>' +
     '</div><div class="badge">&#x1F4C5; '+rangeLabel+'</div></div>' +
     '<hr>' +
-    '<div class="info-box"><div><b>'+(user?.name||'—')+'</b><br>&#x260E; '+(user?.phone||'—')+'<br>&#x1F4CD; '+(user?.address||'—')+'</div>' +
+    '<div class="info-box"><div><b>'+(user?.name||'—')+'</b><br>&#x260E; '+(user?.phone||'—')+'<br>&#x1F4CD; '+(_waAddr(user?.address)||'—')+'</div>' +
       '<div style="text-align:right"><small style="color:#aaa">Generated</small><br><b>'+now+'</b></div></div>' +
     '<div class="sumbox">' +
       '<div class="sumcard green"><div class="lbl">Closing Balance</div><div class="val">\u20B9'+Math.round(bal)+'</div></div>' +
@@ -6139,6 +5827,27 @@ async function bootApp() {
   const cached = SessionCache.get();
   const creds  = Creds.get();
 
+  // ── PROACTIVE TOKEN EXPIRY CHECK ────────────────────────────────────────────
+  // Decode the JWT exp from the cached userToken (no library — just base64).
+  // If it has already expired and creds are available, refresh it silently right
+  // now so the fast path starts with a valid token and avoids a 401 on first call.
+  // If creds are missing and token is expired, wipe immediately.
+  if (cached?.userToken) {
+    try {
+      const payload = JSON.parse(atob(cached.userToken.split('.')[1]));
+      if (payload.exp && Date.now() > payload.exp) {
+        if (creds && creds.phone && creds.pw) {
+          // Token expired but creds available — refresh silently before boot continues
+          await _refreshUserToken(); // updates SessionCache in-place; ignore return value
+        } else {
+          // Token expired + no creds → unrecoverable, wipe now
+          _wipeAndShowLogin();
+          return;
+        }
+      }
+    } catch(_) { /* malformed token — let the first api() call handle it */ }
+  }
+
   if (cached && cached.user) {
     // ── Case A: Session + Creds both present → instant home, no loader at all ──
     // ── Case B: Session present, Creds absent → wipe instantly, go to login ──
@@ -6593,17 +6302,19 @@ function doLogout() {
   });
 
   // Clear signup form completely
-  ['su-name','su-phone','su-room','su-addr','su-addr-manual','su-pw'].forEach(id => {
+  ['su-name','su-phone','su-addr','su-pw'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  ['su-name-err','su-phone-err','su-room-err','su-addr-err','su-area-err','su-pw-err'].forEach(id => {
+  // Reset area search
+  const suAreaSearch = document.getElementById('su-area-search');
+  if (suAreaSearch) suAreaSearch.value = '';
+  const suAreaHidden = document.getElementById('su-area');
+  if (suAreaHidden) suAreaHidden.value = '';
+  ['su-name-err','su-phone-err','su-area-err','su-pw-err'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '';
   });
-  // Reset area dropdown
-  const suArea = document.getElementById('su-area');
-  if (suArea) { suArea.value = ''; suArea.style.background = ''; suArea.style.borderColor = ''; }
   // Reset location state
   const suLocOk = document.getElementById('su-loc-ok');
   if (suLocOk) suLocOk.value = '0';
