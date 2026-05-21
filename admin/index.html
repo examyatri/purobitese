@@ -2082,14 +2082,30 @@ function startPolling() {
     if (el) el.textContent = `Auto-refresh in ${_pollSeconds}s`;
     if (_pollSeconds <= 0) _pollSeconds = _getPollSeconds();
   }, 1000);
+  // Tabs that get 180s auto-refresh. Excluded intentionally:
+  //   p-kitchen  — admin controls date/slot state + cooking locks; auto-reload mid-session causes confusion
+  //   p-bulk     — has date pickers and bulk-generate state; auto-reload would reset mid-action
+  //   p-settings — no live data; no need
+  //   p-notifs   — has its own dedicated 60s timer (startNotifAutoRefresh)
+  const _AUTO_REFRESH_TABS = {
+    'p-dash':    () => loadDashboard(),
+    'p-orders':  () => loadOrders(),
+    'p-menu':    () => loadMenu(),
+    'p-coupons': () => loadCoupons(),
+    'p-subs':    () => loadSubscribers(),
+    'p-users':   () => loadUsers(),
+    'p-riders':  () => loadRiders(),
+    'p-khata':   () => loadAllKhata(),
+    'p-staff':   () => loadStaff(),
+  };
   function schedulePoll() {
     if (!AdminAuth.get()) return;
     _pollTimer = setTimeout(async () => {
       if (!document.hidden && AdminAuth.get()) {
         const cur = document.querySelector('.pg-v.act')?.id;
-        if (cur === 'p-orders')  loadOrders().catch(()=>{});
-        // p-notifs handled by dedicated 60s timer (startNotifAutoRefresh)
-        if (cur === 'p-dash')    loadDashboard().catch(()=>{});   // only poll dashboard when it's visible
+        const loader = _AUTO_REFRESH_TABS[cur];
+        if (loader) loader().catch(()=>{});
+        // p-notifs handled by its own dedicated 60s timer
         fetchNotifCount().catch(()=>{});
         _pollSeconds = _getPollSeconds();
       }
@@ -2105,18 +2121,26 @@ function stopPolling() {
 }
 
 function _onTabChange() {
-  _pollSeconds = _getPollSeconds();
-  const el = document.getElementById('refresh-countdown');
-  if (el) el.textContent = `Auto-refresh in ${_pollSeconds}s`;
+  // Truly restart the poll timer so new tab gets a full 180s window,
+  // not the remaining time from the previous tab's countdown.
+  startPolling();
 }
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { stopPolling(); stopNotifAutoRefresh(); }
   else if (AdminAuth.get()) {
+    // When browser tab regains focus, reload whatever admin page is active
     const cur = document.querySelector('.pg-v.act')?.id;
-    if (cur === 'p-dash')    loadDashboard().catch(()=>{});
-    if (cur === 'p-orders')  loadOrders().catch(()=>{});
-    if (cur === 'p-notifs')  { loadNotifications().catch(()=>{}); startNotifAutoRefresh(); }
+    const visLoaders = {
+      'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
+      'p-coupons': loadCoupons, 'p-subs': loadSubscribers, 'p-users': loadUsers,
+      'p-riders': loadRiders, 'p-khata': loadAllKhata, 'p-staff': loadStaff,
+      'p-notifs': loadNotifications,
+      // p-kitchen and p-bulk intentionally excluded — admin controls state manually
+    };
+    const fn = visLoaders[cur];
+    if (fn) fn().catch(()=>{});
+    if (cur === 'p-notifs') startNotifAutoRefresh();
     startPolling();
   }
 });
@@ -7036,9 +7060,9 @@ function _applyKitchenSessionsFilter() {
   // Apply slot filter
   let sessions = _allKitchenSessions;
   if (_kitchenSessionsFilter === 'morning') {
-    sessions = sessions.filter(s => s.slot === 'morning');
+    sessions = sessions.filter(s => s.slot === 'morning' || s.slot === 'all');
   } else if (_kitchenSessionsFilter === 'evening') {
-    sessions = sessions.filter(s => s.slot === 'evening');
+    sessions = sessions.filter(s => s.slot === 'evening' || s.slot === 'all');
   }
 
   if (!sessions.length) {
