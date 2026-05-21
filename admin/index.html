@@ -5843,135 +5843,422 @@ let _lastNotifsStr = '', _allNotifs = [], _notifTab = 'orders';
 let _nuPanelOpen = false;
 let _nuCurrentTab = 'pending';
 let _prevUnreadCount = -1; // -1 = first load, no beep yet
-let _beepEnabled = true;   // master on/off toggle — persisted in localStorage
-let _beepLoopTimer = null; // interval ID for repeating beep
-let _beepAudioCtx = null;  // shared AudioContext
+// _beepEnabled and _beepLoopTimer are now managed inside AudioManager below
+// Use AudioManager.isEnabled() / AudioManager.isLooping() to query state
+// ═══════════════════════════════════════════════════════════════════════════
+// TIFFO AUDIO MANAGER — Production-grade, mobile-resilient notification audio
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Architecture overview:
+//  • Single global AudioManager object — no scattered globals, no duplicate ctxs
+//  • Explicit state machine: locked → unlocking → ready → suspended → recovering → failed
+//  • All resume() calls are async/awaited before any oscillator is scheduled
+//  • Background recovery via visibilitychange / focus / pageshow listeners
+//  • Self-healing: if context goes bad, recreate it transparently
+//  • Beep loop tracks whether audio actually played; restarts itself if dead
+//  • Zero zombie timers: every interval/timeout is registered in AudioManager
+//  • Full debug logging via AudioManager.log() — toggle with AudioManager.debug = true
+//
+const AudioManager = (() => {
+  // ── Constants ────────────────────────────────────────────────────────────
+  const BEEP_INTERVAL_MS   = 4000;   // repeat alert every 4s
+  const RESUME_TIMEOUT_MS  = 2500;   // max time to wait for ctx.resume()
+  const RESUME_MAX_RETRIES = 4;      // retry resume this many times before giving up
+  const RESUME_RETRY_MS    = 600;    // delay between resume retries
+  const HEALTH_CHECK_MS    = 8000;   // how often health checker runs while looping
 
-// ── Load beep preference from localStorage on boot ───────
-(function() {
-  const saved = localStorage.getItem('tiffo_beep_enabled');
-  if (saved !== null) _beepEnabled = saved === 'true';
+  // ── Audio states ─────────────────────────────────────────────────────────
+  const S = { LOCKED:'locked', UNLOCKING:'unlocking', READY:'ready',
+              SUSPENDED:'suspended', RECOVERING:'recovering', FAILED:'failed' };
+
+  // ── Internal state ────────────────────────────────────────────────────────
+  let _ctx        = null;   // AudioContext instance
+  let _state      = S.LOCKED;
+  let _resumeRetries = 0;
+
+  // Beep loop
+  let _loopTimer      = null; // setInterval handle for repeating beep
+  let _healthTimer    = null; // setInterval handle for health checker
+  let _loopActive     = false;
+  let _lastPlayedAt   = 0;    // timestamp of last successful oscillator start
+  let _playPending    = false; // true while an async play is in-flight
+
+  // Public API shared with legacy variable names
+  let _beepEnabled = true;    // master toggle (persisted)
+
+  // ── Debug logging ─────────────────────────────────────────────────────────
+  let _debug = false; // set AudioManager.debug = true in console to enable
+  function log(...args) {
+    if (_debug) console.log('[AudioMgr]', new Date().toISOString().slice(11,23), ...args);
+  }
+
+  // ── Restore saved preference ──────────────────────────────────────────────
+  (function _loadPref() {
+    const saved = localStorage.getItem('tiffo_beep_enabled');
+    if (saved !== null) _beepEnabled = saved === 'true';
+  })();
+
+  // ── Create / recreate AudioContext ────────────────────────────────────────
+  function _createCtx() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { _state = S.FAILED; log('AudioContext not supported'); return false; }
+      if (_ctx && _ctx.state !== 'closed') {
+        try { _ctx.close(); } catch(e) {}
+      }
+      _ctx = new AC();
+      log('AudioContext created, state:', _ctx.state);
+      return true;
+    } catch(e) {
+      log('AudioContext creation failed:', e.message);
+      _state = S.FAILED;
+      return false;
+    }
+  }
+
+  // ── Resume context with retry logic (fully async) ─────────────────────────
+  async function _resumeCtx() {
+    if (!_ctx || _ctx.state === 'closed') {
+      log('ctx closed/null — recreating before resume');
+      if (!_createCtx()) return false;
+    }
+    if (_ctx.state === 'running') {
+      log('ctx already running');
+      _state = S.READY;
+      return true;
+    }
+
+    _state = S.RECOVERING;
+    log('Attempting resume, attempt', _resumeRetries + 1, '/', RESUME_MAX_RETRIES);
+
+    for (let attempt = 0; attempt < RESUME_MAX_RETRIES; attempt++) {
+      try {
+        // Race resume() against a timeout — some browsers hang indefinitely
+        await Promise.race([
+          _ctx.resume(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), RESUME_TIMEOUT_MS))
+        ]);
+        if (_ctx.state === 'running') {
+          _state = S.READY;
+          _resumeRetries = 0;
+          log('ctx resumed successfully on attempt', attempt + 1);
+          return true;
+        }
+        log('resume() resolved but state is still:', _ctx.state);
+      } catch(e) {
+        log('resume() attempt', attempt + 1, 'failed:', e.message);
+      }
+      // Brief pause before retry
+      if (attempt < RESUME_MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RESUME_RETRY_MS));
+      }
+    }
+
+    // All retries exhausted — recreate ctx and try once more from scratch
+    log('All resume retries failed — recreating AudioContext');
+    if (!_createCtx()) return false;
+    try {
+      await _ctx.resume();
+      if (_ctx.state === 'running') {
+        _state = S.READY;
+        _resumeRetries = 0;
+        log('ctx resumed after recreation');
+        return true;
+      }
+    } catch(e) {
+      log('Post-recreation resume failed:', e.message);
+    }
+
+    _state = S.FAILED;
+    log('AudioContext irrecoverably failed — giving up this cycle');
+    return false;
+  }
+
+  // ── Ensure ctx is ready (create if needed, resume if suspended) ───────────
+  async function _ensureReady() {
+    if (!_ctx || _ctx.state === 'closed') {
+      if (_state === S.LOCKED) {
+        log('ensureReady called before unlock — no-op');
+        return false;
+      }
+      log('ctx missing — recreating');
+      if (!_createCtx()) return false;
+    }
+    if (_ctx.state === 'running') {
+      _state = S.READY;
+      return true;
+    }
+    if (_ctx.state === 'suspended') {
+      _state = S.SUSPENDED;
+      return await _resumeCtx();
+    }
+    // 'closed' or unknown
+    log('Unexpected ctx state:', _ctx.state, '— recreating');
+    if (!_createCtx()) return false;
+    return await _resumeCtx();
+  }
+
+  // ── First user-gesture unlock ─────────────────────────────────────────────
+  // Mobile browsers REQUIRE a user gesture before any AudioContext can run.
+  // We keep listening (not just once) because mobile can re-suspend and we
+  // want every subsequent gesture to also attempt recovery.
+  async function _gestureUnlock(e) {
+    if (_state === S.LOCKED || _state === S.SUSPENDED || _state === S.FAILED
+        || (_ctx && _ctx.state === 'suspended')) {
+      log('Gesture detected:', e.type, '— attempting unlock/recovery');
+      _state = S.UNLOCKING;
+      if (!_ctx) _createCtx();
+      await _resumeCtx();
+      // If beep loop was active but audio was dead, restart playback now
+      if (_loopActive && _state === S.READY) {
+        log('Gesture recovery: restarting beep after unlock');
+        _schedulePlay();
+      }
+    }
+  }
+  // Capture phase so we catch gestures before any stopPropagation
+  document.addEventListener('click',      _gestureUnlock, { capture: true, passive: true });
+  document.addEventListener('touchstart', _gestureUnlock, { capture: true, passive: true });
+  document.addEventListener('touchend',   _gestureUnlock, { capture: true, passive: true });
+  document.addEventListener('keydown',    _gestureUnlock, { capture: true, passive: true });
+
+  // ── Background / foreground recovery ─────────────────────────────────────
+  document.addEventListener('visibilitychange', async () => {
+    if (!document.hidden) {
+      log('Tab became visible — checking audio state');
+      await _handleForegroundReturn();
+    } else {
+      log('Tab hidden — audio may suspend');
+      if (_ctx && _ctx.state === 'running') _state = S.SUSPENDED;
+    }
+  });
+  window.addEventListener('focus', async () => {
+    log('Window focus — checking audio state');
+    await _handleForegroundReturn();
+  });
+  window.addEventListener('pageshow', async (e) => {
+    log('pageshow (persisted:', e.persisted, ') — checking audio state');
+    await _handleForegroundReturn();
+  });
+  // Android Chrome sometimes fires a custom 'resume' on the AudioContext
+  // We also cover it generically via the handlers above
+
+  async function _handleForegroundReturn() {
+    if (_state === S.LOCKED) return; // never unlocked — nothing to recover
+    if (!_ctx || _ctx.state !== 'running') {
+      log('Foreground return: audio not running (', _ctx?.state, ') — recovering');
+      _state = S.SUSPENDED;
+      const ok = await _ensureReady();
+      if (ok && _loopActive) {
+        log('Foreground recovery succeeded — resuming beep loop');
+        _schedulePlay();
+      } else if (!ok) {
+        log('Foreground recovery failed — will retry on next gesture');
+      }
+    }
+  }
+
+  // ── Oscillator-based cash-register sound ──────────────────────────────────
+  // Returns true if oscillators were successfully scheduled, false on any failure.
+  function _scheduleOscillators() {
+    try {
+      if (!_ctx || _ctx.state !== 'running') return false;
+      const t = _ctx.currentTime;
+      function playDing(startT, freq, dur, vol) {
+        const osc  = _ctx.createOscillator();
+        const gain = _ctx.createGain();
+        osc.connect(gain);
+        gain.connect(_ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, startT);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.85, startT + dur);
+        gain.gain.setValueAtTime(0, startT);
+        gain.gain.linearRampToValueAtTime(vol, startT + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.001, startT + dur);
+        osc.start(startT);
+        osc.stop(startT + dur);
+        osc.onended = () => { try { osc.disconnect(); gain.disconnect(); } catch(e) {} };
+      }
+      playDing(t + 0.00, 1318, 0.32, 0.28); // E6
+      playDing(t + 0.38, 1047, 0.18, 0.22); // C6
+      playDing(t + 0.56, 1319, 0.22, 0.26); // C#6
+      _lastPlayedAt = Date.now();
+      log('Oscillators scheduled at t=', t.toFixed(3));
+      return true;
+    } catch(e) {
+      log('Oscillator scheduling error:', e.message);
+      return false;
+    }
+  }
+
+  // ── Core play function: ensure ready → schedule → fallback ───────────────
+  async function _play() {
+    if (_playPending) { log('play() skipped — already in-flight'); return; }
+    _playPending = true;
+    try {
+      // Fast path: already running
+      if (_ctx && _ctx.state === 'running') {
+        const ok = _scheduleOscillators();
+        if (ok) return;
+        // Oscillator failed despite running state — ctx might be corrupted
+        log('Oscillator failed on running ctx — will try full recovery');
+      }
+      // Slow path: resume/recover then play
+      log('play() — ctx not ready (', _ctx?.state || 'null', '), attempting recovery');
+      const ok = await _ensureReady();
+      if (ok) {
+        const played = _scheduleOscillators();
+        if (!played) {
+          log('Oscillators still failed after recovery — recreating ctx');
+          if (_createCtx()) {
+            await _resumeCtx();
+            _scheduleOscillators();
+          }
+        }
+      } else {
+        log('play() — recovery failed, no sound this cycle');
+      }
+    } finally {
+      _playPending = false;
+    }
+  }
+
+  // ── Schedule a single play (fire-and-forget, safe to call from interval) ──
+  function _schedulePlay() {
+    _play().catch(e => log('_play() uncaught:', e.message));
+  }
+
+  // ── Health checker: detect dead audio loop ────────────────────────────────
+  // Runs while the beep loop is active. If _lastPlayedAt is stale, the loop
+  // is alive on the timer but audio hasn't actually played — attempt recovery.
+  function _startHealthCheck() {
+    _stopHealthCheck();
+    _healthTimer = setInterval(async () => {
+      if (!_loopActive) { _stopHealthCheck(); return; }
+      const staleness = Date.now() - _lastPlayedAt;
+      // If loop has been running but no play for 2 full cycles + 1s grace period:
+      if (_lastPlayedAt > 0 && staleness > BEEP_INTERVAL_MS * 2 + 1000) {
+        log('Health check: audio stale for', staleness, 'ms — recovering');
+        const ok = await _ensureReady();
+        if (ok) {
+          log('Health recovery succeeded — forcing immediate play');
+          _schedulePlay();
+        }
+      } else if (_ctx && _ctx.state === 'suspended') {
+        log('Health check: ctx suspended — recovering');
+        await _ensureReady();
+      }
+    }, HEALTH_CHECK_MS);
+  }
+  function _stopHealthCheck() {
+    if (_healthTimer) { clearInterval(_healthTimer); _healthTimer = null; }
+  }
+
+  // ── Public: Start repeating beep loop ─────────────────────────────────────
+  function startLoop() {
+    if (!_beepEnabled) return;
+    if (_loopActive && _loopTimer) {
+      log('startLoop() called but loop already active — skipping');
+      return;
+    }
+    log('startLoop() — starting beep loop');
+    _loopActive = true;
+    _lastPlayedAt = 0; // reset so health check doesn't false-alarm immediately
+    _schedulePlay(); // immediate first beep
+    _stopBeepLoopTimer(); // defensive: clear any stale timer
+    _loopTimer = setInterval(() => {
+      if (!_beepEnabled || !_loopActive) { stopLoop(); return; }
+      _schedulePlay();
+    }, BEEP_INTERVAL_MS);
+    _startHealthCheck();
+    _updateBeepBtn();
+  }
+
+  // ── Public: Stop repeating beep loop ──────────────────────────────────────
+  function stopLoop() {
+    log('stopLoop() called');
+    _loopActive = false;
+    _stopBeepLoopTimer();
+    _stopHealthCheck();
+    _updateBeepBtn();
+  }
+
+  function _stopBeepLoopTimer() {
+    if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
+  }
+
+  // ── Public: Play a single one-off beep (e.g. confirmation) ───────────────
+  function playOnce() {
+    _schedulePlay();
+  }
+
+  // ── Public: isLooping ─────────────────────────────────────────────────────
+  function isLooping() { return _loopActive && !!_loopTimer; }
+
+  // ── Public: Toggle beep master on/off ─────────────────────────────────────
+  function toggle() {
+    if (isLooping()) {
+      stopLoop();
+      aToast('🔔 Alert stopped');
+      return;
+    }
+    _beepEnabled = !_beepEnabled;
+    localStorage.setItem('tiffo_beep_enabled', String(_beepEnabled));
+    if (_beepEnabled) playOnce();
+    _updateBeepBtn();
+    aToast(_beepEnabled ? '🔔 Alert beep ON' : '🔕 Alert beep OFF');
+  }
+
+  // ── Public: isEnabled ─────────────────────────────────────────────────────
+  function isEnabled() { return _beepEnabled; }
+
+  // ── Expose internal state for debugging ───────────────────────────────────
+  function getState() {
+    return {
+      state: _state,
+      ctxState: _ctx?.state || 'null',
+      loopActive: _loopActive,
+      loopTimer: !!_loopTimer,
+      healthTimer: !!_healthTimer,
+      lastPlayedAgo: _lastPlayedAt ? Date.now() - _lastPlayedAt : null,
+      beepEnabled: _beepEnabled,
+    };
+  }
+
+  return { startLoop, stopLoop, playOnce, toggle, isLooping, isEnabled, getState,
+           get debug() { return _debug; }, set debug(v) { _debug = v; } };
 })();
 
-// ── Unlock AudioContext on first user gesture (required on mobile) ──────────
-// Mobile browsers start AudioContext in "suspended" state. Programmatic
-// resume() from a polling timer is blocked — only a user gesture can unlock it.
-// Strategy: on the very first click/touch/keydown, create the AudioContext and
-// call resume() inside that gesture callback so the browser permits it.
-// _beepAudioCtx is assigned BEFORE resume() so that any beep triggered
-// immediately after reuses the same context (already mid-resume) instead of
-// creating a second suspended one.
-let _beepUnlocked = false;
-function _unlockAudioCtx() {
-  if (_beepUnlocked) return;
-  _beepUnlocked = true;
-  document.removeEventListener('click',      _unlockAudioCtx, true);
-  document.removeEventListener('touchstart', _unlockAudioCtx, true);
-  document.removeEventListener('keydown',    _unlockAudioCtx, true);
-  try {
-    if (!_beepAudioCtx || _beepAudioCtx.state === 'closed') {
-      _beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (_beepAudioCtx.state === 'suspended') _beepAudioCtx.resume();
-  } catch(e) {}
-}
-document.addEventListener('click',      _unlockAudioCtx, true);
-document.addEventListener('touchstart', _unlockAudioCtx, true);
-document.addEventListener('keydown',    _unlockAudioCtx, true);
+// ── Legacy shim: keep old variable names working so call-sites don't change ──
+// _beepEnabled, _beepLoopTimer are no longer real variables but we keep
+// _beepEnabled readable via AudioManager.isEnabled() and isLooping() via AudioManager.isLooping().
 
-function _getAudioCtx() {
-  if (!_beepAudioCtx || _beepAudioCtx.state === 'closed') {
-    // Context was GC'd after being backgrounded — recreate only after unlock.
-    // Before first gesture this path returns a new suspended ctx; _playCashRegister
-    // will silently fail — correct: no sound before the admin interacts.
-    _beepAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (_beepAudioCtx.state === 'suspended') _beepAudioCtx.resume();
-  return _beepAudioCtx;
-}
+// ─── BEEP PUBLIC API (thin wrappers over AudioManager) ───────────────────────
 
-// Cash register sound: high ding → brief pause → two quick dings
-function _playCashRegister() {
-  try {
-    const ctx = _getAudioCtx();
-    const t = ctx.currentTime;
-    function playDing(startT, freq, dur, vol) {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, startT);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.85, startT + dur);
-      gain.gain.setValueAtTime(0, startT);
-      gain.gain.linearRampToValueAtTime(vol, startT + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.001, startT + dur);
-      osc.start(startT);
-      osc.stop(startT + dur);
-    }
-    playDing(t + 0.00, 1318, 0.32, 0.28); // E6 — first ding
-    playDing(t + 0.38, 1047, 0.18, 0.22); // C6 — ding
-    playDing(t + 0.56, 1319, 0.22, 0.26); // C#6 — ding
-  } catch(e) {}
-}
+function _startBeepLoop()  { AudioManager.startLoop(); }
+function _stopBeepLoop()   { AudioManager.stopLoop();  }
+function _playCashRegister() { AudioManager.playOnce(); }
 
-// Start repeating beep loop (every 4s) — called when new activity arrives
-function _startBeepLoop() {
-  if (!_beepEnabled) return;
-  if (_beepLoopTimer) return; // already looping
-  _playCashRegister(); // immediate first beep
-  _beepLoopTimer = setInterval(() => {
-    if (!_beepEnabled) { _stopBeepLoop(); return; }
-    _playCashRegister();
-  }, 4000);
-  _updateBeepBtn(); // show pulsing state
-}
-
-// Stop the repeating beep — called on any meaningful admin interaction
-function _stopBeepLoop() {
-  if (_beepLoopTimer) {
-    clearInterval(_beepLoopTimer);
-    _beepLoopTimer = null;
-  }
-  _updateBeepBtn();
-}
-
-// Toggle: if beep is currently looping → stop loop (acknowledge); if master off → turn on; if idle on → turn off
-function toggleBeep() {
-  if (_beepLoopTimer) {
-    // Beep is alerting — admin clicked to acknowledge/stop, keep master ON
-    _stopBeepLoop();
-    aToast('🔔 Alert stopped');
-    return;
-  }
-  // No active loop — toggle master on/off
-  _beepEnabled = !_beepEnabled;
-  localStorage.setItem('tiffo_beep_enabled', String(_beepEnabled));
-  if (_beepEnabled) _playCashRegister(); // confirmation ding
-  _updateBeepBtn();
-  aToast(_beepEnabled ? '🔔 Alert beep ON' : '🔕 Alert beep OFF');
-}
+function toggleBeep() { AudioManager.toggle(); }
 
 function _updateBeepBtn() {
   const btn = document.getElementById('beep-toggle-btn');
   if (!btn) return;
-  const isLooping = !!_beepLoopTimer;
-  if (!_beepEnabled) {
-    // Master OFF
+  const isLooping = AudioManager.isLooping();
+  const enabled   = AudioManager.isEnabled();
+  if (!enabled) {
     btn.innerHTML = '<i class="fa fa-bell-slash" style="font-size:13px"></i> Beep Off';
     btn.style.background  = '#f8fafc';
     btn.style.color       = '#94a3b8';
     btn.style.borderColor = '#e2e8f0';
     btn.style.animation   = '';
   } else if (isLooping) {
-    // Active alert — pulsing red to grab attention
     btn.innerHTML = '<i class="fa fa-bell" style="font-size:13px"></i> Stop Beep';
     btn.style.background  = 'linear-gradient(135deg,#ef4444,#dc2626)';
     btn.style.color       = '#fff';
     btn.style.borderColor = '#dc2626';
     btn.style.animation   = 'badgePulse 1s infinite';
   } else {
-    // Enabled, idle
     btn.innerHTML = '<i class="fa fa-bell" style="font-size:13px"></i> Beep On';
     btn.style.background  = 'linear-gradient(135deg,#10b981,#059669)';
     btn.style.color       = '#fff';
