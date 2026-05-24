@@ -1767,8 +1767,23 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
         <!-- ── TAB 1: Order Revenue ── -->
         <div id="earn-pane-orders">
-          <div style="margin-bottom:12px">
-            <button class="btn btn-p" onclick="loadEarnings()" style="padding:8px 18px;font-size:13px"><i class="fa fa-search"></i> Fetch Orders</button>
+          <div class="card" style="margin-bottom:12px;padding:12px 16px">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Session Filter</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button id="earn-sess-all" onclick="_setEarnSession('all')"
+                style="padding:7px 16px;border-radius:20px;border:2px solid #6366f1;background:#6366f1;color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+                All
+              </button>
+              <button id="earn-sess-morning" onclick="_setEarnSession('morning')"
+                style="padding:7px 16px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+                &#9728;&#65039; Morning
+              </button>
+              <button id="earn-sess-evening" onclick="_setEarnSession('evening')"
+                style="padding:7px 16px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+                &#127769; Evening
+              </button>
+              <button class="btn btn-p" onclick="loadEarnings()" style="margin-left:auto;padding:8px 18px;font-size:13px"><i class="fa fa-search"></i> Fetch Orders</button>
+            </div>
           </div>
           <div id="earn-summary" style="display:none;margin-bottom:16px"></div>
           <div id="earn-combo-panel" style="display:none;margin-bottom:16px"></div>
@@ -7351,8 +7366,22 @@ function switchEarnTab(tab) {
 }
 
 // ── Wallet Recharge Report ─────────────────────────────────────────────────
+let _earnSession = 'all';           // 'all' | 'morning' | 'evening' — Order Revenue tab filter
 let _rchSession = 'all';           // 'all' | 'morning' | 'evening'
 let _rchRawData = null;            // last fetched full res object (for client-side re-filter)
+
+function _setEarnSession(sess) {
+  _earnSession = sess;
+  ['all','morning','evening'].forEach(s => {
+    const el = document.getElementById('earn-sess-' + s);
+    if (!el) return;
+    const active = s === sess;
+    el.style.background  = active ? '#6366f1' : '#fff';
+    el.style.borderColor = active ? '#6366f1' : '#e2e8f0';
+    el.style.color       = active ? '#fff'    : '#64748b';
+  });
+  if (_earnLastRes) _renderEarnings(_earnLastRes);
+}
 
 function _setRchSession(sess, btn) {
   _rchSession = sess;
@@ -7444,6 +7473,8 @@ function _renderWalletRecharges(res) {
 
   // Store grand total (always full, not filtered) for cross-tab banner
   _earnLastRechargeCash = res.grandTotal || 0;
+  // Re-render combo calc if orders tab data already loaded — wallet card now has correct value
+  if (_earnLastRes) _renderComboCalc(_earnLastRes);
 
   // ── Summary card ──────────────────────────────────────────────────────────
   const avg = filteredCount > 0 ? filteredTotal / filteredCount : 0;
@@ -7571,6 +7602,7 @@ async function loadEarnings() {
   });
   _earnLastRes = null;
   _earnLastOrderCash = 0; // reset so banner doesn't show stale cross-tab total
+  _setEarnSession('all'); // reset session filter to All on fresh fetch
 
   const owner = _acquireLoad('earn-orders');
   try {
@@ -7639,7 +7671,7 @@ function _renderComboCalc(res) {
 
   // Compute per-mode totals across the full report
   const modeTotals = {}, modeCounts = {};
-  for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
+  for (const mode of ['upi','upi_insuf','unpaid']) {
     let tot = 0, cnt = 0;
     for (const day of res.report)
       for (const sl of day.slots) {
@@ -7649,6 +7681,10 @@ function _renderComboCalc(res) {
     modeTotals[mode] = tot;
     modeCounts[mode]  = cnt;
   }
+  // Wallet = actual recharges (admin/staff credited to user wallet — any mode: cash/upi/online)
+  // NOT wallet orders. Recharge tab fetch hone par _earnLastRechargeCash set hota hai.
+  modeTotals['wallet'] = _earnLastRechargeCash || 0;
+  modeCounts['wallet'] = 0; // recharge count orders tab se nahi aata — amount hi relevant hai
 
   let comboTotal = 0, comboCount = 0;
   for (const m of _earnComboModes) {
@@ -7657,11 +7693,12 @@ function _renderComboCalc(res) {
   }
 
   // Mode display config (user-friendly labels + explanations)
+  const walletFetched = _earnLastRechargeCash > 0;
   const MODES = [
-    { key:'upi',       icon:'fa-mobile-screen',         label:'UPI',         sub:'Paid via UPI',              color:'#3b82f6', bg:'#eff6ff' },
-    { key:'upi_insuf', icon:'fa-triangle-exclamation',  label:'UPI (Insuf)', sub:'Partial UPI payment',       color:'#f59e0b', bg:'#fffbeb' },
-    { key:'unpaid',    icon:'fa-arrow-trend-down',       label:'Udhar',       sub:'Collected on credit',       color:'#ef4444', bg:'#fef2f2' },
-    { key:'wallet',    icon:'fa-wallet',                 label:'Wallet',      sub:'Counted in Recharges tab',  color:'#10b981', bg:'#f0fdf4' },
+    { key:'upi',       icon:'fa-mobile-screen',         label:'UPI',         sub:'Paid via UPI',                                          color:'#3b82f6', bg:'#eff6ff' },
+    { key:'upi_insuf', icon:'fa-triangle-exclamation',  label:'UPI (Insuf)', sub:'Partial UPI payment',                                   color:'#f59e0b', bg:'#fffbeb' },
+    { key:'unpaid',    icon:'fa-arrow-trend-down',       label:'Udhar',       sub:'Collected on credit',                                   color:'#ef4444', bg:'#fef2f2' },
+    { key:'wallet',    icon:'fa-wallet',                 label:'Wallet',      sub: walletFetched ? 'Recharges (Cash / UPI / Online)' : 'Fetch Recharges tab first', color:'#10b981', bg:'#f0fdf4' },
   ];
 
   const chipHtml = MODES.map(m => {
@@ -7885,18 +7922,53 @@ function _renderEarnings(res) {
   const summaryEl = document.getElementById('earn-summary');
   const reportEl  = document.getElementById('earn-report');
 
+  // ── Apply session filter (client-side — no re-fetch needed) ──────────────
+  const filteredRes = _earnSession === 'all' ? res : {
+    ...res,
+    report: res.report.map(day => {
+      const slots = day.slots.filter(sl => sl.slot === _earnSession);
+      const dayTotal = slots.reduce((s, sl) => s + sl.slotTotal, 0);
+      const dayCounts = {};
+      for (const sl of slots)
+        for (const [m, c] of Object.entries(sl.slotCounts || {}))
+          dayCounts[m] = (dayCounts[m] || 0) + c;
+      return { ...day, slots, dayTotal, dayCounts };
+    }).filter(day => day.slots.length > 0),
+    grandTotal:          0, // recomputed below
+    grandCounts:         {},
+    grandTrueCash:       0,
+    grandRechargeCash:   res.grandRechargeCash, // recharges not slot-filtered
+    grandUpiCombinedTotal: 0,
+    grandUpiCombinedCount: 0,
+    totalOrders:         0
+  };
+  // Recompute filtered grand totals
+  if (_earnSession !== 'all') {
+    for (const day of filteredRes.report) {
+      filteredRes.grandTotal        += day.dayTotal;
+      filteredRes.totalOrders       += Object.values(day.dayCounts).reduce((s,c)=>s+c,0);
+      filteredRes.grandTrueCash     += day.slots.reduce((s,sl)=>s+sl.slotTrueCash,0);
+      filteredRes.grandUpiCombinedTotal += day.slots.reduce((s,sl)=>s+sl.upiCombinedTotal,0);
+      filteredRes.grandUpiCombinedCount += day.slots.reduce((s,sl)=>s+sl.upiCombinedCount,0);
+      for (const [m,c] of Object.entries(day.dayCounts))
+        filteredRes.grandCounts[m] = (filteredRes.grandCounts[m]||0) + c;
+    }
+  }
+  const sessBadge = _earnSession !== 'all'
+    ? ` <span style="font-size:11px;background:${_earnSession==='morning'?'#fffbeb':'#eef2ff'};color:${_earnSession==='morning'?'#92400e':'#3730a3'};border-radius:20px;padding:2px 10px;font-weight:700;margin-left:6px">${_earnSession==='morning'?'☀️ Morning':'🌙 Evening'}</span>` : '';
+
   // ── Grand summary tiles (individual per mode + export button) ─────────────
-  const gc = res.grandCounts || {};
+  const gc = filteredRes.grandCounts || {};
   const modeTotals = {};
   for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
-    modeTotals[mode] = res.report.reduce((s,d)=>s+d.slots.reduce((ss,sl)=>ss+(sl.modes[mode]?.total||0),0),0);
+    modeTotals[mode] = filteredRes.report.reduce((s,d)=>s+d.slots.reduce((ss,sl)=>ss+(sl.modes[mode]?.total||0),0),0);
   }
 
   // ── True Cash Earned this period ──────────────────────────────────────────
   // = Recharges collected + UPI + UPI_insuf + Unpaid(udhar)
   // Wallet orders excluded — cash was already counted when subscriber recharged.
-  const grandTrueCash     = res.grandTrueCash     || 0;
-  const grandRechargeCash = res.grandRechargeCash || 0;
+  const grandTrueCash     = filteredRes.grandTrueCash     || 0;
+  const grandRechargeCash = filteredRes.grandRechargeCash || 0;
   const trueCashUpi       = (modeTotals['upi']      || 0) + (modeTotals['upi_insuf'] || 0);
   const trueCashUdhar     = modeTotals['unpaid']    || 0;
   const trueCashUpiCount  = (gc['upi'] || 0) + (gc['upi_insuf'] || 0);
@@ -7951,7 +8023,7 @@ function _renderEarnings(res) {
   summaryEl.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:13px;font-weight:700;color:#64748b">${res.fromDate === res.toDate ? res.fromDate : res.fromDate + ' → ' + res.toDate} · ${res.totalOrders} orders</div>
+        <div style="font-size:13px;font-weight:700;color:#64748b">${filteredRes.fromDate === filteredRes.toDate ? filteredRes.fromDate : filteredRes.fromDate + ' → ' + filteredRes.toDate} · ${filteredRes.totalOrders} orders${sessBadge}</div>
         <button onclick="if(_earnLastRes)_earnExportCSV(_earnLastRes);else aToast('No data to export');" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
           <i class="fa fa-download" style="color:#6366f1"></i> Export CSV
         </button>
@@ -7976,17 +8048,17 @@ function _renderEarnings(res) {
   summaryEl.style.display = 'block';
 
   // Render combo calc, trend chart, udhar panel
-  _renderComboCalc(res);
-  _renderTrendChart(res);
-  _renderUdharPanel(res);
+  _renderComboCalc(filteredRes);
+  _renderTrendChart(filteredRes);
+  _renderUdharPanel(filteredRes);
 
   // ── Day-by-day report ────────────────────────────────────────────────────
-  if (!res.report.length) {
+  if (!filteredRes.report.length) {
     reportEl.innerHTML = '<div class="card" style="text-align:center;color:#94a3b8;padding:32px">No orders found for this period.</div>';
     return;
   }
 
-  reportEl.innerHTML = res.report.map((day, di) => {
+  reportEl.innerHTML = filteredRes.report.map((day, di) => {
     const dayId = 'eday-' + di;
     const slotHtml = day.slots.map((sl, si) => {
       const slId   = dayId + '-sl' + si;
