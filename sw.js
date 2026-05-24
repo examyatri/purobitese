@@ -1,35 +1,24 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v32.0  |  Updated : 2026-05-24
+   Version : v31.0  |  Updated : 2026-05-24
 
-   CHANGES v32.0:
-   - Cache bumped to tiffo-v31 — ported from v40: navigate strategy changed
-     from network-first → stale-while-revalidate with 3s network timeout.
-     Cached index.html now serves INSTANTLY on every app open — user sees
-     content in ~0ms instead of waiting 5-15s for 356KB over network.
-     Background update happens silently; next open gets fresh HTML.
-   - Added SW→page BroadcastChannel message on background HTML update so
-     the app can trigger a silent menu refresh when app shell changes.
+   CHANGES v31.0:
+   - config.js changed from async to defer in index.html → deterministic boot
+   - Server now sends Cache-Control: max-age=3600 on config.js → 0ms on repeat
+   - Cache bumped to tiffo-v28 to force fresh precache on this deploy.
+   - No SW strategy changes — config.js stays network-only (browser cache handles it)
+
+   CHANGES v30.0 (UX PERF — root cause fix for 20-30s skeleton):
+   - Strategy 3 (navigate): changed from network-first → stale-while-revalidate
+     with a 3s network timeout. Cached index.html now serves INSTANTLY on every
+     app open — user sees content in ~0ms instead of waiting 5-15s for 356KB
+     over network. Background update happens silently; next open gets fresh HTML.
+   - Added SW→page BroadcastChannel message on background HTML update so the
+     app can optionally notify or trigger a silent refresh.
    - All other strategies unchanged.
-
-   CHANGES v29.8:
-   - Cache bumped → tiffo-v26 (signup location mandatory fix)
-   - Location detection now required to create account
-   - Improved signup validation messages
-
-   CHANGES v29.7:
-   - Version bump for v71 release (PTR freshness fix,
-     settings cache reset on PTR and visibility return)
-
-   CHANGES v29.0 (was v28.0):
-   - Cache bumped → tiffo-v24 (performance indexes migration)
-   - Added sw.js itself to PRECACHE for offline reliability
-   - skipWaiting() called immediately in install (faster PWA launch)
-   - Fixed fire-and-forget fetchPromise (was silently dropped)
-   - display_override added in manifest for instant standalone launch
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v31'; // bumped — navigate strategy fix
+const CACHE      = 'tiffo-v28'; // bumped — forces fresh precache on deploy
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
@@ -157,7 +146,7 @@ self.addEventListener('fetch', e => {
 
   /* Strategy 3 — HTML navigation: cache-first with network timeout fallback.
    *
-   * WHY THIS CHANGE:
+   * WHY THIS CHANGE (v30.0):
    * The old network-first strategy forced a 356KB download of index.html on
    * EVERY app open, even when a perfectly good cached copy existed.  On slow
    * Indian 4G this was the dominant cause of the 20-30s skeleton:
