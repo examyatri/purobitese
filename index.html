@@ -917,13 +917,14 @@ textarea{resize:vertical;min-height:80px}
 .monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
 .monthly-plan-card::after{content:'';position:absolute;bottom:-30px;right:40px;width:70px;height:70px;background:rgba(255,255,255,.08);border-radius:50%}
 /* Cutoff card */
-#cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;overflow:hidden;transition:all 300ms}
+#cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;transition:all 300ms}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(42,157,143,.5)}70%{box-shadow:0 0 0 8px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
 .dot-pulse{width:13px;height:13px;background:var(--g);border-radius:50%;flex-shrink:0;animation:pulse-ring 1.8s ease-out infinite}
 /* Search bar */
 .search-wrap{background:#fff;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:8px;box-shadow:var(--sh);margin-bottom:12px}
-.search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);padding:12px 0}
-.search-wrap input:focus{background:none;border:none}
+.search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);padding:12px 0;outline:none;-webkit-appearance:none;appearance:none}
+.search-wrap input:focus{background:none;border:none;outline:none}
+.search-wrap input::-webkit-search-decoration,.search-wrap input::-webkit-search-cancel-button,.search-wrap input::-webkit-search-results-button,.search-wrap input::-webkit-search-results-decoration{display:none}
 .search-clear{border:none;background:none;color:var(--gr);cursor:pointer;font-size:16px;padding:4px}
 /* Category chips */
 .cat-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
@@ -1525,12 +1526,12 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- Menu update notification banner (shown when admin changes menu while user is on home) -->
-<div id="menu-update-banner" onclick="this.style.transform='translateX(-50%) translateY(-200%)'" style="
+<div id="menu-update-banner" onclick="this.style.transform='translateX(-50%) translateY(-200%)';setTimeout(()=>{this.style.visibility='hidden'},400)" style="
   position:fixed;top:calc(var(--safe-t,0px) + 64px);left:50%;transform:translateX(-50%) translateY(-200%);
   width:calc(100% - 32px);max-width:508px;
   background:#1a1a2e;color:#fff;border-radius:16px;padding:12px 16px;
   display:flex;align-items:center;gap:10px;
-  box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:9500;
+  box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:9500;visibility:hidden;
   transition:transform 380ms cubic-bezier(.34,1.56,.64,1);cursor:pointer">
   <div id="mub-icon" style="font-size:22px;flex-shrink:0">✨</div>
   <div style="flex:1;min-width:0">
@@ -4066,12 +4067,17 @@ function _showMenuUpdateBanner(opts = {}) {
   if (titleEl) titleEl.textContent = title;
   if (bodyEl)  bodyEl.textContent  = body;
   if (iconEl)  iconEl.textContent  = icon;
-  // Slide in
+  // Slide in — make visible first so shadow doesn't bleed when hidden
+  banner.style.visibility = 'visible';
   banner.style.transform = 'translateX(-50%) translateY(0)';
   // Auto-dismiss after 3.5s
   clearTimeout(banner._dismissTimer);
   banner._dismissTimer = setTimeout(() => {
     banner.style.transform = 'translateX(-50%) translateY(-200%)';
+    // After slide-out transition completes (380ms), hide completely so
+    // box-shadow doesn't bleed into page content when off-screen
+    clearTimeout(banner._hideTimer);
+    banner._hideTimer = setTimeout(() => { banner.style.visibility = 'hidden'; }, 400);
   }, 3500);
 }
 
