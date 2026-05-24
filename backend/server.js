@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v60.0                                    ║
+// ║  Version : v60.2                                    ║
 // ║  Updated : 2026-05-21                               ║
 // ║  Changes : Security & logic fixes —                 ║
 // ║            adminDeleteUser moved to _ADMIN_ONLY     ║
@@ -138,7 +138,9 @@ const _ADMIN_ONLY_ACTIONS = new Set([
   'updateStaff',
   'deleteStaff',
   'resetAdminPassword',
-  'adminDeleteUser'   // permanently deletes a user + all their data — admin-only
+  'adminDeleteUser',  // permanently deletes a user + all their data — admin-only
+  'getEarningReport',  // detailed payment-mode breakdown — admin-only financial report
+  'getWalletRechargeReport' // wallet recharges (real cash-in) — admin-only
 ]);
 
 // Actions that require any valid staff session token (role = 'admin' OR 'staff')
@@ -341,14 +343,30 @@ async function getCachedSetting(key) {
   return val;
 }
 
+// ── Menu content version ──────────────────────────────────────────────────────
+// Lightweight monotonic counter. Bumped every time admin changes menu items OR
+// any setting visible on the user homepage (schedule, cutoff, khata toggle).
+// Clients poll getMenuVersion (tiny ~100 byte response) every 60 s and only
+// call getHomeData when the version they have differs — eliminates unnecessary
+// full-payload round-trips and Render cold-start penalties.
+let _menuContentVersion = Date.now(); // seed with epoch so each deploy is unique
+
+function _bumpMenuVersion() {
+  _menuContentVersion = Date.now();
+}
+
 function _invalidateSettingsCache() {
   delete _settingsCache['weekly_schedule'];
   delete _settingsCache['order_cutoff_config'];
   delete _settingsCache['khata_enabled'];
   delete _settingsCache['auto_tiffin_cutoff'];
+  delete _settingsCache['delivery_zone'];
+  delete _settingsCache['delivery_areas'];
   // Also wipe menu cache — admin may have changed items alongside settings
   _menuItemsCache   = null;
   _menuItemsCacheTs = 0;
+  // Bump version — clients will detect the change on next version poll
+  _bumpMenuVersion();
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -809,7 +827,10 @@ app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toI
 // This sets window.__TIFFO_API_KEY__ which CFG.KEY falls back to.
 app.get('/config.js', (_req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.setHeader('Cache-Control', 'no-store'); // always fresh — key may rotate
+  // Cache for 1 hour — key never rotates in normal operation.
+  // If key is rotated intentionally, the existing 401 → _refreshApiKey()
+  // auto-recovery in all three panels will fetch fresh immediately.
+  res.setHeader('Cache-Control', 'public, max-age=3600');
   res.send(`window.__TIFFO_API_KEY__ = ${JSON.stringify(process.env.API_KEY || '')};`);
 });
 
@@ -1021,6 +1042,14 @@ app.post('/api', async (req, res) => {
         await supabase.from('staff').update({ password_hash: hash }).eq('username', data.username);
         return res.json({ success: true });
       }
+      // ── MENU VERSION CHECK (lightweight — no DB hit) ──────────────────────
+      // Returns the current content version as a monotonic integer.
+      // Clients call this every 60 s; only fetch getHomeData when version differs.
+      // Response is ~80 bytes — virtually no cost on Render free tier.
+      case 'getMenuVersion': {
+        return res.json({ success: true, version: _menuContentVersion });
+      }
+
       case 'getHomeData': {
         // Serve menu from in-memory cache when fresh (60s TTL).
         // Settings use their own getCachedSetting cache (5min TTL).
@@ -1045,7 +1074,7 @@ app.post('/api', async (req, res) => {
         if (scheduleVal)  { try { schedule = JSON.parse(scheduleVal); } catch { schedule = null; } }
         if (cutoffVal)    { try { config   = JSON.parse(cutoffVal);   } catch { config   = null; } }
         const enabled = JSON.parse(khataVal || 'false') === true;
-        return res.json({ success: true, items: menuItems, schedule, config, enabled });
+        return res.json({ success: true, items: menuItems, schedule, config, enabled, version: _menuContentVersion });
       }
 
       // ── MERGED: replaces getSubscriberBalance + getSubscriberPauseStatus (same row) ──
@@ -1086,7 +1115,7 @@ app.post('/api', async (req, res) => {
           created_at:   new Date().toISOString()
         });
         if (miErr) throw new Error(miErr.message || 'Failed to add menu item');
-        _menuItemsCache = null; _menuItemsCacheTs = 0; // invalidate — next getHomeData fetches fresh
+        _menuItemsCache = null; _menuItemsCacheTs = 0; _bumpMenuVersion(); // invalidate + version bump
         return res.json({ success: true });
       }
 
@@ -1097,14 +1126,14 @@ app.post('/api', async (req, res) => {
         delete updates.id;
         if (Array.isArray(updates.variants)) updates.variants = JSON.stringify(updates.variants);
         await supabase.from('menu_items').update(updates).eq('item_id', mid);
-        _menuItemsCache = null; _menuItemsCacheTs = 0; // invalidate — next getHomeData fetches fresh
+        _menuItemsCache = null; _menuItemsCacheTs = 0; _bumpMenuVersion(); // invalidate + version bump
         return res.json({ success: true });
       }
 
       case 'deleteMenuItem': {
         const mid = data.item_id || data.id;
         await supabase.from('menu_items').delete().eq('item_id', mid);
-        _menuItemsCache = null; _menuItemsCacheTs = 0; // invalidate — next getHomeData fetches fresh
+        _menuItemsCache = null; _menuItemsCacheTs = 0; _bumpMenuVersion(); // invalidate + version bump
         return res.json({ success: true });
       }
 
@@ -1683,7 +1712,31 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Orders insert failed: ' + ordersErr.message });
         }
 
-        // ─── STEP 6: Batch khata entries insert — ONE DB call ───────────────
+        // ─── STEP 6: Admin summary notification — one entry for the whole bulk run ──
+        // Mirrors what _createSingleOrder does per order, but bulk collapses to one notification
+        // so the admin panel isn't flooded. Non-fatal: orders already committed.
+        try {
+          const totalCreated = created.length + udhar.length;
+          const slotLabel    = bulkSlot === 'morning' ? 'Morning' : bulkSlot === 'evening' ? 'Evening' : 'Today';
+          const udharNote    = udhar.length ? ` (${udhar.length} udhar)` : '';
+          await _createNotification({
+            type:     'order',
+            priority: 'high',
+            group_id: 'bulk-' + generateId('BLK', ist),
+            title:    'Bulk Orders Generated',
+            body:     `${totalCreated} orders placed — ${slotLabel} slot${udharNote}. ${skipped.length} skipped.`,
+            meta:     {
+              source:        'admin_bulk',
+              slot:          bulkSlot,
+              totalCreated,
+              udharCount:    udhar.length,
+              skippedCount:  skipped.length,
+              itemName
+            }
+          });
+        } catch (_) {}
+
+        // ─── STEP 7: Batch khata entries insert — ONE DB call ───────────────
         // Non-fatal: orders are already committed — log error and return success.
         if (bulkKhataEnabled) {
           const allKhataRows = allOrderRows.map((ord, idx) => {
@@ -2274,6 +2327,7 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Invalid zone data' });
         }
         await supabase.from('admin_settings').upsert({ key: 'delivery_zone', value: JSON.stringify(zone), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache();
         return res.json({ success: true });
       }
 
@@ -2508,6 +2562,8 @@ app.post('/api', async (req, res) => {
           const { data: orderAgg } = await supabase
             .from('orders')
             .select('phone, date')
+            .neq('order_status', 'cancelled')
+            .neq('order_status', 'rejected')
             .order('date', { ascending: false });
           // Aggregate in JS: count total orders and track latest date per user
           const orderMap = {};
@@ -2621,6 +2677,25 @@ app.post('/api', async (req, res) => {
         try { areas = JSON.parse(row.value); } catch(_) {}
         if (!areas.length) return res.json({ success: false, error: 'No delivery areas configured' });
         return res.json({ success: true, areas });
+      }
+
+      // ── PUBLIC — no auth required ──────────────────────────────────────────
+      // Returns only the three fields the customer portal needs.
+      // Intentionally excludes sensitive admin data: cutoff config, weekly schedule,
+      // khata toggle, and any future staff-only keys added to getSettings.
+      case 'getPublicSettings': {
+        const [zoneRaw, cutoffRaw, areasRaw] = await Promise.all([
+          getCachedSetting('delivery_zone'),
+          getCachedSetting('auto_tiffin_cutoff'),
+          getCachedSetting('delivery_areas'),
+        ]);
+        let deliveryZone     = null;
+        let autoTiffinCutoff = { morning: '11:00', evening: '18:00' };
+        let deliveryAreas    = [];
+        try { if (zoneRaw)   deliveryZone     = JSON.parse(zoneRaw);   } catch (_) {}
+        try { if (cutoffRaw) autoTiffinCutoff = JSON.parse(cutoffRaw); } catch (_) {}
+        try { if (areasRaw)  deliveryAreas    = JSON.parse(areasRaw);  } catch (_) {}
+        return res.json({ success: true, settings: { deliveryZone, autoTiffinCutoff, deliveryAreas } });
       }
 
       case 'setDeliveryAreas': {
@@ -2903,6 +2978,244 @@ app.post('/api', async (req, res) => {
           fromDate, toDate, slot,
           // sessions field (matches getCookingSessions response exactly)
           sessions:         allSessions || []
+        });
+      }
+
+      // ─── EARNING REPORT (admin-only) ─────────────────────────────────────
+      // Returns orders grouped by date → slot → payment_mode for a date range.
+      // Excludes cancelled and rejected orders — only revenue-generating orders.
+      // payment_mode values: 'wallet' | 'upi' | 'upi_insuf' | 'unpaid'
+      case 'getEarningReport': {
+        const fromDate = data.fromDate || istDateStr(ist);
+        const toDate   = data.toDate   || fromDate;
+        // Validate date format YYYY-MM-DD
+        const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRe.test(fromDate) || !dateRe.test(toDate)) {
+          return res.json({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+        }
+        if (fromDate > toDate) {
+          return res.json({ success: false, error: 'fromDate must be <= toDate' });
+        }
+
+        const { data: rows, error: rErr } = await supabase
+          .from('orders')
+          .select('order_id, name, phone, slot, payment_mode, payment_status, final_amount, order_status, date, time, items, source')
+          .gte('date', fromDate)
+          .lte('date', toDate)
+          .neq('order_status', 'cancelled')
+          .neq('order_status', 'rejected')
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (rErr) throw new Error('DB error: ' + rErr.message);
+
+        // ── Fetch wallet recharges for the same date range ───────────────────
+        // Recharges = real cash physically received on that day.
+        // We attach dayRechargeCash to each day so the frontend can show:
+        //   True Day Cash = recharges_that_day + upi + upi_insuf + unpaid
+        // (wallet orders are excluded from day cash — cash was collected at recharge time)
+        const { data: rechargeRows } = await supabase
+          .from('khata_entries')
+          .select('date, amount')
+          .eq('type', 'recharge')
+          .gte('date', fromDate)
+          .lte('date', toDate);
+        // Build a date → total recharge map
+        const rechargeDateMap = {};
+        for (const r of (rechargeRows || [])) {
+          const d = String(r.date).slice(0, 10);
+          rechargeDateMap[d] = (rechargeDateMap[d] || 0) + (Number(r.amount) || 0);
+        }
+
+        // ── Group in JS: date → slot → payment_mode → orders[] ──────────────
+        // payment_mode normalisation:
+        //   'wallet'    → subscriber paid via wallet
+        //   'upi'       → paid via UPI (daily user OR subscriber with upi_insuf)
+        //   'upi_insuf' → subscriber chose UPI due to insufficient wallet
+        //   'unpaid'    → bulk udhar (subscription debt)
+        //   null/other  → treat as 'upi'
+        const dateMap = {};  // { 'YYYY-MM-DD': { morning: { wallet:[], upi:[], upi_insuf:[], unpaid:[] }, evening: {…} } }
+
+        for (const o of (rows || [])) {
+          const d    = o.date ? String(o.date).slice(0, 10) : 'unknown';
+          const slot = (o.slot === 'evening') ? 'evening' : 'morning';
+          const mode = ['wallet', 'upi', 'upi_insuf', 'unpaid'].includes(o.payment_mode)
+            ? o.payment_mode : 'upi';
+
+          if (!dateMap[d]) dateMap[d] = {};
+          if (!dateMap[d][slot]) dateMap[d][slot] = { wallet: [], upi: [], upi_insuf: [], unpaid: [] };
+
+          dateMap[d][slot][mode].push({
+            order_id:       o.order_id,
+            name:           o.name || '',
+            phone:          o.phone || '',
+            final_amount:   Number(o.final_amount) || 0,
+            payment_mode:   mode,
+            payment_status: o.payment_status || '',
+            order_status:   o.order_status || '',
+            slot:           o.slot || 'morning',
+            time:           o.time || '',
+            source:         o.source || 'user',
+            items:          typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
+          });
+        }
+
+        // ── Build structured response with subtotals at every layer ──────────
+        const report = [];
+        // Include ALL dates that have either orders OR recharges (don't drop recharge-only days)
+        const allDatesSet = new Set([...Object.keys(dateMap), ...Object.keys(rechargeDateMap)]);
+        const allDates = [...allDatesSet].sort().reverse(); // newest first
+
+        for (const date of allDates) {
+          const dayEntry = { date, slots: [], dayTotal: 0, dayCounts: {} };
+
+          for (const slot of ['morning', 'evening']) {
+            if (!dateMap[date]?.[slot]) continue;
+            const slotData = dateMap[date][slot];
+            const slotEntry = { slot, modes: {}, slotTotal: 0, slotCounts: {}, slotTrueCash: 0 };
+
+            for (const mode of ['wallet', 'upi', 'upi_insuf', 'unpaid']) {
+              const orders = slotData[mode];
+              if (!orders.length) continue;
+              const modeTotal = orders.reduce((s, o) => s + o.final_amount, 0);
+              slotEntry.modes[mode] = { orders, total: modeTotal, count: orders.length };
+              slotEntry.slotTotal  += modeTotal;
+              slotEntry.slotCounts[mode] = orders.length;
+              // slotTrueCash excludes wallet — wallet cash was collected at recharge time
+              if (mode !== 'wallet') slotEntry.slotTrueCash += modeTotal;
+            }
+
+            // Combined UPI (upi + upi_insuf) for easy bank reconciliation
+            const upiOrders    = slotData['upi']       || [];
+            const upiInsufOrds = slotData['upi_insuf'] || [];
+            slotEntry.upiCombinedTotal = upiOrders.reduce((s,o)=>s+o.final_amount,0)
+                                       + upiInsufOrds.reduce((s,o)=>s+o.final_amount,0);
+            slotEntry.upiCombinedCount = upiOrders.length + upiInsufOrds.length;
+
+            dayEntry.slots.push(slotEntry);
+            dayEntry.dayTotal += slotEntry.slotTotal;
+            for (const [mode, cnt] of Object.entries(slotEntry.slotCounts)) {
+              dayEntry.dayCounts[mode] = (dayEntry.dayCounts[mode] || 0) + cnt;
+            }
+          }
+
+          // Day-level combined UPI
+          dayEntry.dayUpiCombinedTotal = dayEntry.slots.reduce((s, sl) => s + sl.upiCombinedTotal, 0);
+          dayEntry.dayUpiCombinedCount = dayEntry.slots.reduce((s, sl) => s + sl.upiCombinedCount, 0);
+
+          // ── True Cash for the day ────────────────────────────────────────
+          // dayTrueCash = recharges collected that day          ← bank cash (subscription fee)
+          //             + UPI paid at order time                ← bank cash (daily user / upi_insuf)
+          //             + UPI_insuf paid at order time          ← bank cash (sub paid via UPI)
+          //             + unpaid/udhar (food served, cash owed) ← accrued, will collect later
+          // wallet orders EXCLUDED — cash was already counted when subscriber recharged
+          // bulk wallet orders EXCLUDED — same reason (internal wallet deduction only)
+          const dayUpiTotal    = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi']?.total       || 0), 0);
+          const dayInsufTotal  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi_insuf']?.total  || 0), 0);
+          const dayUdharTotal  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.total     || 0), 0);
+          dayEntry.dayRechargeCash = rechargeDateMap[date] || 0;
+          dayEntry.dayTrueCash     = dayEntry.dayRechargeCash + dayUpiTotal + dayInsufTotal + dayUdharTotal;
+
+          report.push(dayEntry);
+        }
+
+        // ── Grand totals across the entire range ─────────────────────────────
+        const grandTotal    = report.reduce((s, d) => s + d.dayTotal, 0);
+        const grandCounts   = {};
+        for (const d of report) {
+          for (const [mode, cnt] of Object.entries(d.dayCounts)) {
+            grandCounts[mode] = (grandCounts[mode] || 0) + cnt;
+          }
+        }
+        const grandUpiCombinedTotal  = report.reduce((s, d) => s + d.dayUpiCombinedTotal, 0);
+        const grandUpiCombinedCount  = report.reduce((s, d) => s + d.dayUpiCombinedCount, 0);
+        // grandRechargeCash = ALL recharges in range (including recharge-only days, now included)
+        const grandRechargeCash = report.reduce((s, d) => s + d.dayRechargeCash, 0);
+        const grandTrueCash     = report.reduce((s, d) => s + d.dayTrueCash,     0);
+
+        return res.json({
+          success: true,
+          fromDate, toDate,
+          report,
+          grandTotal,
+          grandCounts,
+          grandUpiCombinedTotal,
+          grandUpiCombinedCount,
+          grandRechargeCash,
+          grandTrueCash,
+          totalOrders: (rows || []).length
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      case 'getWalletRechargeReport': {
+        // Real bank income = wallet recharges only (type='recharge' in khata_entries).
+        // Rejected order refunds are internal wallet adjustments — cash was already
+        // collected at recharge time, so they do NOT reduce bank earnings. Ignored here.
+        const fromDate = data.fromDate || istDateStr(ist);
+        const toDate   = data.toDate   || fromDate;
+        const dateRe   = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRe.test(fromDate) || !dateRe.test(toDate))
+          return res.json({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+        if (fromDate > toDate)
+          return res.json({ success: false, error: 'fromDate must be <= toDate' });
+
+        // Fetch only recharge entries (real cash-in events)
+        const { data: rechargeRows, error: rErr } = await supabase
+          .from('khata_entries')
+          .select('id, phone, type, amount, note, date, time, order_id, source, created_at')
+          .eq('type', 'recharge')
+          .gte('date', fromDate)
+          .lte('date', toDate)
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false });
+        if (rErr) throw new Error('DB error: ' + rErr.message);
+
+        // Lookup customer names
+        const phones = [...new Set((rechargeRows||[]).map(r => r.phone))];
+        let nameMap = {};
+        if (phones.length > 0) {
+          const { data: users } = await supabase
+            .from('users').select('phone, name').in('phone', phones);
+          for (const u of (users||[])) nameMap[u.phone] = u.name || u.phone;
+        }
+
+        // Group by date (newest first)
+        const byDate = {};
+        let grandTotal = 0, grandCount = 0;
+        for (const r of (rechargeRows||[])) {
+          const d = String(r.date).slice(0, 10);
+          if (!byDate[d]) byDate[d] = [];
+          const amt = Number(r.amount) || 0;
+          byDate[d].push({
+            id:       r.id,
+            phone:    r.phone,
+            name:     nameMap[r.phone] || r.phone,
+            amount:   amt,
+            note:     r.note || '',
+            time:     r.time || '',
+            source:   r.source || 'admin'
+          });
+          grandTotal += amt;
+          grandCount += 1;
+        }
+
+        const report = Object.keys(byDate).sort().reverse().map(date => {
+          const entries = byDate[date];
+          return {
+            date,
+            entries,
+            dayTotal: entries.reduce((s, e) => s + e.amount, 0),
+            dayCount: entries.length
+          };
+        });
+
+        return res.json({
+          success: true,
+          fromDate, toDate,
+          report,
+          grandTotal,
+          grandCount
         });
       }
 
