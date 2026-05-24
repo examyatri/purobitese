@@ -7474,7 +7474,8 @@ function _renderWalletRecharges(res) {
   // Store grand total (always full, not filtered) for cross-tab banner
   _earnLastRechargeCash = res.grandTotal || 0;
   // Re-render combo calc if orders tab data already loaded — wallet card now has correct value
-  if (_earnLastRes) _renderComboCalc(_earnLastRes);
+  // Use _renderEarnings so session filter is respected in combo calc
+  if (_earnLastRes) { const tmpRes = _earnLastRes; _renderComboCalc({ ...tmpRes, report: _earnSession === 'all' ? tmpRes.report : tmpRes.report.map(day => ({ ...day, slots: day.slots.filter(sl => sl.slot === _earnSession) })).filter(d => d.slots.length > 0) }); }
 
   // ── Summary card ──────────────────────────────────────────────────────────
   const avg = filteredCount > 0 ? filteredTotal / filteredCount : 0;
@@ -8034,7 +8035,7 @@ function _renderEarnings(res) {
         <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">
           <i class="fa fa-indian-rupee-sign" style="margin-right:5px;color:#10b981"></i>Total Day Earnings
         </div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:8px">Recharges + UPI + UPI Insuf + Udhar</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:8px">${_earnSession==='all'?'Recharges + UPI + UPI Insuf + Udhar':(_earnSession==='morning'?'☀️ Morning — UPI + UPI Insuf + Udhar':'🌙 Evening — UPI + UPI Insuf + Udhar')}</div>
         <div style="font-size:34px;font-weight:900;color:#10b981;font-family:var(--ff);line-height:1">${_earnFmt(grandTrueCash)}</div>
         ${breakdownRows.length ? `<div style="margin-top:14px;border-top:1px solid #334155;padding-top:12px">${breakdownRows}</div>` : ''}
       </div>
