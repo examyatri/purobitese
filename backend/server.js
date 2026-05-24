@@ -227,96 +227,164 @@ function _verifyUserToken(token, phone) {
 
 const SALT_ROUNDS = 10;
 
-// ─── SELF-PING ────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// PROCESS-LEVEL CRASH GUARDS
+// ════════════════════════════════════════════════════════════════════════════
+// Any uncaught exception or unhandled promise rejection anywhere in the
+// process would kill the server and force a Render restart (cold-start penalty).
+// These handlers keep the process alive and log the error for diagnosis.
+//
+// NOTE: We log and continue — not exit(1). On a food-delivery platform,
+// a crashed background job (cleanup, ping) should never take down the API.
+// Request handlers already have their own try/catch — these are the last line
+// of defence for anything that slips through (e.g. third-party lib bugs).
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException — process kept alive:', err.message, err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  console.error('[FATAL] unhandledRejection — process kept alive:', msg);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// SELF-PING & SUPABASE WARM
+// ════════════════════════════════════════════════════════════════════════════
 // Two independent intervals — intentionally decoupled:
-//   • Render ping   : 12 min — prevents free-tier server sleep
-//   • Supabase warm : 4 min  — prevents PostgREST idle (times out ~5 min)
-// Keeping them separate closes the ~7-min cold gap that caused 20–40s delays.
-// Only runs if RENDER_EXTERNAL_URL is set (i.e. on Render, not local).
+//   • Render ping   : 12 min  — prevents free-tier sleep (Render sleeps at 15 min idle)
+//   • Supabase warm : 4 min   — prevents PostgREST idle timeout (~5 min)
+//
+// Design principles (production-grade):
+//   1. Interval callbacks are ALWAYS synchronous — async work runs inside an
+//      async IIFE so errors are fully contained and never reach the event loop
+//      as unhandled rejections.
+//   2. Supabase JS v2 query builders are thenable (PromiseLike) but NOT native
+//      Promises — they have no .catch() method. Must always `await` them inside
+//      try/catch. Never chain .catch() directly on the builder.
+//   3. https.get response bodies must be drained (res.resume()) or the socket
+//      stays open and leaks memory over hundreds of pings.
+//   4. Supabase warm logging is suppressed on success — 360 identical log
+//      lines per day add noise without value. Only warnings/errors are logged.
+//
+// Only runs when RENDER_EXTERNAL_URL is set (i.e. deployed, not local dev).
+
 if (process.env.RENDER_EXTERNAL_URL) {
   const PING_URL = process.env.RENDER_EXTERNAL_URL + '/ping';
 
-  // 1. Keep Render awake — 12 min is enough (Render sleeps after 15 min idle)
+  // ── 1. Render keep-alive ────────────────────────────────────────────────
   setInterval(() => {
     https.get(PING_URL, (res) => {
-      console.log(`[render-ping] ${new Date().toISOString()} → ${res.statusCode}`);
+      res.resume(); // drain body so socket closes cleanly — prevents memory leak
+      if (res.statusCode !== 200) {
+        console.warn(`[render-ping] unexpected status ${res.statusCode}`);
+      }
     }).on('error', (err) => {
       console.error('[render-ping] error:', err.message);
     });
   }, 12 * 60 * 1000);
 
-  // 2. Keep Supabase PostgREST warm — 4 min beats the ~5 min idle timeout.
-  //    HEAD query: zero rows transferred, minimal PostgREST overhead.
-  //    Silent catch: a warmup failure must never crash the interval.
-  setInterval(async () => {
-    try {
-      await supabase
-        .from('menu_items')
-        .select('item_id', { count: 'exact', head: true })
-        .eq('is_active', true);
-    } catch (_) {}
+  // ── 2. Supabase PostgREST keep-warm ─────────────────────────────────────
+  // HEAD query — PostgREST processes it but returns no rows (zero bandwidth).
+  // Async IIFE keeps the interval callback synchronous.
+  // Success is silent — only problems are logged.
+  setInterval(() => {
+    (async () => {
+      try {
+        const { error } = await supabase
+          .from('menu_items')
+          .select('item_id', { count: 'exact', head: true })
+          .eq('is_active', true);
+        if (error) console.warn('[supabase-warm] PostgREST warning:', error.message);
+        // Success: intentionally silent — fires 360 times/day, logs would be useless noise
+      } catch (err) {
+        console.error('[supabase-warm] unexpected error:', err.message);
+      }
+    })();
   }, 4 * 60 * 1000);
 
   console.log('[self-ping] render=12min supabase-warm=4min →', PING_URL);
 }
 
-// ─── AUTO CLEANUP SCHEDULER ──────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// AUTO CLEANUP SCHEDULER
+// ════════════════════════════════════════════════════════════════════════════
 // Runs daily at midnight IST to silently purge stale data.
-// Retention rules (all dates in IST):
-//   orders           → older than 5 days
-//   khata_entries    → older than 35 days
-//   notifications    → older than 1 day
-//   cooking_sessions → older than 5 days  (done sessions have no business value)
-//   nu_coupon_sent   → older than 5 days  (sent record no longer needed)
+//
+// Retention policy:
+//   orders           → older than 5 days   (delivered, no longer actionable)
+//   khata_entries    → older than 35 days  (one billing cycle of history)
+//   notifications    → older than 1 day    (acted-on or dismissed)
+//   cooking_sessions → older than 5 days   (reference window)
+//   nu_coupon_sent   → older than 5 days   (coupon delivered, record done)
 //
 // NEVER touches: users, subscribers, riders, staff, menu_items, thalis,
 //                thali_items, admin_settings, coupons, khata_summary
 //
+// Design: self-correcting scheduler (no setInterval drift).
+// setInterval(24h) drifts by the server restart time — if Render restarts at
+// 01:00 IST, cleanup runs at 01:00 every day instead of midnight. Over weeks
+// this becomes significant. Self-correcting pattern: after each run, calculate
+// exact ms until next midnight IST and schedule a fresh setTimeout. This
+// guarantees cleanup always fires within seconds of midnight IST regardless
+// of when the server was last restarted.
+
 async function runAutoCleanup() {
+  const start = Date.now();
   try {
     const ist = getIST();
-    const dateCutoff = (days) => {
-      const d = new Date(ist.getTime() - days * 86_400_000);
-      return istDateStr(d);
-    };
-    const isoCutoff = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
+    const dateCutoff = (days) => istDateStr(new Date(ist.getTime() - days * 86_400_000));
+    const isoCutoff  = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
 
     const [r1, r2, r3, r4, r5] = await Promise.allSettled([
-      supabase.from('orders').delete({ count: 'exact' }).lte('date', dateCutoff(5)),
-      supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', dateCutoff(35)),
-      supabase.from('notifications').delete({ count: 'exact' }).lt('created_at', isoCutoff(1)),
+      supabase.from('orders')          .delete({ count: 'exact' }).lte('date',         dateCutoff(5)),
+      supabase.from('khata_entries')   .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
+      supabase.from('notifications')   .delete({ count: 'exact' }).lt('created_at',    isoCutoff(1)),
       supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', dateCutoff(5)),
-      supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', isoCutoff(5)),
+      supabase.from('nu_coupon_sent')  .delete({ count: 'exact' }).lt('sent_at',       isoCutoff(5)),
     ]);
 
-    const counts = {
-      orders:           r1.status === 'fulfilled' ? (r1.value.count || 0) : 'err',
-      khata_entries:    r2.status === 'fulfilled' ? (r2.value.count || 0) : 'err',
-      notifications:    r3.status === 'fulfilled' ? (r3.value.count || 0) : 'err',
-      cooking_sessions: r4.status === 'fulfilled' ? (r4.value.count || 0) : 'err',
-      nu_coupon_sent:   r5.status === 'fulfilled' ? (r5.value.count || 0) : 'err',
-    };
-    console.log('[auto-cleanup]', new Date().toISOString(), JSON.stringify(counts));
+    const fmt = (r) => r.status === 'fulfilled' ? (r.value.count ?? 0) : `err(${r.reason?.message || '?'})`;
+    console.log('[auto-cleanup] done in', Date.now() - start, 'ms — deleted:', JSON.stringify({
+      orders: fmt(r1), khata_entries: fmt(r2), notifications: fmt(r3),
+      cooking_sessions: fmt(r4), nu_coupon_sent: fmt(r5),
+    }));
   } catch (err) {
-    console.error('[auto-cleanup] fatal:', err.message);
+    // Should never reach here (Promise.allSettled never rejects) but belt-and-suspenders
+    console.error('[auto-cleanup] unexpected error:', err.message);
+  } finally {
+    // Self-correcting: always schedule next run regardless of success/failure.
+    // Calculates exact ms to next midnight IST — no drift, no accumulation error.
+    _scheduleNextCleanup();
   }
 }
 
-// Fires at next midnight IST, then every 24h
-function scheduleMidnightCleanup() {
-  const now = getIST();
-  // Next midnight IST: advance to next UTC day start, subtract IST offset (5h30m)
-  const nextMidnightUTC = Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0
-  ) - 5.5 * 3_600_000;
-  const msUntil = nextMidnightUTC - Date.now();
-  console.log(`[auto-cleanup] next run in ${Math.round(msUntil / 60000)} min`);
-  setTimeout(() => {
-    runAutoCleanup();
-    setInterval(runAutoCleanup, 24 * 3_600_000);
-  }, msUntil);
+function _scheduleNextCleanup() {
+  // Next midnight IST = next 00:00 UTC+5:30
+  // In UTC terms: next 18:30 UTC (= 00:00 IST next day)
+  const nowUtc    = Date.now();
+  const istOffset = 5.5 * 3_600_000;
+  const istNow    = new Date(nowUtc + istOffset);
+
+  // Build next midnight IST as a UTC timestamp
+  const nextMidnightIST = Date.UTC(
+    istNow.getUTCFullYear(),
+    istNow.getUTCMonth(),
+    istNow.getUTCDate() + 1, // tomorrow in IST terms
+    0, 0, 0
+  ) - istOffset; // convert back from IST to UTC
+
+  const msUntil = nextMidnightIST - nowUtc;
+  // Safety: if calculation produces <=0 (e.g. called exactly at midnight),
+  // schedule for next midnight + 1 full day to avoid immediate double-fire.
+  const safeMsUntil = msUntil > 0 ? msUntil : msUntil + 86_400_000;
+
+  console.log(`[auto-cleanup] next run in ${Math.round(safeMsUntil / 60_000)} min`);
+  setTimeout(runAutoCleanup, safeMsUntil);
 }
-scheduleMidnightCleanup();
+
+// Kick off the first scheduled run
+_scheduleNextCleanup();
 
 
 // ─── IN-MEMORY CACHES ────────────────────────────────────────────────────────
@@ -1706,10 +1774,19 @@ app.post('/api', async (req, res) => {
         if (ordersErr) {
           // Insert failed — reverse ALL wallet deductions atomically
           if (bulkKhataEnabled && eligiblePhones.length) {
-            await supabase.rpc('bulk_increment_balance', { p_phones: eligiblePhones, p_delta: +priceNum })
-              .catch(async () => {
-                for (const ph of eligiblePhones) await _atomicWalletUpdate(ph, +priceNum).catch(() => {});
+            // Supabase builder is thenable but NOT a native Promise — .catch()
+            // does not exist on it. Must await first, then handle error separately.
+            try {
+              const { error: rollbackErr } = await supabase.rpc('bulk_increment_balance', {
+                p_phones: eligiblePhones, p_delta: +priceNum
               });
+              if (rollbackErr) throw rollbackErr;
+            } catch (_rpcErr) {
+              // RPC rollback failed — fall back to sequential individual updates
+              for (const ph of eligiblePhones) {
+                try { await _atomicWalletUpdate(ph, +priceNum); } catch (_) {}
+              }
+            }
           }
           return res.json({ success: false, error: 'Orders insert failed: ' + ordersErr.message });
         }
