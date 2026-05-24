@@ -3,7 +3,7 @@
    Version : v7.6  |  Updated : 2026-05-24
 
    CHANGES v7.6:
-   - Cache bumped → tiffo-admin-v10 (earnings: combo calc, trend chart,
+   - Cache bumped → tiffo-admin-v11 (earnings: orders retention 5→35 days, 30-day data now correct;
      udhar tracker, CSV export, 7 bug fixes)
 
    CHANGES v7.5:
@@ -11,13 +11,13 @@
 
    CHANGES v7.4:
    - Version bump for v71 release
-   - Cache bumped → tiffo-admin-v10 (earnings: combo calc, trend chart, udhar tracker, CSV export)
+   - Cache bumped → tiffo-admin-v11 (earnings: orders retention 5→35 days, 30-day data now correct; udhar tracker, CSV export)
    - skipWaiting() called immediately in install (faster PWA launch)
    - Fixed fire-and-forget fetchPromise (was silently dropped)
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v10';
+const CACHE      = 'tiffo-admin-v11';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
