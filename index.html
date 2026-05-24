@@ -727,6 +727,7 @@ textarea{resize:vertical;min-height:80px}
 /* Cutoff card */
 #cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;overflow:hidden;transition:all 300ms}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(42,157,143,.5)}70%{box-shadow:0 0 0 8px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
 .dot-pulse{width:13px;height:13px;background:var(--g);border-radius:50%;flex-shrink:0;animation:pulse-ring 1.8s ease-out infinite}
 /* Search bar */
 .search-wrap{background:#fff;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:8px;box-shadow:var(--sh);margin-bottom:12px}
@@ -1310,7 +1311,23 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════
+<!-- Menu update notification banner (shown when admin changes menu while user is on home) -->
+<div id="menu-update-banner" onclick="this.style.transform='translateY(-200%)'" style="
+  position:fixed;top:calc(var(--safe-t,0px) + 64px);left:0;right:0;margin:auto;transform:translateY(-200%);
+  width:calc(100% - 32px);max-width:508px;
+  background:#1a1a2e;color:#fff;border-radius:16px;padding:12px 16px;
+  display:flex;align-items:center;gap:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:9500;
+  transition:transform 380ms cubic-bezier(.34,1.56,.64,1);cursor:pointer">
+  <div id="mub-icon" style="font-size:22px;flex-shrink:0">✨</div>
+  <div style="flex:1;min-width:0">
+    <div style="font-family:var(--ff);font-size:13px;font-weight:700;margin-bottom:1px" id="mub-title">Menu just updated</div>
+    <div style="font-family:var(--fb);font-size:11px;opacity:.8" id="mub-body">Fresh items loaded for you ✓</div>
+  </div>
+  <div style="width:6px;height:6px;background:#4ade80;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px #4ade80;animation:pulse-dot 1.4s ease-in-out infinite"></div>
+</div>
+
+
      PAGE: CART
 ══════════════════════════════════════════════ -->
 <div id="pg-cart" class="pg">
@@ -1925,7 +1942,16 @@ const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; P
 const _REVISIT_THRESHOLD = 4 * 60 * 1000; // 4 min — aligns with Supabase warmup cycle; user returning after cold window gets silent refresh before interacting
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
-const _MENU_TTL = 10 * 60 * 1000;
+const _MENU_TTL = 30 * 60 * 1000; // 30 min — stale cache served instantly; background refresh after this
+
+// ── Smart version-based refresh ──────────────────────────────────────────────
+// Instead of blind polling every 360s, we ping getMenuVersion (tiny ~80 byte
+// response) every 60s. A full getHomeData fetch only fires when admin actually
+// changed something — completely eliminating unnecessary Render cold-starts.
+let _knownMenuVersion = 0;   // last version we successfully fetched full data for
+let _versionPollTimer = null; // handle for version check interval
+const _VERSION_POLL_INTERVAL = 60_000; // 60s — lightweight version check
+const _MENU_UPDATE_BANNER_KEY = 'tf_menu_update_shown'; // debounce update banner
 
 // ── Optimisation flags ───────────────────────────────────────────────────────
 let _hasActiveOrders  = false; // true when any order is pending/confirmed/out_for_delivery
@@ -1975,7 +2001,7 @@ function _doPostLoginRefresh(initialMenuPromise, skipSubscriberCheck = false) {
     try {
       await Promise.all(sideRefreshes);
     } catch {}
-    startPolling(); // reset 240s poll timer from this point
+    startPolling(); startVersionPolling(); // reset poll timers from this point
   }).catch(() => {});
 }
 let _stack = [];
@@ -2784,7 +2810,7 @@ async function doLogin() {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
     });
-    startPolling();
+    startPolling(); startVersionPolling();
     _doPostLoginRefresh(_initMenuP3);
   } catch(e) {
     // ❌ Login failed — always re-enable button so user can retry
@@ -3609,7 +3635,7 @@ async function doSignup() {
     _transitionToHome();
     if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
     const _initMenuP4 = loadMenu(true, false); // bypassCache=true — fresh signup always hits DB, never stale cache
-    startPolling();
+    startPolling(); startVersionPolling();
     _doPostLoginRefresh(_initMenuP4, true); // skipSubscriberCheck=true — server already confirmed is_subscriber=false at signup
     toast('Welcome to Tiffo! 🎉');
   } catch(e) {
@@ -3697,6 +3723,8 @@ async function _fetchFreshMenu() {
   // Always write fresh timestamp so polling TTL resets correctly
   Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, ts: Date.now() });
   _menuFreshTs = Date.now(); // mark exact moment this DB fetch completed
+  // Sync known version — prevents false "menu updated" banner on next version poll
+  if (homeRes.version) _knownMenuVersion = homeRes.version;
 }
 
 function buildCategoryChips() {
@@ -4050,7 +4078,7 @@ async function manualIndexRefresh() {
         : Promise.resolve()
     ]);
   } finally {
-    startPolling(); // reset background poll timer after PTR
+    startPolling(); startVersionPolling(); // reset poll timers after PTR
   }
 }
 
@@ -5587,6 +5615,72 @@ function closeAllSheets() {
    • PTR = always bypasses cache, always hits DB fresh (super powerful)
    • Subscriber status = PTR only (no auto watcher)
 ═══════════════════════════════════════════ */
+/* ── Smart version-based menu refresh ─────────────────────────────────────────
+   Polls getMenuVersion every 60s — a tiny ~80-byte call with zero DB hit on
+   the server (pure in-memory counter). If version differs from last known,
+   fires a silent getHomeData fetch and shows the update banner.
+   This means: data only re-fetched when admin ACTUALLY changed something.
+─────────────────────────────────────────────────────────────────────────── */
+function startVersionPolling() {
+  if (_versionPollTimer) clearInterval(_versionPollTimer);
+  // Stagger first check by 5s so it doesn't race with initial loadMenu
+  _versionPollTimer = setInterval(_checkMenuVersion, _VERSION_POLL_INTERVAL);
+}
+
+function stopVersionPolling() {
+  if (_versionPollTimer) { clearInterval(_versionPollTimer); _versionPollTimer = null; }
+}
+
+async function _checkMenuVersion() {
+  // NOTE: No _session guard — guests also need menu updates when admin changes data.
+  // Guest home shows menu + schedule; if admin changes them, guest should see it too.
+  if (document.hidden) return;
+  // Skip if menu was freshly fetched within last 30s (wake, PTR, login just ran)
+  if (Date.now() - _menuFreshTs < 30_000) return;
+  try {
+    const res = await api('getMenuVersion');
+    const serverVersion = res.version || 0;
+    if (_knownMenuVersion === 0) {
+      // First check — just record it, data already loaded
+      _knownMenuVersion = serverVersion;
+      return;
+    }
+    if (serverVersion !== _knownMenuVersion) {
+      _knownMenuVersion = serverVersion;
+      // Admin updated menu/settings — reset settings promise cache so pause sheet
+      // gets fresh auto_tiffin_cutoff on next open, then fetch fresh home data.
+      _resetSettingsCache();
+      _menuLoading = false; // unlock in case stale lock
+      await loadMenu(true, true).catch(() => {});
+      // Show the update banner if user is on home tab
+      const cur = document.querySelector('.pg.here')?.id;
+      if (cur === 'pg-home') _showMenuUpdateBanner();
+    }
+  } catch { /* version check failed silently — never show error */ }
+}
+
+function _showMenuUpdateBanner(opts = {}) {
+  const banner = document.getElementById('menu-update-banner');
+  if (!banner) return;
+  // Update copy
+  const title = opts.title || 'Menu just updated';
+  const body  = opts.body  || 'Fresh items loaded for you ✓';
+  const icon  = opts.icon  || '✨';
+  const titleEl = document.getElementById('mub-title');
+  const bodyEl  = document.getElementById('mub-body');
+  const iconEl  = document.getElementById('mub-icon');
+  if (titleEl) titleEl.textContent = title;
+  if (bodyEl)  bodyEl.textContent  = body;
+  if (iconEl)  iconEl.textContent  = icon;
+  // Slide in
+  banner.style.transform = 'translateY(0)';
+  // Auto-dismiss after 3.5s
+  clearTimeout(banner._dismissTimer);
+  banner._dismissTimer = setTimeout(() => {
+    banner.style.transform = 'translateY(-200%)';
+  }, 3500);
+}
+
 function startPolling() {
   clearInterval(_pollTimer);
   _pollTimer = setInterval(_runPollTick, _POLL_NORMAL);
@@ -5669,7 +5763,6 @@ function stopPolling() {
   clearInterval(_pollTimer);
   _pollTimer = null;
 }
-
 // Called right after order is placed — fetches orders + khata in parallel, silently.
 // When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
 // silent=true prevents spinner flash since user hasn't opened those tabs yet.
@@ -5706,10 +5799,10 @@ async function _runPollTick() {
   // ── Opt 3: Only poll khata if on khata tab, or subscriber has visited it before ──
   if (cur === 'pg-khata')  loadUserKhata(true, true).catch(() => {});  // silent=true: poll is background
   else if (_session?.is_subscriber && _khataEnabled && _khataEverVisited) loadUserKhata(true, true).catch(() => {}); // warm only if visited
-  // ── Opt 4: Skip menu re-poll if freshly fetched within _MENU_POLL_SKIP window ──
-  if (cur === 'pg-home' && Date.now() - _menuFreshTs > _MENU_POLL_SKIP) {
-    loadMenu(true, true).catch(() => {});
-  }
+  // ── Menu refresh removed from poll tick ────────────────────────────────────
+  // Version polling (_checkMenuVersion every 60s) now handles this more efficiently:
+  // a tiny getMenuVersion call only triggers getHomeData when admin actually changed data.
+  // This eliminates ~95% of redundant menu fetches vs the old 360s blind poll.
 }
 
 // refreshSubscriberStatus is PTR-only — no auto watcher (saves Supabase calls)
@@ -5873,6 +5966,7 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopPolling();
+    stopVersionPolling();
     _hiddenAt = Date.now(); // record when app went to background
   } else {
     scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
@@ -5902,11 +5996,12 @@ document.addEventListener('visibilitychange', () => {
         (_session
           ? refreshSubscriberStatusMerged(true).catch(() => {})
           : Promise.resolve())
-      ]).finally(() => { startPolling(); });
+      ]).finally(() => { startPolling(); startVersionPolling(); });
     } else {
       // Short absence — just resume normal poll cycle
       _runPollTick();
       startPolling();
+      startVersionPolling();
     }
   }
 });
@@ -5989,6 +6084,7 @@ function _wipeAndShowLogin() {
   _khataAllEntries = [];
   _postLoginRefreshDone = false;
   _menuFreshTs     = 0;
+  _knownMenuVersion = 0; // reset so version poll re-baselines on next login
   _hasActiveOrders  = false;
   _khataEverVisited = false;
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
@@ -6000,9 +6096,31 @@ function _wipeAndShowLogin() {
 }
 
 async function bootApp() {
-  // ── KEY GUARD: config.js loads async; if it hasn't run by the time bootApp
-  //    fires, fetch the key now before any api() call is attempted. ──────────
-  if (!CFG.KEY) await _refreshApiKey();
+  // ── KEY GUARD: config.js is async — may execute before or after DOMContentLoaded.
+  //    Fast path (PWA revisit): localStorage has a cached key → proceed instantly,
+  //    config.js refreshes in background. No wait, no block.
+  //    Slow path (first-ever install): localStorage empty → wait up to 800ms for
+  //    config.js to execute, then fall back to direct _refreshApiKey() fetch.
+  //    401 auto-recovery is the safety net if a cached key becomes stale.
+  if (!CFG.KEY) {
+    // No key anywhere (first-ever install, localStorage empty, config.js not yet loaded).
+    // Wait up to 800ms for async config.js to set window.__TIFFO_API_KEY__,
+    // then fall back to a direct Render fetch. Covers the first-ever install only.
+    await new Promise(resolve => {
+      if (CFG.KEY) { resolve(); return; }
+      const deadline = setTimeout(resolve, 800);
+      // Poll in tight loop — config.js setter will update window.__TIFFO_API_KEY__
+      const interval = setInterval(() => {
+        if (CFG.KEY) { clearTimeout(deadline); clearInterval(interval); resolve(); }
+      }, 20);
+    });
+    if (!CFG.KEY) await _refreshApiKey();
+  } else {
+    // Key available from localStorage or window (PWA revisit fast-path).
+    // Silently refresh in background so localStorage stays fresh for next open.
+    // Non-blocking — boot continues immediately. 401 handler is the safety net if key rotated.
+    _refreshApiKey().catch(() => {});
+  }
 
   // Pre-load delivery areas now that CFG.KEY is guaranteed ready.
   // Non-blocking — signup dropdown will be populated well before user reaches it.
@@ -6023,6 +6141,14 @@ async function bootApp() {
         });
       });
     }).catch(() => {});
+    // When index.html is refreshed in background cache, SW notifies us.
+    // We use this to trigger a silent menu re-fetch so content matches the new shell.
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'SW_HTML_UPDATED' && _session) {
+        // App shell updated in background — quietly refresh menu data too
+        loadMenu(true, true).catch(() => {});
+      }
+    });
     // NOTE: We do NOT reload on controllerchange.
     // New SW already controls the page and will serve fresh assets on next navigation.
     // Immediate location.reload() caused a visible jerk on every post-deploy visit.
@@ -6079,7 +6205,7 @@ async function bootApp() {
     _transitionToHome();
 
     const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
-    startPolling();
+    startPolling(); startVersionPolling();
     _doPostLoginRefresh(_initMenuP);
 
     // BACKGROUND VERIFY — at most once every 48h.
@@ -6112,6 +6238,7 @@ async function bootApp() {
                                 e.message?.includes('Invalid');
             if (isAuthError) {
               stopPolling();
+              stopVersionPolling();
               _wipeAndShowLogin();
             }
             // Pure network error → silently keep cached home. Retry next app-open.
@@ -6173,7 +6300,7 @@ async function bootApp() {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
           walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
       });
-      startPolling();
+      startPolling(); startVersionPolling();
       _doPostLoginRefresh(_p); // refreshPauseStatus inside will set correct display including pendingTomorrow
     })
     .catch(e => {
@@ -6370,7 +6497,7 @@ async function _gasDoLogin() {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
     });
-    startPolling();
+    startPolling(); startVersionPolling();
     _doPostLoginRefresh(_p); // refreshPauseStatus inside sets correct display including pendingTomorrow
   } catch(e) {
     btn.disabled = false;
@@ -6415,6 +6542,7 @@ function _showRetryUI(msg) {
 ═══════════════════════════════════════════ */
 function doLogout() {
   stopPolling();
+  stopVersionPolling();
   _slotTimers.forEach(t => clearTimeout(t)); _slotTimers = []; // clear slot transition timers
   _clearCooldownBanner(); // stop any running 30s countdown
   _postLoginRefreshDone = false;
@@ -6462,6 +6590,7 @@ function doLogout() {
   _khataAllEntries = [];
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
   _menuFreshTs       = 0; // reset so stale-menu guard triggers on next login
+  _knownMenuVersion  = 0; // reset so version poll re-baselines on next login
 
   // ── Reset all visible UI to a clean state ──
   // Cart
