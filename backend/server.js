@@ -248,11 +248,13 @@ if (process.env.RENDER_EXTERNAL_URL) {
   // 2. Keep Supabase PostgREST warm — 4 min beats the ~5 min idle timeout.
   //    HEAD query: zero rows transferred, minimal PostgREST overhead.
   //    Silent catch: a warmup failure must never crash the interval.
-  setInterval(() => {
-    supabase.from('menu_items')
-      .select('item_id', { count: 'exact', head: true })
-      .eq('is_active', true)
-      .catch(() => {});
+  setInterval(async () => {
+    try {
+      await supabase
+        .from('menu_items')
+        .select('item_id', { count: 'exact', head: true })
+        .eq('is_active', true);
+    } catch (_) {}
   }, 4 * 60 * 1000);
 
   console.log('[self-ping] render=12min supabase-warm=4min →', PING_URL);
