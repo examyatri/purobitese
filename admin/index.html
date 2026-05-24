@@ -2043,7 +2043,8 @@ async function doAdminLogin() {
     _updateBeepBtn(); // apply saved beep preference to button
     startPolling();
     npDone();
-  } catch(e) { npDone(); aToast(e.message || 'Login failed'); }
+  } catch(e) {
+    if (reqId !== _dashboardReqId) return; npDone(); aToast(e.message || 'Login failed'); }
 }
 
 function applyRoleRestrictions(role) {
@@ -2167,6 +2168,28 @@ function _getPollSeconds() {
   return 180; // main poll countdown always 180s
 }
 
+let _dashboardReqId = 0;
+let _dashboardLoading = false;
+let _backendReady = false;
+
+async function waitForBackendReady() {
+  if (_backendReady) return true;
+  for (let i=0;i<4;i++) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 8000);
+      const r = await fetch('https://purobitese-api.onrender.com/config.js', {cache:'no-store', signal:ctrl.signal});
+      clearTimeout(t);
+      if (r.ok) {
+        _backendReady = true;
+        return true;
+      }
+    } catch(e) {}
+    await new Promise(r=>setTimeout(r, 2000));
+  }
+  return false;
+}
+
 function startPolling() {
   clearTimeout(_pollTimer); clearInterval(_countdownTimer);
   _pollSeconds = _getPollSeconds();
@@ -2241,6 +2264,9 @@ document.addEventListener('visibilitychange', async () => {
       // p-kitchen and p-bulk intentionally excluded — admin controls state manually
     };
     const fn = visLoaders[cur];
+    const ready = await waitForBackendReady();
+    if (!ready) return;
+    await new Promise(r=>setTimeout(r,1200));
     if (fn) fn().catch(()=>{});
     if (cur === 'p-notifs') startNotifAutoRefresh();
     startPolling();
@@ -2576,7 +2602,15 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRet
       // then logout fires on the next tick — no double-toast race.
       if (!_tokenRetried && !_sessionExpiredHandled) {
         _sessionExpiredHandled = true;
-        setTimeout(() => doAdminLogout(), 1500); // 1.5s delay so session-expired toast is visible before reload
+        setTimeout(async () => {
+          try {
+            const ok = await waitForBackendReady();
+            if (!ok) return;
+            const verify = await fetch('https://purobitese-api.onrender.com/config.js', { cache: 'no-store' });
+            if (!verify.ok) return;
+          } catch(_) { return; }
+          doAdminLogout();
+        }, 2500);
       }
       throw new Error('Session expired. Please log in again.');
     }
@@ -2608,7 +2642,12 @@ function renderStatCard(id, val, label, icon, iconBg, adminOnly = false) {
 }
 
 async function loadDashboard() {
+  const reqId = ++_dashboardReqId;
+  if (_dashboardLoading) return;
+  _dashboardLoading = true;
   try {
+    const ready = await waitForBackendReady();
+    if (!ready) throw new Error('Backend waking up');
     npStart();
     // Show skeleton shimmer while loading
     ['stat-today-orders','stat-today-rev','stat-month-rev','stat-wallet',
@@ -2616,7 +2655,8 @@ async function loadDashboard() {
       const el = document.getElementById(id);
       if (el) el.innerHTML = '<div class="sk" style="height:24px;width:60%;margin:8px auto 6px"></div><div class="sk" style="height:14px;width:80%;margin:0 auto"></div>';
     });
-    const res = await api('getAnalytics');
+    const res = await guardedApi('dashboardAnalytics', async () => api('getAnalytics'));
+    if (reqId !== _dashboardReqId) return;
     const d = res;
     renderStatCard('stat-today-orders', d.todayOrders, "Today's Orders", 'fa-bag-shopping', '#fde8ea');
     renderStatCard('stat-today-rev',    '₹'+(d.todayRevenue||0), "Today's Revenue", 'fa-indian-rupee-sign', '#dcfce7', true);
