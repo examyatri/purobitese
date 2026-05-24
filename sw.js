@@ -5,7 +5,7 @@
    CHANGES v31.0:
    - config.js changed from async to defer in index.html → deterministic boot
    - Server now sends Cache-Control: max-age=3600 on config.js → 0ms on repeat
-   - Cache bumped to tiffo-v28 to force fresh precache on this deploy.
+   - Cache bumped to tiffo-v30 to force fresh precache on this deploy.
    - No SW strategy changes — config.js stays network-only (browser cache handles it)
 
    CHANGES v30.0 (UX PERF — root cause fix for 20-30s skeleton):
@@ -18,7 +18,7 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v28'; // bumped — forces fresh precache on deploy
+const CACHE      = 'tiffo-v30'; // bumped — forces fresh precache on deploy
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
