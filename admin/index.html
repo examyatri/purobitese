@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 /* ── DESIGN TOKENS ───────────────────────────────────────── */
+html{background:#fff}
 :root{
   --sb-bg:#0f172a;--sb-w:252px;--sb-text:#94a3b8;--sb-active:#e63946;
   --body-bg:#f0f4f8;--card-bg:#ffffff;
@@ -45,7 +46,7 @@
 }
 /* ── RESET ───────────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0}
-body{display:flex;min-height:100vh;background:var(--body-bg);font-family:var(--fb);color:#1e293b}
+body{display:flex;min-height:100vh;background:#fff;font-family:var(--fb);color:#1e293b}
 
 /* ── SIDEBAR ─────────────────────────────────────────────── */
 #sidebar{
@@ -130,8 +131,8 @@ body{display:flex;min-height:100vh;background:var(--body-bg);font-family:var(--f
 
 /* ── TOP BAR ─────────────────────────────────────────────── */
 #topbar{
-  height:62px;background:white;border-bottom:1px solid #e8ecf0;
-  display:flex;align-items:center;padding:0 24px;gap:14px;
+  min-height:62px;background:white;border-bottom:1px solid #e8ecf0;
+  display:flex;align-items:center;padding:env(safe-area-inset-top,0px) 24px 0;gap:14px;
   position:sticky;top:0;z-index:99;
   box-shadow:0 1px 0 rgba(0,0,0,.06);
 }
@@ -542,7 +543,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   }
 
   /* ─ Topbar ─ */
-  #topbar{padding:0 14px;gap:8px;height:56px}
+  #topbar{padding:env(safe-area-inset-top,0px) 14px 0;gap:8px;min-height:56px}
   #topbar-refresh-text,#topbar-logout-text{display:none}
   .topbar-chip .live-label{display:none}
   .topbar-chip{padding:5px 8px}
@@ -1778,12 +1779,27 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
         <!-- ── TAB 2: Wallet Recharges ── -->
         <div id="earn-pane-recharge" style="display:none">
-          <div style="margin-bottom:12px">
-            <button class="btn btn-p" onclick="loadWalletRecharges()" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,#10b981,#059669)"><i class="fa fa-search"></i> Fetch Recharges</button>
-          </div>
-          <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#166534;line-height:1.6">
-            <i class="fa fa-circle-info" style="margin-right:6px"></i>
-            <b>Your real bank income</b> — Only cash recharges are counted here. Internal wallet debits (order payments) and rejected-order refunds are wallet accounting — they don't affect your cash. Every recharge entry = money you physically collected.
+          <!-- Session filter + Fetch button -->
+          <div class="card" style="margin-bottom:14px;padding:14px 16px">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Session Filter</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button id="rch-sess-all" onclick="_setRchSession('all',this)"
+                style="padding:7px 16px;border-radius:20px;border:2px solid #10b981;background:#10b981;color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+                All
+              </button>
+              <button id="rch-sess-morning" onclick="_setRchSession('morning',this)"
+                style="padding:7px 16px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+                ☀️ Morning
+              </button>
+              <button id="rch-sess-evening" onclick="_setRchSession('evening',this)"
+                style="padding:7px 16px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+                🌙 Evening
+              </button>
+              <button onclick="loadWalletRecharges()"
+                style="margin-left:auto;display:flex;align-items:center;gap:7px;padding:8px 20px;border-radius:10px;border:none;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px #10b98122">
+                <i class="fa fa-search"></i> Fetch
+              </button>
+            </div>
           </div>
           <div id="earn-recharge-summary" style="display:none;margin-bottom:16px"></div>
           <div id="earn-recharge-report"></div>
@@ -2035,7 +2051,8 @@ async function doAdminLogin() {
     const res = await api('adminLogin', { username: user, password: pw });
     const role = res.staff?.role || 'staff'; // role comes from DB, not UI
     AdminAuth.set({ role, username: user, name: res.staff?.name || user, staff: res.staff, sessionToken: res.sessionToken || '' });
-    _sessionExpiredHandled = false; // reset so 401-recovery path is active for this new session
+    _sessionExpiredHandled = false; // reset so 401-recovery path is active for new session
+    _resetLoadGen();                // invalidate any zombie responses from pre-login loads
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(role);
@@ -2043,8 +2060,7 @@ async function doAdminLogin() {
     _updateBeepBtn(); // apply saved beep preference to button
     startPolling();
     npDone();
-  } catch(e) {
-    if (reqId !== _dashboardReqId) return; npDone(); aToast(e.message || 'Login failed'); }
+  } catch(e) { npDone(); aToast(e.message || 'Login failed'); }
 }
 
 function applyRoleRestrictions(role) {
@@ -2092,7 +2108,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (session?.sessionToken) {
     try {
       const payload = JSON.parse(atob(session.sessionToken.split('.')[1]));
-      if (payload.exp && Date.now() > payload.exp) {
+      if (payload.exp && Date.now() > payload.exp * 1000) {
         AdminAuth.clear();
         // session is now null — fall through to login screen below
       }
@@ -2166,28 +2182,6 @@ function _getPollInterval() {
 }
 function _getPollSeconds() {
   return 180; // main poll countdown always 180s
-}
-
-let _dashboardReqId = 0;
-let _dashboardLoading = false;
-let _backendReady = false;
-
-async function waitForBackendReady() {
-  if (_backendReady) return true;
-  for (let i=0;i<4;i++) {
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(()=>ctrl.abort(), 8000);
-      const r = await fetch('https://purobitese-api.onrender.com/config.js', {cache:'no-store', signal:ctrl.signal});
-      clearTimeout(t);
-      if (r.ok) {
-        _backendReady = true;
-        return true;
-      }
-    } catch(e) {}
-    await new Promise(r=>setTimeout(r, 2000));
-  }
-  return false;
 }
 
 function startPolling() {
@@ -2264,9 +2258,6 @@ document.addEventListener('visibilitychange', async () => {
       // p-kitchen and p-bulk intentionally excluded — admin controls state manually
     };
     const fn = visLoaders[cur];
-    const ready = await waitForBackendReady();
-    if (!ready) return;
-    await new Promise(r=>setTimeout(r,1200));
     if (fn) fn().catch(()=>{});
     if (cur === 'p-notifs') startNotifAutoRefresh();
     startPolling();
@@ -2274,17 +2265,23 @@ document.addEventListener('visibilitychange', async () => {
 });
 
 async function fetchNotifCount() {
+  // Lightweight badge-only update. Uses the same getNotifications endpoint
+  // but does NOT update _allNotifs or render the list — that's loadNotifications' job.
+  // Computes unreadCount from the notifications array (the endpoint returns the array,
+  // not a pre-computed count field).
   try {
     const res = await api('getNotifications');
+    const notifs = res.notifications || [];
+    const unreadCount = notifs.filter(n => !n.is_read).length;
     const badge = document.getElementById('notif-badge');
     if (badge) {
-      badge.textContent = res.unreadCount;
-      badge.style.display = res.unreadCount > 0 ? 'inline' : 'none';
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? 'inline' : 'none';
     }
-    // Trigger beep if unread count increased — so admin gets alerted on any tab
-    if (_prevUnreadCount >= 0 && res.unreadCount > _prevUnreadCount) _startBeepLoop();
-    _prevUnreadCount = res.unreadCount;
-  } catch {}
+    // Trigger beep if unread count increased — alerts admin on any tab
+    if (_prevUnreadCount >= 0 && unreadCount > _prevUnreadCount) _startBeepLoop();
+    _prevUnreadCount = unreadCount;
+  } catch {} // silent — badge staleness is not critical
 }
 
 function manualRefresh() {
@@ -2541,93 +2538,178 @@ function debounce(fn, ms = 220) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-// In-flight guard: prevents duplicate concurrent API calls for same action
-const _inFlight = new Set();
-function guardedApi(key, fn) {
-  if (_inFlight.has(key)) return Promise.resolve(null);
-  _inFlight.add(key);
-  return fn().finally(() => _inFlight.delete(key));
+// ════════════════════════════════════════════════════════════════════════════
+// TIFFO ADMIN — PRODUCTION REQUEST MANAGER  (v2 — complete rewrite)
+//
+// Architecture mirrors how Swiggy / Zomato / Airbnb admin panels handle
+// concurrent async data loading:
+//
+//  1. REQUEST VERSIONING (generation counter)
+//     Every loader owns a named "slot". Before awaiting, it stamps the slot
+//     with an incremented generation number and captures it. On resolution, it
+//     checks if it still owns the slot (generation unchanged). If a newer call
+//     fired in the meantime, the old response is silently discarded — the UI
+//     is never overwritten with stale data.
+//
+//  2. SHARED KEY REFRESH (dedup parallel 401s)
+//     All concurrent requests that hit a 401 share a single /config.js fetch
+//     via a promise cache (_keyRefreshPromise). Without this, N parallel
+//     requests would each race to refresh and potentially write conflicting
+//     empty values.
+//
+//  3. SAFE 401 → LOGOUT FLOW
+//     401 is first treated as a possible Render cold-start (key rotation).
+//     Only after a confirmed key refresh still produces 401 do we conclude
+//     the session token is genuinely expired and trigger logout once.
+//
+//  4. NETWORK ERROR RETRY WITH BACKOFF
+//     Timeout (AbortError), offline (TypeError), and 5xx are retried up to
+//     2 times with 600ms / 1200ms backoff. Session-expired errors skip retry.
+//
+//  5. ONLINE/OFFLINE RECOVERY
+//     window 'online' event fires a silent reload of the current page when
+//     the browser recovers from offline — just like native apps do.
+//
+//  6. STUCK SKELETON PREVENTION
+//     Every loader that shows a skeleton MUST clear it in its catch block.
+//     The owner() guard ensures only the current owner clears it.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Generation counter map ────────────────────────────────────────────────
+// Key = loader name string, Value = current generation integer.
+// _acquireLoad() bumps the counter and returns a closure that checks ownership.
+const _loadGen = {};
+
+function _acquireLoad(key) {
+  _loadGen[key] = (_loadGen[key] || 0) + 1;
+  const myGen = _loadGen[key];
+  return () => _loadGen[key] === myGen; // returns true while this call owns the slot
 }
 
-// ─── API ─────────────────────────────────────────────────
-// Guard: prevents multiple simultaneous 401s (e.g. parallel fetches) from
-// calling doAdminLogout() more than once in the same session.
-let _sessionExpiredHandled = false;
+// Reset all generation counters — called on login so pre-login zombie responses
+// from the previous session are discarded if they somehow resolve late.
+function _resetLoadGen() {
+  Object.keys(_loadGen).forEach(k => { _loadGen[k] = (_loadGen[k] || 0) + 1; });
+}
+
+// ── API key refresh (shared promise — no N concurrent /config.js fetches) ──
+let _keyRefreshPromise = null;
 
 async function _refreshApiKey() {
-  // Try up to 2 attempts (initial + one retry with a short back-off).
-  // Covers Render cold-starts and transient network blips that previously
-  // caused a silent empty-key boot leading to "Dashboard load failed".
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
-    const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
-    try {
-      const r = await fetch('https://purobitese-api.onrender.com/config.js', {
-        cache: 'no-store', signal: ctrl.signal
-      });
-      const txt = await r.text();
-      const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
-      if (m && m[1]) { window.__TIFFO_API_KEY__ = m[1]; clearTimeout(timer); return true; }
-    } catch (_) {} finally { clearTimeout(timer); }
-  }
-  return false;
+  if (_keyRefreshPromise) return _keyRefreshPromise; // share in-flight refresh
+  _keyRefreshPromise = (async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      try {
+        const r = await fetch('https://purobitese-api.onrender.com/config.js', {
+          cache: 'no-store', signal: ctrl.signal
+        });
+        const txt = await r.text();
+        const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
+        if (m && m[1]) { window.__TIFFO_API_KEY__ = m[1]; clearTimeout(timer); return true; }
+      } catch (_) {} finally { clearTimeout(timer); }
+    }
+    return false;
+  })();
+  try { return await _keyRefreshPromise; }
+  finally { _keyRefreshPromise = null; } // clear so next call can refresh again
 }
 
+// ── Session expiry guard ──────────────────────────────────────────────────
+// _sessionExpiredHandled prevents multiple parallel 401s each triggering logout.
+let _sessionExpiredHandled = false;
+
+// ── Core fetch wrapper ────────────────────────────────────────────────────
 async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRetried = false) {
-  const ctrl = new AbortController();
-  // 15s timeout — safe now that bulkGenerateOrders uses batch DB calls (3 round
-  // trips regardless of user count) instead of the old N×3 sequential loop.
+  const ctrl  = new AbortController();
+  // 15s hard timeout per attempt. bulkGenerateOrders is safe — uses 3 DB round
+  // trips regardless of user count (batch RPC, not N×3 sequential calls).
   const timer = setTimeout(() => ctrl.abort(), 15000);
   try {
     const res = await fetch(CFG.API, {
-      method: 'POST', signal: ctrl.signal,
+      method : 'POST',
+      signal : ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, data, apiKey: CFG.KEY, sessionToken: (AdminAuth.get() || {}).sessionToken || '' })
+      body   : JSON.stringify({
+        action,
+        data,
+        apiKey      : CFG.KEY,
+        sessionToken: (AdminAuth.get() || {}).sessionToken || ''
+      })
     });
+
+    // ── 429: rate limited ────────────────────────────────────────────────
     if (res.status === 429) throw new Error('RATE_LIMITED');
+
+    // ── 401: attempt recovery before logout ─────────────────────────────
     if (res.status === 401) {
-      // Step 1: refresh the API key (covers server restart / key rotation).
-      // _keyRetried guards so we only attempt this once — _refreshApiKey always
-      // returns true if /config.js responds (even when key is unchanged), so without
-      // this guard the retry would loop: 401 → refresh → retry → 401 → refresh → …
+      // Step 1 — key may have rotated on Render restart.
+      // _keyRetried prevents looping: refresh → retry → 401 → refresh → …
       if (!_keyRetried) {
         const gotKey = await _refreshApiKey();
+        // gotKey is true even when key is unchanged (config.js responded OK).
+        // So we must retry once regardless, then _keyRetried blocks further loops.
         if (gotKey) return api(action, data, _retry, true, _tokenRetried);
       }
-      // Step 2: session token has expired (12h TTL) — key was fine but token is stale.
-      // Admin stores no password, so silent re-login is not possible. Log out once.
-      // _tokenRetried flag prevents this block running twice on the same request chain.
-      // setTimeout(0) lets the caller's catch run first (showing its error toast),
-      // then logout fires on the next tick — no double-toast race.
+      // Step 2 — key is current but session token expired (12h TTL).
+      // Log out exactly once regardless of how many parallel requests are 401-ing.
       if (!_tokenRetried && !_sessionExpiredHandled) {
         _sessionExpiredHandled = true;
-        setTimeout(async () => {
-          try {
-            const ok = await waitForBackendReady();
-            if (!ok) return;
-            const verify = await fetch('https://purobitese-api.onrender.com/config.js', { cache: 'no-store' });
-            if (!verify.ok) return;
-          } catch(_) { return; }
-          doAdminLogout();
-        }, 2500);
+        aToast('Session expired — please log in again.');
+        setTimeout(() => doAdminLogout(), 1500);
       }
       throw new Error('Session expired. Please log in again.');
     }
+
     if (!res.ok) throw new Error('Server error ' + res.status);
+
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Request failed');
     return json;
+
   } catch(e) {
-    if (e.message === 'RATE_LIMITED') throw new Error('Duplicate request — please wait 30 seconds before trying again.');
-    const isNetworkErr = e.name === 'AbortError' || e.name === 'TypeError' || (e.message || '').startsWith('Server error 5');
-    if (_retry > 0 && isNetworkErr) {
-      await new Promise(r => setTimeout(r, 500 * (3 - _retry)));
+    // Rate limit — surface a clear message, do not retry
+    if (e.message === 'RATE_LIMITED')
+      throw new Error('Duplicate request — please wait 30 seconds before trying again.');
+
+    // Network / server errors: retry with exponential backoff.
+    //   AbortError  = our 15s timeout fired
+    //   TypeError   = fetch failed (offline, DNS, CORS cold-start)
+    //   Server 5xx  = Render returning 500/502/503 during cold-start
+    // Session-expired errors are intentionally excluded from retry.
+    const isTransient = (
+      e.name === 'AbortError' ||
+      e.name === 'TypeError'  ||
+      (e.message || '').startsWith('Server error 5')
+    ) && !(e.message || '').includes('Session expired');
+
+    if (_retry > 0 && isTransient) {
+      await new Promise(r => setTimeout(r, 600 * (3 - _retry))); // 600ms, 1200ms
       return api(action, data, _retry - 1, _keyRetried, _tokenRetried);
     }
     throw e;
-  } finally { clearTimeout(timer); }
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+// ── Online recovery ───────────────────────────────────────────────────────
+// When the browser comes back online (e.g. iPad woke from sleep, WiFi reconnected)
+// silently reload whatever page is active. This is what native apps do.
+window.addEventListener('online', () => {
+  if (document.hidden || !AdminAuth.get()) return;
+  const cur = document.querySelector('.pg-v.act')?.id;
+  const loaders = {
+    'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
+    'p-coupons': loadCoupons, 'p-subs': loadSubscribers, 'p-users': loadUsers,
+    'p-riders': loadRiders, 'p-khata': loadAllKhata, 'p-staff': loadStaff,
+    'p-notifs': loadNotifications, 'p-kitchen': loadKitchen,
+  };
+  const fn = loaders[cur];
+  if (fn) fn().catch(() => {});
+});
 
 // ─── DASHBOARD ───────────────────────────────────────────
 function renderStatCard(id, val, label, icon, iconBg, adminOnly = false) {
@@ -2642,21 +2724,18 @@ function renderStatCard(id, val, label, icon, iconBg, adminOnly = false) {
 }
 
 async function loadDashboard() {
-  const reqId = ++_dashboardReqId;
-  if (_dashboardLoading) return;
-  _dashboardLoading = true;
+  const owner = _acquireLoad('dash'); // versioned ownership — stale concurrent responses dropped
+  const _DASH_STAT_IDS = ['stat-today-orders','stat-today-rev','stat-month-rev','stat-wallet',
+                           'stat-total-orders','stat-users','stat-subs','stat-new-users'];
   try {
-    const ready = await waitForBackendReady();
-    if (!ready) throw new Error('Backend waking up');
     npStart();
     // Show skeleton shimmer while loading
-    ['stat-today-orders','stat-today-rev','stat-month-rev','stat-wallet',
-     'stat-total-orders','stat-users','stat-subs','stat-new-users'].forEach(id => {
+    _DASH_STAT_IDS.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = '<div class="sk" style="height:24px;width:60%;margin:8px auto 6px"></div><div class="sk" style="height:14px;width:80%;margin:0 auto"></div>';
     });
-    const res = await guardedApi('dashboardAnalytics', async () => api('getAnalytics'));
-    if (reqId !== _dashboardReqId) return;
+    const res = await api('getAnalytics');
+    if (!owner()) return; // newer loadDashboard() owns the UI — silently discard stale response
     const d = res;
     renderStatCard('stat-today-orders', d.todayOrders, "Today's Orders", 'fa-bag-shopping', '#fde8ea');
     renderStatCard('stat-today-rev',    '₹'+(d.todayRevenue||0), "Today's Revenue", 'fa-indian-rupee-sign', '#dcfce7', true);
@@ -2683,7 +2762,19 @@ async function loadDashboard() {
     }
     applyRoleRestrictions(AdminAuth.get()?.role);
     npDone();
-  } catch(e) { npDone(); aToast('Dashboard load failed'); }
+  } catch(e) {
+    if (!owner()) return; // stale — don't clobber UI owned by newer request
+    npDone();
+    // Clear stuck skeletons so the UI doesn't freeze on a temporary network error.
+    // Session-expired errors will trigger logout — no need to clear skeletons.
+    if (!(e.message || '').includes('Session expired')) {
+      _DASH_STAT_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.querySelector('.sk')) el.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px 0">—</div>';
+      });
+      aToast('Dashboard load failed — tap refresh to retry');
+    }
+  }
 }
 
 function openStatDetail(type) {
@@ -2801,6 +2892,7 @@ function setOrderFilter(filter, btn) { setOrdStatus(filter, btn); }
 
 // ── Load orders (last 2 days only for minimal API load) ──
 async function loadOrders(forceRender = false) {
+  const owner = _acquireLoad('orders');
   try {
     npStart();
     const istNow = new Date(Date.now() + 5.5 * 3600000);
@@ -2815,6 +2907,7 @@ async function loadOrders(forceRender = false) {
     if (needSettings) fetches.push(api('getSettings').catch(() => ({})));
 
     const results = await Promise.all(fetches);
+    if (!owner()) return; // stale
     const oRes = results[0];
     let rIdx = 1;
     if (needRiders)   { const rRes = results[rIdx++]; _ridersCache = rRes.riders || []; _ridersCacheTime = now; }
@@ -2826,7 +2919,11 @@ async function loadOrders(forceRender = false) {
     _allOrders = oRes.orders || [];
     renderOrdersTable(_allOrders);
     npDone();
-  } catch(e) { npDone(); aToast('Orders load failed'); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message || '').includes('Session expired')) aToast('Orders load failed — tap refresh to retry');
+  }
 }
 
 // ── Main render ──
@@ -3366,15 +3463,21 @@ async function loadBulkSubscribers() {
   const planFilter = document.getElementById('bulk-plan-filter')?.value || 'all';
   const listEl    = document.getElementById('bulk-subs-list');
   if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:24px;color:#9ca3af;font-size:13px"><i class="fa fa-spinner fa-spin" style="margin-right:6px"></i>Loading...</div>';
+  const owner = _acquireLoad('bulk-subs');
   try {
     npStart();
     const price = parseFloat(document.getElementById('bulk-price')?.value) || 0;
     const res = await api('getSubscribersForBulk', { slot, orderFor, planFilter, price });
+    if (!owner()) return; // stale — user changed slot/filter before this resolved
     npDone();
     _bulkSubsCache = res.subscribers || [];
     _bulkSelected.clear();
     renderBulkSubsList();
-  } catch(e) { npDone(); if (listEl) listEl.innerHTML = '<div style="color:#ef4444;padding:16px;text-align:center">Load failed</div>'; }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (listEl) listEl.innerHTML = '<div style="color:#ef4444;padding:16px;text-align:center">Load failed — pull down to retry</div>';
+  }
 }
 
 function setBulkFor(mode) {
@@ -3833,14 +3936,20 @@ function _hlBadge(h) {
 }
 
 async function loadMenu() {
+  const owner = _acquireLoad('menu');
   try {
     npStart();
     const res = await api('getMenuItems');
+    if (!owner()) return;
     _menuItems = res.items || [];
     _menuCache = _menuItems.filter(i=>i.is_active);
     renderMenuTable();
     npDone();
-  } catch(e) { npDone(); aToast('Menu load failed'); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Menu load failed — tap refresh to retry');
+  }
 }
 
 function renderMenuTable() {
@@ -4069,13 +4178,19 @@ async function deleteMenuItem(id) {
 let _coupons = [];
 
 async function loadCoupons() {
+  const owner = _acquireLoad('coupons');
   try {
     npStart();
     const res = await api('getCoupons');
+    if (!owner()) return;
     _coupons = res.coupons || [];
     renderCouponsTable();
     npDone();
-  } catch(e) { npDone(); aToast('Coupons load failed: ' + e.message); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Coupons load failed — tap refresh to retry');
+  }
 }
 
 function renderCouponsTable() {
@@ -4268,15 +4383,19 @@ let _subs = [];
 let _subsChipFilter = 'all'; // all | day | night | both | active | paused | delivery_off
 
 async function loadSubscribers() {
-  return guardedApi('loadSubscribers', async () => {
-    try {
-      npStart();
-      const res = await api('adminGetSubscribers');
-      _subs = res.subscribers || [];
-      renderSubsTable();
-      npDone();
-    } catch(e) { npDone(); aToast('Subscribers load failed'); }
-  });
+  const owner = _acquireLoad('subs');
+  try {
+    npStart();
+    const res = await api('adminGetSubscribers');
+    if (!owner()) return;
+    _subs = res.subscribers || [];
+    renderSubsTable();
+    npDone();
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Subscribers load failed — tap refresh to retry');
+  }
 }
 
 function setSubsChip(btn, filter) {
@@ -4596,15 +4715,19 @@ let _allUsers = [];
 let _userFilter = 'all';
 
 async function loadUsers() {
-  return guardedApi('loadUsers', async () => {
-    try {
-      npStart();
-      const res = await api('adminGetUsers');
-      _allUsers = res.users || [];
-      filterUsers();
-      npDone();
-    } catch(e) { npDone(); aToast('Users load failed: ' + e.message); }
-  });
+  const owner = _acquireLoad('users');
+  try {
+    npStart();
+    const res = await api('adminGetUsers');
+    if (!owner()) return;
+    _allUsers = res.users || [];
+    filterUsers();
+    npDone();
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Users load failed — tap refresh to retry');
+  }
 }
 
 function setUserFilter(type, el) {
@@ -4988,13 +5111,19 @@ async function doResetUserPw(phone) {
 let _riders = [];
 
 async function loadRiders() {
+  const owner = _acquireLoad('riders');
   try {
     npStart();
     const res = await api('getRiders');
+    if (!owner()) return;
     _riders = res.riders || [];
     renderRidersTable();
     npDone();
-  } catch(e) { npDone(); aToast('Riders load failed'); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Riders load failed — tap refresh to retry');
+  }
 }
 
 function renderRidersTable() {
@@ -5075,14 +5204,20 @@ let _khataList = [];
 let _khataChipFilter = '';
 
 async function loadAllKhata() {
+  const owner = _acquireLoad('khata');
   try {
     npStart();
     const res = await api('getAllKhata');
+    if (!owner()) return;
     _khataList = (res.khata || []).sort((a,b) => (a.balance||0) - (b.balance||0));
     renderKhataSummary();
     renderKhataTable();
     npDone();
-  } catch(e) { npDone(); aToast('Khata load failed'); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Khata load failed — tap refresh to retry');
+  }
 }
 
 function renderKhataSummary() {
@@ -5244,13 +5379,19 @@ async function doAdjustment(phone, name) {
 let _staff = [];
 
 async function loadStaff() {
+  const owner = _acquireLoad('staff');
   try {
     npStart();
     const res = await api('getStaff');
+    if (!owner()) return;
     _staff = res.staff || [];
     renderStaffTable();
     npDone();
-  } catch(e) { npDone(); aToast('Staff load failed'); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    if (!(e.message||'').includes('Session expired')) aToast('Staff load failed — tap refresh to retry');
+  }
 }
 
 function renderStaffTable() {
@@ -6402,9 +6543,11 @@ function toggleNuCouponPanel() {
 
 // ─── LOAD NOTIFICATIONS ───────────────────────────────────
 async function loadNotifications() {
+  const owner = _acquireLoad('notifs');
   try {
     npStart();
     const res = await api('getNotifications');
+    if (!owner()) return;
     const newStr = JSON.stringify(res.notifications);
     if (newStr === _lastNotifsStr) { npDone(); return; }
     _lastNotifsStr = newStr;
@@ -6418,7 +6561,11 @@ async function loadNotifications() {
     renderNotifs(_allNotifs);
     updateNuPendingBadge(_allNotifs);
     npDone();
-  } catch(e) { npDone(); }
+  } catch(e) {
+    if (!owner()) return;
+    npDone();
+    // Notifs failure is silent — don't alarm admin with a toast on temp errors
+  }
 }
 
 function updateNuPendingBadge(notifs) {
@@ -7038,8 +7185,10 @@ async function loadNuCoupons(type, btn) {
   const el = document.getElementById('nu-coupon-list');
   if (!el) return;
   el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:24px">Loading…</div>';
+  const owner = _acquireLoad('nu-coupons');
   try {
     const res = await api(type === 'pending' ? 'getNuCouponPending' : 'getNuCouponSent');
+    if (!owner()) return; // stale — user switched tab before this resolved
     const users = res.records || [];
     if (!users.length) {
       el.innerHTML = `<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px"><i class="fa ${type==='pending'?'fa-hourglass':'fa-check-circle'}" style="font-size:20px;display:block;margin-bottom:8px;opacity:.4"></i>${type==='pending'?'No pending users — all coupons sent!':'No sent records yet.'}</div>`;
@@ -7067,7 +7216,10 @@ async function loadNuCoupons(type, btn) {
           }
         </div>
       </div>`).join('');
-  } catch(e) { el.innerHTML = `<div style="color:var(--p);padding:12px;font-size:13px">${e.message}</div>`; }
+  } catch(e) {
+    if (!owner()) return;
+    el.innerHTML = `<div style="color:var(--p);padding:12px;font-size:13px">${e.message}</div>`;
+  }
 }
 
 // ─── WHATSAPP POPUP ───────────────────────────────────────
@@ -7151,6 +7303,7 @@ function earnQuick(days) {
   const to    = days === 1 ? _earnISTDate(1) : _earnISTDate(0);
   document.getElementById('earn-from').value = from;
   document.getElementById('earn-to').value   = to;
+  _rchRawData = null; // clear cached recharge data so next fetch is fresh
   // Fire the correct loader based on which sub-tab is currently visible
   const rechargePane = document.getElementById('earn-pane-recharge');
   if (rechargePane && rechargePane.style.display !== 'none') {
@@ -7192,10 +7345,60 @@ function switchEarnTab(tab) {
     // Auto-load recharge data if not yet loaded for this date range
     const reportEl = document.getElementById('earn-recharge-report');
     if (!reportEl || !reportEl.innerHTML.trim()) loadWalletRecharges();
+    // Ensure session chips are visually in sync
+    _setRchSession(_rchSession, null);
   }
 }
 
 // ── Wallet Recharge Report ─────────────────────────────────────────────────
+let _rchSession = 'all';           // 'all' | 'morning' | 'evening'
+let _rchRawData = null;            // last fetched full res object (for client-side re-filter)
+
+function _setRchSession(sess, btn) {
+  _rchSession = sess;
+  // Update chip styles
+  ['all','morning','evening'].forEach(s => {
+    const el = document.getElementById('rch-sess-' + s);
+    if (!el) return;
+    const active = s === sess;
+    el.style.background     = active ? '#10b981' : '#fff';
+    el.style.borderColor    = active ? '#10b981' : '#e2e8f0';
+    el.style.color          = active ? '#fff'    : '#64748b';
+  });
+  // Re-render with new filter if data already loaded
+  if (_rchRawData) _renderWalletRecharges(_rchRawData);
+}
+
+// Get session cutoff time for a given date from weekly schedule.
+// Returns minutes-since-midnight for the boundary between morning and evening.
+// Logic: cutoff = dinnerStart of that day (entries < dinnerStart → morning, >= → evening).
+// Falls back to lunchEnd if dinnerStart missing, then hardcoded 720 (12:00).
+function _rchGetCutoffMins(dateStr) {
+  let dayIdx = -1;
+  if (dateStr) {
+    try { dayIdx = new Date(dateStr + 'T00:00:00').getDay(); } catch(e) {}
+  }
+  if (dayIdx === -1) dayIdx = new Date().getDay();
+  const sched = (_weeklySchedule && _weeklySchedule[dayIdx]) || {};
+  // Prefer dinnerStart as the morning/evening boundary
+  const timeRef = sched.dinnerStart || sched.lunchEnd || null;
+  if (!timeRef) return 720; // fallback: noon
+  const parts = timeRef.split(':');
+  const h = parseInt(parts[0], 10), m = parseInt(parts[1] || '0', 10);
+  return isNaN(h) ? 720 : h * 60 + (isNaN(m) ? 0 : m);
+}
+
+function _rchTimeToSession(timeStr, dateStr) {
+  // timeStr like "09:30" or "14:05"; dateStr like "2026-05-24" (optional, for per-day schedule lookup)
+  if (!timeStr) return 'all';
+  const parts = (timeStr || '').split(':');
+  const h = parseInt(parts[0], 10), m = parseInt(parts[1] || '0', 10);
+  if (isNaN(h)) return 'all';
+  const entryMins = h * 60 + (isNaN(m) ? 0 : m);
+  const cutoff    = _rchGetCutoffMins(dateStr);
+  return entryMins < cutoff ? 'morning' : 'evening';
+}
+
 async function loadWalletRecharges() {
   _earnInitDates();
   const from = document.getElementById('earn-from').value;
@@ -7206,13 +7409,18 @@ async function loadWalletRecharges() {
   const reportEl  = document.getElementById('earn-recharge-report');
   reportEl.innerHTML  = '<div style="text-align:center;padding:32px;color:#94a3b8;font-size:13px"><i class="fa fa-spinner fa-spin"></i> Loading…</div>';
   summaryEl.style.display = 'none';
-  _earnLastRechargeCash = 0; // reset so banner doesn't show stale cross-tab total
+  _earnLastRechargeCash = 0;
+  _rchRawData = null;
 
+  const owner = _acquireLoad('earn-recharge');
   try {
     const res = await api('getWalletRechargeReport', { fromDate: from, toDate: to });
+    if (!owner()) return;
     if (!res.success) { reportEl.innerHTML = `<div class="card" style="color:#ef4444">${res.error}</div>`; return; }
+    _rchRawData = res;
     _renderWalletRecharges(res);
   } catch(e) {
+    if (!owner()) return;
     reportEl.innerHTML = `<div class="card" style="color:#ef4444">${e.message}</div>`;
   }
 }
@@ -7220,78 +7428,125 @@ async function loadWalletRecharges() {
 function _renderWalletRecharges(res) {
   const summaryEl = document.getElementById('earn-recharge-summary');
   const reportEl  = document.getElementById('earn-recharge-report');
+  const fmtDate   = d => { const p=d.split('-'); return `${p[2]} ${['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]]} ${p[0]}`; };
+  const sessLabel = { all:'All Sessions', morning:'☀️ Morning', evening:'🌙 Evening' }[_rchSession];
 
-  // Store for cross-tab Total Bank Income banner
+  // ── Apply session filter to report data ──────────────────────────────────
+  const filteredReport = res.report.map(day => {
+    const entries = _rchSession === 'all'
+      ? day.entries
+      : day.entries.filter(e => _rchTimeToSession(e.time, day.date) === _rchSession);
+    return { ...day, entries, dayTotal: entries.reduce((s,e) => s + e.amount, 0), dayCount: entries.length };
+  }).filter(day => day.entries.length > 0);
+
+  const filteredTotal = filteredReport.reduce((s, d) => s + d.dayTotal, 0);
+  const filteredCount = filteredReport.reduce((s, d) => s + d.dayCount, 0);
+
+  // Store grand total (always full, not filtered) for cross-tab banner
   _earnLastRechargeCash = res.grandTotal || 0;
 
   // ── Summary card ──────────────────────────────────────────────────────────
-  const avg = res.grandCount > 0 ? res.grandTotal / res.grandCount : 0;
+  const avg = filteredCount > 0 ? filteredTotal / filteredCount : 0;
+  const dateLabel = res.fromDate === res.toDate ? fmtDate(res.fromDate) : fmtDate(res.fromDate) + ' → ' + fmtDate(res.toDate);
+  const isFiltered = _rchSession !== 'all';
+
   summaryEl.innerHTML = `
-    <div class="card" style="border:2px solid #bbf7d022">
-      <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px">
-        ${res.fromDate === res.toDate ? res.fromDate : res.fromDate + ' → ' + res.toDate}
-        · ${res.grandCount} recharge${res.grandCount!==1?'s':''}
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div class="card" style="border:2px solid #bbf7d0;padding:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px">
         <div>
-          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Cash Collected</div>
-          <div style="font-size:30px;font-weight:900;color:#059669;font-family:var(--ff)">${_earnFmt(res.grandTotal)}</div>
+          <div style="font-family:var(--ff);font-weight:800;font-size:15px;color:#0f172a">Wallet Recharges</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">${dateLabel} · ${sessLabel}</div>
         </div>
-        <div style="background:#f0fdf4;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">
-          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Avg per Recharge</div>
-          <div style="font-size:20px;font-weight:800;color:#0f172a;font-family:var(--ff)">${_earnFmt(Math.round(avg))}</div>
+        ${isFiltered ? `<span style="background:#f0fdf4;border:1.5px solid #bbf7d0;color:#15803d;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700">${sessLabel} only</span>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#f0fdf4;border-radius:12px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Total Collected</div>
+          <div style="font-size:28px;font-weight:900;color:#059669;font-family:var(--ff);line-height:1">${_earnFmt(filteredTotal)}</div>
+          <div style="font-size:11px;color:#16a34a;margin-top:4px">${filteredCount} recharge${filteredCount!==1?'s':''}</div>
+        </div>
+        <div style="background:#f8fafc;border-radius:12px;padding:14px 16px">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Avg per Recharge</div>
+          <div style="font-size:28px;font-weight:900;color:#0f172a;font-family:var(--ff);line-height:1">${_earnFmt(Math.round(avg))}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px">${isFiltered && res.grandCount !== filteredCount ? res.grandCount + ' total (all sessions)' : 'across period'}</div>
         </div>
       </div>
-      ${_renderBankIncomeBanner()}
     </div>`;
   summaryEl.style.display = 'block';
 
   // ── Day-by-day ────────────────────────────────────────────────────────────
-  if (!res.report.length) {
-    reportEl.innerHTML = '<div class="card" style="text-align:center;color:#94a3b8;padding:32px">No recharges found for this period.</div>';
+  if (!filteredReport.length) {
+    reportEl.innerHTML = `<div class="card" style="text-align:center;color:#94a3b8;padding:32px;font-size:14px">
+      <i class="fa fa-inbox" style="font-size:28px;display:block;margin-bottom:10px;opacity:.4"></i>
+      No recharges found${isFiltered ? ' for ' + sessLabel : ''} in this period.
+    </div>`;
     return;
   }
 
-  reportEl.innerHTML = res.report.map((day, di) => {
+  reportEl.innerHTML = filteredReport.map((day, di) => {
     const dayId = 'erch-' + di;
-    const fmtDate = d => { const p=d.split('-'); return `${p[2]} ${['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]]} ${p[0]}`; };
+    const morningEntries = day.entries.filter(e => _rchTimeToSession(e.time, day.date) === 'morning');
+    const eveningEntries = day.entries.filter(e => _rchTimeToSession(e.time, day.date) === 'evening');
+    const morningTotal   = morningEntries.reduce((s,e) => s + e.amount, 0);
+    const eveningTotal   = eveningEntries.reduce((s,e) => s + e.amount, 0);
 
-    const rows = day.entries.map(e => `
-      <tr style="border-top:1px solid #f0fdf4">
-        <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#0f172a">${e.name}</td>
-        <td style="padding:8px 12px;font-size:12px;color:#64748b;font-family:monospace">${e.phone}</td>
-        <td style="padding:8px 12px;font-size:12px;color:#64748b">${e.time||'—'}</td>
-        <td style="padding:8px 12px;font-size:12px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.note||'—'}</td>
-        <td style="padding:8px 12px;font-size:14px;font-weight:800;color:#059669;text-align:right">${_earnFmt(e.amount)}</td>
-      </tr>`).join('');
+    // Session breakdown pills (only when showing All)
+    const sessBadges = _rchSession === 'all' && (morningEntries.length || eveningEntries.length) ? `
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+        ${morningEntries.length ? `<span style="font-size:10px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:10px;padding:1px 7px;font-weight:600">☀️ ${morningEntries.length} · ${_earnFmt(morningTotal)}</span>` : ''}
+        ${eveningEntries.length ? `<span style="font-size:10px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:10px;padding:1px 7px;font-weight:600">🌙 ${eveningEntries.length} · ${_earnFmt(eveningTotal)}</span>` : ''}
+      </div>` : '';
+
+    const rows = day.entries.map(e => {
+      const sess = _rchTimeToSession(e.time, day.date);
+      const sessTag = sess === 'morning'
+        ? `<span style="font-size:10px;background:#fffbeb;color:#92400e;border-radius:6px;padding:1px 6px;font-weight:600">☀️</span>`
+        : sess === 'evening'
+        ? `<span style="font-size:10px;background:#eef2ff;color:#3730a3;border-radius:6px;padding:1px 6px;font-weight:600">🌙</span>`
+        : '';
+      const srcTag = e.source === 'user'
+        ? `<span style="font-size:10px;background:#f0fdf4;color:#15803d;border-radius:6px;padding:1px 6px;font-weight:600">App</span>`
+        : `<span style="font-size:10px;background:#f0f9ff;color:#0369a1;border-radius:6px;padding:1px 6px;font-weight:600">Admin</span>`;
+      return `
+        <tr style="border-top:1px solid #f0fdf4">
+          <td style="padding:9px 12px">
+            <div style="font-size:13px;font-weight:600;color:#0f172a">${e.name}</div>
+            <div style="font-size:11px;color:#94a3b8;font-family:monospace">${e.phone}</div>
+          </td>
+          <td style="padding:9px 12px">
+            <div style="display:flex;align-items:center;gap:5px">${sessTag} <span style="font-size:12px;color:#64748b">${e.time||'—'}</span></div>
+            <div style="margin-top:3px">${srcTag}</div>
+          </td>
+          <td style="padding:9px 12px;font-size:15px;font-weight:800;color:#059669;text-align:right">${_earnFmt(e.amount)}</td>
+        </tr>`;
+    }).join('');
 
     return `
       <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden;border:1.5px solid #bbf7d044">
         <div onclick="const b=document.getElementById('${dayId}');b.style.display=b.style.display==='none'?'block':'none'"
-             style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);cursor:pointer;user-select:none">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:32px;height:32px;background:#059669;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+             style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);cursor:pointer;user-select:none;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <div style="width:34px;height:34px;background:#059669;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
               <i class="fa fa-wallet" style="color:#fff;font-size:13px"></i>
             </div>
-            <div>
+            <div style="min-width:0">
               <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a">${fmtDate(day.date)}</div>
               <div style="font-size:11px;color:#16a34a">${day.dayCount} recharge${day.dayCount!==1?'s':''}</div>
+              ${sessBadges}
             </div>
           </div>
-          <div style="font-size:20px;font-weight:900;color:#059669;font-family:var(--ff)">${_earnFmt(day.dayTotal)}</div>
+          <div style="font-size:22px;font-weight:900;color:#059669;font-family:var(--ff);white-space:nowrap">${_earnFmt(day.dayTotal)}</div>
         </div>
         <div id="${dayId}" style="display:none;overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;min-width:440px">
+          <table style="width:100%;border-collapse:collapse;min-width:300px">
             <thead><tr style="background:#f0fdf4">
               <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Customer</th>
-              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Phone</th>
-              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Time</th>
-              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Note</th>
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Time · Via</th>
               <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:right">Amount</th>
             </tr></thead>
             <tbody>${rows}</tbody>
             <tfoot><tr style="background:#f0fdf4;border-top:2px solid #bbf7d0">
-              <td colspan="4" style="padding:8px 12px;font-size:12px;font-weight:700;color:#64748b">Total — ${day.dayCount} recharge${day.dayCount!==1?'s':''}</td>
+              <td colspan="2" style="padding:8px 12px;font-size:12px;font-weight:700;color:#64748b">${day.dayCount} recharge${day.dayCount!==1?'s':''} · ${sessLabel}</td>
               <td style="padding:8px 12px;font-size:15px;font-weight:800;color:#059669;text-align:right">${_earnFmt(day.dayTotal)}</td>
             </tr></tfoot>
           </table>
@@ -7317,11 +7572,14 @@ async function loadEarnings() {
   _earnLastRes = null;
   _earnLastOrderCash = 0; // reset so banner doesn't show stale cross-tab total
 
+  const owner = _acquireLoad('earn-orders');
   try {
     const res = await api('getEarningReport', { fromDate: from, toDate: to });
+    if (!owner()) return;
     if (!res.success) { reportEl.innerHTML = `<div class="card" style="color:#ef4444">${res.error}</div>`; return; }
     _renderEarnings(res);
   } catch(e) {
+    if (!owner()) return;
     reportEl.innerHTML = `<div class="card" style="color:#ef4444">${e.message}</div>`;
   }
 }
@@ -7379,62 +7637,74 @@ function _renderComboCalc(res) {
   const panel = document.getElementById('earn-combo-panel');
   if (!panel) return;
 
-  // Compute totals for each mode over the whole report
-  const modeTotals = {};
-  const modeCounts = {};
+  // Compute per-mode totals across the full report
+  const modeTotals = {}, modeCounts = {};
   for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
     let tot = 0, cnt = 0;
-    for (const day of res.report) {
+    for (const day of res.report)
       for (const sl of day.slots) {
         tot += sl.modes[mode]?.total || 0;
         cnt += sl.modes[mode]?.count || 0;
       }
-    }
     modeTotals[mode] = tot;
     modeCounts[mode]  = cnt;
   }
 
-  // Compute selected combination total
   let comboTotal = 0, comboCount = 0;
   for (const m of _earnComboModes) {
     comboTotal += modeTotals[m] || 0;
     comboCount += modeCounts[m] || 0;
   }
 
-  const chipHtml = ['wallet','upi','upi_insuf','unpaid'].map(m => {
-    const active = _earnComboModes.has(m);
-    const border = active ? _EARN_MODE_COLOR[m] : '#e2e8f0';
-    const bg     = active ? _EARN_MODE_COLOR[m] : '#fff';
-    const color  = active ? '#fff' : '#64748b';
-    return `<button onclick="_earnComboToggle('${m}')"
-      style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:10px;border:2px solid ${border};background:${bg};color:${color};font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
-      <i class="fa ${_EARN_MODE_ICON[m]}" style="font-size:12px"></i>
-      ${_EARN_MODE_LABEL[m]}
-      <span style="font-size:11px;opacity:.8">${_earnFmt(modeTotals[m])}</span>
+  // Mode display config (user-friendly labels + explanations)
+  const MODES = [
+    { key:'upi',       icon:'fa-mobile-screen',         label:'UPI',         sub:'Paid via UPI',              color:'#3b82f6', bg:'#eff6ff' },
+    { key:'upi_insuf', icon:'fa-triangle-exclamation',  label:'UPI (Insuf)', sub:'Partial UPI payment',       color:'#f59e0b', bg:'#fffbeb' },
+    { key:'unpaid',    icon:'fa-arrow-trend-down',       label:'Udhar',       sub:'Collected on credit',       color:'#ef4444', bg:'#fef2f2' },
+    { key:'wallet',    icon:'fa-wallet',                 label:'Wallet',      sub:'Counted in Recharges tab',  color:'#10b981', bg:'#f0fdf4' },
+  ];
+
+  const chipHtml = MODES.map(m => {
+    const active = _earnComboModes.has(m.key);
+    const hasAmt = modeTotals[m.key] > 0;
+    return `<button onclick="_earnComboToggle('${m.key}')"
+      style="flex:1;min-width:130px;display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;border:2px solid ${active ? m.color : '#e2e8f0'};background:${active ? m.bg : '#fff'};cursor:pointer;transition:all .15s;text-align:left">
+      <div style="width:30px;height:30px;border-radius:8px;background:${active ? m.color : '#f1f5f9'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s">
+        <i class="fa ${m.icon}" style="font-size:12px;color:${active ? '#fff' : '#94a3b8'}"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:${active ? m.color : '#334155'}">${m.label}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:1px">${m.sub}</div>
+      </div>
+      <div style="font-family:var(--ff);font-weight:800;font-size:13px;color:${active ? m.color : (hasAmt ? '#0f172a' : '#cbd5e1')}">${_earnFmt(modeTotals[m.key])}</div>
     </button>`;
   }).join('');
 
-  const selLabel = _earnComboModes.size === 0 ? 'None selected'
-    : [..._earnComboModes].map(m => _EARN_MODE_LABEL[m]).join(' + ');
+  const noneSelected = _earnComboModes.size === 0;
+  const resultBg     = noneSelected ? '#f8fafc' : 'linear-gradient(135deg,#f0f9ff,#e0f2fe)';
+  const resultBorder = noneSelected ? '#e2e8f0' : '#bae6fd';
+  const resultColor  = noneSelected ? '#94a3b8' : '#0369a1';
+  const selNames     = noneSelected ? 'Select at least one mode above'
+    : MODES.filter(m => _earnComboModes.has(m.key)).map(m => m.label).join(' + ');
 
   panel.innerHTML = `
-    <div class="card" style="border:2px solid #6366f122">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:32px;height:32px;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+    <div class="card" style="border:2px solid #6366f122;padding:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <i class="fa fa-calculator" style="color:#fff;font-size:14px"></i>
         </div>
         <div>
-          <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a">Combination Calculator</div>
-          <div style="font-size:11px;color:#94a3b8">Toggle payment modes to get combined total</div>
+          <div style="font-family:var(--ff);font-weight:800;font-size:15px;color:#0f172a">Combination Calculator</div>
+          <div style="font-size:11.5px;color:#94a3b8;margin-top:1px">Tap modes to combine — see total below</div>
         </div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">${chipHtml}</div>
-      <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">${selLabel}</div>
-          <div style="font-size:12px;color:#94a3b8;margin-top:2px">${comboCount} orders combined</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">${chipHtml}</div>
+      <div style="background:${resultBg};border:2px solid ${resultBorder};border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--ff);font-size:13px;font-weight:700;color:${resultColor}">${selNames}</div>
+          ${noneSelected ? '' : `<div style="font-size:11px;color:#64748b;margin-top:3px">${comboCount} order${comboCount!==1?'s':''} · combined total</div>`}
         </div>
-        <div style="font-size:26px;font-weight:900;color:#4f46e5;font-family:var(--ff)">${_earnFmt(comboTotal)}</div>
+        <div style="font-size:28px;font-weight:900;color:${noneSelected?'#cbd5e1':'#4f46e5'};font-family:var(--ff);white-space:nowrap">${noneSelected ? '—' : _earnFmt(comboTotal)}</div>
       </div>
     </div>`;
   panel.style.display = 'block';
@@ -8135,9 +8405,12 @@ async function loadKitchen() {
     '<div style="padding:40px;text-align:center;color:#94a3b8"><i class="fa fa-spinner fa-spin"></i> Loading…</div>';
   document.getElementById('kitchen-stats').innerHTML = '';
 
+  const owner = _acquireLoad('kitchen');
   try {
     // Single call — replaces getCookingSummary + getCookingSessions (parallel DB queries server-side)
     const sumRes = await api('getKitchenDashboard', { slot: _kitchenSlot, fromDate, toDate });
+    if (!owner()) return; // stale — user changed slot/date before this resolved
+
     const sesRes = sumRes; // sessions are included in the same response
 
     if (!sumRes.success) throw new Error(sumRes.error || 'Failed');
@@ -8192,6 +8465,7 @@ async function loadKitchen() {
     // Render sessions history
     _renderKitchenSessions(sesRes.sessions || []);
   } catch (e) {
+    if (!owner()) return;
     document.getElementById('kitchen-table-wrap').innerHTML =
       `<div style="padding:30px;text-align:center;color:#ef4444">${e.message}</div>`;
   }
