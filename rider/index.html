@@ -505,7 +505,7 @@ body{background:var(--bg);font-family:var(--fb);color:var(--tx);max-width:520px;
   border-top-color:var(--p);border-radius:50%;animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://purobitese-api.onrender.com/config.js" async></script>
+<script src="https://purobitese-api.onrender.com/config.js" defer></script>
 </head>
 <body>
 
@@ -3356,8 +3356,23 @@ document.addEventListener('visibilitychange', () => {
 
 /* ─── INIT ───────────────────────────────────────────── */
 window.addEventListener('DOMContentLoaded', async () => {
-  // ── KEY GUARD: config.js async — fetch key if not yet available ──────────
-  if (!CFG.KEY) await _refreshApiKey();
+  // ── KEY GUARD: config.js is defer — runs before DOMContentLoaded.
+  //    Browser caches it for 1hr (server sends max-age=3600).
+  //    _refreshApiKey() is the fallback if the browser cache was cold
+  //    and the fetch failed for any reason.
+  if (!CFG.KEY) {
+    const gotKey = await _refreshApiKey();
+    if (!gotKey) {
+      document.getElementById('pg-auth').innerHTML =
+        '<div style="padding:48px 24px;text-align:center;font-family:system-ui">' +
+        '<div style="font-size:48px;margin-bottom:16px">🍱</div>' +
+        '<p style="font-size:15px;font-weight:700;color:#e63946;margin:0 0 8px">Server se connect nahi ho pa raha</p>' +
+        '<p style="color:#64748b;font-size:13px;margin:0 0 24px">Internet check karein aur dubara try karein.</p>' +
+        '<button onclick="location.reload()" style="padding:12px 28px;background:#e63946;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Retry</button>' +
+        '</div>';
+      return;
+    }
+  }
 
   // Push initial state so first back press fires popstate
   history.pushState({ riderPg: 'init' }, '', location.href);
