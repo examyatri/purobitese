@@ -1,12 +1,19 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
-     ║  Tiffo — Admin Panel (admin.html)        ║
-     ║  Version : v20.6                                    ║
-     ║  Updated : 2026-05-21                               ║
-     ║  Changes : Fixed doRejectOrder NOT_SUBSCRIBER bug   ║
-     ║            — moved modal to catch block so friendly ║
-     ║            "Cannot Refund to Wallet" dialog shows   ║
-     ║            correctly instead of raw error toast     ║
+     ║  Tiffo — Admin Panel (admin.html)                   ║
+     ║  Version : v21.0                                    ║
+     ║  Updated : 2026-05-24                               ║
+     ║  Changes : Earnings 6-bug fix —                     ║
+     ║   1. earnQuick fires correct loader per active tab  ║
+     ║   2. Yesterday button sets from=to=yesterday (was   ║
+     ║      showing 2-day range)                           ║
+     ║   3. Recharge tab auto-loads on switchEarnTab       ║
+     ║   4. Orders summary: wallet tile labelled as        ║
+     ║      "pre-collected" with note, not headline cash   ║
+     ║   5. New "Cash Collected Today from Orders" band    ║
+     ║      = UPI + UPI(Insuf) only                       ║
+     ║   6. New "Total Bank Income" combined banner        ║
+     ║      = Recharges + UPI + UPI(Insuf) across tabs    ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1001,6 +1008,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     <div class="sb-section-label">Admin</div>
     <nav class="sb-nav">
       <a href="#" onclick="showPage('p-khata');return false" data-pg="p-khata"><i class="fa fa-wallet"></i> Khata / Wallet</a>
+      <a href="#" onclick="showPage('p-earnings');return false" data-pg="p-earnings" class="admin-only"><i class="fa fa-chart-bar"></i> Earnings</a>
       <a href="#" onclick="showPage('p-staff');return false" data-pg="p-staff" class="admin-only"><i class="fa fa-id-badge"></i> Staff Members</a>
       <a href="#" onclick="showPage('p-settings');return false" data-pg="p-settings" class="admin-only"><i class="fa fa-gear"></i> Settings</a>
       <a href="#" onclick="showPage('p-notifs');return false" data-pg="p-notifs"><i class="fa fa-bell"></i> Notifications <span id="notif-badge" class="badge" style="display:none">0</span></a>
@@ -1711,6 +1719,74 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             </div>
           </div>
           <div id="settings-panel-area"></div>
+        </div>
+      </div>
+
+      <!-- EARNINGS (admin-only) -->
+      <div id="p-earnings" class="pg-v admin-only">
+        <div class="page-header">
+          <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Earnings Report</h2>
+        </div>
+
+        <!-- Date controls (shared) -->
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:12px;font-weight:700;color:#64748b;white-space:nowrap">From</label>
+              <input type="date" id="earn-from" style="padding:7px 10px;border-radius:8px;border:1.5px solid #e2e8f0;font-family:var(--ff);font-size:13px;color:#334155;background:#fff">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:12px;font-weight:700;color:#64748b;white-space:nowrap">To</label>
+              <input type="date" id="earn-to" style="padding:7px 10px;border-radius:8px;border:1.5px solid #e2e8f0;font-family:var(--ff);font-size:13px;color:#334155;background:#fff">
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(0)" style="font-size:12px;padding:6px 12px">Today</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(1)" style="font-size:12px;padding:6px 12px">Yesterday</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(7)"   style="font-size:12px;padding:6px 12px">7 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(30)"  style="font-size:12px;padding:6px 12px">30 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(60)"  style="font-size:12px;padding:6px 12px">60 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(90)"  style="font-size:12px;padding:6px 12px">90 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(180)" style="font-size:12px;padding:6px 12px">6 Months</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(365)" style="font-size:12px;padding:6px 12px">1 Year</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Earnings Sub-Tabs -->
+        <div style="display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:12px">
+          <button id="earn-tab-orders" onclick="switchEarnTab('orders')"
+            style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .18s;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 2px 8px #6366f133">
+            <i class="fa fa-chart-bar" style="margin-right:6px"></i> Order Revenue
+          </button>
+          <button id="earn-tab-recharge" onclick="switchEarnTab('recharge')"
+            style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .18s;background:transparent;color:#64748b">
+            <i class="fa fa-wallet" style="margin-right:6px"></i> Wallet Recharges
+          </button>
+        </div>
+
+        <!-- ── TAB 1: Order Revenue ── -->
+        <div id="earn-pane-orders">
+          <div style="margin-bottom:12px">
+            <button class="btn btn-p" onclick="loadEarnings()" style="padding:8px 18px;font-size:13px"><i class="fa fa-search"></i> Fetch Orders</button>
+          </div>
+          <div id="earn-summary" style="display:none;margin-bottom:16px"></div>
+          <div id="earn-combo-panel" style="display:none;margin-bottom:16px"></div>
+          <div id="earn-trend-panel" style="display:none;margin-bottom:16px"></div>
+          <div id="earn-udhar-panel" style="display:none;margin-bottom:16px"></div>
+          <div id="earn-report"></div>
+        </div>
+
+        <!-- ── TAB 2: Wallet Recharges ── -->
+        <div id="earn-pane-recharge" style="display:none">
+          <div style="margin-bottom:12px">
+            <button class="btn btn-p" onclick="loadWalletRecharges()" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,#10b981,#059669)"><i class="fa fa-search"></i> Fetch Recharges</button>
+          </div>
+          <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:12.5px;color:#166534;line-height:1.6">
+            <i class="fa fa-circle-info" style="margin-right:6px"></i>
+            <b>Your real bank income</b> — Only cash recharges are counted here. Internal wallet debits (order payments) and rejected-order refunds are wallet accounting — they don't affect your cash. Every recharge entry = money you physically collected.
+          </div>
+          <div id="earn-recharge-summary" style="display:none;margin-bottom:16px"></div>
+          <div id="earn-recharge-report"></div>
         </div>
       </div>
 
@@ -7008,7 +7084,7 @@ function showPage(id) {
     'p-coupons': loadCoupons, 'p-subs': loadSubscribers,
     'p-users': loadUsers, 'p-riders': loadRiders, 'p-khata': loadAllKhata,
     'p-staff': loadStaff, 'p-notifs': loadNotifications, 'p-bulk': loadBulkPage,
-    'p-kitchen': loadKitchen,
+    'p-kitchen': loadKitchen, 'p-earnings': loadEarnings,
     'p-settings': () => {
       const el = document.querySelector('.settings-item');
       if (el) showSettingPanel('cutoff', el);
@@ -7021,6 +7097,724 @@ function showPage(id) {
   try { const r = loaders[id]?.(); if (r?.catch) r.catch(()=>{}); } catch(e) { console.warn('Tab load error:', e); }
   if (id === 'p-coupons') _silentDeleteExpiredCoupons();
   closeSidebar();
+}
+
+// ─── EARNINGS REPORT ─────────────────────────────────────
+function _earnISTDate(offsetDays = 0) {
+  // Returns YYYY-MM-DD in IST for today ± offsetDays
+  return new Date(Date.now() + 5.5 * 3600000 - offsetDays * 86400000).toISOString().slice(0, 10);
+}
+
+function earnQuick(days) {
+  // days===1 means "Yesterday only" → from = to = yesterday, not a 2-day range
+  const from  = _earnISTDate(days);
+  const to    = days === 1 ? _earnISTDate(1) : _earnISTDate(0);
+  document.getElementById('earn-from').value = from;
+  document.getElementById('earn-to').value   = to;
+  // Fire the correct loader based on which sub-tab is currently visible
+  const rechargePane = document.getElementById('earn-pane-recharge');
+  if (rechargePane && rechargePane.style.display !== 'none') {
+    loadWalletRecharges();
+  } else {
+    loadEarnings();
+  }
+}
+
+// Initialise date inputs when page is first opened
+function _earnInitDates() {
+  const today = _earnISTDate(0);
+  if (!document.getElementById('earn-from').value) document.getElementById('earn-from').value = today;
+  if (!document.getElementById('earn-to').value)   document.getElementById('earn-to').value   = today;
+}
+
+// ── Earnings Sub-Tab Switcher ──────────────────────────────────────────────
+function switchEarnTab(tab) {
+  const isOrders   = tab === 'orders';
+  document.getElementById('earn-pane-orders').style.display   = isOrders ? 'block' : 'none';
+  document.getElementById('earn-pane-recharge').style.display = isOrders ? 'none'  : 'block';
+
+  const btnO = document.getElementById('earn-tab-orders');
+  const btnR = document.getElementById('earn-tab-recharge');
+  if (isOrders) {
+    btnO.style.background  = 'linear-gradient(135deg,#6366f1,#4f46e5)';
+    btnO.style.color       = '#fff';
+    btnO.style.boxShadow   = '0 2px 8px #6366f133';
+    btnR.style.background  = 'transparent';
+    btnR.style.color       = '#64748b';
+    btnR.style.boxShadow   = 'none';
+  } else {
+    btnR.style.background  = 'linear-gradient(135deg,#10b981,#059669)';
+    btnR.style.color       = '#fff';
+    btnR.style.boxShadow   = '0 2px 8px #10b98133';
+    btnO.style.background  = 'transparent';
+    btnO.style.color       = '#64748b';
+    btnO.style.boxShadow   = 'none';
+    // Auto-load recharge data if not yet loaded for this date range
+    const reportEl = document.getElementById('earn-recharge-report');
+    if (!reportEl || !reportEl.innerHTML.trim()) loadWalletRecharges();
+  }
+}
+
+// ── Wallet Recharge Report ─────────────────────────────────────────────────
+async function loadWalletRecharges() {
+  _earnInitDates();
+  const from = document.getElementById('earn-from').value;
+  const to   = document.getElementById('earn-to').value;
+  if (!from || !to) { aToast('Select date range'); return; }
+
+  const summaryEl = document.getElementById('earn-recharge-summary');
+  const reportEl  = document.getElementById('earn-recharge-report');
+  reportEl.innerHTML  = '<div style="text-align:center;padding:32px;color:#94a3b8;font-size:13px"><i class="fa fa-spinner fa-spin"></i> Loading…</div>';
+  summaryEl.style.display = 'none';
+  _earnLastRechargeCash = 0; // reset so banner doesn't show stale cross-tab total
+
+  try {
+    const res = await api('getWalletRechargeReport', { fromDate: from, toDate: to });
+    if (!res.success) { reportEl.innerHTML = `<div class="card" style="color:#ef4444">${res.error}</div>`; return; }
+    _renderWalletRecharges(res);
+  } catch(e) {
+    reportEl.innerHTML = `<div class="card" style="color:#ef4444">${e.message}</div>`;
+  }
+}
+
+function _renderWalletRecharges(res) {
+  const summaryEl = document.getElementById('earn-recharge-summary');
+  const reportEl  = document.getElementById('earn-recharge-report');
+
+  // Store for cross-tab Total Bank Income banner
+  _earnLastRechargeCash = res.grandTotal || 0;
+
+  // ── Summary card ──────────────────────────────────────────────────────────
+  const avg = res.grandCount > 0 ? res.grandTotal / res.grandCount : 0;
+  summaryEl.innerHTML = `
+    <div class="card" style="border:2px solid #bbf7d022">
+      <div style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px">
+        ${res.fromDate === res.toDate ? res.fromDate : res.fromDate + ' → ' + res.toDate}
+        · ${res.grandCount} recharge${res.grandCount!==1?'s':''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Cash Collected</div>
+          <div style="font-size:30px;font-weight:900;color:#059669;font-family:var(--ff)">${_earnFmt(res.grandTotal)}</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Avg per Recharge</div>
+          <div style="font-size:20px;font-weight:800;color:#0f172a;font-family:var(--ff)">${_earnFmt(Math.round(avg))}</div>
+        </div>
+      </div>
+      ${_renderBankIncomeBanner()}
+    </div>`;
+  summaryEl.style.display = 'block';
+
+  // ── Day-by-day ────────────────────────────────────────────────────────────
+  if (!res.report.length) {
+    reportEl.innerHTML = '<div class="card" style="text-align:center;color:#94a3b8;padding:32px">No recharges found for this period.</div>';
+    return;
+  }
+
+  reportEl.innerHTML = res.report.map((day, di) => {
+    const dayId = 'erch-' + di;
+    const fmtDate = d => { const p=d.split('-'); return `${p[2]} ${['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]]} ${p[0]}`; };
+
+    const rows = day.entries.map(e => `
+      <tr style="border-top:1px solid #f0fdf4">
+        <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#0f172a">${e.name}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#64748b;font-family:monospace">${e.phone}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#64748b">${e.time||'—'}</td>
+        <td style="padding:8px 12px;font-size:12px;color:#94a3b8;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.note||'—'}</td>
+        <td style="padding:8px 12px;font-size:14px;font-weight:800;color:#059669;text-align:right">${_earnFmt(e.amount)}</td>
+      </tr>`).join('');
+
+    return `
+      <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden;border:1.5px solid #bbf7d044">
+        <div onclick="const b=document.getElementById('${dayId}');b.style.display=b.style.display==='none'?'block':'none'"
+             style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);cursor:pointer;user-select:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;background:#059669;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="fa fa-wallet" style="color:#fff;font-size:13px"></i>
+            </div>
+            <div>
+              <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a">${fmtDate(day.date)}</div>
+              <div style="font-size:11px;color:#16a34a">${day.dayCount} recharge${day.dayCount!==1?'s':''}</div>
+            </div>
+          </div>
+          <div style="font-size:20px;font-weight:900;color:#059669;font-family:var(--ff)">${_earnFmt(day.dayTotal)}</div>
+        </div>
+        <div id="${dayId}" style="display:none;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:440px">
+            <thead><tr style="background:#f0fdf4">
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Customer</th>
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Phone</th>
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Time</th>
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Note</th>
+              <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:right">Amount</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr style="background:#f0fdf4;border-top:2px solid #bbf7d0">
+              <td colspan="4" style="padding:8px 12px;font-size:12px;font-weight:700;color:#64748b">Total — ${day.dayCount} recharge${day.dayCount!==1?'s':''}</td>
+              <td style="padding:8px 12px;font-size:15px;font-weight:800;color:#059669;text-align:right">${_earnFmt(day.dayTotal)}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadEarnings() {
+  _earnInitDates();
+  const from = document.getElementById('earn-from').value;
+  const to   = document.getElementById('earn-to').value;
+  if (!from || !to) { aToast('Select date range'); return; }
+
+  const reportEl  = document.getElementById('earn-report');
+  const summaryEl = document.getElementById('earn-summary');
+  reportEl.innerHTML  = '<div style="text-align:center;padding:32px;color:#94a3b8;font-size:13px"><i class="fa fa-spinner fa-spin"></i> Loading…</div>';
+  summaryEl.style.display = 'none';
+  ['earn-combo-panel','earn-trend-panel','earn-udhar-panel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+  });
+  _earnLastRes = null;
+  _earnLastOrderCash = 0; // reset so banner doesn't show stale cross-tab total
+
+  try {
+    const res = await api('getEarningReport', { fromDate: from, toDate: to });
+    if (!res.success) { reportEl.innerHTML = `<div class="card" style="color:#ef4444">${res.error}</div>`; return; }
+    _renderEarnings(res);
+  } catch(e) {
+    reportEl.innerHTML = `<div class="card" style="color:#ef4444">${e.message}</div>`;
+  }
+}
+
+function _earnFmt(n) { return '₹' + Number(n || 0).toLocaleString('en-IN'); }
+
+const _EARN_MODE_LABEL = { wallet: 'Wallet', upi: 'UPI', upi_insuf: 'UPI (Insuf.)', unpaid: 'Udhar' };
+const _EARN_MODE_COLOR = { wallet: '#10b981', upi: '#3b82f6', upi_insuf: '#f59e0b', unpaid: '#ef4444' };
+const _EARN_MODE_BG    = { wallet: '#f0fdf4', upi: '#eff6ff', upi_insuf: '#fffbeb', unpaid: '#fef2f2' };
+const _EARN_MODE_ICON  = { wallet: 'fa-wallet', upi: 'fa-mobile-screen', upi_insuf: 'fa-triangle-exclamation', unpaid: 'fa-arrow-trend-down' };
+
+// ── Combination Calculator state ───────────────────────────────────────────
+let _earnComboModes    = new Set(['upi','upi_insuf','unpaid']); // default: true cash modes (wallet excluded — collected at recharge time)
+let _earnLastRes       = null;
+let _earnLastOrderCash = 0;   // UPI + UPI_insuf totals from last orders fetch
+let _earnLastRechargeCash = 0; // total from last recharge fetch
+
+// ── Total Bank Income Banner (shown when both tabs have data) ──────────────
+function _renderBankIncomeBanner() {
+  // This banner appears on the Recharge tab to show the combined picture
+  // when the user has also loaded the Orders tab.
+  // _earnLastRechargeCash = recharges shown on this tab
+  // _earnLastOrderCash    = UPI+UPI_insuf from the Orders tab
+  if (!_earnLastOrderCash && !_earnLastRechargeCash) return '';
+  const total = _earnLastOrderCash + _earnLastRechargeCash;
+  const rechargeLabel = _earnLastRechargeCash > 0
+    ? `<span style="font-size:12px;color:#059669;font-weight:700">Recharges ${_earnFmt(_earnLastRechargeCash)}</span>`
+    : `<span style="font-size:12px;color:#94a3b8">Recharges: check tab</span>`;
+  const upiLabel = _earnLastOrderCash > 0
+    ? `<span style="font-size:12px;color:#1d4ed8;font-weight:700">UPI (orders) ${_earnFmt(_earnLastOrderCash)}</span>`
+    : `<span style="font-size:12px;color:#94a3b8">UPI: fetch orders tab</span>`;
+  return `
+    <div style="margin-top:12px;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px"><i class="fa fa-building-columns" style="margin-right:5px"></i>Combined (excl. Wallet orders)</div>
+        <div style="font-size:10px;color:#475569;margin-top:2px">Wallet orders excluded — counted at recharge time</div>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+          ${rechargeLabel}
+          <span style="color:#475569;font-size:11px">+</span>
+          ${upiLabel}
+        </div>
+      </div>
+      <div style="font-size:26px;font-weight:900;color:#10b981;font-family:var(--ff)">${_earnFmt(total)}</div>
+    </div>`;
+}
+
+function _earnComboToggle(mode) {
+  if (_earnComboModes.has(mode)) _earnComboModes.delete(mode);
+  else _earnComboModes.add(mode);
+  _renderComboCalc(_earnLastRes);
+}
+
+function _renderComboCalc(res) {
+  if (!res) return;
+  const panel = document.getElementById('earn-combo-panel');
+  if (!panel) return;
+
+  // Compute totals for each mode over the whole report
+  const modeTotals = {};
+  const modeCounts = {};
+  for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
+    let tot = 0, cnt = 0;
+    for (const day of res.report) {
+      for (const sl of day.slots) {
+        tot += sl.modes[mode]?.total || 0;
+        cnt += sl.modes[mode]?.count || 0;
+      }
+    }
+    modeTotals[mode] = tot;
+    modeCounts[mode]  = cnt;
+  }
+
+  // Compute selected combination total
+  let comboTotal = 0, comboCount = 0;
+  for (const m of _earnComboModes) {
+    comboTotal += modeTotals[m] || 0;
+    comboCount += modeCounts[m] || 0;
+  }
+
+  const chipHtml = ['wallet','upi','upi_insuf','unpaid'].map(m => {
+    const active = _earnComboModes.has(m);
+    const border = active ? _EARN_MODE_COLOR[m] : '#e2e8f0';
+    const bg     = active ? _EARN_MODE_COLOR[m] : '#fff';
+    const color  = active ? '#fff' : '#64748b';
+    return `<button onclick="_earnComboToggle('${m}')"
+      style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:10px;border:2px solid ${border};background:${bg};color:${color};font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s">
+      <i class="fa ${_EARN_MODE_ICON[m]}" style="font-size:12px"></i>
+      ${_EARN_MODE_LABEL[m]}
+      <span style="font-size:11px;opacity:.8">${_earnFmt(modeTotals[m])}</span>
+    </button>`;
+  }).join('');
+
+  const selLabel = _earnComboModes.size === 0 ? 'None selected'
+    : [..._earnComboModes].map(m => _EARN_MODE_LABEL[m]).join(' + ');
+
+  panel.innerHTML = `
+    <div class="card" style="border:2px solid #6366f122">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:32px;height:32px;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="fa fa-calculator" style="color:#fff;font-size:14px"></i>
+        </div>
+        <div>
+          <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a">Combination Calculator</div>
+          <div style="font-size:11px;color:#94a3b8">Toggle payment modes to get combined total</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">${chipHtml}</div>
+      <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px">${selLabel}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:2px">${comboCount} orders combined</div>
+        </div>
+        <div style="font-size:26px;font-weight:900;color:#4f46e5;font-family:var(--ff)">${_earnFmt(comboTotal)}</div>
+      </div>
+    </div>`;
+  panel.style.display = 'block';
+}
+
+// ── Trend Chart (SVG sparklines per mode) ─────────────────────────────────
+function _renderTrendChart(res) {
+  const panel = document.getElementById('earn-trend-panel');
+  if (!panel || !res.report.length) { panel && (panel.style.display='none'); return; }
+
+  // Only show chart if multi-day
+  if (res.report.length < 2) { panel.style.display='none'; return; }
+
+  // Build per-date mode totals (chronological order)
+  const dates = [...res.report].reverse().map(d => d.date);
+  const modeData = {};
+  for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
+    modeData[mode] = [...res.report].reverse().map(day =>
+      day.slots.reduce((s, sl) => s + (sl.modes[mode]?.total || 0), 0)
+    );
+  }
+
+  const W = 340, H = 90, PAD = 6;
+  const allVals = Object.values(modeData).flat();
+  const maxVal  = Math.max(...allVals, 1);
+  const step    = (W - PAD*2) / Math.max(dates.length - 1, 1);
+
+  function toX(i) { return PAD + i * step; }
+  function toY(v) { return H - PAD - ((v / maxVal) * (H - PAD*2)); }
+  function polyline(mode) {
+    const pts = modeData[mode].map((v,i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${_EARN_MODE_COLOR[mode]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="${modeData[mode].some(v=>v>0)?1:0.1}"/>`;
+  }
+  function dots(mode) {
+    return modeData[mode].map((v,i) => v > 0
+      ? `<circle cx="${toX(i).toFixed(1)}" cy="${toY(v).toFixed(1)}" r="3" fill="${_EARN_MODE_COLOR[mode]}" stroke="#fff" stroke-width="1.5"/>`
+      : ''
+    ).join('');
+  }
+
+  const fmtShort = d => { const p=d.split('-'); return `${p[2]}/${p[1]}`; };
+  const xLabels = dates.length <= 10
+    ? dates.map((d,i) => `<text x="${toX(i).toFixed(1)}" y="${H+14}" text-anchor="middle" font-size="9" fill="#94a3b8">${fmtShort(d)}</text>`).join('')
+    : [0, Math.floor((dates.length-1)/2), dates.length-1].map(i =>
+        `<text x="${toX(i).toFixed(1)}" y="${H+14}" text-anchor="middle" font-size="9" fill="#94a3b8">${fmtShort(dates[i])}</text>`
+      ).join('');
+
+  const legend = ['wallet','upi','upi_insuf','unpaid'].filter(m => modeData[m].some(v=>v>0)).map(m =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#475569;font-weight:600">
+      <span style="width:12px;height:3px;background:${_EARN_MODE_COLOR[m]};border-radius:2px;display:inline-block"></span>
+      ${_EARN_MODE_LABEL[m]}
+    </span>`
+  ).join('');
+
+  panel.innerHTML = `
+    <div class="card">
+      <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a;margin-bottom:10px">
+        <i class="fa fa-chart-line" style="color:#6366f1;margin-right:6px"></i> Daily Payment Trend
+      </div>
+      <div style="overflow-x:auto">
+        <svg width="100%" height="${H+22}" viewBox="0 0 ${W} ${H+22}" style="display:block;min-width:${Math.max(dates.length*22,180)}px">
+          <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="#e2e8f0" stroke-width="1"/>
+          <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="#e2e8f0" stroke-width="1"/>
+          ${['wallet','upi','upi_insuf','unpaid'].map(polyline).join('')}
+          ${['wallet','upi','upi_insuf','unpaid'].map(dots).join('')}
+          ${xLabels}
+        </svg>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">${legend}</div>
+    </div>`;
+  panel.style.display = 'block';
+}
+
+// ── Udhar Recovery Panel ───────────────────────────────────────────────────
+function _renderUdharPanel(res) {
+  const panel = document.getElementById('earn-udhar-panel');
+  if (!panel) return;
+
+  // Collect all udhar orders from the report
+  const udharOrders = [];
+  for (const day of res.report) {
+    for (const sl of day.slots) {
+      const uOrds = sl.modes['unpaid']?.orders || [];
+      for (const o of uOrds) udharOrders.push({ ...o, date: day.date, slot: sl.slot });
+    }
+  }
+
+  if (!udharOrders.length) { panel.style.display='none'; return; }
+
+  // Group by phone → sum pending udhar per customer
+  const byPhone = {};
+  for (const o of udharOrders) {
+    if (!byPhone[o.phone]) byPhone[o.phone] = { name: o.name, phone: o.phone, total: 0, orders: 0 };
+    byPhone[o.phone].total  += o.final_amount;
+    byPhone[o.phone].orders += 1;
+  }
+  const sorted = Object.values(byPhone).sort((a,b) => b.total - a.total);
+  const grandUdhar = sorted.reduce((s,c) => s + c.total, 0);
+
+  const rows = sorted.map(c => {
+    const waMsg = encodeURIComponent(`Namaste ${c.name||''}! Aapka Tiffo udhar \u20b9${Math.round(c.total)} pending hai. Please wallet recharge karein. \ud83d\ude4f`);
+    return `
+    <tr style="border-top:1px solid #fef2f2">
+      <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#0f172a">${c.name||'—'}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#64748b;font-family:monospace">${c.phone}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#64748b;text-align:center">${c.orders}</td>
+      <td style="padding:8px 12px;font-size:13px;font-weight:800;color:#ef4444;text-align:right">${_earnFmt(c.total)}</td>
+      <td style="padding:8px 12px;text-align:center">
+        <a href="https://wa.me/91${c.phone}?text=${waMsg}" target="_blank"
+           style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;background:#25D366;color:#fff;font-size:11px;font-weight:700;text-decoration:none">
+           <i class="fab fa-whatsapp"></i> Remind
+        </a>
+      </td>
+    </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="card" style="border:2px solid #fecaca;padding:0;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#fef2f2,#fff1f2);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:32px;height:32px;background:#ef4444;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="fa fa-arrow-trend-down" style="color:#fff;font-size:14px"></i>
+          </div>
+          <div>
+            <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#7f1d1d">Udhar Recovery Tracker</div>
+            <div style="font-size:11px;color:#ef4444">${sorted.length} customer${sorted.length!==1?'s':''} have pending dues</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase">Total Dues</div>
+          <div style="font-size:22px;font-weight:900;color:#ef4444;font-family:var(--ff)">${_earnFmt(grandUdhar)}</div>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:420px">
+          <thead><tr style="background:#fef2f2">
+            <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Customer</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Phone</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Orders</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:right">Due</th>
+            <th style="padding:8px 12px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Action</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  panel.style.display = 'block';
+}
+
+// ── CSV Export ─────────────────────────────────────────────────────────────
+function _earnExportCSV(res) {
+  const rows = [['Date','Slot','Payment Mode','Customer','Phone','Items','Time','Amount','Status','Source']];
+  for (const day of res.report) {
+    for (const sl of day.slots) {
+      for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
+        for (const o of (sl.modes[mode]?.orders || [])) {
+          const items = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} x${i.qty||1}`).join('; ');
+          rows.push([day.date, sl.slot, _EARN_MODE_LABEL[mode], o.name||'', o.phone||'', items, o.time||'', o.final_amount||0, o.order_status||'', o.source||'user']);
+        }
+      }
+    }
+  }
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `tiffo-earnings-${res.fromDate}-to-${res.toDate}.csv`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  aToast('CSV downloaded!');
+}
+
+function _renderEarnings(res) {
+  _earnLastRes = res;
+  const summaryEl = document.getElementById('earn-summary');
+  const reportEl  = document.getElementById('earn-report');
+
+  // ── Grand summary tiles (individual per mode + export button) ─────────────
+  const gc = res.grandCounts || {};
+  const modeTotals = {};
+  for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
+    modeTotals[mode] = res.report.reduce((s,d)=>s+d.slots.reduce((ss,sl)=>ss+(sl.modes[mode]?.total||0),0),0);
+  }
+
+  // ── True Cash Earned this period ──────────────────────────────────────────
+  // = Recharges collected + UPI + UPI_insuf + Unpaid(udhar)
+  // Wallet orders excluded — cash was already counted when subscriber recharged.
+  const grandTrueCash     = res.grandTrueCash     || 0;
+  const grandRechargeCash = res.grandRechargeCash || 0;
+  const trueCashUpi       = (modeTotals['upi']      || 0) + (modeTotals['upi_insuf'] || 0);
+  const trueCashUdhar     = modeTotals['unpaid']    || 0;
+  const trueCashUpiCount  = (gc['upi'] || 0) + (gc['upi_insuf'] || 0);
+
+  // Store for cross-tab Total Bank Income banner (recharges already fetched via server now)
+  _earnLastOrderCash = trueCashUpi;     // UPI portion (for banner compatibility)
+  _earnLastRechargeCash = grandRechargeCash; // recharge portion from orders tab
+
+  // Breakdown rows under True Cash hero
+  const breakdownRows = [
+    grandRechargeCash > 0  ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #e2e8f0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#059669;font-weight:600"><i class="fa fa-wallet" style="font-size:11px"></i>Wallet Recharges <span style="font-size:10px;color:#94a3b8;font-weight:400">(cash received)</span></span>
+      <span style="font-size:13px;font-weight:800;color:#059669">${_earnFmt(grandRechargeCash)}</span>
+    </div>` : '',
+    trueCashUpi > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #e2e8f0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#3b82f6;font-weight:600"><i class="fa fa-mobile-screen" style="font-size:11px"></i>UPI + UPI Insuf <span style="font-size:10px;color:#94a3b8;font-weight:400">(${trueCashUpiCount} orders)</span></span>
+      <span style="font-size:13px;font-weight:800;color:#3b82f6">${_earnFmt(trueCashUpi)}</span>
+    </div>` : '',
+    trueCashUdhar > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#ef4444;font-weight:600"><i class="fa fa-arrow-trend-down" style="font-size:11px"></i>Udhar (Unpaid) <span style="font-size:10px;color:#94a3b8;font-weight:400">(${gc['unpaid']||0} orders, owed)</span></span>
+      <span style="font-size:13px;font-weight:800;color:#ef4444">${_earnFmt(trueCashUdhar)}</span>
+    </div>` : '',
+  ].filter(Boolean).join('');
+
+  // Wallet info tile (informational only — not in day total)
+  const walletInfoHtml = gc['wallet'] ? `
+    <div style="margin-top:12px;background:#f1f5f9;border:1.5px solid #cbd5e133;border-radius:10px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px"><i class="fa fa-wallet" style="margin-right:5px;color:#10b981"></i>Wallet Orders <span style="font-weight:500;text-transform:none;letter-spacing:0">(not counted in day total)</span></div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px">${gc['wallet']} orders · Cash was collected at recharge time</div>
+      </div>
+      <div style="font-size:18px;font-weight:800;color:#94a3b8;font-family:var(--ff)">${_earnFmt(modeTotals['wallet']||0)}</div>
+    </div>` : '';
+
+  const tiles = ['upi','upi_insuf','unpaid'].map(m => {
+    if (!gc[m]) return '';
+    const pct = grandTrueCash > 0 ? ((modeTotals[m]/grandTrueCash)*100).toFixed(1) : '0';
+    const noteMap = { upi: '', upi_insuf: '', unpaid: `<div style="font-size:10px;color:#ef4444;margin-top:3px;font-weight:500">Food served, cash owed</div>` };
+    return `<div style="background:${_EARN_MODE_BG[m]};border:1.5px solid ${_EARN_MODE_COLOR[m]}33;border-radius:12px;padding:12px 14px;min-width:110px;flex:1">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
+        <i class="fa ${_EARN_MODE_ICON[m]}" style="font-size:11px;color:${_EARN_MODE_COLOR[m]}"></i>
+        <span style="font-size:10px;font-weight:700;color:${_EARN_MODE_COLOR[m]};letter-spacing:.5px;text-transform:uppercase">${_EARN_MODE_LABEL[m]}</span>
+      </div>
+      <div style="font-size:18px;font-weight:800;color:#0f172a">${_earnFmt(modeTotals[m])}</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+        <span style="font-size:11px;color:#64748b">${gc[m]} order${gc[m]!==1?'s':''}</span>
+        <span style="font-size:10px;font-weight:700;color:${_EARN_MODE_COLOR[m]};background:${_EARN_MODE_COLOR[m]}18;padding:1px 5px;border-radius:20px">${pct}%</span>
+      </div>${noteMap[m]}
+    </div>`;
+  }).join('');
+
+  summaryEl.innerHTML = `
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:700;color:#64748b">${res.fromDate === res.toDate ? res.fromDate : res.fromDate + ' → ' + res.toDate} · ${res.totalOrders} orders</div>
+        <button onclick="if(_earnLastRes)_earnExportCSV(_earnLastRes);else aToast('No data to export');" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
+          <i class="fa fa-download" style="color:#6366f1"></i> Export CSV
+        </button>
+      </div>
+
+      <!-- TRUE CASH HERO -->
+      <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:14px;padding:18px 20px;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">
+          <i class="fa fa-indian-rupee-sign" style="margin-right:5px;color:#10b981"></i>Total Day Earnings
+        </div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:8px">Recharges + UPI + UPI Insuf + Udhar</div>
+        <div style="font-size:34px;font-weight:900;color:#10b981;font-family:var(--ff);line-height:1">${_earnFmt(grandTrueCash)}</div>
+        ${breakdownRows.length ? `<div style="margin-top:14px;border-top:1px solid #334155;padding-top:12px">${breakdownRows}</div>` : ''}
+      </div>
+
+      <!-- Per-mode tiles (UPI / UPI_insuf / Udhar) -->
+      ${tiles.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${tiles}</div>` : ''}
+
+      <!-- Wallet info row (greyed out, informational) -->
+      ${walletInfoHtml}
+    </div>`;
+  summaryEl.style.display = 'block';
+
+  // Render combo calc, trend chart, udhar panel
+  _renderComboCalc(res);
+  _renderTrendChart(res);
+  _renderUdharPanel(res);
+
+  // ── Day-by-day report ────────────────────────────────────────────────────
+  if (!res.report.length) {
+    reportEl.innerHTML = '<div class="card" style="text-align:center;color:#94a3b8;padding:32px">No orders found for this period.</div>';
+    return;
+  }
+
+  reportEl.innerHTML = res.report.map((day, di) => {
+    const dayId = 'eday-' + di;
+    const slotHtml = day.slots.map((sl, si) => {
+      const slId   = dayId + '-sl' + si;
+      const slIcon = sl.slot === 'morning' ? '🌅' : '🌙';
+      const slLbl  = sl.slot === 'morning' ? 'Morning' : 'Evening';
+
+      // Mode rows inside this slot
+      const modeRows = ['wallet','upi','upi_insuf','unpaid'].map(mode => {
+        const mdata = sl.modes[mode];
+        if (!mdata) return '';
+        const mId = slId + '-' + mode;
+        const orderRows = mdata.orders.map(o => {
+          const itemSummary = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} ×${i.qty||1}`).join(', ');
+          const statusColor = o.order_status==='delivered'?'#10b981':o.order_status==='pending'?'#f59e0b':'#64748b';
+          return `<tr style="border-top:1px solid #f1f5f9">
+            <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a">${o.name||'—'}</td>
+            <td style="padding:8px 10px;font-size:12px;color:#64748b;font-family:monospace">${o.phone||'—'}</td>
+            <td style="padding:8px 10px;font-size:12px;color:#334155">${itemSummary||'—'}</td>
+            <td style="padding:8px 10px;font-size:12px;color:#64748b">${o.time||'—'}</td>
+            <td style="padding:8px 10px;font-size:12px;font-weight:700;color:${_EARN_MODE_COLOR[mode]};text-align:right">${_earnFmt(o.final_amount)}</td>
+            <td style="padding:8px 10px;font-size:11px;text-align:center"><span style="padding:2px 8px;border-radius:20px;background:${statusColor}22;color:${statusColor};font-weight:700">${o.order_status}</span></td>
+            <td style="padding:8px 10px;font-size:11px;color:#94a3b8;text-align:center">${o.source==='admin_bulk'?'Bulk':o.source==='admin'?'Admin':'User'}</td>
+          </tr>`;
+        }).join('');
+
+        return `
+          <div style="margin:8px 0;border:1.5px solid ${_EARN_MODE_COLOR[mode]}33;border-radius:10px;overflow:hidden">
+            <div onclick="document.getElementById('${mId}').style.display=document.getElementById('${mId}').style.display==='none'?'block':'none'"
+                 style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${_EARN_MODE_BG[mode]};cursor:pointer;user-select:none">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;font-weight:800;color:${_EARN_MODE_COLOR[mode]};padding:2px 8px;background:${_EARN_MODE_COLOR[mode]}22;border-radius:20px">${_EARN_MODE_LABEL[mode]}</span>
+                <span style="font-size:12px;color:#64748b">${mdata.count} order${mdata.count!==1?'s':''}</span>
+              </div>
+              <span style="font-size:14px;font-weight:800;color:#0f172a">${_earnFmt(mdata.total)}</span>
+            </div>
+            <div id="${mId}" style="display:none;overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;min-width:560px">
+                <thead><tr style="background:#f8fafc">
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Name</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Phone</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Items</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Time</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right">Amount</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Status</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Source</th>
+                </tr></thead>
+                <tbody>${orderRows}</tbody>
+                <tfoot><tr style="background:#f8fafc;border-top:2px solid #e2e8f0">
+                  <td colspan="4" style="padding:8px 10px;font-size:12px;font-weight:700;color:#64748b">Total — ${mdata.count} orders</td>
+                  <td style="padding:8px 10px;font-size:14px;font-weight:800;color:${_EARN_MODE_COLOR[mode]};text-align:right">${_earnFmt(mdata.total)}</td>
+                  <td colspan="2"></td>
+                </tr></tfoot>
+              </table>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Combined UPI row for this slot
+      const upiComboHtml = sl.upiCombinedCount > 0 ? `
+        <div style="margin:8px 0;border:1.5px solid #94a3b833;border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#f8fafc">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;font-weight:800;color:#475569;padding:2px 8px;background:#e2e8f0;border-radius:20px">UPI Combined</span>
+              <span style="font-size:12px;color:#64748b">${sl.upiCombinedCount} orders</span>
+            </div>
+            <span style="font-size:14px;font-weight:800;color:#0f172a">${_earnFmt(sl.upiCombinedTotal)}</span>
+          </div>
+        </div>` : '';
+
+      return `
+        <div style="margin:10px 0;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden">
+          <div onclick="var b=document.getElementById('${slId}');b.style.display=b.style.display==='none'?'block':'none'"
+               style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f8fafc;cursor:pointer;user-select:none">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:16px">${slIcon}</span>
+              <div>
+                <span style="font-size:14px;font-weight:700;color:#0f172a">${slLbl}</span>
+                <span style="font-size:12px;color:#94a3b8;margin-left:6px">· ${Object.values(sl.modes).reduce((s,m)=>s+m.count,0)} orders</span>
+                ${sl.modes['wallet'] ? `<div style="font-size:10px;color:#94a3b8;margin-top:1px">Wallet ₹${(sl.modes['wallet'].total||0).toLocaleString('en-IN')} excl.</div>` : ''}
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:16px;font-weight:800;color:#0f172a">${_earnFmt(sl.slotTrueCash)}</div>
+              ${sl.slotTrueCash !== sl.slotTotal ? `<div style="font-size:10px;color:#94a3b8">incl. wallet: ${_earnFmt(sl.slotTotal)}</div>` : ''}
+            </div>
+          </div>
+          <div id="${slId}" style="padding:10px 12px">
+            ${modeRows}
+            ${upiComboHtml}
+          </div>
+        </div>`;
+    }).join('');
+
+    // Day-level badge breakdown (compact)
+    const dayCashBreakdown = (() => {
+      const parts = [];
+      if (day.dayRechargeCash > 0) parts.push(`<span style="color:#059669;font-weight:600">Rchg ${_earnFmt(day.dayRechargeCash)}</span>`);
+      if (day.dayUpiCombinedTotal > 0) parts.push(`<span style="color:#3b82f6;font-weight:600">UPI ${_earnFmt(day.dayUpiCombinedTotal)}</span>`);
+      const udharAmt = day.slots.reduce((s,sl)=>s+(sl.modes['unpaid']?.total||0),0);
+      if (udharAmt > 0) parts.push(`<span style="color:#ef4444;font-weight:600">Udhar ${_earnFmt(udharAmt)}</span>`);
+      return parts.join('<span style="color:#475569;font-size:10px"> + </span>');
+    })();
+    const walletAmt = day.slots.reduce((s,sl)=>s+(sl.modes['wallet']?.total||0),0);
+    const walletBadge = walletAmt > 0
+      ? `<span style="font-size:10px;color:#64748b;margin-left:6px" title="Internal wallet deduction — cash was collected at recharge time">🏦 Wallet ${_earnFmt(walletAmt)} (excl.)</span>`
+      : '';
+    const orderCount = Object.values(day.dayCounts).reduce((s,c)=>s+c,0);
+    // Recharge-only days: no orders, just a recharge happened
+    const bodyContent = day.slots.length > 0 ? slotHtml
+      : `<div style="padding:12px 14px;font-size:12px;color:#64748b;font-style:italic">No orders this day — recharge only.</div>`;
+
+    return `
+      <div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
+        <div onclick="var b=document.getElementById('${dayId}');b.style.display=b.style.display==='none'?'block':'none'"
+             style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#0f172a;cursor:pointer;user-select:none">
+          <div>
+            <div style="font-size:15px;font-weight:800;color:#fff;font-family:var(--ff)">${_fmtEarnDate(day.date)}</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px">${orderCount > 0 ? orderCount + ' order' + (orderCount!==1?'s':'') : 'Recharge only'}</div>
+            <div style="font-size:11px;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+              ${dayCashBreakdown}${walletBadge}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Day Total</div>
+            <div style="font-size:22px;font-weight:900;color:#10b981;font-family:var(--ff)">${_earnFmt(day.dayTrueCash)}</div>
+          </div>
+        </div>
+        <div id="${dayId}" style="padding:12px 14px">${bodyContent}</div>
+      </div>`;
+  }).join('');
+}
+
+function _fmtEarnDate(d) {
+  if (!d) return '—';
+  const dt   = new Date(d + 'T00:00:00');
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${days[dt.getDay()]}, ${dt.getDate()} ${mons[dt.getMonth()]} ${dt.getFullYear()}`;
 }
 
 // ─── AUTO-DELETE EXPIRED COUPONS (silent) ────────────────
