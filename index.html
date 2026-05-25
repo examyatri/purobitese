@@ -874,7 +874,15 @@ textarea{resize:vertical;min-height:80px}
 .auth-status.success{color:#15803d;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;box-shadow:0 2px 8px rgba(22,163,74,.09)}
 .forgot-link{font-family:var(--fb);font-size:13px;color:var(--p);text-align:right;background:none;border:none;cursor:pointer;width:100%;text-decoration:none;margin-top:6px}
 /* Home page header */
-.home-header{background:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) var(--pg-pad) 10px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 #f0f0f0}
+.home-header{background:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) var(--pg-pad) 12px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 #f0f0f0}
+.home-header-row{display:flex;align-items:center;gap:8px}
+.home-header-logo{flex:1;min-width:0;transition:opacity 200ms,width 200ms}
+.home-header-search-wrap{display:none;flex:1;align-items:center;gap:8px;background:#f5f5f5;border-radius:12px;padding:0 12px;height:38px;overflow:hidden}
+.home-header-search-wrap.open{display:flex}
+.home-header-search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);outline:none;-webkit-appearance:none;appearance:none;min-width:0}
+.home-header-search-wrap input::-webkit-search-decoration,.home-header-search-wrap input::-webkit-search-cancel-button{display:none}
+.hdr-icon-btn{border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--gr);flex-shrink:0;transition:background 150ms,color 150ms}
+.hdr-icon-btn.active{background:var(--pl);color:var(--p)}
 .home-logo{font-family:var(--ff);font-weight:800;font-size:22px}
 .home-logo .r{color:var(--p)}.home-logo .g{color:var(--g)}
 .home-logo-sub{font-family:var(--fb);font-size:11px;color:var(--gr)}
@@ -1448,20 +1456,35 @@ textarea{resize:vertical;min-height:80px}
      PAGE: HOME
 ══════════════════════════════════════════════ -->
 <div id="pg-home" class="pg">
-  <div class="home-header flex-sb">
-    <div>
-      <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-      <div class="home-logo-sub">Ghar Ka Tiffin 😍</div>
-    </div>
-    <div class="flex gap8">
-      <button style="border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
-        <i class="fa-solid fa-bag-shopping"></i>
-        <span id="header-cart-badge" class="badge" style="display:none">0</span>
-      </button>
-      <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
-        <span id="home-avatar-initials">?</span>
-        <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
-      </button>
+  <div class="home-header">
+    <div class="home-header-row">
+      <!-- Logo (hidden when search is open) -->
+      <div class="home-header-logo" id="hdr-logo">
+        <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
+        <div class="home-logo-sub">Ghar Ka Tiffin 😍</div>
+      </div>
+      <!-- Inline search input (shown when search icon tapped) -->
+      <div class="home-header-search-wrap" id="hdr-search-wrap">
+        <input type="search" id="menu-search" placeholder="Search dishes..."
+          onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}"
+          oninput="_menuSearchDebounce(this.value)"
+          autofocus>
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none;background:none;border:none;color:var(--gr);font-size:18px;cursor:pointer;padding:0;line-height:1">×</button>
+      </div>
+      <!-- Right icons: search | cart | avatar -->
+      <div class="flex gap8" style="flex-shrink:0">
+        <button class="hdr-icon-btn" id="hdr-search-btn" onclick="_toggleHeaderSearch()" aria-label="Search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+        <button class="hdr-icon-btn" onclick="nav('pg-cart')" aria-label="Cart">
+          <i class="fa-solid fa-bag-shopping"></i>
+          <span id="header-cart-badge" class="badge" style="display:none">0</span>
+        </button>
+        <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
+          <span id="home-avatar-initials">?</span>
+          <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1499,14 +1522,6 @@ textarea{resize:vertical;min-height:80px}
       <!-- Cutoff banner -->
       <div id="cutoff-banner" style="display:none"></div>
 
-
-      <!-- Search -->
-      <div class="search-wrap">
-        <i class="fa-solid fa-magnifying-glass" style="color:var(--gr)"></i>
-        <input type="search" id="menu-search" placeholder="Search dishes..." onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}" oninput="_menuSearchDebounce(this.value)">
-        <button id="search-go-btn" onclick="onMenuSearch(document.getElementById('menu-search').value)" style="border:none;background:none;padding:0 4px;cursor:pointer;color:var(--p);font-size:17px;display:flex;align-items:center"><i class="fa-solid fa-magnifying-glass"></i></button>
-        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
-      </div>
 
       <!-- Category chips -->
       <div class="cat-scroll" id="cat-scroll"></div>
@@ -2157,7 +2172,7 @@ let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
 const _POLL_ACTIVE_ORDERS = 90_000; // 90s — faster order poll when user has pending/confirmed/out-for-delivery orders
-const _REVISIT_THRESHOLD = 4 * 60 * 1000; // 4 min — aligns with Supabase warmup cycle; user returning after cold window gets silent refresh before interacting
+const _REVISIT_THRESHOLD = 60_000; // 60s — matches version poll interval; return after >=1 min triggers silent menu refresh for both guest and logged-in
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
 const _MENU_TTL = 30 * 60 * 1000; // 30 min — stale cache served instantly; background refresh after this
@@ -2898,13 +2913,12 @@ function back() {
 
 function onEnter(id) {
   if (id === 'pg-home') {
-    // Always fetch fresh from DB on every home visit — gives user latest menu, schedule, wallet.
-    // Guard aligns with version poll interval (60s).
-    // _checkMenuVersion already polls every 60s and triggers loadMenu only when admin changed data.
-    // onEnter firing sooner than that is redundant — version poll is the single source of truth for menu freshness.
-    // PTR and visibilitychange (4min threshold) handle the explicit-refresh and long-absence cases.
+    // Check version on every home tab entry — lightweight ~80-byte ping.
+    // Only triggers a full DB fetch if admin actually changed something.
+    // _menuFreshTs < 30s guard inside _checkMenuVersion prevents redundant calls
+    // immediately after login/PTR. Guest and logged-in both covered.
     _menuLoading = false; // unlock in case a background poll fetch is in-flight
-    if (Date.now() - _menuFreshTs > _VERSION_POLL_INTERVAL) loadMenu(true, true);
+    _checkMenuVersion();
     if (Date.now() - _pauseFreshTs  > _DATA_FRESH_TTL) loadPauseState();
     if (Date.now() - _walletFreshTs > _DATA_FRESH_TTL) refreshWalletBalance(true);
     // NOTE: startPolling() intentionally NOT called here — poll is a background heartbeat
@@ -4296,6 +4310,26 @@ function onMenuSearch(val) {
 function clearSearch() {
   document.getElementById('menu-search').value = '';
   onMenuSearch('');
+}
+
+function _toggleHeaderSearch() {
+  const wrap = document.getElementById('hdr-search-wrap');
+  const logo = document.getElementById('hdr-logo');
+  const btn  = document.getElementById('hdr-search-btn');
+  const isOpen = wrap.classList.contains('open');
+  if (isOpen) {
+    // Close: clear search, restore logo
+    clearSearch();
+    wrap.classList.remove('open');
+    logo.style.display = '';
+    btn.classList.remove('active');
+  } else {
+    // Open: hide logo, show input, focus
+    logo.style.display = 'none';
+    wrap.classList.add('open');
+    btn.classList.add('active');
+    setTimeout(() => document.getElementById('menu-search').focus(), 50);
+  }
 }
 
 function _currentSession() {
@@ -6504,36 +6538,33 @@ document.addEventListener('visibilitychange', () => {
     const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
     _hiddenAt = 0;
 
-    // Immediately re-run slot filter so correct morning/evening items show right away
-    // (time may have crossed a slot boundary while app was in background)
-    if (_session && _fullMenu.length) filterAndRenderMenu();
+    // Re-run slot filter immediately — time may have crossed morning/evening boundary
+    if ((_session || _isGuestMode) && _fullMenu.length) filterAndRenderMenu();
 
-    if (_session && awayMs >= _REVISIT_THRESHOLD) {
-      // User was away >= 60s — silently refresh everything like a PTR.
-      // Reset _postLoginRefreshDone so a fresh post-login refresh can run if needed.
-      _menuLoading = false; // unlock in case a stale lock is held
-      _postLoginRefreshDone = false;
-      // Reset settings promise cache so next openPauseSheet gets fresh cutoff from DB
-      // Menu cache is NOT deleted — loadMenu(true,true) fetches DB fresh and overwrites
-      // it on success. If fetch fails, old cache remains available for fallback.
+    if (_session || _isGuestMode) {
+      // ── IMMEDIATE VERSION CHECK ───────────────────────────────────────────────
+      // Always ping getMenuVersion the moment user returns — regardless of how long
+      // they were away. This is a ~80-byte call, effectively free. If admin changed
+      // the menu while user was gone, loadMenu(true,true) fires and user sees fresh
+      // data within 1-2s of returning. If version matches, nothing extra happens.
+      // This covers every case: short absence, long absence, guest, logged-in.
+      // _checkMenuVersion internally skips if menu was fetched in last 30s (PTR/login).
+      _menuLoading = false; // unlock in case a stale background fetch was in-flight
       _resetSettingsCache();
-      Promise.all([
-        loadMenu(true, true).catch(() => {}),      // bypassCache=true, silent=true → fresh DB hit, no skeleton
-        // OPT: Single merged call replaces 3 separate calls (checkSubscriber +
-        //   getSubscriberPauseStatus + getSubscriberBalance) — server fetches
-        //   khata_summary + subscribers in parallel and returns isSubscriber flag
-        //   so unsubscription by admin while away is correctly detected.
-        //   forceSubCheck=true enables the unsubscription detection path.
-        (_session
-          ? refreshSubscriberStatusMerged(true).catch(() => {})
-          : Promise.resolve())
-      ]).finally(() => { startPolling(); startVersionPolling(); });
-    } else {
-      // Short absence — just resume normal poll cycle
-      _runPollTick();
-      startPolling();
-      startVersionPolling();
+      _checkMenuVersion(); // lightweight — only triggers full fetch if version changed
+
+      // ── LONG ABSENCE: also refresh subscriber status for logged-in users ─────
+      // Version poll handles menu. Subscriber status (balance, pause, is_subscriber)
+      // can also change while user was away — check it on returns >= 60s.
+      if (_session && awayMs >= _REVISIT_THRESHOLD) {
+        _postLoginRefreshDone = false;
+        refreshSubscriberStatusMerged(true).catch(() => {});
+      }
     }
+
+    // Always restart background timers
+    startPolling();
+    startVersionPolling();
   }
 });
 
