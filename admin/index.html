@@ -3,7 +3,7 @@
      ║  Tiffo — Admin Panel (admin.html)                   ║
      ║  Version : v21.0                                    ║
      ║  Updated : 2026-05-24                               ║
-     ║  Changes : Earnings 7 — orders retention 5→35 days  ║
+     ║  Changes : Earnings 6-bug fix —                     ║
      ║   1. earnQuick fires correct loader per active tab  ║
      ║   2. Yesterday button sets from=to=yesterday (was   ║
      ║      showing 2-day range)                           ║
@@ -361,6 +361,7 @@ tbody tr.row-low-bal:hover td{background:#ffe4e6}
 .toggle-sl:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 input:checked+.toggle-sl{background:var(--g)}
 input:checked+.toggle-sl:before{transform:translateX(22px)}
+.toggle-sw.oos-toggle input:checked+.toggle-sl{background:#f97316}
 
 /* ── HAM / OVERLAY ───────────────────────────────────────── */
 #ham-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;display:none;padding:4px;border-radius:6px}
@@ -1381,7 +1382,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <div class="card">
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>IMG</th><th>Name / Sub-Items</th><th>Category</th><th>Price / Variants</th><th>Session</th><th>Type</th><th>Badge</th><th>Stock</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead>
+              <thead><tr><th>IMG</th><th>Name / Sub-Items</th><th>Category</th><th>Price / Variants</th><th>Session</th><th>Type</th><th>Badge</th><th>Stock · Unit / Per-Order</th><th>Order</th><th>OOS</th><th>Active</th><th>Actions</th></tr></thead>
               <tbody id="menu-tbody"></tbody>
             </table>
           </div>
@@ -1745,13 +1746,11 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <button class="btn btn-outline earn-quick" onclick="earnQuick(1)" style="font-size:12px;padding:6px 12px">Yesterday</button>
               <button class="btn btn-outline earn-quick" onclick="earnQuick(7)"   style="font-size:12px;padding:6px 12px">7 Days</button>
               <button class="btn btn-outline earn-quick" onclick="earnQuick(30)"  style="font-size:12px;padding:6px 12px">30 Days</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(35)"  style="font-size:12px;padding:6px 12px">35 Days <span style="font-size:10px;opacity:.65">(max)</span></button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(60)"  style="font-size:12px;padding:6px 12px">60 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(90)"  style="font-size:12px;padding:6px 12px">90 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(180)" style="font-size:12px;padding:6px 12px">6 Months</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(365)" style="font-size:12px;padding:6px 12px">1 Year</button>
             </div>
-          </div>
-          <!-- Data retention notice -->
-          <div id="earn-data-notice" style="margin-top:10px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1d4ed8;display:flex;align-items:flex-start;gap:8px">
-            <i class="fa fa-circle-info" style="margin-top:1px;flex-shrink:0"></i>
-            <span>Orders &amp; recharges are retained for <strong>35 days</strong>. For a reliable 30-day report, use <strong>30 Days</strong> button — it shows <strong id="earn-notice-range">loading…</strong>. Data older than 35 days is auto-purged.</span>
           </div>
         </div>
 
@@ -3779,7 +3778,7 @@ function bulkAddItem() {
     return;
   }
 
-  _bulkItems.push({ item_id, name: menuItem.name, variantLabel: variantLabel || '', qty });
+  _bulkItems.push({ item_id, name: menuItem.name, variantLabel: variantLabel || '', qty, stock_unit: menuItem.stock_unit || 'gram', stock_unit_label: menuItem.stock_unit_label || null });
   _bulkRenderItems();
   if (emptyEl) emptyEl.style.display = 'none';
   picker.value = '';
@@ -3847,13 +3846,15 @@ async function bulkGenerateOrders() {
   const slots  = [slotVal]; // only morning or evening — 'both' removed
   const phones = [..._bulkSelected];
 
-  // Build items array for backend — each item carries correct qty & variantLabel
+  // Build items array for backend — each item carries correct qty, variantLabel & stock_unit
   const itemsPayload = _bulkItems.map(it => ({
-    item_id:      it.item_id,
-    name:         it.name,
-    variantLabel: it.variantLabel || '',
-    qty:          it.qty,
-    price:        0  // total price is set by admin in the PRICE field; per-item price not used
+    item_id:          it.item_id,
+    name:             it.name,
+    variantLabel:     it.variantLabel || '',
+    qty:              it.qty,
+    price:            0,  // total price is set by admin in the PRICE field; per-item price not used
+    stock_unit:       it.stock_unit       || 'gram',
+    stock_unit_label: it.stock_unit_label || null
   }));
 
   const itemsSummary = _bulkItems.map(it =>
@@ -4026,8 +4027,21 @@ function renderMenuTable() {
       <td>${_sessLabel(m.meal_session||'both')}</td>
       <td>${vegDot(m.veg_type||'veg')} <span style="font-size:11px;font-weight:600;color:${(m.veg_type||'veg')==='nonveg'?'#dc2626':'#16a34a'}">${(m.veg_type||'veg')==='nonveg'?'Non-Veg':'Veg'}</span></td>
       <td>${_hlBadge(m.highlight)}</td>
-      <td><input type="number" value="${m.stock_grams??''}" placeholder="∞" style="width:72px;padding:4px 7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateStock('${m.item_id}',this.value)"></td>
+      <td style="min-width:150px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:10px;color:#94a3b8;font-weight:600;width:38px">Stock</span>
+            <input type="number" value="${m.stock_grams??''}" placeholder="∞" style="width:68px;padding:3px 6px;border:1px solid ${(m.stock_grams!=null&&m.stock_grams<=0)?'#fca5a5':'#e5e7eb'};border-radius:6px;font-size:12px;background:${(m.stock_grams!=null&&m.stock_grams<=0)?'#fff1f2':'#fff'}" onblur="updateStock('${m.item_id}',this.value)" title="Total stock remaining (blank = unlimited)">
+            <span style="font-size:10px;color:#7c3aed;font-weight:700;background:#f3e8ff;padding:1px 5px;border-radius:4px">${_stockUnitShort(m.stock_unit,m.stock_unit_label)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:10px;color:#94a3b8;font-weight:600;width:38px">Per Ord.</span>
+            <input type="number" value="${m.portion_grams??''}" placeholder="1" style="width:68px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updatePortion('${m.item_id}',this.value)" title="Stock deducted per qty ordered">
+          </div>
+        </div>
+      </td>
       <td><input type="number" value="${m.sort_order??99}" style="width:55px;padding:4px 7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateSortOrder('${m.item_id}',this.value)"></td>
+      <td><label class="toggle-sw oos-toggle" title="Out of Stock — hides ADD button for customers"><input type="checkbox" ${m.is_available===false?'checked':''} onchange="toggleMenuOOS('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td><label class="toggle-sw"><input type="checkbox" ${m.is_active?'checked':''} onchange="toggleMenuActive('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td>
         <div style="display:flex;gap:6px">
@@ -4037,12 +4051,40 @@ function renderMenuTable() {
       </td>
     </tr>`;
   }).join('') :
-    '<tr><td colspan="11" style="text-align:center;padding:40px;color:#94a3b8">No menu items found</td></tr>';
+    '<tr><td colspan="12" style="text-align:center;padding:40px;color:#94a3b8">No menu items found</td></tr>';
+}
+
+// Returns a compact unit label for the admin table badge
+function _stockUnitShort(unit, customLabel) {
+  switch(unit) {
+    case 'gram':   return 'g';
+    case 'kg':     return 'kg';
+    case 'piece':  return 'pcs';
+    case 'litre':  return 'L';
+    case 'custom': return customLabel || '?';
+    default:       return unit || 'g';
+  }
 }
 
 async function updateStock(id, val) {
-  try { await api('updateMenuItem', { item_id: id, stock_grams: val === '' ? null : parseFloat(val) }); aToast('Stock updated'); }
-  catch(e) { aToast(e.message); }
+  const newStock = val === '' ? null : parseFloat(val);
+  try {
+    await api('updateMenuItem', { item_id: id, stock_grams: newStock });
+    // Reflect in local cache immediately
+    const item = _menuItems.find(m => m.item_id === id);
+    if (item) item.stock_grams = newStock;
+    aToast(newStock === null ? 'Stock cleared (unlimited)' : newStock <= 0 ? '🚫 Stock set to 0 — item will show Out of Stock' : 'Stock updated');
+  } catch(e) { aToast(e.message); }
+}
+
+async function updatePortion(id, val) {
+  const portion = val === '' ? null : parseFloat(val);
+  try {
+    await api('updateMenuItem', { item_id: id, portion_grams: portion });
+    const item = _menuItems.find(m => m.item_id === id);
+    if (item) item.portion_grams = portion;
+    aToast(portion == null ? 'Per-order amount cleared (defaults to 1)' : 'Per-order amount updated');
+  } catch(e) { aToast(e.message); }
 }
 
 async function updateSortOrder(id, val) {
@@ -4053,6 +4095,17 @@ async function updateSortOrder(id, val) {
 async function toggleMenuActive(id, active) {
   try { await api('updateMenuItem', { item_id: id, is_active: active }); aToast(active?'Item activated':'Item deactivated'); }
   catch(e) { aToast(e.message); loadMenu(); }
+}
+
+async function toggleMenuOOS(id, oos) {
+  // oos=true means admin marked it Out of Stock → is_available=false
+  try {
+    await api('updateMenuItem', { item_id: id, is_available: !oos });
+    // Update local cache immediately so re-render reflects new state
+    const item = _menuItems.find(m => m.item_id === id);
+    if (item) item.is_available = !oos;
+    aToast(oos ? '🚫 Marked Out of Stock' : '✅ Back in Stock');
+  } catch(e) { aToast(e.message); loadMenu(); }
 }
 
 function openMenuModal(editId = null) {
@@ -4120,18 +4173,57 @@ function openMenuModal(editId = null) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Sort Order <span style="font-size:10px;color:#94a3b8">(lower = first)</span></label><input id="mf-sort" type="number" value="${m?.sort_order??99}"></div>
-      <div class="field"><label>Stock (g / blank = unlimited)</label><input id="mf-stock" type="number" value="${m?.stock_grams??''}"></div>
+      <div class="field">
+        <label>Stock Unit <span style="font-size:10px;color:#94a3b8">(type of measurement)</span></label>
+        <select id="mf-stock-unit" style="width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--ff)" onchange="toggleStockUnitLabel()">
+          <option value="gram"   ${(m?.stock_unit||'gram')==='gram'  ?'selected':''}>Gram (g)</option>
+          <option value="kg"     ${m?.stock_unit==='kg'              ?'selected':''}>Kilogram (kg)</option>
+          <option value="piece"  ${m?.stock_unit==='piece'           ?'selected':''}>Piece (pcs)</option>
+          <option value="litre"  ${m?.stock_unit==='litre'           ?'selected':''}>Litre (L)</option>
+          <option value="custom" ${m?.stock_unit==='custom'          ?'selected':''}>Custom</option>
+        </select>
+        <input id="mf-stock-unit-label" type="text" placeholder="e.g. packet, bowl, serving" value="${m?.stock_unit_label||''}" style="margin-top:6px;display:${m?.stock_unit==='custom'?'block':'none'};width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--ff);box-sizing:border-box">
+      </div>
     </div>
 
-    <div class="field" style="display:flex;align-items:center;gap:12px">
-      <label style="margin-bottom:0">Active on Menu</label>
-      <label class="toggle-sw"><input id="mf-active" type="checkbox" ${m?.is_active!==false?'checked':''}><span class="toggle-sl"></span></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field">
+        <label>Total Stock <span style="font-size:10px;color:#94a3b8">(blank = unlimited)</span></label>
+        <input id="mf-stock" type="number" placeholder="e.g. 1200 or 100" value="${m?.stock_grams??''}">
+        <div style="font-size:10px;color:#94a3b8;margin-top:3px">Total available today. Set 0 = instant Out of Stock.</div>
+      </div>
+      <div class="field">
+        <label>Per-Order Deduction <span style="font-size:10px;color:#94a3b8">(blank = 1)</span></label>
+        <input id="mf-portion" type="number" placeholder="e.g. 50 (g) or 1 (piece)" value="${m?.portion_grams??''}">
+        <div style="font-size:10px;color:#94a3b8;margin-top:3px">Stock used per qty ordered. E.g. Bhindi → 50g, Roti → 1 piece.</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field" style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="margin-bottom:0;font-size:13px">Active on Menu</label>
+          <label class="toggle-sw"><input id="mf-active" type="checkbox" ${m?.is_active!==false?'checked':''}><span class="toggle-sl"></span></label>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="margin-bottom:0;font-size:13px;color:#f97316;font-weight:700">Mark OOS</label>
+          <label class="toggle-sw oos-toggle" title="Force Out of Stock regardless of stock amount"><input id="mf-oos" type="checkbox" ${m?.is_available===false?'checked':''}><span class="toggle-sl"></span></label>
+        </div>
+      </div>
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
       <button class="btn btn-p" onclick="saveMenuItem(${!!m},'${editId||''}')">Save Item</button>
     </div>`);
+}
+
+// Stock unit label visibility toggle
+function toggleStockUnitLabel() {
+  const sel = document.getElementById('mf-stock-unit');
+  const lbl = document.getElementById('mf-stock-unit-label');
+  if (!sel || !lbl) return;
+  lbl.style.display = sel.value === 'custom' ? 'block' : 'none';
 }
 
 function buildVariantRow(i, label='', price='') {
@@ -4164,8 +4256,12 @@ function collectMenuForm(id=null) {
     meal_session: document.getElementById('mf-meal-session')?.value || 'both',
     sub_items:    document.getElementById('mf-sub-items')?.value.trim() || null,
     sort_order:   parseInt(document.getElementById('mf-sort')?.value)||99,
-    stock_grams:  document.getElementById('mf-stock')?.value ? parseFloat(document.getElementById('mf-stock').value) : null,
-    is_active:    document.getElementById('mf-active')?.checked,
+    stock_grams:      document.getElementById('mf-stock')?.value !== '' ? parseFloat(document.getElementById('mf-stock').value) || null : null,
+    portion_grams:    document.getElementById('mf-portion')?.value !== '' ? parseFloat(document.getElementById('mf-portion').value) || null : null,
+    stock_unit:       document.getElementById('mf-stock-unit')?.value || 'gram',
+    stock_unit_label: (document.getElementById('mf-stock-unit')?.value === 'custom' ? (document.getElementById('mf-stock-unit-label')?.value.trim() || null) : null),
+    is_active:        document.getElementById('mf-active')?.checked,
+    is_available:     !(document.getElementById('mf-oos')?.checked),
     variants
   };
   if (id) data.item_id = id;
@@ -5681,7 +5777,7 @@ async function doResetUserPwFromSettings(phone, name) {
 }
 
 // ── Minimum retention days per data type ─────────────────
-const CLEANUP_MIN_DAYS = { orders: 35, transactions: 35, notifications: 1 };
+const CLEANUP_MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
 
 // Returns ISO date string (YYYY-MM-DD) that is `days` days ago from today
 function _minRetentionDate(days) {
@@ -5692,7 +5788,7 @@ function _minRetentionDate(days) {
 
 function renderCleanupPanel(area) {
   const cfg = [
-    { key: 'orders',        label: 'Orders',              icon: '🛒', min: CLEANUP_MIN_DAYS.orders,        hint: 'Min 35 days old' },
+    { key: 'orders',        label: 'Orders',              icon: '🛒', min: CLEANUP_MIN_DAYS.orders,        hint: 'Min 5 days old'  },
     { key: 'transactions',  label: 'Transaction Details',  icon: '💳', min: CLEANUP_MIN_DAYS.transactions,  hint: 'Min 35 days old' },
     { key: 'notifications', label: 'Notifications',        icon: '🔔', min: CLEANUP_MIN_DAYS.notifications, hint: 'Min 1 day old'   }
   ];
@@ -5852,7 +5948,7 @@ function renderMasterDelPanel(area) {
       <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#92400e">
         <div style="font-weight:700;margin-bottom:6px">🔒 Minimum Retention Policy (enforced)</div>
         <div style="display:flex;flex-direction:column;gap:4px">
-          <div>🛒 <b>Orders</b> — data newer than <b>35 days</b> is preserved</div>
+          <div>🛒 <b>Orders</b> — data newer than <b>5 days</b> is preserved</div>
           <div>💳 <b>Transaction Details</b> — data newer than <b>35 days</b> is preserved</div>
           <div>🔔 <b>Notifications</b> — data newer than <b>1 day</b> is preserved</div>
           <div>🍳 <b>Cooking Sessions</b> — data newer than <b>5 days</b> is preserved</div>
@@ -5881,7 +5977,7 @@ async function doMasterDelete() {
   confirmAction(
     `⚠️ <b>Master Delete</b> will permanently remove:<br>
     <ul style="margin:8px 0 0 16px;font-size:13px;color:#374151">
-      <li>🛒 Orders older than <b>35 days</b></li>
+      <li>🛒 Orders older than <b>5 days</b></li>
       <li>💳 Transactions older than <b>35 days</b></li>
       <li>🔔 Notifications older than <b>1 day</b></li>
       <li>🍳 Cooking Sessions older than <b>5 days</b></li>
@@ -7321,7 +7417,6 @@ function earnQuick(days) {
   document.getElementById('earn-from').value = from;
   document.getElementById('earn-to').value   = to;
   _rchRawData = null; // clear cached recharge data so next fetch is fresh
-  _earnUpdateNotice(from, to); // update data-availability notice
   // Fire the correct loader based on which sub-tab is currently visible
   const rechargePane = document.getElementById('earn-pane-recharge');
   if (rechargePane && rechargePane.style.display !== 'none') {
@@ -7331,25 +7426,11 @@ function earnQuick(days) {
   }
 }
 
-// Update the data-availability notice with the resolved date range
-function _earnUpdateNotice(from, to) {
-  const el = document.getElementById('earn-notice-range');
-  if (!el) return;
-  // Format: "24 Apr → 24 May (31 days)"
-  const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const fmt = d => { const dt = new Date(d + 'T00:00:00'); return dt.getDate() + ' ' + mons[dt.getMonth()]; };
-  const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
-  el.textContent = fmt(from) + ' → ' + fmt(to) + ' (' + days + ' days)';
-}
-
 // Initialise date inputs when page is first opened
 function _earnInitDates() {
   const today = _earnISTDate(0);
-  const fromEl = document.getElementById('earn-from');
-  const toEl   = document.getElementById('earn-to');
-  if (!fromEl.value) fromEl.value = today;
-  if (!toEl.value)   toEl.value   = today;
-  _earnUpdateNotice(fromEl.value, toEl.value);
+  if (!document.getElementById('earn-from').value) document.getElementById('earn-from').value = today;
+  if (!document.getElementById('earn-to').value)   document.getElementById('earn-to').value   = today;
 }
 
 // ── Earnings Sub-Tab Switcher ──────────────────────────────────────────────
