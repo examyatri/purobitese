@@ -18,7 +18,7 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v29'; // bumped — forces fresh precache on deploy
+const CACHE      = 'tiffo-v28'; // bumped — forces fresh precache on deploy
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
