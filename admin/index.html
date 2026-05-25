@@ -1744,12 +1744,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
               <button class="btn btn-outline earn-quick" onclick="earnQuick(0)" style="font-size:12px;padding:6px 12px">Today</button>
               <button class="btn btn-outline earn-quick" onclick="earnQuick(1)" style="font-size:12px;padding:6px 12px">Yesterday</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(7)"   style="font-size:12px;padding:6px 12px">7 Days</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(30)"  style="font-size:12px;padding:6px 12px">30 Days</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(60)"  style="font-size:12px;padding:6px 12px">60 Days</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(90)"  style="font-size:12px;padding:6px 12px">90 Days</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(180)" style="font-size:12px;padding:6px 12px">6 Months</button>
-              <button class="btn btn-outline earn-quick" onclick="earnQuick(365)" style="font-size:12px;padding:6px 12px">1 Year</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(7)"  style="font-size:12px;padding:6px 12px">7 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(15)" style="font-size:12px;padding:6px 12px">15 Days</button>
+              <button class="btn btn-outline earn-quick" onclick="earnQuick(30)" style="font-size:12px;padding:6px 12px">30 Days</button>
+              <button class="btn btn-p     earn-quick" onclick="earnQuick(35)" style="font-size:12px;padding:6px 12px" title="Maximum — data stored for 35 days">35 Days ★</button>
             </div>
           </div>
         </div>
@@ -4036,7 +4034,7 @@ function renderMenuTable() {
           </div>
           <div style="display:flex;align-items:center;gap:4px">
             <span style="font-size:10px;color:#94a3b8;font-weight:600;width:38px">Per Ord.</span>
-            <input type="number" value="${m.portion_grams??''}" placeholder="1" style="width:68px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updatePortion('${m.item_id}',this.value)" title="Stock deducted per qty ordered">
+            <input type="number" value="${m.portion_grams??''}" placeholder="${(m.variants&&m.variants.length)?'auto':'1'}" style="width:68px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updatePortion('${m.item_id}',this.value)" title="${(m.variants&&m.variants.length)?'Fallback deduction for non-numeric variant labels. Numeric labels (e.g. 4 Roti, 100 Gram) auto-deduct from label — no entry needed.':'Stock deducted per 1 qty ordered (blank = 1)'}">
           </div>
         </div>
       </td>
@@ -4136,8 +4134,8 @@ function openMenuModal(editId = null) {
 
     <div class="field">
       <label>Variants (optional) <button class="btn btn-outline mo-label-btn" style="padding:3px 10px;font-size:11px;margin-left:8px" onclick="addVariantRow()">+ Add Variant</button></label>
-      <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">Each variant overrides base price (e.g. Half / Full, Regular / Large)</div>
-      <div id="variants-container">${variantRows}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">For quantity-based items start label with a number → stock deducts automatically.<br>E.g. <strong style="color:#059669">4 Roti</strong>, <strong style="color:#059669">6 Roti</strong>, <strong style="color:#059669">100 Gram</strong>, <strong style="color:#059669">50 Gram</strong>. Non-numeric labels (Regular, Large) use Per-Order Deduction below.</div>
+      <div id="variants-container" oninput="_updatePortionHint()">${variantRows}</div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -4192,10 +4190,10 @@ function openMenuModal(editId = null) {
         <input id="mf-stock" type="number" placeholder="e.g. 1200 or 100" value="${m?.stock_grams??''}">
         <div style="font-size:10px;color:#94a3b8;margin-top:3px">Total available today. Set 0 = instant Out of Stock.</div>
       </div>
-      <div class="field">
+      <div class="field" id="mf-portion-field">
         <label>Per-Order Deduction <span style="font-size:10px;color:#94a3b8">(blank = 1)</span></label>
         <input id="mf-portion" type="number" placeholder="e.g. 50 (g) or 1 (piece)" value="${m?.portion_grams??''}">
-        <div style="font-size:10px;color:#94a3b8;margin-top:3px">Stock used per qty ordered. E.g. Bhindi → 50g, Roti → 1 piece.</div>
+        <div id="mf-portion-hint" style="font-size:10px;color:#94a3b8;margin-top:3px">Stock used per qty ordered. E.g. Bhindi → 50g, Roti → 1 piece.</div>
       </div>
     </div>
 
@@ -4216,6 +4214,8 @@ function openMenuModal(editId = null) {
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
       <button class="btn btn-p" onclick="saveMenuItem(${!!m},'${editId||''}')">Save Item</button>
     </div>`);
+  // Init dynamic hints after DOM renders
+  setTimeout(() => { _updatePortionHint(); toggleStockUnitLabel(); }, 0);
 }
 
 // Stock unit label visibility toggle
@@ -4228,16 +4228,67 @@ function toggleStockUnitLabel() {
 
 function buildVariantRow(i, label='', price='') {
   return `<div class="variant-row" id="vrow-${i}">
-    <input placeholder="Label" value="${label}" style="flex:1;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px">
+    <input placeholder="Label  e.g. 4 Roti or 100 Gram" value="${label}" style="flex:1;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px" oninput="_updatePortionHint()">
     <input placeholder="Price" type="number" value="${price}" style="width:90px;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px">
-    <button class="mo-icon-btn" onclick="this.closest('.variant-row').remove()" style="background:none;border:none;cursor:pointer;color:var(--pd);font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:7px;flex-shrink:0">×</button>
+    <button class="mo-icon-btn" onclick="this.closest('.variant-row').remove();_updatePortionHint()" style="background:none;border:none;cursor:pointer;color:var(--pd);font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:7px;flex-shrink:0">×</button>
   </div>`;
 }
 
 let _variantCount = 100;
 function addVariantRow() {
   const c = document.getElementById('variants-container');
-  if (c) c.insertAdjacentHTML('beforeend', buildVariantRow(_variantCount++));
+  if (c) { c.insertAdjacentHTML('beforeend', buildVariantRow(_variantCount++)); _updatePortionHint(); }
+}
+
+// Updates the Per-Order Deduction field hint based on current variant labels.
+// Logic mirrors backend _deductMenuStock() priority:
+//   1. Variant labels starting with a number → auto-deduct from label (e.g. "4 Roti" → 4)
+//   2. Non-numeric labels (e.g. "Regular") → fall back to portion_grams
+//   3. No variants → portion_grams is the only deduction setting
+function _updatePortionHint() {
+  const hintEl   = document.getElementById('mf-portion-hint');
+  const inputEl  = document.getElementById('mf-portion');
+  const fieldEl  = document.getElementById('mf-portion-field');
+  if (!hintEl || !inputEl) return;
+
+  const rows = Array.from(document.querySelectorAll('#variants-container .variant-row'));
+  if (rows.length === 0) {
+    // No variants — portion_grams is the sole deduction setting
+    hintEl.style.color = '#94a3b8';
+    hintEl.innerHTML = 'Stock deducted per 1 qty ordered. E.g. Bhindi → 50 (g), Roti → 1 (piece).';
+    inputEl.disabled = false;
+    inputEl.style.opacity = '1';
+    return;
+  }
+
+  const numRegex = /^(\d+(?:\.\d+)?)\s+[A-Za-z]/;
+  const labels   = rows.map(r => r.querySelector('input')?.value.trim() || '');
+  const autoLabels    = labels.filter(l => l && numRegex.test(l));
+  const manualLabels  = labels.filter(l => l && !numRegex.test(l));
+
+  if (autoLabels.length > 0 && manualLabels.length === 0) {
+    // All variants are numeric-prefix → fully auto
+    hintEl.style.color = '#059669';
+    hintEl.innerHTML = '✅ Auto-detected from variant labels: ' +
+      autoLabels.map(l => { const m=l.match(numRegex); return `"${l}" → <strong>${m[1]}</strong>`; }).join(', ') +
+      '. No manual entry needed.';
+    inputEl.disabled = true;
+    inputEl.style.opacity = '0.4';
+  } else if (autoLabels.length > 0 && manualLabels.length > 0) {
+    // Mix — auto works for some, fallback for others
+    hintEl.style.color = '#d97706';
+    hintEl.innerHTML = '⚠️ Mixed: ' +
+      autoLabels.map(l => { const m=l.match(numRegex); return `"${l}"→${m[1]}`; }).join(', ') + ' auto-detected. ' +
+      'Non-numeric variants (' + manualLabels.map(l=>`"${l}"`).join(', ') + ') will use this fallback value.';
+    inputEl.disabled = false;
+    inputEl.style.opacity = '1';
+  } else {
+    // All non-numeric variants — must set manually
+    hintEl.style.color = '#ef4444';
+    hintEl.innerHTML = '⚠️ Variant labels have no numbers — set deduction manually. Or rename labels like "4 Roti", "6 Roti" for auto-detection.';
+    inputEl.disabled = false;
+    inputEl.style.opacity = '1';
+  }
 }
 
 function collectMenuForm(id=null) {
@@ -4257,7 +4308,7 @@ function collectMenuForm(id=null) {
     sub_items:    document.getElementById('mf-sub-items')?.value.trim() || null,
     sort_order:   parseInt(document.getElementById('mf-sort')?.value)||99,
     stock_grams:      document.getElementById('mf-stock')?.value !== '' ? parseFloat(document.getElementById('mf-stock').value) || null : null,
-    portion_grams:    document.getElementById('mf-portion')?.value !== '' ? parseFloat(document.getElementById('mf-portion').value) || null : null,
+    portion_grams:    (() => { const el = document.getElementById('mf-portion'); return (el && !el.disabled && el.value !== '') ? parseFloat(el.value) || null : null; })(),
     stock_unit:       document.getElementById('mf-stock-unit')?.value || 'gram',
     stock_unit_label: (document.getElementById('mf-stock-unit')?.value === 'custom' ? (document.getElementById('mf-stock-unit-label')?.value.trim() || null) : null),
     is_active:        document.getElementById('mf-active')?.checked,
@@ -5777,7 +5828,7 @@ async function doResetUserPwFromSettings(phone, name) {
 }
 
 // ── Minimum retention days per data type ─────────────────
-const CLEANUP_MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+const CLEANUP_MIN_DAYS = { orders: 35, transactions: 35, notifications: 1 };
 
 // Returns ISO date string (YYYY-MM-DD) that is `days` days ago from today
 function _minRetentionDate(days) {
@@ -5788,7 +5839,7 @@ function _minRetentionDate(days) {
 
 function renderCleanupPanel(area) {
   const cfg = [
-    { key: 'orders',        label: 'Orders',              icon: '🛒', min: CLEANUP_MIN_DAYS.orders,        hint: 'Min 5 days old'  },
+    { key: 'orders',        label: 'Orders',              icon: '🛒', min: CLEANUP_MIN_DAYS.orders,        hint: 'Min 35 days old' },
     { key: 'transactions',  label: 'Transaction Details',  icon: '💳', min: CLEANUP_MIN_DAYS.transactions,  hint: 'Min 35 days old' },
     { key: 'notifications', label: 'Notifications',        icon: '🔔', min: CLEANUP_MIN_DAYS.notifications, hint: 'Min 1 day old'   }
   ];
@@ -5948,7 +5999,7 @@ function renderMasterDelPanel(area) {
       <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#92400e">
         <div style="font-weight:700;margin-bottom:6px">🔒 Minimum Retention Policy (enforced)</div>
         <div style="display:flex;flex-direction:column;gap:4px">
-          <div>🛒 <b>Orders</b> — data newer than <b>5 days</b> is preserved</div>
+          <div>🛒 <b>Orders</b> — data newer than <b>35 days</b> is preserved</div>
           <div>💳 <b>Transaction Details</b> — data newer than <b>35 days</b> is preserved</div>
           <div>🔔 <b>Notifications</b> — data newer than <b>1 day</b> is preserved</div>
           <div>🍳 <b>Cooking Sessions</b> — data newer than <b>5 days</b> is preserved</div>
@@ -5977,7 +6028,7 @@ async function doMasterDelete() {
   confirmAction(
     `⚠️ <b>Master Delete</b> will permanently remove:<br>
     <ul style="margin:8px 0 0 16px;font-size:13px;color:#374151">
-      <li>🛒 Orders older than <b>5 days</b></li>
+      <li>🛒 Orders older than <b>35 days</b></li>
       <li>💳 Transactions older than <b>35 days</b></li>
       <li>🔔 Notifications older than <b>1 day</b></li>
       <li>🍳 Cooking Sessions older than <b>5 days</b></li>
