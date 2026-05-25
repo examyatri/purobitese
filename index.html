@@ -716,7 +716,7 @@ body{font-family:var(--fb);background:#fff;color:var(--dk);overflow:hidden;heigh
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 /* Premium menu skeleton card */
-.sk-menu-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;gap:12px;overflow:hidden;opacity:0;animation:sk-card-in 300ms ease forwards}
+.sk-menu-card{background:#fff;border-radius:0;padding:14px;margin-bottom:0;box-shadow:none;border-bottom:1px solid #f0f0f0;display:flex;gap:12px;overflow:hidden;opacity:0;animation:sk-card-in 300ms ease forwards}.sk-menu-card:last-child{border-bottom:none}
 .sk-menu-card:nth-child(1){animation-delay:0ms}
 .sk-menu-card:nth-child(2){animation-delay:60ms}
 .sk-menu-card:nth-child(3){animation-delay:120ms}
@@ -873,14 +873,25 @@ textarea{resize:vertical;min-height:80px}
 .auth-status.error{color:#b91c1c;background:linear-gradient(135deg,#fff5f5,#fef2f2);border:1.5px solid #fca5a5;box-shadow:0 2px 8px rgba(239,68,68,.09)}
 .auth-status.success{color:#15803d;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;box-shadow:0 2px 8px rgba(22,163,74,.09)}
 .forgot-link{font-family:var(--fb);font-size:13px;color:var(--p);text-align:right;background:none;border:none;cursor:pointer;width:100%;text-decoration:none;margin-top:6px}
-/* Home page header */
-.home-header{background:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) var(--pg-pad) 10px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 #f0f0f0}
+/* Home page header — two-row sticky (Zomato/Swiggy style) */
+.home-header{background:#fff;padding-top:calc(14px + env(safe-area-inset-top,0px));position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.home-header-top{display:flex;align-items:center;justify-content:space-between;padding:0 var(--pg-pad) 10px}
+.home-header-search{padding:0 var(--pg-pad) 12px;background:#fff}
 .home-logo{font-family:var(--ff);font-weight:800;font-size:22px}
 .home-logo .r{color:var(--p)}.home-logo .g{color:var(--g)}
 .home-logo-sub{font-family:var(--fb);font-size:11px;color:var(--gr)}
 .home-greeting{font-family:var(--fb);font-size:13px;color:var(--dk);font-weight:500;margin-top:1px;min-height:18px;transition:opacity 250ms}
 .avatar-btn{width:38px;height:38px;border-radius:50%;background:var(--grad);border:none;color:#fff;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center}
 .pro-badge{position:absolute;bottom:-3px;right:-3px;background:#ffd166;color:#7c5a00;font-family:var(--ff);font-size:8px;font-weight:700;border-radius:4px;padding:1px 3px}
+/* Search inside header */
+.header-search-wrap{background:#f4f5f7;border-radius:12px;padding:0 12px;display:flex;align-items:center;gap:8px;border:1.5px solid transparent;transition:border-color 180ms,background 180ms}
+.header-search-wrap:focus-within{background:#fff;border-color:var(--p)}
+.header-search-wrap input{background:none;border:none;flex:1;font-size:14px;color:var(--dk);padding:11px 0;outline:none;-webkit-appearance:none;appearance:none}
+.header-search-wrap input::placeholder{color:#9ca3af;font-size:14px}
+.header-search-wrap input::-webkit-search-decoration,.header-search-wrap input::-webkit-search-cancel-button,.header-search-wrap input::-webkit-search-results-button,.header-search-wrap input::-webkit-search-results-decoration{display:none}
+.header-search-icon{color:#9ca3af;font-size:15px;flex-shrink:0}
+.header-search-clear{border:none;background:none;color:#9ca3af;cursor:pointer;font-size:18px;padding:2px 0;display:none;line-height:1;flex-shrink:0}
+.header-search-clear.visible{display:block}
 /* Pull to refresh */
 #ptr-zone{text-align:center;padding:0;height:0;overflow:hidden;transition:height 300ms cubic-bezier(0.4,0,0.2,1);display:flex;align-items:center;justify-content:center;color:var(--gr);will-change:height}
 #ptr-arrow{transition:transform 200ms ease,color 200ms ease;font-size:18px;display:inline-block;color:var(--gr)}
@@ -921,12 +932,6 @@ textarea{resize:vertical;min-height:80px}
 #cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;transition:all 300ms}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(42,157,143,.5)}70%{box-shadow:0 0 0 8px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
 .dot-pulse{width:13px;height:13px;background:var(--g);border-radius:50%;flex-shrink:0;animation:pulse-ring 1.8s ease-out infinite}
-/* Search bar */
-.search-wrap{background:#fff;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:8px;box-shadow:var(--sh);margin-bottom:12px}
-.search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);padding:12px 0;outline:none;-webkit-appearance:none;appearance:none}
-.search-wrap input:focus{background:none;border:none;outline:none}
-.search-wrap input::-webkit-search-decoration,.search-wrap input::-webkit-search-cancel-button,.search-wrap input::-webkit-search-results-button,.search-wrap input::-webkit-search-results-decoration{display:none}
-.search-clear{border:none;background:none;color:var(--gr);cursor:pointer;font-size:16px;padding:4px}
 /* Category chips */
 .cat-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
 .cat-scroll::-webkit-scrollbar{display:none}
@@ -934,8 +939,8 @@ textarea{resize:vertical;min-height:80px}
 .cat-chip.active{background:var(--p);color:#fff;transform:scale(1.05)}
 
 /* Menu grid */
-#menu-list{display:flex;flex-direction:column;gap:0}
-.m-item{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
+#menu-list{display:flex;flex-direction:column;gap:0;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.m-item{background:#fff;border-radius:0;padding:14px;margin-bottom:0;box-shadow:none;border-bottom:1px solid #f0f0f0}.m-item:last-child{border-bottom:none}
 .m-item-inner{display:flex;gap:12px}
 .m-item-info{flex:1;min-width:0}
 .m-item-name{font-family:var(--ff);font-weight:600;font-size:16px;color:var(--dk);line-height:1.3}
@@ -1014,6 +1019,35 @@ textarea{resize:vertical;min-height:80px}
 .wallet-deduct-card{background:var(--grad);border-radius:14px;padding:14px 18px;width:100%;color:#fff}
 .wa-btn{background:#25d366;color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--ff);font-weight:600;font-size:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;transition:opacity 200ms}
 .wa-btn:active{opacity:.85}
+/* ── UPI Payment Guide ── */
+.upi-guide{width:100%;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:18px;padding:20px 16px 16px;text-align:left;position:relative;overflow:hidden}
+.upi-guide::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);border-radius:18px 18px 0 0}
+.upi-guide-title{font-family:var(--ff);font-weight:800;font-size:15px;color:var(--dk);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.upi-guide-title small{font-size:11px;font-weight:600;color:var(--gr);margin-left:auto;background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:2px 9px;font-family:var(--fb)}
+.upi-step{display:flex;align-items:flex-start;gap:12px;margin-bottom:0;position:relative}
+.upi-step+.upi-step{margin-top:0}
+.upi-step-left{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.upi-step-num{width:30px;height:30px;border-radius:50%;background:var(--grad);color:#fff;font-family:var(--ff);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(99,102,241,.25)}
+.upi-step-line{width:2px;background:#e2e8f0;flex:1;min-height:14px;margin:3px 0}
+.upi-step-body{flex:1;padding-bottom:16px}
+.upi-step:last-child .upi-step-body{padding-bottom:0}
+.upi-step-label{font-family:var(--ff);font-weight:700;font-size:13px;color:var(--dk);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.upi-step-label .step-icon{font-size:14px}
+.upi-step-desc{font-family:var(--fb);font-size:12px;color:#64748b;line-height:1.55}
+.upi-copy-row{display:flex;align-items:center;gap:8px;background:#fff;border:2px solid var(--g);border-radius:12px;padding:11px 14px;margin-top:10px;box-shadow:0 2px 8px rgba(99,102,241,.1)}
+.upi-number{font-family:monospace;font-weight:800;font-size:19px;color:var(--dk);flex:1;letter-spacing:.8px}
+.upi-number-label{font-family:var(--fb);font-size:10px;color:var(--gr);margin-bottom:2px}
+.upi-copy-btn{background:var(--grad);color:#fff;border:none;border-radius:9px;padding:9px 15px;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:opacity 200ms;box-shadow:0 2px 8px rgba(99,102,241,.3)}
+.upi-copy-btn:active{opacity:.8}
+.upi-amount-badge{display:inline-flex;align-items:center;gap:4px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:4px 10px;margin-top:8px;font-family:var(--ff);font-weight:700;font-size:12.5px;color:#4338ca}
+.upi-apps-hint{display:flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--fb);font-size:11.5px;color:#64748b}
+.upi-apps-hint span{background:#f1f5f9;border-radius:6px;padding:2px 7px;font-size:11px;font-family:var(--ff);font-weight:600;color:#475569}
+.wa-send-btn{background:#25d366;color:#fff;border:none;border-radius:14px;padding:16px 18px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 4px 16px rgba(37,211,102,.35);transition:transform 120ms,opacity 200ms}
+.wa-send-btn:active{opacity:.88;transform:scale(.98)}
+.upi-note{font-family:var(--fb);font-size:11.5px;color:#64748b;text-align:center;margin-top:6px;line-height:1.5}
+.upi-divider{height:1px;background:#e9ecef;margin:14px 0 12px}
+/* Step connector line on last step — hide */
+.upi-step:last-child .upi-step-line{display:none}
 /* Orders */
 .order-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .ord-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -1120,7 +1154,7 @@ textarea{resize:vertical;min-height:80px}
 }
 /* ── END RESPONSIVE ── */
 </style>
-<script src="https://purobitese-api.onrender.com/config.js" async></script>
+<script src="https://purobitese-api.onrender.com/config.js" defer></script>
 </head>
 <body class="auth-mode">
 
@@ -1449,20 +1483,33 @@ textarea{resize:vertical;min-height:80px}
      PAGE: HOME
 ══════════════════════════════════════════════ -->
 <div id="pg-home" class="pg">
-  <div class="home-header flex-sb">
-    <div>
-      <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-      <div id="home-greeting" class="home-greeting">Ghar Ka Tiffin 😍</div>
+  <div class="home-header">
+    <!-- Row 1: Logo + actions -->
+    <div class="home-header-top">
+      <div>
+        <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
+        <div id="home-greeting" class="home-greeting">Ghar Ka Tiffin 😍</div>
+      </div>
+      <div class="flex gap8">
+        <button style="border:none;background:#f4f5f7;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
+          <i class="fa-solid fa-bag-shopping"></i>
+          <span id="header-cart-badge" class="badge" style="display:none">0</span>
+        </button>
+        <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
+          <span id="home-avatar-initials">?</span>
+          <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
+        </button>
+      </div>
     </div>
-    <div class="flex gap8">
-      <button style="border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
-        <i class="fa-solid fa-bag-shopping"></i>
-        <span id="header-cart-badge" class="badge" style="display:none">0</span>
-      </button>
-      <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
-        <span id="home-avatar-initials">?</span>
-        <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
-      </button>
+    <!-- Row 2: Sticky search bar -->
+    <div class="home-header-search">
+      <div class="header-search-wrap">
+        <i class="fa-solid fa-magnifying-glass header-search-icon"></i>
+        <input type="search" id="menu-search" placeholder="Search dishes, dal, paneer…"
+          onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}"
+          oninput="_menuSearchDebounce(this.value)">
+        <button id="search-clear" class="header-search-clear" onclick="clearSearch()">×</button>
+      </div>
     </div>
   </div>
 
@@ -1475,7 +1522,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
 
-    <div style="padding:0 var(--pg-pad)">
+    <div style="padding:12px var(--pg-pad) 0">
       <!-- Pause toggle (PRO subscribers only) -->
       <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
         <div style="flex:1">
@@ -1500,14 +1547,6 @@ textarea{resize:vertical;min-height:80px}
       <!-- Cutoff banner -->
       <div id="cutoff-banner" style="display:none"></div>
 
-
-      <!-- Search -->
-      <div class="search-wrap">
-        <i class="fa-solid fa-magnifying-glass" style="color:var(--gr)"></i>
-        <input type="search" id="menu-search" placeholder="Search dishes..." onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}" oninput="_menuSearchDebounce(this.value)">
-        <button id="search-go-btn" onclick="onMenuSearch(document.getElementById('menu-search').value)" style="border:none;background:none;padding:0 4px;cursor:pointer;color:var(--p);font-size:17px;display:flex;align-items:center"><i class="fa-solid fa-magnifying-glass"></i></button>
-        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
-      </div>
 
       <!-- Category chips -->
       <div class="cat-scroll" id="cat-scroll"></div>
@@ -1618,19 +1657,97 @@ textarea{resize:vertical;min-height:80px}
   <div class="success-wrap">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
     <div class="success-title">Order Placed! 🎉</div>
-    <div style="color:var(--gr);font-size:14px">Order ID</div>
+    <div style="color:var(--gr);font-size:13px;font-family:var(--fb)">Order ID</div>
     <div class="order-id-badge" id="s-order-id"></div>
     <div class="delivery-card" id="s-delivery-card">
       <div style="font-family:var(--ff);font-weight:600;font-size:13px;color:var(--g);margin-bottom:4px">🚀 Estimated Delivery</div>
       <div id="s-delivery-time" style="font-family:var(--fb);font-size:14px;color:var(--dk)"></div>
     </div>
-    <div style="background:#fef9c3;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:13px;color:#854d0e">
-      💳 Send payment screenshot on WhatsApp to confirm your order
+
+    <!-- UPI Payment Guide -->
+    <div class="upi-guide">
+      <div class="upi-guide-title">💳 How to Pay <small>4 easy steps</small></div>
+
+      <!-- Step 1 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">1</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">📋</span> Copy UPI Number</div>
+          <div class="upi-step-desc">Tap the button — the number is instantly copied to your clipboard and your UPI app opens.</div>
+          <div class="upi-copy-row">
+            <div>
+              <div class="upi-number-label">UPI Mobile Number</div>
+              <div class="upi-number">7233992325</div>
+            </div>
+            <button class="upi-copy-btn" onclick="copyUpiNumber(this)">
+              <i class="fa-solid fa-copy"></i> Copy &amp; Open App
+            </button>
+          </div>
+          <div class="upi-apps-hint">
+            Works with: <span>PhonePe</span><span>GPay</span><span>Paytm</span><span>& more</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">2</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">💸</span> Complete Payment</div>
+          <div class="upi-step-desc">In your UPI app, tap <strong>Send Money → Mobile Number</strong>. The number is already copied — just paste it, enter the amount, and pay.</div>
+          <div class="upi-amount-badge" id="s-pay-amount-inline" style="display:none"><i class="fa-solid fa-indian-rupee-sign" style="font-size:10px"></i> Pay: —</div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">3</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">📸</span> Take a Screenshot</div>
+          <div class="upi-step-desc">Once the payment is successful, take a screenshot of the <strong>payment success screen</strong>. Keep this ready to send.</div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">4</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">↩️</span> Come Back to Tiffo</div>
+          <div class="upi-step-desc">Return here and tap the WhatsApp button below.</div>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">5</div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">✅</span> Send Screenshot on WhatsApp</div>
+          <div class="upi-step-desc">Your order details are <strong>auto-filled</strong> in the message. Just send it, then attach your payment screenshot. We'll confirm your order instantly.</div>
+        </div>
+      </div>
     </div>
-    <button class="wa-btn" id="s-wa-btn" style="display:none">
-      <i class="fa-brands fa-whatsapp"></i> Click Here To Pay & Send Your Payment Screenshot
+
+    <button class="wa-send-btn" id="s-wa-btn" style="display:none" onclick="">
+      <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
+      Send Payment Screenshot on WhatsApp
     </button>
-    <div class="flex gap8 w100">
+    <div class="upi-note" id="s-wa-note" style="display:none">Tap above → WhatsApp opens with your order details pre-filled. Send the message and attach your payment screenshot. We'll confirm promptly! 🙏</div>
+
+    <div class="flex gap8 w100" style="margin-top:4px">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
       <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
@@ -1668,19 +1785,101 @@ textarea{resize:vertical;min-height:80px}
   <div class="success-wrap">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
     <div class="success-title">Order Placed! 🎉</div>
-    <div style="color:var(--gr);font-size:14px">Order ID</div>
+    <div style="color:var(--gr);font-size:13px;font-family:var(--fb)">Order ID</div>
     <div class="order-id-badge" id="si-order-id"></div>
     <div class="delivery-card">
       <div style="font-family:var(--ff);font-weight:600;font-size:13px;color:var(--g);margin-bottom:4px">🚀 Estimated Delivery</div>
       <div id="si-delivery-time" style="font-family:var(--fb);font-size:14px;color:var(--dk)"></div>
     </div>
-    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:13px;color:#856404">
-      ⚠️ Your wallet balance was insufficient. Please pay via UPI and send the screenshot on WhatsApp to confirm your order.
+
+    <div style="background:#fff8e1;border:1.5px solid #fdd835;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:12.5px;color:#5c3a00;text-align:left">
+      ⚠️ <strong>Wallet balance was insufficient.</strong> Please pay the remaining amount via UPI to confirm your order.
     </div>
-    <button class="wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
-      <i class="fa-brands fa-whatsapp"></i> Click Here To Pay &amp; Send Screenshot
+
+    <!-- UPI Payment Guide -->
+    <div class="upi-guide">
+      <div class="upi-guide-title">💳 How to Pay <small>4 easy steps</small></div>
+
+      <!-- Step 1 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">1</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">📋</span> Copy UPI Number</div>
+          <div class="upi-step-desc">Tap the button — the number is instantly copied to your clipboard and your UPI app opens.</div>
+          <div class="upi-copy-row">
+            <div>
+              <div class="upi-number-label">UPI Mobile Number</div>
+              <div class="upi-number">7233992325</div>
+            </div>
+            <button class="upi-copy-btn" onclick="copyUpiNumber(this)">
+              <i class="fa-solid fa-copy"></i> Copy &amp; Open App
+            </button>
+          </div>
+          <div class="upi-apps-hint">
+            Works with: <span>PhonePe</span><span>GPay</span><span>Paytm</span><span>& more</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">2</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">💸</span> Complete Payment</div>
+          <div class="upi-step-desc">In your UPI app, tap <strong>Send Money → Mobile Number</strong>. The number is already copied — just paste it, enter the amount, and pay.</div>
+          <div class="upi-amount-badge" id="si-pay-amount-inline" style="display:none"><i class="fa-solid fa-indian-rupee-sign" style="font-size:10px"></i> Pay: —</div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">3</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">📸</span> Take a Screenshot</div>
+          <div class="upi-step-desc">Once the payment is successful, take a screenshot of the <strong>payment success screen</strong>. Keep this ready to send.</div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">4</div>
+          <div class="upi-step-line"></div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">↩️</span> Come Back to Tiffo</div>
+          <div class="upi-step-desc">Return here and tap the WhatsApp button below.</div>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="upi-step">
+        <div class="upi-step-left">
+          <div class="upi-step-num">5</div>
+        </div>
+        <div class="upi-step-body">
+          <div class="upi-step-label"><span class="step-icon">✅</span> Send Screenshot on WhatsApp</div>
+          <div class="upi-step-desc">Your order details are <strong>auto-filled</strong> in the message. Just send it, then attach your payment screenshot. We'll confirm your order instantly.</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="wa-send-btn" id="si-wa-btn" onclick="sendInsufWA()">
+      <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
+      Send Payment Screenshot on WhatsApp
     </button>
-    <div class="flex gap8 w100">
+    <div class="upi-note">Tap above → WhatsApp opens with your order details pre-filled. Send the message and attach your payment screenshot. We'll confirm promptly! 🙏</div>
+
+    <div class="flex gap8 w100" style="margin-top:4px">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
       <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
@@ -1889,7 +2088,7 @@ textarea{resize:vertical;min-height:80px}
         <div id="wallet-bal-status" style="font-family:var(--fb);font-size:12px;opacity:.8;margin-top:4px">&#x2705; Balance looks good</div>
       </div>
       <!-- Recharge Wallet -->
-      <button onclick="openWA('9889760350','💰 *Wallet Recharge Request*\n\nHi Tiffo Team! 🙏\nMujhe apna Tiffo wallet recharge karna hai.\n\nKripaya apni UPI ID / QR share karein taaki main payment karke screenshot bhej sakun.\n\nThank you! 😊')" style="width:100%;background:#25d366;color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;box-shadow:0 4px 12px rgba(37,211,102,.35)"><i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Recharge Wallet</button>
+      <button onclick="openWA('9889760350','💰 *Tiffo — Wallet Recharge Request*\n━━━━━━━━━━━━━━━━━━━━━━━\nHi Tiffo Team! 🙏\n\nI would like to recharge my Tiffo wallet.\n\nPlease share your UPI number or QR code so I can make the payment and send you the screenshot.\n\nThank you! 😊')" style="width:100%;background:#25d366;color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;box-shadow:0 4px 12px rgba(37,211,102,.35)"><i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Recharge Wallet</button>
       <!-- Date filter -->
       <div style="background:#fff;border-radius:14px;padding:14px;box-shadow:var(--sh);margin-bottom:12px">
         <div style="font-family:var(--ff);font-weight:600;font-size:13px;margin-bottom:10px">Filter by Date Range</div>
@@ -2084,7 +2283,7 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <div class="insuf-note" style="margin-bottom:16px">
-      🚀 Order will be placed now. You'll get a WhatsApp button to send your UPI payment screenshot.
+      🚀 Order will be placed now. You'll then see step-by-step payment instructions — copy UPI number, open your app, pay, take a screenshot, and send it on WhatsApp to confirm your order.
     </div>
 
     <div class="insuf-btn-row">
@@ -2101,7 +2300,7 @@ textarea{resize:vertical;min-height:80px}
 const CFG = {
   API:    'https://purobitese-api.onrender.com/api',
   // Lazy getter: reads window.__TIFFO_API_KEY__ on every access instead of once at
-  // definition time. Since config.js loads async, the inline scripts parse first and
+  // definition time. Since config.js loads with defer, it runs after HTML parse but
   // window.__TIFFO_API_KEY__ is undefined at that point — a static assignment would
   // always produce ''. The getter transparently picks up the value whenever config.js
   // actually runs, without any polling or callback needed.
@@ -2153,11 +2352,9 @@ let _pauseFreshTs  = 0;  // epoch ms of last successful pause fetch — skip on 
 let _walletFreshTs = 0;  // epoch ms of last successful wallet fetch — skip on rapid home returns
 const _DATA_FRESH_TTL = 12000; // 12s — if data was fetched within this window, onEnter skips duplicate DB call
 let _pollTimer   = null;
-let _activeOrdersPollTimer = null; // fast 90s order poll — runs only when _hasActiveOrders=true
 let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
-const _POLL_ACTIVE_ORDERS = 90_000; // 90s — faster order poll when user has pending/confirmed/out-for-delivery orders
 const _REVISIT_THRESHOLD = 4 * 60 * 1000; // 4 min — aligns with Supabase warmup cycle; user returning after cold window gets silent refresh before interacting
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
@@ -2689,6 +2886,136 @@ function openWA(phone, msg) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+/* ─── UPI Payment Helpers ────────────────────────────────────────────────── */
+const _TIFFO_UPI = '7233992325';
+let _currentUpiAmount = 0;
+
+/* ─── UPI Copy + App Picker ───────────────────────────────────────────────────
+   On tap:
+     1. Mobile number copied to clipboard instantly (sync + async).
+     2. Android UPI app picker opens (OS chooser — PhonePe, GPay, Paytm, etc.).
+        App opens to its HOME SCREEN. User manually goes Send Money → Mobile Number,
+        pastes the number, enters amount, pays.
+
+   WHY bare intent with no params:
+     intent://pay?pa=...  →  tries to resolve VPA — fails if suffix wrong, breaks flow.
+     intent://#Intent;scheme=upi;end  →  just opens picker, app home screen, always works.
+
+   WHY NOT upi:// or phonepe:// etc:
+     Chrome blocks all custom scheme deep links from web since Chrome 83. Silent fail.
+─────────────────────────────────────────────────────────────────────────────── */
+
+function copyUpiNumber(btn) {
+  // ── Step 1: Copy to clipboard ──────────────────────────────────────────────
+  // Run sync execCommand immediately — works in all Android Chrome/WebView versions.
+  // Then also run async Clipboard API as enhancement (same content, no harm).
+  const _syncCopy = () => {
+    try {
+      const t = document.createElement('textarea');
+      t.value = _TIFFO_UPI;
+      t.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+      document.body.appendChild(t);
+      t.focus(); t.select();
+      document.execCommand('copy');
+      document.body.removeChild(t);
+    } catch(e) {}
+  };
+
+  _syncCopy(); // fire immediately — clipboard set before any async gap
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(_TIFFO_UPI).catch(() => {}); // best-effort
+  }
+
+  // ── Step 2: Update button state ────────────────────────────────────────────
+  if (btn) {
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+    btn.style.background = '#059669';
+    setTimeout(() => {
+      if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy & Open App';
+        btn.style.background = '';
+      }
+    }, 3500);
+  }
+
+  // ── Step 3: Toast + open picker ────────────────────────────────────────────
+  const amtHint = _currentUpiAmount > 0 ? ` Pay ₹${_currentUpiAmount}.` : '';
+  toast('✅ Number copied!' + amtHint + ' Opening UPI apps — go to Send Money → Mobile Number.');
+  _openUpiPicker();
+}
+
+function _openUpiPicker() {
+  const ua = navigator.userAgent;
+  const isAndroid = /android/i.test(ua);
+
+  if (!isAndroid) {
+    // iOS or desktop — clipboard is already set, just guide them
+    toast('Number copied! Open your UPI app → Send Money → Mobile Number → paste & pay, then come back to send screenshot.');
+    return;
+  }
+
+  // Android: intent:// URL with NO payment params.
+  // This opens the OS UPI app chooser. User picks app → app home screen.
+  // No VPA, no amount, no pre-fill — just launches the picker cleanly.
+  const intentUrl =
+    'intent://#Intent;' +
+    'scheme=upi;' +
+    'action=android.intent.action.VIEW;' +
+    'category=android.intent.category.DEFAULT;' +
+    'end';
+
+  window.location.href = intentUrl;
+}
+
+/* Build a rich professional WA message for UPI payment confirmation */
+function _buildUpiWAMsg({ orderId, user, items, discount, deliveryCharge, total, isInsuf }) {
+  const itemLines = (items || []).map(i => {
+    const lineTotal = (i.price || 0) * (i.qty || 1);
+    return `  • ${i.name}${i.qty > 1 ? ' ×' + i.qty : ''} — ₹${lineTotal}`;
+  }).join('\n');
+  const discLine  = discount > 0       ? `\n🏷️  Coupon Discount   : −₹${discount}` : '';
+  const delLine   = deliveryCharge > 0 ? `\n🛵  Delivery Charge   : ₹${deliveryCharge}` : '';
+
+  // Build address + Google Maps link if coords exist
+  const addr = user?.address || '';
+  const coordMatch = addr.match(/Coordinates:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i);
+  let addrBlock = '';
+  if (coordMatch) {
+    const lat = coordMatch[1], lng = coordMatch[2];
+    const mapUrl = `https://maps.google.com/?q=${lat},${lng}`;
+    const lines = addr.split('\n').map(l => l.trim()).filter(Boolean);
+    const room  = (lines.find(l => /^Room No:/i.test(l))  || '').replace(/^Room No:\s*/i, '').trim();
+    const area  = (lines.find(l => /^Area:/i.test(l))     || '').replace(/^Area:\s*/i, '').trim();
+    const readable = [room, area].filter(Boolean).join(', ') || 'See map link';
+    addrBlock = `📍  Address           : ${readable}\n🗺️  Google Maps        : ${mapUrl}`;
+  } else {
+    addrBlock = `📍  Address           : ${_waAddr(addr)}`;
+  }
+
+  const noteBlock = isInsuf
+    ? `\n⚠️  Note              : Wallet insufficient — balance used + UPI top-up\n`
+    : '';
+
+  const couponBlock = discount > 0 ? `\n🏷️  Coupon Applied     : Yes (−₹${discount})` : '';
+
+  return `🍱 *Tiffo — Payment Confirmation*
+━━━━━━━━━━━━━━━━━━━━━━━
+📋  Order ID          : *#${orderId}*
+👤  Name              : ${user?.name || 'Customer'}
+📞  Mobile            : +91 ${user?.phone || ''}
+${addrBlock}
+━━━━━━━━━━━━━━━━━━━━━━━
+🛒  *Order Summary*
+${itemLines}${discLine}${delLine}
+━━━━━━━━━━━━━━━━━━━━━━━${couponBlock}
+💰  *Amount Paid      : ₹${total}*
+💳  Paid via UPI to   : 7233992325
+━━━━━━━━━━━━━━━━━━━━━━━${noteBlock}
+📸  Payment screenshot attached below.
+✅  Kindly confirm once received. Thank you! 🙏`;
 }
 
 /* Order-tab WA messages stored by orderId to avoid embedding encoded URLs in onclick attributes */
@@ -4305,21 +4632,24 @@ function selectCategory(cat) {
 
 let _menuSearchDebounceTimer = null;
 function _menuSearchDebounce(val) {
-  // Only show/hide clear button on type; actual search fires on icon click or Enter
-  document.getElementById('search-clear').style.display = val ? 'flex' : 'none';
+  const cl = document.getElementById('search-clear');
+  if (cl) cl.classList.toggle('visible', !!val);
   clearTimeout(_menuSearchDebounceTimer);
-  _menuSearchDebounceTimer = setTimeout(() => { onMenuSearch(val); }, 600);
+  _menuSearchDebounceTimer = setTimeout(() => { onMenuSearch(val); }, 400);
 }
 
 function onMenuSearch(val) {
   _menuSearch = val.trim().toLowerCase();
-  document.getElementById('search-clear').style.display = val ? 'flex' : 'none';
+  const cl = document.getElementById('search-clear');
+  if (cl) cl.classList.toggle('visible', !!val);
   filterAndRenderMenu();
 }
 
 function clearSearch() {
-  document.getElementById('menu-search').value = '';
+  const inp = document.getElementById('menu-search');
+  if (inp) inp.value = '';
   onMenuSearch('');
+  if (inp) inp.focus();
 }
 
 function _currentSession() {
@@ -4948,21 +5278,25 @@ async function placeOrder() {
     } else {
       document.getElementById('s-order-id').textContent = res.orderId;
       setDeliveryTime('s-delivery-time');
+      // Wire up amount inline text and WA button for UPI guide
+      _currentUpiAmount = total;
+      const amtInline = document.getElementById('s-pay-amount-inline');
+      if (amtInline) { amtInline.innerHTML = '<i class="fa-solid fa-indian-rupee-sign" style="font-size:10px"></i> Pay: ₹' + total; amtInline.style.display = 'inline-flex'; }
+      const waNote = document.getElementById('s-wa-note');
+      const waBtn  = document.getElementById('s-wa-btn');
+      if (waBtn) {
+        waBtn.style.display = 'flex';
+        if (waNote) waNote.style.display = 'block';
+        waBtn.onclick = () => {
+          const msg = _buildUpiWAMsg({
+            orderId: res.orderId, user, items: cart,
+            discount, deliveryCharge, total, isInsuf: false
+          });
+          openWA(CFG.TIFFIN, msg);
+        };
+      }
       nav('pg-success');
-      setTimeout(() => {
-        const waBtn = document.getElementById('s-wa-btn');
-        if (waBtn) {
-          waBtn.style.display = 'flex';
-          waBtn.onclick = () => {
-            const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-            const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
-            const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
-            openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${user.name || 'Customer'} | 📞 ${user.phone}\n📍 ${_waAddr(user.address)}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n💳 Please share your UPI/QR for payment. I'll send the screenshot once paid. 🙏`);
-          };
-        }
-      }, 500);
-    }
+      launchConfetti();
     // Prefetch orders + khata in background so tabs are ready instantly when user opens them
     _lastOrderPlacedTs = Date.now();
     _startCooldownBanner();
@@ -5035,15 +5369,18 @@ async function confirmInsufOrder() {
 
     // Build WA message for the insuf success page button
     const _u = Auth.get();
-    const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-    const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
-    const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
     _insufWAData = {
       phone: CFG.TIFFIN,
-      msg: `🍱 *Tiffo Order*\n📋 ID: *${res.orderId}*\n👤 ${_u?.name || 'Customer'} | 📞 ${_u?.phone || ''}\n📍 ${_waAddr(_u?.address)}\n\n*Items:*\n${_itemLines}${_discLine}${_delLine}\n✅ *Total: ₹${total}*\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
+      msg: _buildUpiWAMsg({
+        orderId: res.orderId, user: _u, items: cart,
+        discount, deliveryCharge, total, isInsuf: true
+      })
     };
 
     // Populate and show the dedicated insuf success page
+    _currentUpiAmount = total;
+    const _siInline = document.getElementById('si-pay-amount-inline');
+    if (_siInline) { _siInline.innerHTML = '<i class="fa-solid fa-indian-rupee-sign" style="font-size:10px"></i> Pay: ₹' + total; _siInline.style.display = 'inline-flex'; }
     document.getElementById('si-order-id').textContent = res.orderId;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
@@ -5141,9 +5478,6 @@ async function loadOrders(forceRender = false, silent = false) {
     // ── Update active-orders flag so poll tick skips orders DB call when nothing to watch ──
     const activeStatuses = new Set(['pending','confirmed','verified','preparing','out_for_delivery','out for delivery']);
     _hasActiveOrders = (res.orders || []).some(o => activeStatuses.has((o.order_status||'').toLowerCase().replace(/\s+/g,'_')));
-    // Start or stop the fast 90s order poll based on whether active orders exist.
-    if (_hasActiveOrders) _startActiveOrdersPoll();
-    else _stopActiveOrdersPoll();
     const newStr = JSON.stringify(res.orders);
     // Save to local cache for instant-load on next open
     Store.setJSON(_ORDERS_CACHE_KEY, res.orders || []);
@@ -5247,32 +5581,35 @@ function renderOrderList(orders) {
 
     // Build WA message strings safely and store in _orderWAMap (keyed by orderId)
     // This avoids embedding encoded URLs in onclick HTML attributes (single-quote bug)
-    const _ordItemLines = items.map(i => `• ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\n');
-    const _discLine  = o.discount > 0 ? `\n🎟️ Discount: −₹${o.discount}` : '';
-    const _delLine   = o.delivery_charge > 0 ? `\n🚴 Delivery: ₹${o.delivery_charge}` : '';
-    const _baseBlock = `🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${_user?.name || 'Customer'} | 📞 ${_user?.phone || ''}\n📍 ${_waAddr(_user?.address)}\n\n*Items:*\n${_ordItemLines}${_discLine}${_delLine}\n✅ *Total: ₹${ordAmt}*`;
+    // WA message built via _buildUpiWAMsg in the block below
 
     if (!isWallet) {
       // Store the correct message for this order in the map so sendOrderWA() can use it
       _orderWAMap[orderId] = {
         phone: CFG.TIFFIN,
-        msg: isInsuf
-          ? `${_baseBlock}\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
-          : `${_baseBlock}\n\n💳 Please share your UPI/QR for payment. I will send the screenshot once paid. 🙏`
+        msg: _buildUpiWAMsg({
+          orderId,
+          user: _user,
+          items,
+          discount: o.discount || 0,
+          deliveryCharge: o.delivery_charge || 0,
+          total: ordAmt,
+          isInsuf
+        })
       };
     }
 
     const payBadge = isWallet
-      ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
+      ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">✅ Wallet Paid</span>`
       : isInsuf
-        ? `<span class="ord-pay-badge" style="background:#fff3cd;color:#856404">⚠️ Wallet (Insuf)</span>
-           <button onclick="sendOrderWA('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
+        ? `<span class="ord-pay-badge" style="background:#fff3cd;color:#856404">⚠️ UPI (Wallet Short)</span>`
+        : `<span class="ord-pay-badge" style="background:#fef3c7;color:#92400e">💸 UPI / Cash</span>`;
+
+    const screenshotBtn = !isWallet
+      ? `<button onclick="sendOrderWA('${orderId}')" style="display:flex;align-items:center;gap:6px;background:#25d366;color:#fff;border:none;border-radius:10px;padding:9px 14px;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:10px;box-shadow:0 2px 8px rgba(37,211,102,.3)">
+             <i class="fa-brands fa-whatsapp" style="font-size:15px"></i> Send Payment Screenshot
            </button>`
-        : `<span class="ord-pay-badge">💵 Cash / UPI</span>
-           <button onclick="sendOrderWA('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
-           </button>`;
+      : '';
 
     // Slot indicator
     const slotBadge = o.slot
@@ -5318,6 +5655,7 @@ function renderOrderList(orders) {
           ${payBadge}
         </div>
       </div>
+      ${screenshotBtn}
     </div>`;
   }).join('');
 }
@@ -6304,20 +6642,6 @@ function stopPolling() {
 }
 
 // Fast order poll — only runs while user has active orders (pending/confirmed/out_for_delivery).
-// 90s interval so order status updates (confirmed, out for delivery, delivered) reach the
-// customer quickly during peak delivery windows, without hammering DB for idle users.
-function _startActiveOrdersPoll() {
-  if (_activeOrdersPollTimer) return; // already running
-  _activeOrdersPollTimer = setInterval(() => {
-    if (document.hidden || !_session) return; // skip if app in background or logged out
-    loadOrders(true, true).catch(() => {});
-  }, _POLL_ACTIVE_ORDERS);
-}
-
-function _stopActiveOrdersPoll() {
-  if (_activeOrdersPollTimer) { clearInterval(_activeOrdersPollTimer); _activeOrdersPollTimer = null; }
-}
-
 // Called right after order is placed — fetches orders + khata in parallel, silently.
 // When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
 // silent=true prevents spinner flash since user hasn't opened those tabs yet.
@@ -6642,7 +6966,6 @@ function _wipeAndShowLogin() {
   _postLoginRefreshDone = false;
   _menuFreshTs     = 0;
   _hasActiveOrders  = false;
-  _stopActiveOrdersPoll(); // clear fast order poll on logout
   _khataEverVisited = false;
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
   _isGuestMode = false;
@@ -6685,7 +7008,7 @@ async function bootApp() {
 
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { scope: '/' }).then(reg => {
+    navigator.serviceWorker.register('./sw.js', { scope: '/', updateViaCache: 'none' }).then(reg => {
       // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
@@ -7165,7 +7488,6 @@ function doLogout() {
   _lastSchedule    = null;
   _lastCutoff      = null;
   _hasActiveOrders  = false;
-  _stopActiveOrdersPoll(); // clear fast order poll on full wipe
   _khataEverVisited = false;
   _khataAllEntries = [];
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
