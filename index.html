@@ -944,7 +944,7 @@ textarea{resize:vertical;min-height:80px}
 .m-item-img{width:96px;height:96px;border-radius:12px;object-fit:cover}
 .m-item-img-ph{width:96px;height:96px;border-radius:12px;background:linear-gradient(135deg,#f5f5f5,#e5e5e5);display:flex;align-items:center;justify-content:center;font-size:28px}
 .stock-overlay{position:absolute;top:0;left:0;right:0;width:96px;height:96px;background:rgba(0,0,0,.35);border-radius:12px;display:flex;align-items:center;justify-content:center}
-.oos-pill{background:rgba(0,0,0,.7);color:#fff;font-family:var(--ff);font-size:10px;font-weight:600;border-radius:8px;padding:3px 7px}
+.oos-pill{background:rgba(15,23,42,.78);color:#fff;font-family:var(--ff);font-size:9px;font-weight:700;border-radius:6px;padding:3px 8px;letter-spacing:.4px;text-transform:uppercase}
 /* Veg/NonVeg dot */
 .veg-dot{width:16px;height:16px;border:1.5px solid #2a9d8f;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .veg-dot::after{content:'';width:8px;height:8px;border-radius:50%;background:#2a9d8f;display:block}
@@ -960,6 +960,8 @@ textarea{resize:vertical;min-height:80px}
 /* Add-btn below image */
 .img-add-btn{border:none;background:#fff;color:var(--g);border-radius:8px;padding:5px 14px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;border:2px solid var(--g);width:96px;white-space:nowrap}
 .img-add-btn:hover{background:var(--g);color:#fff}
+.img-add-btn.oos-btn{background:#f1f5f9;color:#94a3b8;border-color:#e2e8f0;cursor:not-allowed;font-size:10px;font-weight:700;letter-spacing:.3px;opacity:.85;text-transform:uppercase}
+.img-add-btn.oos-btn:hover{background:#f1f5f9;color:#94a3b8;border-color:#e2e8f0}
 .img-qty-row{display:flex;align-items:center;justify-content:space-between;background:#fff;border:2px solid var(--g);border-radius:8px;overflow:hidden;width:96px}
 .img-qty-btn{border:none;background:none;color:var(--g);width:28px;height:28px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--ff)}
 .img-qty-val{font-family:var(--ff);font-weight:700;font-size:14px;color:var(--g);min-width:22px;text-align:center}
@@ -2415,7 +2417,10 @@ const Cart = {
     } else {
       cart.push({ key, item_id: item.item_id, name: item.name,
         price: (variantPrice != null && variantPrice !== '') ? variantPrice : item.price, variantLabel,
-        qty: 1, stock_grams: item.stock_grams });
+        qty: 1, stock_grams: item.stock_grams,
+        stock_unit: item.stock_unit || 'gram',
+        stock_unit_label: item.stock_unit_label || null,
+        meal_session: item.meal_session || 'both' });
     }
     Cart.save(cart);
     updateCartBadge();
@@ -2729,6 +2734,8 @@ function launchConfetti() {
 }
 
 function isOutOfStock(item) {
+  // Manual OOS flag set by admin takes priority; fallback to stock_grams depletion
+  if (item.is_available === false) return true;
   return item.stock_grams !== null && item.stock_grams !== undefined && item.stock_grams <= 0;
 }
 
@@ -4193,6 +4200,8 @@ async function _fetchFreshMenu() {
   _fullMenu = homeRes.items || [];
   filterAndRenderMenu();
   buildCategoryChips();
+  // Wipe cart items no longer valid for current slot (admin change or slot mismatch)
+  _wipeStaleCartItems();
   // Write cache only on success — guarantees old cache survives a failed refresh
   Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, ts: Date.now() });
   _menuFreshTs = Date.now(); // mark exact moment this DB fetch completed
@@ -4292,6 +4301,42 @@ function _visibleSession() {
   return 'morning';
 }
 
+/* ── _wipeStaleCartItems ──────────────────────────────────────────────────
+   Removes cart items that are invalid for the current slot. Called after
+   every DB menu fetch (login, PTR, slot-boundary auto-refresh).
+   Two checks per cart item:
+     1. Item still exists in live menu (admin remove catch)
+     2. meal_session matches current slot — morning item nahi rahega evening cart mein
+   Silently removes invalid items + toasts user so they know what happened.
+─────────────────────────────────────────────────────────────────────────── */
+function _wipeStaleCartItems() {
+  const cart = Cart.get();
+  if (!cart.length) return;
+  // Safety: if schedule not loaded yet, we can't know the correct slot — skip wipe.
+  // This prevents incorrectly removing evening items when _visibleSession falls back to 'morning'.
+  if (!_lastSchedule && !_lastCutoff) return;
+  const sess = _visibleSession(); // 'morning' | 'evening'
+  const liveMap = new Map(_fullMenu.map(i => [String(i.item_id), i]));
+  const removed = [];
+  const kept = cart.filter(ci => {
+    const liveItem = liveMap.get(String(ci.item_id));
+    // Check 1: item removed from menu by admin
+    if (!liveItem) { removed.push(ci.name); return false; }
+    // Check 2: item went out of stock since it was added to cart
+    if (isOutOfStock(liveItem)) { removed.push(ci.name); return false; }
+    // Check 3: slot mismatch — always use live menu's meal_session as source of truth
+    const itemSess = liveItem.meal_session || 'both';
+    if (itemSess !== 'both' && itemSess !== sess) { removed.push(ci.name); return false; }
+    return true;
+  });
+  if (!removed.length) return;
+  Cart.save(kept);
+  updateCartBadge();
+  if (document.querySelector('.pg.here')?.id === 'pg-cart') renderCart();
+  _fullMenu.forEach(item => refreshMenuItemControl(item));
+  toast('Cart updated: ' + removed.join(', ') + ' no longer available');
+}
+
 function filterAndRenderMenu() {
   let items = _fullMenu;
 
@@ -4361,7 +4406,7 @@ function renderMenuItems(items) {
     const cartQty = cartItem ? cartItem.qty : 0;
     const safeItem = JSON.stringify(item).replace(/"/g,'&quot;');
     const firstKey = `${item.item_id}::${hasVariants ? (variants[0]?.label||'') : ''}`;
-    const imgCtrl = oos ? '' :
+    const imgCtrl = oos ? `<button class="img-add-btn oos-btn" disabled>Out of Stock</button>` :
       cartQty > 0
         ? `<div class="img-qty-row" id="qty-${item.item_id}"><button class="img-qty-btn" onclick="adjustQty('${item.item_id}','${firstKey}',-1,event)">−</button><span class="img-qty-val">${cartQty}</span><button class="img-qty-btn" onclick="addItemToCart(${safeItem},event)">+</button></div>`
         : `<button class="img-add-btn" id="qty-${item.item_id}" onclick="addItemToCart(${safeItem},event)">ADD</button>`;
@@ -4781,6 +4826,28 @@ async function placeOrder() {
     const session = stateObj.session;
     if (_pauseMode === 'both' || _pauseMode === session) {
       toast(`You paused ${session} deliveries. Resume in Account.`); return;
+    }
+  }
+
+  // ── Cart item validation: last-moment check before server call ───────────────
+  // Guards against: stale session item (morning Dal in evening order), admin-removed
+  // item, or admin-changed meal_session mid-session. _fullMenu is always live here
+  // because the stale-data guard above already ensured a fresh fetch.
+  {
+    const sess = _visibleSession();
+    const liveMap = new Map(_fullMenu.map(i => [String(i.item_id), i]));
+    const badItems = cart.filter(ci => {
+      const liveItem = liveMap.get(String(ci.item_id));
+      if (!liveItem) return true; // admin removed item
+      if (isOutOfStock(liveItem)) return true; // item went OOS since added to cart
+      const itemSess = liveItem.meal_session || 'both';
+      if (itemSess !== 'both' && itemSess !== sess) return true; // wrong slot
+      return false;
+    });
+    if (badItems.length) {
+      _wipeStaleCartItems(); // auto-clean + toast
+      toast('Some items are out of stock or unavailable. Cart updated — please review and retry.');
+      return;
     }
   }
 
@@ -6164,6 +6231,8 @@ function scheduleSlotTransitions() {
           //   forceSubCheck=true detects admin-triggered subscription changes at slot boundary.
           refreshSubscriberStatusMerged(true).catch(() => {})
         ]);
+        // _wipeStaleCartItems() is called inside _fetchFreshMenu (via loadMenu above).
+        // No explicit call needed here — bypassCache=true guarantees DB path was taken.
       } catch {}
       // Re-arm for the next day (in case user keeps app open overnight)
       setTimeout(() => scheduleSlotTransitions(), 2000);
