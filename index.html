@@ -716,7 +716,7 @@ body{font-family:var(--fb);background:#fff;color:var(--dk);overflow:hidden;heigh
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 /* Premium menu skeleton card */
-.sk-menu-card{background:#fff;border-radius:0;padding:14px;margin-bottom:0;box-shadow:none;border-bottom:1px solid #f0f0f0;display:flex;gap:12px;overflow:hidden;opacity:0;animation:sk-card-in 300ms ease forwards}.sk-menu-card:last-child{border-bottom:none}
+.sk-menu-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;gap:12px;overflow:hidden;opacity:0;animation:sk-card-in 300ms ease forwards}
 .sk-menu-card:nth-child(1){animation-delay:0ms}
 .sk-menu-card:nth-child(2){animation-delay:60ms}
 .sk-menu-card:nth-child(3){animation-delay:120ms}
@@ -939,8 +939,8 @@ textarea{resize:vertical;min-height:80px}
 .cat-chip.active{background:var(--p);color:#fff;transform:scale(1.05)}
 
 /* Menu grid */
-#menu-list{display:flex;flex-direction:column;gap:0;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-.m-item{background:#fff;border-radius:0;padding:14px;margin-bottom:0;box-shadow:none;border-bottom:1px solid #f0f0f0}.m-item:last-child{border-bottom:none}
+#menu-list{display:flex;flex-direction:column;gap:0}
+.m-item{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .m-item-inner{display:flex;gap:12px}
 .m-item-info{flex:1;min-width:0}
 .m-item-name{font-family:var(--ff);font-weight:600;font-size:16px;color:var(--dk);line-height:1.3}
@@ -1154,7 +1154,7 @@ textarea{resize:vertical;min-height:80px}
 }
 /* ── END RESPONSIVE ── */
 </style>
-<script src="https://purobitese-api.onrender.com/config.js" defer></script>
+<script src="https://purobitese-api.onrender.com/config.js" async></script>
 </head>
 <body class="auth-mode">
 
@@ -2300,7 +2300,7 @@ textarea{resize:vertical;min-height:80px}
 const CFG = {
   API:    'https://purobitese-api.onrender.com/api',
   // Lazy getter: reads window.__TIFFO_API_KEY__ on every access instead of once at
-  // definition time. Since config.js loads with defer, it runs after HTML parse but
+  // definition time. Since config.js loads async, the inline scripts parse first and
   // window.__TIFFO_API_KEY__ is undefined at that point — a static assignment would
   // always produce ''. The getter transparently picks up the value whenever config.js
   // actually runs, without any polling or callback needed.
@@ -2352,9 +2352,11 @@ let _pauseFreshTs  = 0;  // epoch ms of last successful pause fetch — skip on 
 let _walletFreshTs = 0;  // epoch ms of last successful wallet fetch — skip on rapid home returns
 const _DATA_FRESH_TTL = 12000; // 12s — if data was fetched within this window, onEnter skips duplicate DB call
 let _pollTimer   = null;
+let _activeOrdersPollTimer = null; // fast 90s order poll — runs only when _hasActiveOrders=true
 let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
+const _POLL_ACTIVE_ORDERS = 90_000; // 90s — faster order poll when user has pending/confirmed/out-for-delivery orders
 const _REVISIT_THRESHOLD = 4 * 60 * 1000; // 4 min — aligns with Supabase warmup cycle; user returning after cold window gets silent refresh before interacting
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
@@ -5478,6 +5480,9 @@ async function loadOrders(forceRender = false, silent = false) {
     // ── Update active-orders flag so poll tick skips orders DB call when nothing to watch ──
     const activeStatuses = new Set(['pending','confirmed','verified','preparing','out_for_delivery','out for delivery']);
     _hasActiveOrders = (res.orders || []).some(o => activeStatuses.has((o.order_status||'').toLowerCase().replace(/\s+/g,'_')));
+    // Start or stop the fast 90s order poll based on whether active orders exist.
+    if (_hasActiveOrders) _startActiveOrdersPoll();
+    else _stopActiveOrdersPoll();
     const newStr = JSON.stringify(res.orders);
     // Save to local cache for instant-load on next open
     Store.setJSON(_ORDERS_CACHE_KEY, res.orders || []);
@@ -6642,6 +6647,20 @@ function stopPolling() {
 }
 
 // Fast order poll — only runs while user has active orders (pending/confirmed/out_for_delivery).
+// 90s interval so order status updates (confirmed, out for delivery, delivered) reach the
+// customer quickly during peak delivery windows, without hammering DB for idle users.
+function _startActiveOrdersPoll() {
+  if (_activeOrdersPollTimer) return; // already running
+  _activeOrdersPollTimer = setInterval(() => {
+    if (document.hidden || !_session) return; // skip if app in background or logged out
+    loadOrders(true, true).catch(() => {});
+  }, _POLL_ACTIVE_ORDERS);
+}
+
+function _stopActiveOrdersPoll() {
+  if (_activeOrdersPollTimer) { clearInterval(_activeOrdersPollTimer); _activeOrdersPollTimer = null; }
+}
+
 // Called right after order is placed — fetches orders + khata in parallel, silently.
 // When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
 // silent=true prevents spinner flash since user hasn't opened those tabs yet.
@@ -6966,6 +6985,7 @@ function _wipeAndShowLogin() {
   _postLoginRefreshDone = false;
   _menuFreshTs     = 0;
   _hasActiveOrders  = false;
+  _stopActiveOrdersPoll(); // clear fast order poll on logout
   _khataEverVisited = false;
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
   _isGuestMode = false;
@@ -7488,6 +7508,7 @@ function doLogout() {
   _lastSchedule    = null;
   _lastCutoff      = null;
   _hasActiveOrders  = false;
+  _stopActiveOrdersPoll(); // clear fast order poll on full wipe
   _khataEverVisited = false;
   _khataAllEntries = [];
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
