@@ -873,25 +873,14 @@ textarea{resize:vertical;min-height:80px}
 .auth-status.error{color:#b91c1c;background:linear-gradient(135deg,#fff5f5,#fef2f2);border:1.5px solid #fca5a5;box-shadow:0 2px 8px rgba(239,68,68,.09)}
 .auth-status.success{color:#15803d;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;box-shadow:0 2px 8px rgba(22,163,74,.09)}
 .forgot-link{font-family:var(--fb);font-size:13px;color:var(--p);text-align:right;background:none;border:none;cursor:pointer;width:100%;text-decoration:none;margin-top:6px}
-/* Home page header — two-row sticky (Zomato/Swiggy style) */
-.home-header{background:#fff;padding-top:calc(14px + env(safe-area-inset-top,0px));position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.07)}
-.home-header-top{display:flex;align-items:center;justify-content:space-between;padding:0 var(--pg-pad) 10px}
-.home-header-search{padding:0 var(--pg-pad) 12px;background:#fff}
+/* Home page header */
+.home-header{background:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) var(--pg-pad) 10px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 #f0f0f0}
 .home-logo{font-family:var(--ff);font-weight:800;font-size:22px}
 .home-logo .r{color:var(--p)}.home-logo .g{color:var(--g)}
 .home-logo-sub{font-family:var(--fb);font-size:11px;color:var(--gr)}
 .home-greeting{font-family:var(--fb);font-size:13px;color:var(--dk);font-weight:500;margin-top:1px;min-height:18px;transition:opacity 250ms}
 .avatar-btn{width:38px;height:38px;border-radius:50%;background:var(--grad);border:none;color:#fff;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center}
 .pro-badge{position:absolute;bottom:-3px;right:-3px;background:#ffd166;color:#7c5a00;font-family:var(--ff);font-size:8px;font-weight:700;border-radius:4px;padding:1px 3px}
-/* Search inside header */
-.header-search-wrap{background:#f4f5f7;border-radius:12px;padding:0 12px;display:flex;align-items:center;gap:8px;border:1.5px solid transparent;transition:border-color 180ms,background 180ms}
-.header-search-wrap:focus-within{background:#fff;border-color:var(--p)}
-.header-search-wrap input{background:none;border:none;flex:1;font-size:14px;color:var(--dk);padding:11px 0;outline:none;-webkit-appearance:none;appearance:none}
-.header-search-wrap input::placeholder{color:#9ca3af;font-size:14px}
-.header-search-wrap input::-webkit-search-decoration,.header-search-wrap input::-webkit-search-cancel-button,.header-search-wrap input::-webkit-search-results-button,.header-search-wrap input::-webkit-search-results-decoration{display:none}
-.header-search-icon{color:#9ca3af;font-size:15px;flex-shrink:0}
-.header-search-clear{border:none;background:none;color:#9ca3af;cursor:pointer;font-size:18px;padding:2px 0;display:none;line-height:1;flex-shrink:0}
-.header-search-clear.visible{display:block}
 /* Pull to refresh */
 #ptr-zone{text-align:center;padding:0;height:0;overflow:hidden;transition:height 300ms cubic-bezier(0.4,0,0.2,1);display:flex;align-items:center;justify-content:center;color:var(--gr);will-change:height}
 #ptr-arrow{transition:transform 200ms ease,color 200ms ease;font-size:18px;display:inline-block;color:var(--gr)}
@@ -932,6 +921,12 @@ textarea{resize:vertical;min-height:80px}
 #cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;transition:all 300ms}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(42,157,143,.5)}70%{box-shadow:0 0 0 8px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
 .dot-pulse{width:13px;height:13px;background:var(--g);border-radius:50%;flex-shrink:0;animation:pulse-ring 1.8s ease-out infinite}
+/* Search bar */
+.search-wrap{background:#fff;border-radius:14px;padding:0 14px;display:flex;align-items:center;gap:8px;box-shadow:var(--sh);margin-bottom:12px}
+.search-wrap input{background:none;border:none;flex:1;font-size:15px;color:var(--dk);padding:12px 0;outline:none;-webkit-appearance:none;appearance:none}
+.search-wrap input:focus{background:none;border:none;outline:none}
+.search-wrap input::-webkit-search-decoration,.search-wrap input::-webkit-search-cancel-button,.search-wrap input::-webkit-search-results-button,.search-wrap input::-webkit-search-results-decoration{display:none}
+.search-clear{border:none;background:none;color:var(--gr);cursor:pointer;font-size:16px;padding:4px}
 /* Category chips */
 .cat-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
 .cat-scroll::-webkit-scrollbar{display:none}
@@ -1483,33 +1478,20 @@ textarea{resize:vertical;min-height:80px}
      PAGE: HOME
 ══════════════════════════════════════════════ -->
 <div id="pg-home" class="pg">
-  <div class="home-header">
-    <!-- Row 1: Logo + actions -->
-    <div class="home-header-top">
-      <div>
-        <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-        <div id="home-greeting" class="home-greeting">Ghar Ka Tiffin 😍</div>
-      </div>
-      <div class="flex gap8">
-        <button style="border:none;background:#f4f5f7;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
-          <i class="fa-solid fa-bag-shopping"></i>
-          <span id="header-cart-badge" class="badge" style="display:none">0</span>
-        </button>
-        <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
-          <span id="home-avatar-initials">?</span>
-          <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
-        </button>
-      </div>
+  <div class="home-header flex-sb">
+    <div>
+      <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
+      <div id="home-greeting" class="home-greeting">Ghar Ka Tiffin 😍</div>
     </div>
-    <!-- Row 2: Sticky search bar -->
-    <div class="home-header-search">
-      <div class="header-search-wrap">
-        <i class="fa-solid fa-magnifying-glass header-search-icon"></i>
-        <input type="search" id="menu-search" placeholder="Search dishes, dal, paneer…"
-          onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}"
-          oninput="_menuSearchDebounce(this.value)">
-        <button id="search-clear" class="header-search-clear" onclick="clearSearch()">×</button>
-      </div>
+    <div class="flex gap8">
+      <button style="border:none;background:#f5f5f5;width:38px;height:38px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--gr)" onclick="nav('pg-cart')">
+        <i class="fa-solid fa-bag-shopping"></i>
+        <span id="header-cart-badge" class="badge" style="display:none">0</span>
+      </button>
+      <button class="avatar-btn" id="home-avatar" onclick="_onAvatarTap()">
+        <span id="home-avatar-initials">?</span>
+        <span class="pro-badge hidden" id="home-pro-badge">PRO</span>
+      </button>
     </div>
   </div>
 
@@ -1522,7 +1504,7 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
 
-    <div style="padding:12px var(--pg-pad) 0">
+    <div style="padding:0 var(--pg-pad)">
       <!-- Pause toggle (PRO subscribers only) -->
       <div class="pause-row sub-only" id="pause-toggle-row" style="display:none">
         <div style="flex:1">
@@ -1547,6 +1529,14 @@ textarea{resize:vertical;min-height:80px}
       <!-- Cutoff banner -->
       <div id="cutoff-banner" style="display:none"></div>
 
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass" style="color:var(--gr)"></i>
+        <input type="search" id="menu-search" placeholder="Search dishes..." onkeydown="if(event.key==='Enter'||event.keyCode===13){onMenuSearch(this.value);this.blur()}" oninput="_menuSearchDebounce(this.value)">
+        <button id="search-go-btn" onclick="onMenuSearch(document.getElementById('menu-search').value)" style="border:none;background:none;padding:0 4px;cursor:pointer;color:var(--p);font-size:17px;display:flex;align-items:center"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
+      </div>
 
       <!-- Category chips -->
       <div class="cat-scroll" id="cat-scroll"></div>
@@ -4634,24 +4624,21 @@ function selectCategory(cat) {
 
 let _menuSearchDebounceTimer = null;
 function _menuSearchDebounce(val) {
-  const cl = document.getElementById('search-clear');
-  if (cl) cl.classList.toggle('visible', !!val);
+  // Only show/hide clear button on type; actual search fires on icon click or Enter
+  document.getElementById('search-clear').style.display = val ? 'flex' : 'none';
   clearTimeout(_menuSearchDebounceTimer);
-  _menuSearchDebounceTimer = setTimeout(() => { onMenuSearch(val); }, 400);
+  _menuSearchDebounceTimer = setTimeout(() => { onMenuSearch(val); }, 600);
 }
 
 function onMenuSearch(val) {
   _menuSearch = val.trim().toLowerCase();
-  const cl = document.getElementById('search-clear');
-  if (cl) cl.classList.toggle('visible', !!val);
+  document.getElementById('search-clear').style.display = val ? 'flex' : 'none';
   filterAndRenderMenu();
 }
 
 function clearSearch() {
-  const inp = document.getElementById('menu-search');
-  if (inp) inp.value = '';
+  document.getElementById('menu-search').value = '';
   onMenuSearch('');
-  if (inp) inp.focus();
 }
 
 function _currentSession() {
@@ -7028,7 +7015,7 @@ async function bootApp() {
 
   // Register service worker silently (no await — don't block boot)
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { scope: '/', updateViaCache: 'none' }).then(reg => {
+    navigator.serviceWorker.register('./sw.js', { scope: '/' }).then(reg => {
       // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
