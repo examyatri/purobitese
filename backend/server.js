@@ -312,7 +312,7 @@ if (process.env.RENDER_EXTERNAL_URL) {
 // Runs daily at midnight IST to silently purge stale data.
 //
 // Retention policy:
-//   orders           → older than 35 days  (must match khata_entries for earnings accuracy)
+//   orders           → older than 5 days   (delivered, no longer actionable)
 //   khata_entries    → older than 35 days  (one billing cycle of history)
 //   notifications    → older than 1 day    (acted-on or dismissed)
 //   cooking_sessions → older than 5 days   (reference window)
@@ -337,7 +337,7 @@ async function runAutoCleanup() {
     const isoCutoff  = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
 
     const [r1, r2, r3, r4, r5] = await Promise.allSettled([
-      supabase.from('orders')          .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),  // 35 days = matches khata_entries; earnings report needs 30-day history
+      supabase.from('orders')          .delete({ count: 'exact' }).lte('date',         dateCutoff(5)),
       supabase.from('khata_entries')   .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
       supabase.from('notifications')   .delete({ count: 'exact' }).lt('created_at',    isoCutoff(1)),
       supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', dateCutoff(5)),
@@ -574,14 +574,23 @@ function formatOrder(o) {
   };
 }
 
-// Fetch all active riders once and inject rider_name into orders by matching rider_id.
-// This is the correct approach since orders table has no rider_name column.
+// Fetch all active riders and inject rider_name into orders by matching rider_id.
+// Cached for 5 min — riders table rarely changes, no need to hit DB on every poll.
+let _ridersCache   = null;
+let _ridersCacheTs = 0;
+const _RIDERS_TTL  = 5 * 60_000;
+
 async function resolveRiderNames(orders) {
   if (!orders || orders.length === 0) return orders;
-  const { data: riders } = await supabase.from('riders').select('rider_id, name');
-  if (!riders || riders.length === 0) return orders;
+  const now = Date.now();
+  if (!_ridersCache || (now - _ridersCacheTs) > _RIDERS_TTL) {
+    const { data: riders } = await supabase.from('riders').select('rider_id, name');
+    _ridersCache   = riders || [];
+    _ridersCacheTs = now;
+  }
+  if (_ridersCache.length === 0) return orders;
   const riderMap = {};
-  riders.forEach(r => { riderMap[r.rider_id] = r.name; });
+  _ridersCache.forEach(r => { riderMap[r.rider_id] = r.name; });
   return orders.map(o => ({
     ...o,
     rider_name: o.rider_id ? (riderMap[o.rider_id] || o.rider_name || null) : null
@@ -593,6 +602,51 @@ function formatMenuItem(i) {
     ...i,
     variants: typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || [])
   };
+}
+
+// ─── STOCK UNIT HELPERS ───────────────────────────────────────────────────────
+// Single source of truth for unit display — used by kitchen dashboard,
+// cooking session detail, and stock deduction logic.
+// stock_unit: 'gram' | 'kg' | 'piece' | 'litre' | 'custom'
+// stock_unit_label: only used when stock_unit === 'custom'
+function _unitLabel(stockUnit, stockUnitLabel) {
+  switch ((stockUnit || 'gram').toLowerCase()) {
+    case 'gram':   return 'g';
+    case 'kg':     return 'kg';
+    case 'piece':  return 'pcs';
+    case 'litre':  return 'L';
+    case 'custom': return stockUnitLabel || 'unit';
+    default:       return stockUnit || 'g';
+  }
+}
+
+// Build a name→{unit,label} map from menu_items rows for kitchen enrichment.
+// Keyed by lowercase item name for case-insensitive matching.
+function _buildMenuUnitMap(menuRows) {
+  const map = {};
+  (menuRows || []).forEach(mi => {
+    const key = (mi.name || '').trim().toLowerCase();
+    map[key] = {
+      unit:  mi.stock_unit       || 'gram',
+      label: mi.stock_unit_label || null
+    };
+  });
+  return map;
+}
+
+// Resolve the display unit for a kitchen summary item.
+// Priority:
+//   1. Variant label parse (e.g. "50 Gram" → "Gram") — legacy variant-based items
+//   2. menu_items stock_unit (e.g. piece, kg, litre, custom)
+//   3. item.stock_unit carried in cart JSON
+//   4. item.unit / item.variant fields
+//   5. Empty string (show raw qty with no unit)
+function _resolveKitchenUnit(parsedUnit, itemName, menuUnitMap, cartItem) {
+  if (parsedUnit) return parsedUnit;
+  const menuEntry = menuUnitMap[(itemName || '').trim().toLowerCase()];
+  if (menuEntry) return _unitLabel(menuEntry.unit, menuEntry.label);
+  if (cartItem.stock_unit) return _unitLabel(cartItem.stock_unit, cartItem.stock_unit_label);
+  return (cartItem.unit || cartItem.variant || '').trim();
 }
 
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
@@ -690,21 +744,65 @@ async function _createNotification(fields) {
 
 async function _deductMenuStock(items) {
   if (!items || items.length === 0) return;
-  // Batch-fetch all stock values in one query, then update in parallel
+  // Batch-fetch stock fields including stock_unit for unit-aware deduction
   const ids = items.map(i => i.item_id).filter(Boolean);
   if (!ids.length) return;
   const { data: rows } = await supabase
     .from('menu_items')
-    .select('item_id, stock_grams')
+    .select('item_id, stock_grams, portion_grams, stock_unit')
     .in('item_id', ids);
   const stockMap = {};
-  for (const r of (rows || [])) stockMap[r.item_id] = r.stock_grams;
-  await Promise.all(items.map(item => {
-    const cur = stockMap[item.item_id];
-    if (cur == null) return Promise.resolve();
-    const newStock = Math.max(0, cur - (item.stock_grams || 100) * item.qty);
-    return supabase.from('menu_items').update({ stock_grams: newStock }).eq('item_id', item.item_id);
-  }));
+  for (const r of (rows || [])) stockMap[r.item_id] = r;
+
+  let anyHitZero = false;
+  const updateOps = [];
+
+  items.forEach(item => {
+    const row = stockMap[item.item_id];
+    if (!row || row.stock_grams == null) return; // null = unlimited, skip
+
+    // Variant-aware deduction — mirrors kitchen aggregation logic exactly.
+    //
+    // Priority order for per-unit deduction amount:
+    //   1. variantLabel parse  → "100 Gram" → 100, "4 Piece" → 4
+    //      Same regex used by kitchen getCookingSummary so stock & kitchen always match.
+    //   2. portion_grams       → admin-set fallback (e.g. for non-variant items like Roti=1)
+    //   3. default 1           → safe fallback when neither is set
+    //
+    // item.qty is the cart quantity (how many times user ordered that variant).
+    // perUnit is the stock amount consumed by ONE unit of that cart item.
+    let perUnit;
+    const vLabel = item.variantLabel || item.variant_label || '';
+    if (vLabel) {
+      const m = String(vLabel).match(/^(\d+(?:\.\d+)?)\s+[A-Za-z]/);
+      if (m) {
+        // Variant label carries explicit quantity (e.g. "250 Gram" → 250).
+        // portion_grams is intentionally ignored here — the label is the ground truth.
+        perUnit = parseFloat(m[1]);
+      }
+    }
+    if (perUnit == null) {
+      // No variant label or unparseable label — fall back to admin-set portion_grams.
+      perUnit = row.portion_grams != null ? row.portion_grams : 1;
+    }
+
+    // stock_grams stores remaining stock in the item's native unit (gram/kg/piece/litre/custom).
+    // perUnit is in the same native unit — no conversion needed.
+    const newStock = Math.max(0, row.stock_grams - perUnit * item.qty);
+    if (newStock <= 0) anyHitZero = true;
+    updateOps.push({ item_id: item.item_id, newStock });
+  });
+
+  // Execute all stock updates in parallel
+  await Promise.all(updateOps.map(({ item_id, newStock }) =>
+    supabase.from('menu_items').update({ stock_grams: newStock }).eq('item_id', item_id)
+  ));
+
+  // If any item just sold out, invalidate menu cache + bump version so
+  // version-polling customers see OOS within their next poll cycle (<=60s)
+  if (anyHitZero) {
+    _menuItemsCache = null; _menuItemsCacheTs = 0; _bumpMenuVersion();
+  }
 }
 
 /* ─── TIFFO DELIVERY ZONES (server-side mirror of client zone table) ─────────
@@ -835,7 +933,10 @@ async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, i
     txnId = await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
   }
 
-  await _deductMenuStock(items);
+  // Stock deduction: ONLY for normal user orders.
+  // Admin-placed orders (source='admin') and bulk-generated orders (source='admin_bulk')
+  // must NOT affect stock — admin can always order even when OOS.
+  if (source === 'user') await _deductMenuStock(items);
 
   const { error: ordErr } = await supabase.from('orders').insert({
     order_id:        orderId,
@@ -1177,12 +1278,16 @@ app.post('/api', async (req, res) => {
           highlight:   data.highlight || null,
           sort_order:  data.sort_order || 99,
           is_active:   data.is_active !== undefined ? data.is_active : true,
-          stock_grams: data.stock_grams ?? null,
-          veg_type:    data.veg_type || 'veg',
-          sub_items:    data.sub_items || null,
-          sub_category: data.sub_category || null,
-          meal_session: data.meal_session || 'both',
-          created_at:   new Date().toISOString()
+          stock_grams:      data.stock_grams ?? null,
+          portion_grams:    data.portion_grams ?? null,
+          stock_unit:       data.stock_unit || 'gram',
+          stock_unit_label: data.stock_unit_label || null,
+          is_available:     data.is_available !== undefined ? data.is_available : true,
+          veg_type:         data.veg_type || 'veg',
+          sub_items:        data.sub_items || null,
+          sub_category:     data.sub_category || null,
+          meal_session:     data.meal_session || 'both',
+          created_at:       new Date().toISOString()
         });
         if (miErr) throw new Error(miErr.message || 'Failed to add menu item');
         _menuItemsCache = null; _menuItemsCacheTs = 0; _bumpMenuVersion(); // invalidate + version bump
@@ -1712,8 +1817,11 @@ app.post('/api', async (req, res) => {
             const itObj  = { name: itName, qty: itQty, price: 0 };
             // Preserve variantLabel for kitchen quantity aggregation
             // e.g. "100 Gram" on Bhindi lets kitchen show 500g for 5 orders
-            if (it.variantLabel) itObj.variantLabel = it.variantLabel;
-            if (it.item_id)      itObj.item_id      = it.item_id;
+            if (it.variantLabel)       itObj.variantLabel       = it.variantLabel;
+            if (it.item_id)            itObj.item_id            = it.item_id;
+            // Carry stock_unit so kitchen unit display is correct even for bulk orders
+            if (it.stock_unit)         itObj.stock_unit         = it.stock_unit;
+            if (it.stock_unit_label)   itObj.stock_unit_label   = it.stock_unit_label;
             return itObj;
           });
         } else {
@@ -2164,6 +2272,7 @@ app.post('/api', async (req, res) => {
           zone:          data.zone    || null,
           is_active:     true
         });
+        _ridersCache = null; // invalidate cache — new rider added
         return res.json({ success: true, rider_id });
       }
 
@@ -2178,12 +2287,14 @@ app.post('/api', async (req, res) => {
           delete updates.password;
         }
         await supabase.from('riders').update(updates).eq('rider_id', rid);
+        _ridersCache = null; // invalidate cache — rider updated
         return res.json({ success: true });
       }
 
       case 'deleteRider': {
         const rid = data.rider_id || data.id;
         await supabase.from('riders').update({ is_active: false }).eq('rider_id', rid);
+        _ridersCache = null; // invalidate cache — rider deactivated
         return res.json({ success: true });
       }
 
@@ -2454,7 +2565,7 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getNotifications': {
-        const { data: rows } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+        const { data: rows } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(500); // cap: daily auto-delete keeps table small; 500 covers full day comfortably
         const list = (rows || []).map(n => {
           if (n.meta && typeof n.meta === 'string') {
             try { n.meta = JSON.parse(n.meta); } catch (_) { n.meta = {}; }
@@ -2525,7 +2636,9 @@ app.post('/api', async (req, res) => {
         if (!reqDate) return res.json({ success: false, error: 'Missing date' });
 
         // Minimum retention rules (days): data newer than this is never deleted
-        const MIN_DAYS = { orders: 35, transactions: 35, notifications: 1 };
+        const MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+        const minDays  = MIN_DAYS[type];
+        if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
 
         // Compute the safest allowed cutoff date (today − minDays) in IST, not UTC
         const safeCutoffIST = getIST();
@@ -2563,7 +2676,7 @@ app.post('/api', async (req, res) => {
           return istDateStr(d);
         };
 
-        const ordersCutoff  = dateCutoff(35);  // orders  older than 35 days — must match khata_entries for earnings accuracy
+        const ordersCutoff  = dateCutoff(5);   // orders  older than 5 days
         const txnsCutoff    = dateCutoff(35);  // transactions older than 35 days
         const notifsCutoff  = dateCutoff(1);   // notifications older than 1 day
 
@@ -2835,7 +2948,11 @@ app.post('/api', async (req, res) => {
         const reqDate  = data.before;
         if (!reqDate) return res.json({ success: false, error: 'Missing date' });
 
-        const MIN_DAYS = { orders: 35, transactions: 35, notifications: 1 };
+        const MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+        const minDays  = MIN_DAYS[type];
+        if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
+
+        const safeCutoffIST2 = getIST();
         safeCutoffIST2.setUTCDate(safeCutoffIST2.getUTCDate() - minDays);
         const safeCutoffStr = istDateStr(safeCutoffIST2);
         const cutoffDate    = reqDate < safeCutoffStr ? reqDate : safeCutoffStr;
@@ -2904,21 +3021,36 @@ app.post('/api', async (req, res) => {
         const orderIds = data.orderIds || [];
         if (!orderIds.length) return res.json({ success: true, orders: [], summary: [] });
 
-        const { data: rows, error } = await supabase
-          .from('orders')
-          .select('order_id,name,phone,address,items,slot,order_status,payment_mode,final_amount,date')
-          .in('order_id', orderIds);
+        // Parallel: orders + menu_items for unit enrichment.
+        // menu_items uses server-side cache if warm — no extra DB hit on hot cache.
+        const _sdNow = Date.now();
+        const _sdMenuCacheHit = _menuItemsCache && (_sdNow - _menuItemsCacheTs) < _MENU_ITEMS_TTL;
+
+        const [
+          { data: rows, error },
+          menuUnitRowsSDRaw
+        ] = await Promise.all([
+          supabase.from('orders')
+            .select('order_id,name,phone,address,items,slot,order_status,payment_mode,final_amount,date')
+            .in('order_id', orderIds),
+          _sdMenuCacheHit
+            ? Promise.resolve(_menuItemsCache)
+            : supabase.from('menu_items').select('item_id, name, stock_unit, stock_unit_label').then(r => r.data)
+        ]);
 
         if (error) return res.json({ success: false, error: error.message });
+
+        const menuUnitRowsSD = Array.isArray(menuUnitRowsSDRaw) ? menuUnitRowsSDRaw : (menuUnitRowsSDRaw || []);
+        const menuUnitMapSD = _buildMenuUnitMap(menuUnitRowsSD);
 
         const orders = (rows || []).map(o => ({
           ...o,
           items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
         }));
 
-        // Build item summary — mirrors _parseVariantQtyUnit logic from getCookingSummary.
-        // Items are stored with 'variantLabel' (e.g. "100 Gram"), NOT 'variant'.
-        // Using i.variant was always '' → qty was always raw cart qty (1), not real qty.
+        // Aggregate item quantities using shared unit helpers.
+        // Correctly handles: variant-label items ("50 Gram"), stock_unit items (piece/kg/litre/custom),
+        // cart items carrying stock_unit, and legacy bare-qty items.
         function _parseVQL(variantLabel) {
           if (!variantLabel) return null;
           const m = String(variantLabel).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
@@ -2927,23 +3059,17 @@ app.post('/api', async (req, res) => {
         }
         const itemMap = {};
         orders.forEach(o => {
-          // Track which item keys appear in this order so we count orders once per item per order
           const seenKeysInOrder = new Set();
           (o.items || []).forEach(i => {
-            const key = (i.name || i.item_id || 'Unknown').trim();
-            // Robustly read cart quantity — check all common field names used across app versions
-            const rawQty = i.qty ?? i.quantity ?? i.count ?? i.amount ?? null;
+            const key     = (i.name || i.item_id || 'Unknown').trim();
+            const rawQty  = i.qty ?? i.quantity ?? i.count ?? i.amount ?? null;
             const cartQty = rawQty !== null && rawQty !== undefined ? parseFloat(rawQty) || 1 : 1;
             const parsed  = _parseVQL(i.variantLabel || i.variant_label || '');
             const realQty = parsed ? parsed.numQty * cartQty : cartQty;
-            const unit    = parsed ? parsed.unit : (i.unit || '').trim();
+            const unit    = _resolveKitchenUnit(parsed?.unit || null, key, menuUnitMapSD, i);
             if (!itemMap[key]) itemMap[key] = { name: key, variantLabel: i.variantLabel || '', unit, qty: 0, orders: 0 };
             itemMap[key].qty += realQty;
-            // Count this order only once per item key (not once per item-line)
-            if (!seenKeysInOrder.has(key)) {
-              itemMap[key].orders += 1;
-              seenKeysInOrder.add(key);
-            }
+            if (!seenKeysInOrder.has(key)) { itemMap[key].orders += 1; seenKeysInOrder.add(key); }
             if (!itemMap[key].unit && unit) itemMap[key].unit = unit;
           });
         });
@@ -2985,15 +3111,28 @@ app.post('/api', async (req, res) => {
         if (slot === 'morning') sesListQuery = sesListQuery.eq('slot', 'morning');
         else if (slot === 'evening') sesListQuery = sesListQuery.eq('slot', 'evening');
 
+        // menu_items for unit enrichment — use server-side cache if warm (avoids extra DB hit).
+        // Cache is invalidated on any menu change, so unit data is always consistent.
+        const _kdNow = Date.now();
+        const _kdMenuCacheHit = _menuItemsCache && (_kdNow - _menuItemsCacheTs) < _MENU_ITEMS_TTL;
+
         const [
           { data: lockSessions },
           { data: orders },
-          { data: allSessions, error: sesErr }
+          { data: allSessions, error: sesErr },
+          menuUnitRowsRaw
         ] = await Promise.all([
           lockQuery,
           summaryQuery,
-          sesListQuery
+          sesListQuery,
+          _kdMenuCacheHit
+            ? Promise.resolve(_menuItemsCache)
+            : supabase.from('menu_items').select('item_id, name, stock_unit, stock_unit_label').then(r => r.data)
         ]);
+
+        const menuUnitRows = Array.isArray(menuUnitRowsRaw) ? menuUnitRowsRaw : (menuUnitRowsRaw?.data || menuUnitRowsRaw || []);
+        // Build unit map using shared helper (name → {unit, label})
+        const menuUnitMapKD = _buildMenuUnitMap(menuUnitRows);
 
         // ── Build locked set ──────────────────────────────────────────────
         const lockedIds = new Set();
@@ -3001,7 +3140,12 @@ app.post('/api', async (req, res) => {
           (s.locked_order_ids || []).forEach(id => lockedIds.add(id));
         });
 
-        // ── Aggregate quantities (same logic as getCookingSummary) ─────────
+        // ── Aggregate quantities ──────────────────────────────────────────
+        // Unit resolution (via _resolveKitchenUnit):
+        //   1. variantLabel parse ("50 Gram" → "Gram") — legacy variant items
+        //   2. stock_unit from menu_items  ("piece" → "pcs", "kg" → "kg", etc.)
+        //   3. stock_unit carried in cart item JSON
+        //   4. item.unit / item.variant fields (legacy fallback)
         function _parseVQU(variantLabel) {
           if (!variantLabel) return null;
           const m = String(variantLabel).match(/^(\d+(?:\.\d+)?)\s+([A-Za-z]+)/);
@@ -3019,23 +3163,17 @@ app.post('/api', async (req, res) => {
             try { rawItems = JSON.parse(rawItems); } catch { rawItems = []; }
           }
           const items = Array.isArray(rawItems) ? rawItems : [];
-          // Track seen item keys per order to count orders once per item per order
           const seenKeysInOrder = new Set();
           items.forEach(item => {
             const key     = (item.name || item.item_name || 'Unknown').trim();
-            // Robustly read cart quantity — check all common field names used across app versions
             const rawQty  = item.qty != null ? item.qty : (item.quantity != null ? item.quantity : (item.count != null ? item.count : null));
             const cartQty = rawQty !== null ? parseFloat(rawQty) || 1 : 1;
             const parsed  = _parseVQU(item.variantLabel || item.variant_label || '');
             const realQty = parsed ? parsed.numQty * cartQty : cartQty;
-            const unit    = parsed ? parsed.unit : (item.unit || item.variant || '').trim();
+            const unit    = _resolveKitchenUnit(parsed?.unit || null, key, menuUnitMapKD, item);
             if (!summary[key]) summary[key] = { name: key, totalQty: 0, unit, orders: 0 };
             summary[key].totalQty += realQty;
-            // Count this order only once per item key (not once per item-line)
-            if (!seenKeysInOrder.has(key)) {
-              summary[key].orders += 1;
-              seenKeysInOrder.add(key);
-            }
+            if (!seenKeysInOrder.has(key)) { summary[key].orders += 1; seenKeysInOrder.add(key); }
             if (!summary[key].unit && unit) summary[key].unit = unit;
           });
         });
