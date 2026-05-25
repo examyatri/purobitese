@@ -2152,9 +2152,11 @@ let _pauseFreshTs  = 0;  // epoch ms of last successful pause fetch — skip on 
 let _walletFreshTs = 0;  // epoch ms of last successful wallet fetch — skip on rapid home returns
 const _DATA_FRESH_TTL = 12000; // 12s — if data was fetched within this window, onEnter skips duplicate DB call
 let _pollTimer   = null;
+let _activeOrdersPollTimer = null; // fast 90s order poll — runs only when _hasActiveOrders=true
 let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
+const _POLL_ACTIVE_ORDERS = 90_000; // 90s — faster order poll when user has pending/confirmed/out-for-delivery orders
 const _REVISIT_THRESHOLD = 4 * 60 * 1000; // 4 min — aligns with Supabase warmup cycle; user returning after cold window gets silent refresh before interacting
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
@@ -4054,6 +4056,11 @@ async function _checkMenuVersion() {
       _resetSettingsCache();
       _menuLoading = false; // unlock in case stale lock
       await loadMenu(true, true).catch(() => {});
+      // If a logged-in user exists, also refresh their subscriber status.
+      // Covers both schedule changes (banner update) and subscriber changes
+      // (promotion/demotion detection) in one targeted call — fires only when
+      // admin actually changed something, not on every poll tick.
+      if (_session?.phone) refreshSubscriberStatusMerged(true).catch(() => {});
       // Show the update banner if user is on home tab
       const cur = document.querySelector('.pg.here')?.id;
       if (cur === 'pg-home') _showMenuUpdateBanner();
@@ -4127,6 +4134,20 @@ async function loadMenu(bypassCache = false, silent = false) {
           _fullMenu = cache.data || [];
           filterAndRenderMenu();
           buildCategoryChips();
+        }
+        // ── Always render the open/close banner from cached or in-memory schedule ──
+        // When cache is fresh (<30 min) _fetchFreshMenu() is skipped, so
+        // updateCutoffBanner would never be called without this block.
+        // Priority: cache.schedule (new format) → _lastSchedule (in-memory from earlier
+        // fetch this session) → skip (no data yet, acceptable on very first load).
+        {
+          const _cs = cache.schedule || _lastSchedule || null;
+          const _cc = cache.config   || _lastCutoff   || null;
+          if (_cs || _cc) {
+            _lastSchedule = _cs;
+            _lastCutoff   = _cc;
+            updateCutoffBanner(_lastSchedule, currentISTHour(), _lastCutoff);
+          }
         }
         // Only hit the DB if cache is stale (>30 min). Fresh cache = skip network call.
         if (age >= _MENU_TTL) {
@@ -4203,7 +4224,7 @@ async function _fetchFreshMenu() {
   // Wipe cart items no longer valid for current slot (admin change or slot mismatch)
   _wipeStaleCartItems();
   // Write cache only on success — guarantees old cache survives a failed refresh
-  Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, ts: Date.now() });
+  Store.setJSON(_MENU_CACHE_KEY, { data: _fullMenu, schedule: homeRes.schedule || null, config: homeRes.config || null, ts: Date.now() });
   _menuFreshTs = Date.now(); // mark exact moment this DB fetch completed
   // Sync known version — prevents false "menu updated" banner on next version poll
   if (homeRes.version) _knownMenuVersion = homeRes.version;
@@ -5087,6 +5108,9 @@ async function loadOrders(forceRender = false, silent = false) {
     // ── Update active-orders flag so poll tick skips orders DB call when nothing to watch ──
     const activeStatuses = new Set(['pending','confirmed','verified','preparing','out_for_delivery','out for delivery']);
     _hasActiveOrders = (res.orders || []).some(o => activeStatuses.has((o.order_status||'').toLowerCase().replace(/\s+/g,'_')));
+    // Start or stop the fast 90s order poll based on whether active orders exist.
+    if (_hasActiveOrders) _startActiveOrdersPoll();
+    else _stopActiveOrdersPoll();
     const newStr = JSON.stringify(res.orders);
     // Save to local cache for instant-load on next open
     Store.setJSON(_ORDERS_CACHE_KEY, res.orders || []);
@@ -6246,6 +6270,21 @@ function stopPolling() {
   _pollTimer = null;
 }
 
+// Fast order poll — only runs while user has active orders (pending/confirmed/out_for_delivery).
+// 90s interval so order status updates (confirmed, out for delivery, delivered) reach the
+// customer quickly during peak delivery windows, without hammering DB for idle users.
+function _startActiveOrdersPoll() {
+  if (_activeOrdersPollTimer) return; // already running
+  _activeOrdersPollTimer = setInterval(() => {
+    if (document.hidden || !_session) return; // skip if app in background or logged out
+    loadOrders(true, true).catch(() => {});
+  }, _POLL_ACTIVE_ORDERS);
+}
+
+function _stopActiveOrdersPoll() {
+  if (_activeOrdersPollTimer) { clearInterval(_activeOrdersPollTimer); _activeOrdersPollTimer = null; }
+}
+
 // Called right after order is placed — fetches orders + khata in parallel, silently.
 // When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
 // silent=true prevents spinner flash since user hasn't opened those tabs yet.
@@ -6272,7 +6311,7 @@ function startPollingKhata() {
 async function _runPollTick() {
   if (document.hidden) return;
   // ── Opt 1: Merged subscriber call (was 2 separate: getSubscriberBalance + getSubscriberPauseStatus) ──
-  refreshSubscriberStatusMerged().catch(() => {});
+  refreshSubscriberStatusMerged().catch(() => {}); // balance + pause update (forceSubCheck=false — version poll handles subscribe/unsubscribe detection)
   const cur = document.querySelector('.pg.here')?.id;
   // ── Opt 2: Skip orders poll when there are no active orders (and user isn't watching orders tab) ──
   if (_hasActiveOrders || cur === 'pg-orders') {
@@ -6568,6 +6607,7 @@ function _wipeAndShowLogin() {
   _postLoginRefreshDone = false;
   _menuFreshTs     = 0;
   _hasActiveOrders  = false;
+  _stopActiveOrdersPoll(); // clear fast order poll on logout
   _khataEverVisited = false;
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
   _isGuestMode = false;
@@ -7087,6 +7127,7 @@ function doLogout() {
   _lastSchedule    = null;
   _lastCutoff      = null;
   _hasActiveOrders  = false;
+  _stopActiveOrdersPoll(); // clear fast order poll on full wipe
   _khataEverVisited = false;
   _khataAllEntries = [];
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
