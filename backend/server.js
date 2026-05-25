@@ -2142,11 +2142,13 @@ app.post('/api', async (req, res) => {
         // plan_end: allow setting or clearing (null = infinite subscription)
         if (data.plan_end !== undefined) updates.plan_end = data.plan_end || null;
         await supabase.from('subscribers').update(updates).eq('phone', cleanPhone(data.phone));
+        _bumpMenuVersion(); // subscriber status changed — clients detect via version poll
         return res.json({ success: true });
       }
 
       case 'removeSubscriber': {
         await supabase.from('subscribers').delete().eq('phone', cleanPhone(data.phone));
+        _bumpMenuVersion(); // subscriber removed — clients detect via version poll
         return res.json({ success: true });
       }
 
@@ -2258,6 +2260,7 @@ app.post('/api', async (req, res) => {
           await supabase.from('khata_summary')
             .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
         } catch(_) {}
+        _bumpMenuVersion(); // subscriber added — clients detect via version poll
         return res.json({ success: true });
       }
       case 'createRider': {
@@ -2447,6 +2450,7 @@ app.post('/api', async (req, res) => {
           body:  '₹' + amount + ' added to wallet. New balance: ₹' + newBal,
           meta:  { phone, amount, newBal }
         });
+        _bumpMenuVersion(); // wallet changed — client detects via version poll → refreshes balance
         return res.json({ success: true, newBalance: newBal });
       }
 
@@ -2479,6 +2483,7 @@ app.post('/api', async (req, res) => {
           body:  '₹' + amount + ' adjusted. New balance: ₹' + newBal,
           meta:  { phone, amount, newBal }
         });
+        _bumpMenuVersion(); // wallet changed — client detects via version poll → refreshes balance
         return res.json({ success: true, newBalance: newBal });
       }
 
