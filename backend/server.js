@@ -312,11 +312,11 @@ if (process.env.RENDER_EXTERNAL_URL) {
 // Runs daily at midnight IST to silently purge stale data.
 //
 // Retention policy:
-//   orders           → older than 5 days   (delivered, no longer actionable)
+//   orders           → older than 35 days  (full earning history window)
 //   khata_entries    → older than 35 days  (one billing cycle of history)
 //   notifications    → older than 1 day    (acted-on or dismissed)
-//   cooking_sessions → older than 5 days   (reference window)
-//   nu_coupon_sent   → older than 5 days   (coupon delivered, record done)
+//   cooking_sessions → older than 5 days   (kitchen lock reference only)
+//   nu_coupon_sent   → older than 5 days   (coupon dedup record only)
 //
 // NEVER touches: users, subscribers, riders, staff, menu_items, thalis,
 //                thali_items, admin_settings, coupons, khata_summary
@@ -337,7 +337,7 @@ async function runAutoCleanup() {
     const isoCutoff  = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
 
     const [r1, r2, r3, r4, r5] = await Promise.allSettled([
-      supabase.from('orders')          .delete({ count: 'exact' }).lte('date',         dateCutoff(5)),
+      supabase.from('orders')          .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
       supabase.from('khata_entries')   .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
       supabase.from('notifications')   .delete({ count: 'exact' }).lt('created_at',    isoCutoff(1)),
       supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', dateCutoff(5)),
@@ -2636,7 +2636,7 @@ app.post('/api', async (req, res) => {
         if (!reqDate) return res.json({ success: false, error: 'Missing date' });
 
         // Minimum retention rules (days): data newer than this is never deleted
-        const MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+        const MIN_DAYS = { orders: 35, transactions: 35, notifications: 1 };
         const minDays  = MIN_DAYS[type];
         if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
 
@@ -2676,7 +2676,7 @@ app.post('/api', async (req, res) => {
           return istDateStr(d);
         };
 
-        const ordersCutoff  = dateCutoff(5);   // orders  older than 5 days
+        const ordersCutoff  = dateCutoff(35);  // orders  older than 35 days
         const txnsCutoff    = dateCutoff(35);  // transactions older than 35 days
         const notifsCutoff  = dateCutoff(1);   // notifications older than 1 day
 
@@ -2948,7 +2948,7 @@ app.post('/api', async (req, res) => {
         const reqDate  = data.before;
         if (!reqDate) return res.json({ success: false, error: 'Missing date' });
 
-        const MIN_DAYS = { orders: 5, transactions: 35, notifications: 1 };
+        const MIN_DAYS = { orders: 35, transactions: 35, notifications: 1 };
         const minDays  = MIN_DAYS[type];
         if (minDays === undefined) return res.json({ success: false, error: 'Unknown type: ' + type });
 
