@@ -669,8 +669,8 @@
 <!-- Leaflet — free, no API key, unlimited usage -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" async></script>
-<!-- QRCode.js — generates UPI QR codes client-side, no server needed -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- qr-creator — lightweight, sharp, correct QR codes -->
+<script src="https://cdn.jsdelivr.net/npm/qr-creator@1.0.0/dist/qr-creator.min.js"></script>
 <style>
 html{background:#fff}
 :root{
@@ -699,7 +699,7 @@ body{font-family:var(--fb);background:#fff;color:var(--dk);overflow:hidden;heigh
 #cart-fab{display:none!important}
 .badge{position:absolute;top:-7px;right:-9px;background:var(--p);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;pointer-events:none}
 /* Toast */
-#toast{position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;border-radius:24px;padding:10px 20px;opacity:0;transition:all 300ms;z-index:9999;white-space:nowrap;pointer-events:none;font-family:var(--fb);font-size:14px}
+#toast{position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a2e;color:#fff;border-radius:24px;padding:10px 20px;opacity:0;transition:all 300ms;z-index:9999;white-space:normal;max-width:calc(100vw - 40px);text-align:center;pointer-events:none;font-family:var(--fb);font-size:14px}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #offline-bar{position:fixed;top:0;left:0;right:0;z-index:10000;background:#ef4444;color:#fff;text-align:center;font-size:13px;font-weight:600;padding:6px 12px;transform:translateY(-100%);transition:transform 250ms ease;letter-spacing:.2px}
 #offline-bar.show{transform:translateY(0)}
@@ -1443,7 +1443,7 @@ textarea{resize:vertical;min-height:80px}
 .upi-qr-card{width:100%;background:#fff;border-radius:18px;padding:20px 16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #f0f0f0;display:flex;flex-direction:column;align-items:center;gap:4px}
 .upi-qr-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#6b7280;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
 .upi-qr-box{width:200px;height:200px;border-radius:14px;overflow:hidden;border:3px solid #f0f0f0;background:#fff;display:flex;align-items:center;justify-content:center;position:relative}
-.upi-qr-box canvas,.upi-qr-box img{width:200px!important;height:200px!important;display:block}
+.upi-qr-box canvas,.upi-qr-box img{width:200px!important;height:200px!important;display:block;image-rendering:pixelated}
 .upi-qr-vpa{font-family:monospace;font-size:12px;color:#6b7280;margin-top:6px;letter-spacing:.3px}
 .upi-qr-note{font-family:var(--fb);font-size:11.5px;color:#6b7280;text-align:center;line-height:1.5;margin-top:2px}
 .upi-download-btn{width:100%;border:none;background:#f1f5f9;color:#374151;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
@@ -1451,7 +1451,7 @@ textarea{resize:vertical;min-height:80px}
 .upi-apps-row{display:flex;gap:10px;width:100%;justify-content:center;margin-top:2px}
 .upi-app-btn{flex:1;max-width:90px;border:1.5px solid #e5e7eb;background:#fff;border-radius:12px;padding:10px 6px 8px;font-family:var(--ff);font-weight:600;font-size:11px;color:#374151;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .15s}
 .upi-app-btn:active{background:#f9fafb}
-.upi-app-icon{font-size:22px;line-height:1}
+.upi-app-icon{font-size:22px;line-height:1;width:32px;height:32px}
 .upi-divider{width:100%;display:flex;align-items:center;gap:10px;margin:2px 0}
 .upi-divider-line{flex:1;height:1px;background:#e5e7eb}
 .upi-divider-text{font-family:var(--fb);font-size:11px;color:#9ca3af;white-space:nowrap}
@@ -2042,33 +2042,24 @@ textarea{resize:vertical;min-height:80px}
       <div class="upi-qr-title">Scan with any UPI app</div>
       <div class="upi-qr-box" id="s-qr-box"></div>
       <div class="upi-qr-vpa">7233992325@ibl · Tiffo</div>
-      <div class="upi-qr-note">Amount is pre-filled · Scan → Pay → Done</div>
 
       <!-- Download QR -->
       <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')">
         <i class="fa-solid fa-download"></i> Save QR to Gallery
       </button>
 
-      <!-- Divider -->
-      <div class="upi-divider">
-        <div class="upi-divider-line"></div>
-        <div class="upi-divider-text">or open an app first, then scan from gallery</div>
-        <div class="upi-divider-line"></div>
-      </div>
-
       <!-- App shortcuts -->
       <div class="upi-apps-row">
         <button class="upi-app-btn" onclick="_openUpiApp('phonepe')">
-          <span class="upi-app-icon">💜</span>PhonePe
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('gpay')">
-          <span class="upi-app-icon">🔵</span>GPay
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('paytm')">
-          <span class="upi-app-icon">🔷</span>Paytm
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm
         </button>
       </div>
-      <div class="upi-qr-note" style="margin-top:2px">Tap app → it opens → scan QR from your gallery</div>
     </div>
 
     <!-- WA confirm section — shown after order placed -->
@@ -2166,33 +2157,24 @@ textarea{resize:vertical;min-height:80px}
       <div class="upi-qr-title">Scan with any UPI app</div>
       <div class="upi-qr-box" id="si-qr-box"></div>
       <div class="upi-qr-vpa">7233992325@ibl · Tiffo</div>
-      <div class="upi-qr-note">Amount is pre-filled · Scan → Pay → Done</div>
 
       <!-- Download QR -->
       <button class="upi-download-btn" onclick="_downloadQR('si-qr-box')" id="si-qr-dl">
         <i class="fa-solid fa-download"></i> Save QR to Gallery
       </button>
 
-      <!-- Divider -->
-      <div class="upi-divider">
-        <div class="upi-divider-line"></div>
-        <div class="upi-divider-text">or open an app first, then scan from gallery</div>
-        <div class="upi-divider-line"></div>
-      </div>
-
       <!-- App shortcuts -->
       <div class="upi-apps-row">
         <button class="upi-app-btn" onclick="_openUpiApp('phonepe')">
-          <span class="upi-app-icon">💜</span>PhonePe
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('gpay')">
-          <span class="upi-app-icon">🔵</span>GPay
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('paytm')">
-          <span class="upi-app-icon">🔷</span>Paytm
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm
         </button>
       </div>
-      <div class="upi-qr-note" style="margin-top:2px">Tap app → it opens → scan QR from your gallery</div>
     </div>
 
     <!-- WA confirm -->
@@ -2666,9 +2648,9 @@ textarea{resize:vertical;min-height:80px}
       </button>
 
       <div class="upi-apps-row" style="margin-top:4px">
-        <button class="upi-app-btn" onclick="_openUpiApp('phonepe')"><span class="upi-app-icon">💜</span>PhonePe</button>
-        <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><span class="upi-app-icon">🔵</span>GPay</button>
-        <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><span class="upi-app-icon">🔷</span>Paytm</button>
+        <button class="upi-app-btn" onclick="_openUpiApp('phonepe')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe</button>
+        <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay</button>
+        <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm</button>
       </div>
 
       <div class="upi-divider" style="margin:4px 0 0">
@@ -5579,7 +5561,7 @@ function showClosedPopup(reason) {
 
 /* ─── UPI QR PAYMENT HELPERS ─────────────────────────────────────────────────
    _generateQR(boxId, amount, orderId) — renders QR into a DOM container
-   _downloadQR(boxId)                  — opens QR as full-screen image for gallery save
+   _downloadQR(boxId)                  — saves QR directly to gallery via blob download
    _openUpiApp(app)                    — opens app store page for the UPI app
    No deep links used (they are unreliable). QR data is standard UPI URI that
    all UPI apps can scan natively from the device gallery.
@@ -5591,102 +5573,88 @@ function _generateQR(boxId, amount, orderId) {
   const box = document.getElementById(boxId);
   if (!box) return;
   box.innerHTML = '';
-  const upiUri = `upi://pay?pa=${_UPI_VPA}&pn=${encodeURIComponent(_UPI_NAME)}&am=${amount}&tn=${encodeURIComponent('Tiffo-' + orderId)}&cu=INR`;
+  // UPI spec: amount must be fixed-point string, max 2 decimal places
+  const amtStr = parseFloat(amount).toFixed(2);
+  const upiUri = `upi://pay?pa=${_UPI_VPA}&pn=${encodeURIComponent(_UPI_NAME)}&am=${amtStr}&tn=${encodeURIComponent('Tiffo-' + orderId)}&cu=INR`;
+  // qr-creator renders a crisp, scannable canvas at the exact pixel size requested
+  const canvas = document.createElement('canvas');
+  box.appendChild(canvas);
   try {
-    new QRCode(box, {
-      text: upiUri,
-      width: 200,
-      height: 200,
-      colorDark: '#111827',
-      colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
+    QrCreator.render({ text: upiUri, radius: 0, ecLevel: 'M', fill: '#111827', background: '#fff', size: 256 }, canvas);
   } catch(e) {
     box.innerHTML = '<div style="font-family:monospace;font-size:11px;color:#555;padding:10px;text-align:center;word-break:break-all">' + _UPI_VPA + '<br><br>Amount: ₹' + amount + '</div>';
   }
 }
 
 // ── Save QR to gallery ───────────────────────────────────────────────────────
-// Strategy: open the canvas as a full-screen image in a new tab.
-// • Android Chrome: user taps ⋮ → Download Image → goes to gallery instantly.
-// • iOS Safari: user long-presses image → "Add to Photos" — native sheet appears.
-// This is the only method that works reliably on BOTH platforms without any
-// native app bridge. <a download> is blocked on iOS (opens blank tab for dataURL).
+// Uses blob URL + <a download> — triggers native Save/Download dialog on Android
+// Chrome (PWA and browser) and goes directly to gallery. dataURL anchors open a
+// blank tab in Chrome; blob URLs download correctly.
 function _downloadQR(boxId) {
   const box = document.getElementById(boxId);
   if (!box) return;
   const canvas = box.querySelector('canvas');
   if (!canvas) { toast('QR is still loading — wait a moment and try again.'); return; }
   try {
-    const dataUrl = canvas.toDataURL('image/png');
-    // Open image in new tab — user long-presses (iOS) or uses download menu (Android)
-    const w = window.open('', '_blank');
-    if (!w) {
-      // Pop-up blocked — fall back to anchor download (works on Android at least)
+    canvas.toBlob(blob => {
+      if (!blob) { toast('Could not generate QR image. Please screenshot instead.'); return; }
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = dataUrl;
+      a.href = blobUrl;
       a.download = 'Tiffo_UPI_QR.png';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      toast('QR downloading — check your Downloads folder. 📂');
-      return;
-    }
-    w.document.write(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tiffo UPI QR</title><style>body{margin:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;font-family:system-ui}img{width:240px;height:240px;border-radius:14px;border:4px solid #fff}p{color:#fff;font-size:14px;text-align:center;padding:0 20px;line-height:1.6;opacity:.8}</style></head><body><img src="${dataUrl}"><p>📱 <strong>Android:</strong> Tap ⋮ → Download image<br>🍎 <strong>iPhone:</strong> Long-press → Add to Photos</p></body></html>`);
-    w.document.close();
-    toast('QR opened — save it to your gallery, then scan from your UPI app. 📲');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+      toast('Saving QR to gallery… 📥');
+    }, 'image/png');
   } catch(e) {
-    toast('Could not open QR. Please screenshot this screen instead.');
+    toast('Could not save QR. Please screenshot this screen instead.');
   }
 }
 
-// ── Open UPI app directly (URL scheme → fallback to store) ───────────────────
-// Tries the app's registered URL scheme first. If app is installed it opens instantly.
-// If not installed, scheme silently fails → we redirect to store after 1.5s.
+// ── Open UPI app (Android intent:// URI → Play Store fallback) ───────────────
+// Custom schemes (phonepe://, tez://) are blocked by Chrome/PWA on Android.
+// The only reliable cross-browser method is the Android intent:// URI:
+//   intent://pay?<upi params>#Intent;scheme=upi;package=<pkg>;
+//                              S.browser_fallback_url=<store>;end
+// Chrome handles this natively: opens the target app if installed, or the
+// fallback URL (Play Store) if not — no JS timers or visibilitychange needed.
+// On iOS we fall back to the App Store link directly (no intent support).
 function _openUpiApp(app) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const apps = {
-    phonepe: {
-      scheme:  'phonepe://pay',
-      android: 'https://play.google.com/store/apps/details?id=com.phonepe.app',
-      ios:     'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871'
-    },
-    gpay: {
-      scheme:  'tez://upi/pay',
-      android: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user',
-      ios:     'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041'
-    },
-    paytm: {
-      scheme:  'paytmmp://pay',
-      android: 'https://play.google.com/store/apps/details?id=net.one97.paytm',
-      ios:     'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
-    }
-  };
-  const cfg = apps[app];
-  if (!cfg) return;
 
-  // Determine which QR box belongs to the currently active page
+  // Read amount from whichever page is currently active
   const activePg = document.querySelector('.pg.here')?.id || '';
-  const activeQrBox = activePg === 'pg-success-insuf' ? 'si-qr-box'
-    : activePg === 'pg-success' ? 's-qr-box'
-    : 'rch-qr-box'; // recharge modal is open
+  const amtEl = activePg === 'pg-success-insuf' ? document.getElementById('si-amount')
+              : activePg === 'pg-success'        ? document.getElementById('s-amount')
+              : document.getElementById('rch-qr-amt-label');
+  const rawAmt = (amtEl?.textContent || '').replace(/[^0-9.]/g, '');
+  const amtStr = rawAmt ? parseFloat(rawAmt).toFixed(2) : '0.00';
 
-  // Save QR first, then attempt app open
-  _downloadQR(activeQrBox);
+  const upiParams = `pa=${_UPI_VPA}&pn=${encodeURIComponent(_UPI_NAME)}&am=${amtStr}&tn=${encodeURIComponent('Tiffo Payment')}&cu=INR`;
 
-  const storeUrl = isIOS ? cfg.ios : cfg.android;
-  let appOpened = false;
-  const visChange = () => { appOpened = true; document.removeEventListener('visibilitychange', visChange); };
-  document.addEventListener('visibilitychange', visChange);
+  const pkgs = {
+    phonepe: 'com.phonepe.app',
+    gpay:    'com.google.android.apps.nbu.paisa.user',
+    paytm:   'net.one97.paytm'
+  };
+  const stores = {
+    phonepe: { android: 'https://play.google.com/store/apps/details?id=com.phonepe.app',                        ios: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871' },
+    gpay:    { android: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user', ios: 'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041' },
+    paytm:   { android: 'https://play.google.com/store/apps/details?id=net.one97.paytm',                        ios: 'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634' }
+  };
 
-  // Try URL scheme — browser goes to app if installed, silently does nothing if not
-  window.location.href = cfg.scheme;
+  if (isIOS) {
+    // iOS: open App Store (no intent support; user opens app manually then scans QR)
+    window.open(stores[app].ios, '_blank');
+    return;
+  }
 
-  // After 1.8s, if page is still visible (app not opened), go to store
-  setTimeout(() => {
-    document.removeEventListener('visibilitychange', visChange);
-    if (!appOpened) window.open(storeUrl, '_blank');
-  }, 1800);
+  // Android: intent URI — Chrome/WebView opens the app directly or falls to Play Store
+  const fallback = encodeURIComponent(stores[app].android);
+  const intentUrl = `intent://pay?${upiParams}#Intent;scheme=upi;package=${pkgs[app]};S.browser_fallback_url=${fallback};end`;
+  window.location.href = intentUrl;
 }
 
 // ── Wallet Recharge QR Modal ─────────────────────────────────────────────────
