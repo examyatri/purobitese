@@ -1311,21 +1311,6 @@ textarea{resize:vertical;min-height:80px}
   transform: scale(.96);
   box-shadow: none;
 }
-.upi-app-btn:disabled,
-.upi-app-btn.upi-launching {
-  opacity: .55;
-  cursor: not-allowed;
-  pointer-events: none;
-  transform: scale(.96);
-  box-shadow: none;
-}
-.upi-app-btn.upi-launching .upi-app-icon {
-  animation: upiSpin .7s linear infinite;
-}
-@keyframes upiSpin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
 .upi-app-icon { width: 34px; height: 34px; }
 
 /* ── Download button ── */
@@ -1567,10 +1552,8 @@ textarea{resize:vertical;min-height:80px}
 .upi-download-btn{width:100%;border:none;background:#f1f5f9;color:#374151;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
 .upi-download-btn:active{background:#e2e8f0}
 .upi-apps-row{display:flex;gap:10px;width:100%;justify-content:center;margin-top:2px}
-.upi-app-btn{flex:1;max-width:90px;border:1.5px solid #e5e7eb;background:#fff;border-radius:12px;padding:10px 6px 8px;font-family:var(--ff);font-weight:600;font-size:11px;color:#374151;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .15s,transform .1s}
-.upi-app-btn:active{background:#f9fafb;transform:scale(.96)}
-.upi-app-btn:disabled,.upi-app-btn.upi-launching{opacity:.55;cursor:not-allowed;pointer-events:none;transform:scale(.96)}
-.upi-app-btn.upi-launching .upi-app-icon{animation:upiSpin .7s linear infinite}
+.upi-app-btn{flex:1;max-width:90px;border:1.5px solid #e5e7eb;background:#fff;border-radius:12px;padding:10px 6px 8px;font-family:var(--ff);font-weight:600;font-size:11px;color:#374151;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .15s}
+.upi-app-btn:active{background:#f9fafb}
 .upi-app-icon{font-size:22px;line-height:1;width:32px;height:32px}
 .upi-divider{width:100%;display:flex;align-items:center;gap:10px;margin:2px 0}
 .upi-divider-line{flex:1;height:1px;background:#e5e7eb}
@@ -5797,39 +5780,8 @@ function _downloadQR(boxId) {
 // NOTE: We intentionally do NOT pass UPI payment params here.
 // The user downloads the QR, opens the app, and uses "Scan from Gallery".
 // Amount is auto-filled from the QR data by the UPI app itself.
-// ── UPI App launcher debounce guard ──────────────────────────────────────────
-// Prevents multiple taps while the OS is waking up the app.
-// All .upi-app-btn buttons are disabled for 3 s after any tap (prevents cross-app
-// double-taps), and all icons get a spin animation so the user sees instant feedback.
-// ─────────────────────────────────────────────────────────────────────────────
-let _upiLaunching = false;
-
 function _openUpiApp(app) {
-  // ── DEBOUNCE: ignore taps while a launch is already in progress ──────────
-  if (_upiLaunching) return;
-  _upiLaunching = true;
-
-  // Find the button that was just tapped (event.currentTarget would be ideal,
-  // but onclick="…" doesn't pass the element; we match by data-app instead,
-  // so buttons carry data-upi-app="phonepe|gpay|paytm").
-  // As a safe fallback we also disable ALL .upi-app-btn elements.
-  const allBtns = document.querySelectorAll('.upi-app-btn');
-  allBtns.forEach(b => {
-    b.disabled = true;
-    b.classList.add('upi-launching');
-  });
-
-  // Re-enable after 3 s (covers the OS round-trip + user switching back)
-  const _reenable = () => {
-    _upiLaunching = false;
-    allBtns.forEach(b => {
-      b.disabled = false;
-      b.classList.remove('upi-launching');
-    });
-  };
-  const reenableTimer = setTimeout(_reenable, 3000);
-
-  // ── WHY THIS APPROACH ────────────────────────────────────────────────────
+  // ── WHY THIS APPROACH ────────────────────────────────────────────────────────
   // ROOT CAUSE (v59 bug): PhonePe worked because it uses `intent://home#Intent;...`
   // GPay & Paytm used `intent://#Intent;...` (empty host).
   //
@@ -5848,6 +5800,7 @@ function _openUpiApp(app) {
   // ────────────────────────────────────────────────────────────────────────────
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
 
   // Custom URL schemes — registered in each app's APK manifest / iOS Info.plist
   // PhonePe: phonepe://   GPay: tez://   Paytm: paytm://
@@ -5870,7 +5823,7 @@ function _openUpiApp(app) {
   };
 
   const scheme = customScheme[app];
-  if (!scheme) { clearTimeout(reenableTimer); _reenable(); return; }
+  if (!scheme) return;
 
   const storeUrl = isIOS ? appStore[app] : playStore[app];
 
@@ -5894,16 +5847,14 @@ function _openUpiApp(app) {
     cancelled = true;
     clearTimeout(timer);
     document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('pagehide', onVisible);
   };
 
   const onVisible = () => {
-    // visibilitychange fires when page goes hidden (app opened) OR comes back.
-    // Cancel fallback only when page goes HIDDEN (app successfully opened).
+    // visibilitychange fires when page goes hidden (app opened) OR comes back
+    // We only want to cancel when page goes HIDDEN
     if (document.hidden) cancelFallback();
   };
-
-  const onPageHide = () => cancelFallback(); // iOS Safari
 
   const timer = setTimeout(() => {
     fallbackFired = true;
@@ -5911,7 +5862,7 @@ function _openUpiApp(app) {
   }, 2000);
 
   document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('pagehide', cancelFallback); // iOS Safari
 
   // Attempt to open app via custom scheme
   window.location.href = scheme;
