@@ -1021,6 +1021,322 @@ textarea{resize:vertical;min-height:80px}
 .wallet-deduct-card{background:var(--grad);border-radius:14px;padding:14px 18px;width:100%;color:#fff}
 .wa-btn{background:#25d366;color:#fff;border:none;border-radius:12px;padding:14px;font-family:var(--ff);font-weight:600;font-size:15px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;transition:opacity 200ms}
 .wa-btn:active{opacity:.85}
+
+/* ── Payment screenshot button — impossible-to-miss animations ── */
+/* Applied via .wa-btn-urgent class added to the button in HTML   */
+
+/* 1. Pulse glow: WhatsApp green aura breathes in/out continuously */
+@keyframes waPulseGlow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(37,211,102,.55), 0 4px 15px rgba(37,211,102,.35); transform: scale(1); }
+  50%      { box-shadow: 0 0 0 14px rgba(37,211,102,.0), 0 6px 24px rgba(37,211,102,.5); transform: scale(1.025); }
+}
+
+/* 2. Shimmer sweep: bright band travels left→right across button
+   FIX: 0%→200% on 200%-wide bg — band is always visible during sweep */
+@keyframes waShimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* 3. Bouncing arrow — points DOWN toward the button below */
+@keyframes waBounce {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(5px); }
+}
+
+/* 4. Urgent border pulse on the warning card */
+@keyframes warnBorderPulse {
+  0%,100% { border-color: #ffc107; box-shadow: 0 0 0 0 rgba(255,193,7,.4); }
+  50%      { border-color: #ff9800; box-shadow: 0 0 0 6px rgba(255,193,7,.0); }
+}
+
+.wa-btn-urgent {
+  position: relative;
+  overflow: hidden;
+  animation: waPulseGlow 1.8s ease-in-out infinite;
+  font-size: 16px !important;
+  padding: 17px 14px !important;
+  border-radius: 16px !important;
+  letter-spacing: .2px;
+}
+
+/* Shimmer overlay — pseudo-element sweeps left to right */
+.wa-btn-urgent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255,255,255,.30) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: waShimmer 2.4s linear infinite;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Arrow indicator container — sits above the button */
+.wa-btn-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 4px; /* FIX: was -6px causing overlap; positive gap looks cleaner */
+}
+
+/* Label — static, no bounce (FIX: was bouncing at different speed to arrows = looks broken) */
+.wa-btn-label {
+  font-family: var(--ff);
+  font-weight: 700;
+  font-size: 13px;
+  color: #e65c00;
+  letter-spacing: .3px;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* Downward-pointing chevrons bounce toward the button */
+/* FIX: nth-child selectors — label div is child 1, spans are child 2 and 3 */
+.wa-btn-arrow span {
+  display: block;
+  width: 0; height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 10px solid #25d366;  /* border-top = downward triangle ▼ */
+  animation: waBounce 0.85s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(37,211,102,.5));
+}
+/* FIX: second span is nth-child(3) because label div is nth-child(1) */
+.wa-btn-arrow span:nth-child(3) {
+  opacity: .50;
+  animation-delay: .18s;
+}
+
+/* Urgent warning card border pulse */
+.warn-card-urgent {
+  animation: warnBorderPulse 1.6s ease-in-out infinite;
+  border-width: 2px !important;
+}
+
+/* ── Pending screen — new stepwise design ── */
+.pend-wrap {
+  gap: 14px !important;
+  padding-top: 28px !important;
+  background: #fafafa !important;
+}
+
+/* Header block */
+.pend-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  width: 100%;
+}
+.pend-clock-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #fff8e1;
+  border: 3px solid #ffc107;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: #f59e0b;
+  box-shadow: 0 0 0 6px rgba(255,193,7,.12);
+  animation: waPulseGlow 2s ease-in-out infinite;
+  animation-name: pendClockPulse;
+}
+@keyframes pendClockPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,193,7,.35), 0 4px 14px rgba(255,193,7,.2); }
+  50%      { box-shadow: 0 0 0 10px rgba(255,193,7,.0), 0 6px 20px rgba(255,193,7,.3); }
+}
+.pend-title {
+  font-family: var(--ff);
+  font-weight: 800;
+  font-size: 22px;
+  color: #1a1a1a;
+  letter-spacing: -.3px;
+}
+.pend-subtitle {
+  font-family: var(--fb);
+  font-size: 13px;
+  color: var(--gr);
+  max-width: 260px;
+  line-height: 1.5;
+}
+
+/* Meta row — order ID + delivery */
+.pend-meta-row {
+  width: 100%;
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,.07);
+}
+.pend-meta-block {
+  flex: 1;
+  text-align: center;
+}
+.pend-meta-label {
+  font-family: var(--ff);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gr);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin-bottom: 3px;
+}
+.pend-meta-val {
+  font-family: var(--ff);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--dk);
+  word-break: break-all;
+}
+.pend-meta-val.mono {
+  font-family: monospace;
+  font-size: 12px;
+}
+.pend-meta-divider {
+  width: 1px;
+  height: 36px;
+  background: #ebebeb;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+/* Insufficient wallet notice */
+.pend-insuf-notice {
+  width: 100%;
+  background: #fff8e1;
+  border: 1.5px solid #ffc107;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-family: var(--fb);
+  font-size: 12.5px;
+  color: #854d0e;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  line-height: 1.5;
+  animation: warnBorderPulse 1.8s ease-in-out infinite;
+}
+
+/* Steps card */
+.pend-steps-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 16px 14px;
+  box-shadow: 0 1px 8px rgba(0,0,0,.07);
+}
+.pend-steps-title {
+  font-family: var(--ff);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--dk);
+  margin-bottom: 16px;
+  letter-spacing: .1px;
+}
+.pend-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.pend-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--g);
+  color: #fff;
+  font-family: var(--ff);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(34,197,94,.35);
+}
+.pend-step-body {
+  flex: 1;
+  padding-bottom: 2px;
+}
+.pend-step-head {
+  font-family: var(--ff);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #1a1a1a;
+  margin-bottom: 3px;
+}
+.pend-step-desc {
+  font-family: var(--fb);
+  font-size: 12.5px;
+  color: var(--gr);
+  line-height: 1.5;
+}
+.pend-step-connector {
+  width: 1px;
+  height: 16px;
+  background: linear-gradient(#e2e8f0, #e2e8f0);
+  margin: 5px 0 5px 13px;
+  border-left: 2px dashed #d1d5db;
+}
+
+/* UPI pills */
+.pend-upi-logos {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+}
+.pend-upi-pill {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  padding: 3px 9px;
+  font-family: var(--ff);
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+/* CTA area */
+.pend-cta-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pend-cta-label {
+  font-family: var(--ff);
+  font-weight: 700;
+  font-size: 13px;
+  color: #e65c00;
+  letter-spacing: .2px;
+  animation: pendLabelBlink 1.4s ease-in-out infinite;
+}
+@keyframes pendLabelBlink {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .6; }
+}
+.pend-wa-btn {
+  font-size: 16px !important;
+  padding: 17px 20px !important;
+  border-radius: 16px !important;
+  gap: 10px !important;
+  letter-spacing: .2px;
+  width: 100%;
+}
 /* Orders */
 .order-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .ord-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -1629,25 +1945,83 @@ textarea{resize:vertical;min-height:80px}
      PAGE: SUCCESS (non-subscriber)
 ══════════════════════════════════════════════ -->
 <div id="pg-success" class="pg pg-scroll-full">
-  <div class="success-wrap">
-    <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-    <div class="success-title">Order Placed! 🎉</div>
-    <div style="color:var(--gr);font-size:14px">Order ID</div>
-    <div class="order-id-badge" id="s-order-id"></div>
-    <div class="delivery-card" id="s-delivery-card">
-      <div style="font-family:var(--ff);font-weight:600;font-size:13px;color:var(--g);margin-bottom:4px">🚀 Estimated Delivery</div>
-      <div id="s-delivery-time" style="font-family:var(--fb);font-size:14px;color:var(--dk)"></div>
+  <div class="success-wrap pend-wrap">
+
+    <!-- Header -->
+    <div class="pend-header">
+      <div class="pend-clock-ring">
+        <i class="fa-solid fa-clock"></i>
+      </div>
+      <div class="pend-title">Order Pending</div>
+      <div class="pend-subtitle">Complete payment to confirm your order</div>
     </div>
-    <div style="background:#fef9c3;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:13px;color:#854d0e">
-      💳 Send payment screenshot on WhatsApp to confirm your order
+
+    <!-- Order ID + Delivery -->
+    <div class="pend-meta-row">
+      <div class="pend-meta-block">
+        <div class="pend-meta-label">Order ID</div>
+        <div class="pend-meta-val mono" id="s-order-id">—</div>
+      </div>
+      <div class="pend-meta-divider"></div>
+      <div class="pend-meta-block" id="s-delivery-card">
+        <div class="pend-meta-label">Est. Delivery</div>
+        <div class="pend-meta-val" id="s-delivery-time">—</div>
+      </div>
     </div>
-    <button class="wa-btn" id="s-wa-btn" style="display:none">
-      <i class="fa-brands fa-whatsapp"></i> Click Here To Pay & Send Your Payment Screenshot
-    </button>
-    <div class="flex gap8 w100">
+
+    <!-- Steps -->
+    <div class="pend-steps-card">
+      <div class="pend-steps-title">📋 How to confirm your order</div>
+
+      <div class="pend-step">
+        <div class="pend-step-num">1</div>
+        <div class="pend-step-body">
+          <div class="pend-step-head">Tap the button below</div>
+          <div class="pend-step-desc">Click <strong>"Pay &amp; Send Screenshot"</strong> — it opens WhatsApp directly</div>
+        </div>
+      </div>
+
+      <div class="pend-step-connector"></div>
+
+      <div class="pend-step">
+        <div class="pend-step-num">2</div>
+        <div class="pend-step-body">
+          <div class="pend-step-head">Pay via UPI app</div>
+          <div class="pend-step-desc">Use <strong>PhonePe, Paytm, Google Pay</strong> or any UPI app to pay the amount</div>
+          <div class="pend-upi-logos">
+            <span class="pend-upi-pill">📱 PhonePe</span>
+            <span class="pend-upi-pill">💚 Paytm</span>
+            <span class="pend-upi-pill">🔵 GPay</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pend-step-connector"></div>
+
+      <div class="pend-step">
+        <div class="pend-step-num">3</div>
+        <div class="pend-step-body">
+          <div class="pend-step-head">Send payment screenshot</div>
+          <div class="pend-step-desc">Take a screenshot of the payment success screen and send it on WhatsApp to us</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA label — shown/hidden together with button via s-wa-arrow wrapper -->
+    <div id="s-wa-arrow" style="display:none;width:100%;flex-direction:column;align-items:center;gap:8px">
+      <div class="pend-cta-label">👇 Tap below to pay &amp; confirm order</div>
+      <button class="wa-btn wa-btn-urgent pend-wa-btn" id="s-wa-btn">
+        <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
+        Pay &amp; Send Screenshot
+      </button>
+    </div>
+
+    <!-- Nav -->
+    <div class="flex gap8 w100" style="margin-top:4px">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
       <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
+
   </div>
 </div>
 
@@ -1679,25 +2053,89 @@ textarea{resize:vertical;min-height:80px}
      PAGE: SUCCESS-INSUF (subscriber, insufficient wallet → UPI)
 ══════════════════════════════════════════════ -->
 <div id="pg-success-insuf" class="pg pg-scroll-full">
-  <div class="success-wrap">
-    <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-    <div class="success-title">Order Placed! 🎉</div>
-    <div style="color:var(--gr);font-size:14px">Order ID</div>
-    <div class="order-id-badge" id="si-order-id"></div>
-    <div class="delivery-card">
-      <div style="font-family:var(--ff);font-weight:600;font-size:13px;color:var(--g);margin-bottom:4px">🚀 Estimated Delivery</div>
-      <div id="si-delivery-time" style="font-family:var(--fb);font-size:14px;color:var(--dk)"></div>
+  <div class="success-wrap pend-wrap">
+
+    <!-- Header -->
+    <div class="pend-header">
+      <div class="pend-clock-ring">
+        <i class="fa-solid fa-clock"></i>
+      </div>
+      <div class="pend-title">Order Pending</div>
+      <div class="pend-subtitle">Wallet balance was low — please complete UPI payment</div>
     </div>
-    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:12px 16px;width:100%;font-family:var(--fb);font-size:13px;color:#856404">
-      ⚠️ Your wallet balance was insufficient. Please pay via UPI and send the screenshot on WhatsApp to confirm your order.
+
+    <!-- Order ID + Delivery -->
+    <div class="pend-meta-row">
+      <div class="pend-meta-block">
+        <div class="pend-meta-label">Order ID</div>
+        <div class="pend-meta-val mono" id="si-order-id">—</div>
+      </div>
+      <div class="pend-meta-divider"></div>
+      <div class="pend-meta-block">
+        <div class="pend-meta-label">Est. Delivery</div>
+        <div class="pend-meta-val" id="si-delivery-time">—</div>
+      </div>
     </div>
-    <button class="wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
-      <i class="fa-brands fa-whatsapp"></i> Click Here To Pay &amp; Send Screenshot
-    </button>
-    <div class="flex gap8 w100">
+
+    <!-- Insufficient wallet notice -->
+    <div class="pend-insuf-notice">
+      <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;font-size:15px;flex-shrink:0"></i>
+      <span>Wallet balance insufficient — pay remaining amount via UPI to confirm your order</span>
+    </div>
+
+    <!-- Steps -->
+    <div class="pend-steps-card">
+      <div class="pend-steps-title">📋 How to confirm your order</div>
+
+      <div class="pend-step">
+        <div class="pend-step-num">1</div>
+        <div class="pend-step-body">
+          <div class="pend-step-head">Tap the button below</div>
+          <div class="pend-step-desc">Click <strong>"Pay &amp; Send Screenshot"</strong> — it opens WhatsApp directly</div>
+        </div>
+      </div>
+
+      <div class="pend-step-connector"></div>
+
+      <div class="pend-step">
+        <div class="pend-step-num">2</div>
+        <div class="pend-step-body">
+          <div class="pend-step-head">Pay via UPI app</div>
+          <div class="pend-step-desc">Use <strong>PhonePe, Paytm, Google Pay</strong> or any UPI app to pay the amount</div>
+          <div class="pend-upi-logos">
+            <span class="pend-upi-pill">📱 PhonePe</span>
+            <span class="pend-upi-pill">💚 Paytm</span>
+            <span class="pend-upi-pill">🔵 GPay</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pend-step-connector"></div>
+
+      <div class="pend-step">
+        <div class="pend-step-num">3</div>
+        <div class="pend-step-body">
+          <div class="pend-step-head">Send payment screenshot</div>
+          <div class="pend-step-desc">Take a screenshot of the payment success screen and send it on WhatsApp to us</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="pend-cta-wrap">
+      <div class="pend-cta-label">👇 Tap to pay &amp; confirm order</div>
+      <button class="wa-btn wa-btn-urgent pend-wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
+        <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
+        Pay &amp; Send Screenshot
+      </button>
+    </div>
+
+    <!-- Nav -->
+    <div class="flex gap8 w100" style="margin-top:4px">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
       <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
+
   </div>
 </div>
 
@@ -4961,8 +5399,10 @@ async function placeOrder() {
       nav('pg-success');
       setTimeout(() => {
         const waBtn = document.getElementById('s-wa-btn');
+        const waArrow = document.getElementById('s-wa-arrow');
         if (waBtn) {
           waBtn.style.display = 'flex';
+          if (waArrow) waArrow.style.display = 'flex';
           waBtn.onclick = () => {
             const _itemLines = cart.map(i => `• ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
             const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
