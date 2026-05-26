@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v50.12                                   ║
+     ║  Version : v51.0                                    ║
      ║  Updated : 2026-05-23                               ║
      ║  Changes : SEO audit — pure-veg consistency fix,    ║
      ║            voting-based tiffin added as key entity, ║
@@ -1122,64 +1122,109 @@ textarea{resize:vertical;min-height:80px}
 
 /* ── Pending screen — new stepwise design ── */
 .pend-wrap {
-  gap: 14px !important;
-  padding-top: 28px !important;
-  background: #fafafa !important;
+  gap: 12px !important;
+  padding-top: 24px !important;
+  padding-bottom: 32px !important;
+  background: #f6f7f9 !important;
 }
 
-/* Header block */
+/* ── Header ── */
 .pend-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   text-align: center;
   width: 100%;
 }
 .pend-clock-ring {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: #fff8e1;
-  border: 3px solid #ffc107;
+  background: #fffbeb;
+  border: 2.5px solid #f59e0b;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
-  color: #f59e0b;
-  box-shadow: 0 0 0 6px rgba(255,193,7,.12);
-  animation: waPulseGlow 2s ease-in-out infinite;
-  animation-name: pendClockPulse;
+  font-size: 26px;
+  color: #d97706;
+  box-shadow: 0 0 0 8px rgba(245,158,11,.1);
+  animation: pendClockPulse 2.4s ease-in-out infinite;
 }
 @keyframes pendClockPulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(255,193,7,.35), 0 4px 14px rgba(255,193,7,.2); }
-  50%      { box-shadow: 0 0 0 10px rgba(255,193,7,.0), 0 6px 20px rgba(255,193,7,.3); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.28), 0 3px 12px rgba(245,158,11,.15); }
+  50%      { box-shadow: 0 0 0 10px rgba(245,158,11,.0), 0 5px 18px rgba(245,158,11,.22); }
 }
 .pend-title {
   font-family: var(--ff);
   font-weight: 800;
-  font-size: 22px;
-  color: #1a1a1a;
-  letter-spacing: -.3px;
+  font-size: 21px;
+  color: #111827;
+  letter-spacing: -.4px;
+  margin-top: 2px;
 }
 .pend-subtitle {
   font-family: var(--fb);
   font-size: 13px;
-  color: var(--gr);
-  max-width: 260px;
-  line-height: 1.5;
+  color: #6b7280;
+  max-width: 270px;
+  line-height: 1.55;
 }
 
-/* Meta row — order ID + delivery */
+/* ── Amount hero card ── */
+.pend-amount-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 6px rgba(0,0,0,.07);
+  border: 1px solid #f0f0f0;
+}
+.pend-amount-left {}
+.pend-amount-label {
+  font-family: var(--ff);
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.pend-amount-val {
+  font-family: var(--ff);
+  font-weight: 800;
+  font-size: 28px;
+  color: #111827;
+  letter-spacing: -.5px;
+  line-height: 1;
+}
+.pend-amount-due-badge {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 20px;
+  padding: 5px 13px;
+  font-family: var(--ff);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  border: 1px solid #fde68a;
+}
+
+/* ── Meta row — order ID + delivery ── */
 .pend-meta-row {
   width: 100%;
   background: #fff;
   border-radius: 14px;
-  padding: 14px 18px;
+  padding: 13px 18px;
   display: flex;
   align-items: center;
   gap: 0;
-  box-shadow: 0 1px 6px rgba(0,0,0,.07);
+  box-shadow: 0 1px 5px rgba(0,0,0,.06);
+  border: 1px solid #f0f0f0;
 }
 .pend-meta-block {
   flex: 1;
@@ -1187,75 +1232,77 @@ textarea{resize:vertical;min-height:80px}
 }
 .pend-meta-label {
   font-family: var(--ff);
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--gr);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #9ca3af;
   text-transform: uppercase;
-  letter-spacing: .8px;
-  margin-bottom: 3px;
+  letter-spacing: .9px;
+  margin-bottom: 4px;
 }
 .pend-meta-val {
   font-family: var(--ff);
   font-weight: 700;
   font-size: 13px;
-  color: var(--dk);
+  color: #111827;
   word-break: break-all;
 }
 .pend-meta-val.mono {
   font-family: monospace;
-  font-size: 12px;
+  font-size: 11.5px;
+  color: #374151;
 }
 .pend-meta-divider {
   width: 1px;
-  height: 36px;
-  background: #ebebeb;
+  height: 34px;
+  background: #e5e7eb;
   flex-shrink: 0;
-  margin: 0 4px;
+  margin: 0 6px;
 }
 
-/* Insufficient wallet notice */
+/* ── Insufficient wallet notice ── */
 .pend-insuf-notice {
   width: 100%;
-  background: #fff8e1;
-  border: 1.5px solid #ffc107;
+  background: #fffbeb;
+  border: 1.5px solid #fcd34d;
   border-radius: 12px;
   padding: 11px 14px;
   font-family: var(--fb);
   font-size: 12.5px;
-  color: #854d0e;
+  color: #78350f;
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  line-height: 1.5;
-  animation: warnBorderPulse 1.8s ease-in-out infinite;
+  line-height: 1.55;
 }
 
-/* Steps card */
+/* ── Steps card ── */
 .pend-steps-card {
   width: 100%;
   background: #fff;
   border-radius: 16px;
-  padding: 18px 16px 14px;
-  box-shadow: 0 1px 8px rgba(0,0,0,.07);
+  padding: 18px 16px 16px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  border: 1px solid #f0f0f0;
 }
 .pend-steps-title {
   font-family: var(--ff);
   font-weight: 700;
-  font-size: 13px;
-  color: var(--dk);
+  font-size: 12px;
+  color: #6b7280;
   margin-bottom: 16px;
-  letter-spacing: .1px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
 }
 .pend-step {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 13px;
 }
 .pend-step-num {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background: var(--g);
+  background: #111827;
   color: #fff;
   font-family: var(--ff);
   font-weight: 700;
@@ -1264,70 +1311,63 @@ textarea{resize:vertical;min-height:80px}
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(34,197,94,.35);
 }
 .pend-step-body {
   flex: 1;
-  padding-bottom: 2px;
+  padding-top: 4px;
 }
 .pend-step-head {
   font-family: var(--ff);
   font-weight: 700;
-  font-size: 13.5px;
-  color: #1a1a1a;
+  font-size: 14px;
+  color: #111827;
   margin-bottom: 3px;
 }
 .pend-step-desc {
   font-family: var(--fb);
   font-size: 12.5px;
-  color: var(--gr);
-  line-height: 1.5;
+  color: #6b7280;
+  line-height: 1.55;
 }
 .pend-step-connector {
-  width: 1px;
-  height: 16px;
-  background: linear-gradient(#e2e8f0, #e2e8f0);
-  margin: 5px 0 5px 13px;
-  border-left: 2px dashed #d1d5db;
+  height: 18px;
+  border-left: 2px dashed #e5e7eb;
+  margin: 4px 0 4px 14px;
 }
 
-/* UPI pills */
+/* ── UPI pills ── */
 .pend-upi-logos {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-top: 7px;
+  margin-top: 8px;
 }
 .pend-upi-pill {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   border-radius: 20px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   font-family: var(--ff);
   font-size: 11px;
   font-weight: 600;
-  color: #15803d;
+  color: #374151;
 }
 
-/* CTA area */
+/* ── CTA area ── */
 .pend-cta-wrap {
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .pend-cta-label {
   font-family: var(--ff);
-  font-weight: 700;
-  font-size: 13px;
-  color: #e65c00;
-  letter-spacing: .2px;
-  animation: pendLabelBlink 1.4s ease-in-out infinite;
-}
-@keyframes pendLabelBlink {
-  0%,100% { opacity: 1; }
-  50%      { opacity: .6; }
+  font-weight: 600;
+  font-size: 12px;
+  color: #9ca3af;
+  letter-spacing: .3px;
+  text-align: center;
 }
 .pend-wa-btn {
   font-size: 16px !important;
@@ -1952,8 +1992,17 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-clock-ring">
         <i class="fa-solid fa-clock"></i>
       </div>
-      <div class="pend-title">Order Pending</div>
-      <div class="pend-subtitle">Complete payment to confirm your order</div>
+      <div class="pend-title">Payment Pending</div>
+      <div class="pend-subtitle">Your order is reserved. Complete payment to confirm it.</div>
+    </div>
+
+    <!-- Amount due -->
+    <div class="pend-amount-card">
+      <div class="pend-amount-left">
+        <div class="pend-amount-label">Amount Due</div>
+        <div class="pend-amount-val" id="s-amount">—</div>
+      </div>
+      <div class="pend-amount-due-badge">Due Now</div>
     </div>
 
     <!-- Order ID + Delivery -->
@@ -1971,13 +2020,13 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Steps -->
     <div class="pend-steps-card">
-      <div class="pend-steps-title">📋 How to confirm your order</div>
+      <div class="pend-steps-title">How to complete payment</div>
 
       <div class="pend-step">
         <div class="pend-step-num">1</div>
         <div class="pend-step-body">
-          <div class="pend-step-head">Tap the button below</div>
-          <div class="pend-step-desc">Click <strong>"Pay &amp; Send Screenshot"</strong> — it opens WhatsApp directly</div>
+          <div class="pend-step-head">Open WhatsApp</div>
+          <div class="pend-step-desc">Tap <strong>"Pay &amp; Confirm Order"</strong> below — it opens a pre-filled WhatsApp message to Tiffo.</div>
         </div>
       </div>
 
@@ -1986,12 +2035,12 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-step">
         <div class="pend-step-num">2</div>
         <div class="pend-step-body">
-          <div class="pend-step-head">Pay via UPI app</div>
-          <div class="pend-step-desc">Use <strong>PhonePe, Paytm, Google Pay</strong> or any UPI app to pay the amount</div>
+          <div class="pend-step-head">Pay via UPI</div>
+          <div class="pend-step-desc">Use any UPI app to pay the exact amount shown above.</div>
           <div class="pend-upi-logos">
-            <span class="pend-upi-pill">📱 PhonePe</span>
-            <span class="pend-upi-pill">💚 Paytm</span>
-            <span class="pend-upi-pill">🔵 GPay</span>
+            <span class="pend-upi-pill">PhonePe</span>
+            <span class="pend-upi-pill">Paytm</span>
+            <span class="pend-upi-pill">GPay</span>
           </div>
         </div>
       </div>
@@ -2001,18 +2050,18 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-step">
         <div class="pend-step-num">3</div>
         <div class="pend-step-body">
-          <div class="pend-step-head">Send payment screenshot</div>
-          <div class="pend-step-desc">Take a screenshot of the payment success screen and send it on WhatsApp to us</div>
+          <div class="pend-step-head">Share payment screenshot</div>
+          <div class="pend-step-desc">Send a screenshot of the payment success screen on WhatsApp. Your order will be confirmed instantly.</div>
         </div>
       </div>
     </div>
 
     <!-- CTA label — shown/hidden together with button via s-wa-arrow wrapper -->
-    <div id="s-wa-arrow" style="display:none;width:100%;flex-direction:column;align-items:center;gap:8px">
-      <div class="pend-cta-label">👇 Tap below to pay &amp; confirm order</div>
+    <div id="s-wa-arrow" style="display:none;width:100%;flex-direction:column;align-items:center;gap:10px">
+      <div class="pend-cta-label">Tap below to open WhatsApp &amp; pay</div>
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="s-wa-btn">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
-        Pay &amp; Send Screenshot
+        Pay &amp; Confirm Order
       </button>
     </div>
 
@@ -2060,8 +2109,17 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-clock-ring">
         <i class="fa-solid fa-clock"></i>
       </div>
-      <div class="pend-title">Order Pending</div>
-      <div class="pend-subtitle">Wallet balance was low — please complete UPI payment</div>
+      <div class="pend-title">Payment Pending</div>
+      <div class="pend-subtitle">Wallet balance was insufficient. Please pay the remaining amount via UPI.</div>
+    </div>
+
+    <!-- Amount due -->
+    <div class="pend-amount-card">
+      <div class="pend-amount-left">
+        <div class="pend-amount-label">Amount Due</div>
+        <div class="pend-amount-val" id="si-amount">—</div>
+      </div>
+      <div class="pend-amount-due-badge">Due Now</div>
     </div>
 
     <!-- Order ID + Delivery -->
@@ -2079,19 +2137,19 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Insufficient wallet notice -->
     <div class="pend-insuf-notice">
-      <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;font-size:15px;flex-shrink:0"></i>
-      <span>Wallet balance insufficient — pay remaining amount via UPI to confirm your order</span>
+      <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;font-size:15px;flex-shrink:0;margin-top:1px"></i>
+      <span>Your wallet balance covered part of the order. The remaining amount must be paid via UPI to confirm your order.</span>
     </div>
 
     <!-- Steps -->
     <div class="pend-steps-card">
-      <div class="pend-steps-title">📋 How to confirm your order</div>
+      <div class="pend-steps-title">How to complete payment</div>
 
       <div class="pend-step">
         <div class="pend-step-num">1</div>
         <div class="pend-step-body">
-          <div class="pend-step-head">Tap the button below</div>
-          <div class="pend-step-desc">Click <strong>"Pay &amp; Send Screenshot"</strong> — it opens WhatsApp directly</div>
+          <div class="pend-step-head">Open WhatsApp</div>
+          <div class="pend-step-desc">Tap <strong>"Pay &amp; Confirm Order"</strong> below — it opens a pre-filled WhatsApp message to Tiffo.</div>
         </div>
       </div>
 
@@ -2100,12 +2158,12 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-step">
         <div class="pend-step-num">2</div>
         <div class="pend-step-body">
-          <div class="pend-step-head">Pay via UPI app</div>
-          <div class="pend-step-desc">Use <strong>PhonePe, Paytm, Google Pay</strong> or any UPI app to pay the amount</div>
+          <div class="pend-step-head">Pay via UPI</div>
+          <div class="pend-step-desc">Use any UPI app to pay the exact amount shown above.</div>
           <div class="pend-upi-logos">
-            <span class="pend-upi-pill">📱 PhonePe</span>
-            <span class="pend-upi-pill">💚 Paytm</span>
-            <span class="pend-upi-pill">🔵 GPay</span>
+            <span class="pend-upi-pill">PhonePe</span>
+            <span class="pend-upi-pill">Paytm</span>
+            <span class="pend-upi-pill">GPay</span>
           </div>
         </div>
       </div>
@@ -2115,18 +2173,18 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-step">
         <div class="pend-step-num">3</div>
         <div class="pend-step-body">
-          <div class="pend-step-head">Send payment screenshot</div>
-          <div class="pend-step-desc">Take a screenshot of the payment success screen and send it on WhatsApp to us</div>
+          <div class="pend-step-head">Share payment screenshot</div>
+          <div class="pend-step-desc">Send a screenshot of the payment success screen on WhatsApp. Your order will be confirmed instantly.</div>
         </div>
       </div>
     </div>
 
     <!-- CTA -->
     <div class="pend-cta-wrap">
-      <div class="pend-cta-label">👇 Tap to pay &amp; confirm order</div>
+      <div class="pend-cta-label">Tap below to open WhatsApp &amp; pay</div>
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
-        Pay &amp; Send Screenshot
+        Pay &amp; Confirm Order
       </button>
     </div>
 
@@ -5395,6 +5453,7 @@ async function placeOrder() {
       launchConfetti();
     } else {
       document.getElementById('s-order-id').textContent = res.orderId;
+      document.getElementById('s-amount').textContent = '₹' + total;
       setDeliveryTime('s-delivery-time');
       nav('pg-success');
       setTimeout(() => {
@@ -5495,6 +5554,7 @@ async function confirmInsufOrder() {
 
     // Populate and show the dedicated insuf success page
     document.getElementById('si-order-id').textContent = res.orderId;
+    document.getElementById('si-amount').textContent = '₹' + total;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
     launchConfetti();
