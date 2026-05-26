@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v51.0                                    ║
+     ║  Version : v52.0                                    ║
      ║  Updated : 2026-05-23                               ║
      ║  Changes : SEO audit — pure-veg consistency fix,    ║
      ║            voting-based tiffin added as key entity, ║
@@ -1259,6 +1259,7 @@ textarea{resize:vertical;min-height:80px}
   display: flex; align-items: center; justify-content: center;
   position: relative;
   padding: 10px;
+  margin-top: 10px;
   box-shadow: 0 0 0 1px #e5e7eb, 0 4px 24px rgba(0,0,0,.08);
   overflow: visible;
 }
@@ -1375,7 +1376,7 @@ textarea{resize:vertical;min-height:80px}
   font-family: monospace;
   font-size: 11px;
   color: #9ca3af;
-  padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 16px;
   text-align: center;
   flex-wrap: wrap;
 }
@@ -1544,7 +1545,7 @@ textarea{resize:vertical;min-height:80px}
 /* ── UPI QR Payment UI ── */
 .upi-qr-card{width:100%;background:#fff;border-radius:18px;padding:20px 16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #f0f0f0;display:flex;flex-direction:column;align-items:center;gap:4px}
 .upi-qr-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#6b7280;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
-.upi-qr-box{width:216px;height:216px;border-radius:16px;overflow:visible;border:none;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;padding:8px;box-shadow:0 0 0 1.5px #e5e7eb,0 4px 20px rgba(0,0,0,0.10)}
+.upi-qr-box{width:216px;height:216px;border-radius:16px;overflow:visible;border:none;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;padding:8px;margin-top:10px;box-shadow:0 0 0 1.5px #e5e7eb,0 4px 20px rgba(0,0,0,0.10)}
 .upi-qr-box canvas,.upi-qr-box img{width:200px;height:200px;display:block;border-radius:6px;image-rendering:crisp-edges}
 .upi-qr-vpa{font-family:monospace;font-size:12px;color:#6b7280;margin-top:6px;letter-spacing:.3px}
 .upi-qr-note{font-family:var(--fb);font-size:11.5px;color:#6b7280;text-align:center;line-height:1.5;margin-top:2px}
@@ -2118,10 +2119,24 @@ textarea{resize:vertical;min-height:80px}
       <div class="pend-amount-due-badge">⚡ Due Now</div>
     </div>
 
-    <!-- QR Card — lifts over the hero -->
+    <!-- QR Card -->
     <div class="upi-qr-card">
-      <div class="upi-qr-title">Scan with any UPI app</div>
+
+      <!-- Steps — top of card -->
+      <div class="pay-steps" style="margin-top:0;border-top:none;padding-top:0;width:100%">
+        <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button below</span></div>
+        <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
+        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, then tap "Send Screenshot" below</span></div>
+      </div>
+
+      <!-- QR -->
+      <div class="upi-qr-title" style="margin-top:12px">Scan with any UPI app</div>
       <div class="upi-qr-box" id="s-qr-box"></div>
+
+      <!-- Download QR -->
+      <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')" style="margin-top:10px">
+        <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
+      </button>
 
       <!-- App shortcuts -->
       <div class="upi-apps-row">
@@ -2136,38 +2151,29 @@ textarea{resize:vertical;min-height:80px}
         </button>
       </div>
 
-      <!-- Download QR -->
-      <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')">
-        <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
-      </button>
-
-      <!-- 3-step guide -->
-      <div class="pay-steps">
-        <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button above</span></div>
-        <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
-        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, take screenshot &amp; tap the button below</span></div>
-      </div>
     </div>
 
-    <!-- WA confirm section — shown after order placed -->
-    <div id="s-wa-arrow" style="display:none;width:100%;padding:0 16px;flex-direction:column;align-items:center;gap:8px;margin-top:4px">
+    <!-- WA confirm — shown after order placed -->
+    <div id="s-wa-arrow" style="display:none;width:100%;padding:0 16px;flex-direction:column;align-items:center;gap:8px;margin-top:12px">
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="s-wa-btn">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
         Send Screenshot &amp; Confirm
       </button>
     </div>
 
-    <!-- Nav -->
-    <div class="flex gap8 w100" style="margin-top:8px;padding:0 16px">
-      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
-    </div>
-
-    <!-- Reference footnote: order ID + delivery -->
+    <!-- Order info row -->
     <div class="pend-footnote" id="s-delivery-card">
       <span id="s-order-id">—</span>
       <span class="pend-footnote-dot">·</span>
+      <span id="s-amount-info">—</span>
+      <span class="pend-footnote-dot">·</span>
       <span>Delivery by <span id="s-delivery-time">—</span></span>
+    </div>
+
+    <!-- Nav -->
+    <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
+      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
   </div>
@@ -2215,8 +2221,22 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- QR Card -->
     <div class="upi-qr-card">
-      <div class="upi-qr-title">Scan with any UPI app</div>
+
+      <!-- Steps — top of card -->
+      <div class="pay-steps" style="margin-top:0;border-top:none;padding-top:0;width:100%">
+        <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button below</span></div>
+        <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
+        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, then tap "Send Screenshot" below</span></div>
+      </div>
+
+      <!-- QR -->
+      <div class="upi-qr-title" style="margin-top:12px">Scan with any UPI app</div>
       <div class="upi-qr-box" id="si-qr-box"></div>
+
+      <!-- Download QR -->
+      <button class="upi-download-btn" onclick="_downloadQR('si-qr-box')" id="si-qr-dl" style="margin-top:10px">
+        <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
+      </button>
 
       <!-- App shortcuts -->
       <div class="upi-apps-row">
@@ -2231,38 +2251,29 @@ textarea{resize:vertical;min-height:80px}
         </button>
       </div>
 
-      <!-- Download QR -->
-      <button class="upi-download-btn" onclick="_downloadQR('si-qr-box')" id="si-qr-dl">
-        <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
-      </button>
-
-      <!-- 3-step guide -->
-      <div class="pay-steps">
-        <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button above</span></div>
-        <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
-        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, take screenshot &amp; tap the button below</span></div>
-      </div>
     </div>
 
     <!-- WA confirm -->
-    <div style="width:100%;padding:0 16px;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px">
+    <div style="width:100%;padding:0 16px;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:12px">
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
         Send Screenshot &amp; Confirm
       </button>
     </div>
 
-    <!-- Nav -->
-    <div class="flex gap8 w100" style="margin-top:8px;padding:0 16px">
-      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
-    </div>
-
-    <!-- Reference footnote -->
+    <!-- Order info row -->
     <div class="pend-footnote">
       <span id="si-order-id">—</span>
       <span class="pend-footnote-dot">·</span>
+      <span id="si-amount-info">—</span>
+      <span class="pend-footnote-dot">·</span>
       <span>Delivery by <span id="si-delivery-time">—</span></span>
+    </div>
+
+    <!-- Nav -->
+    <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
+      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
   </div>
@@ -5587,6 +5598,7 @@ async function placeOrder() {
     } else {
       document.getElementById('s-order-id').textContent = res.orderId;
       document.getElementById('s-amount').textContent = '₹' + total;
+      const _saInfo = document.getElementById('s-amount-info'); if (_saInfo) _saInfo.textContent = '₹' + total;
       setDeliveryTime('s-delivery-time');
       nav('pg-success');
       // Generate UPI QR with pre-filled amount
@@ -5666,8 +5678,9 @@ function _generateQR(boxId, amount, orderId) {
     canvas.style.width  = '200px';
     canvas.style.height = '200px';
     // store upiUri on canvas for download
-    canvas.dataset.upiUri = upiUri;
-    canvas.dataset.amount  = amtStr;
+    canvas.dataset.upiUri  = upiUri;
+    canvas.dataset.amount   = amtStr;
+    canvas.dataset.orderId  = orderId || '';
   } catch(e) {
     box.innerHTML = '<div style="font-family:monospace;font-size:11px;color:#555;padding:10px;text-align:center;word-break:break-all">' + _UPI_VPA + '<br><br>Amount: ₹' + amount + '</div>';
   }
@@ -5717,7 +5730,9 @@ function _downloadQR(boxId) {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = 'Tiffo_Pay_QR.png';
+      const _oid = srcCanvas.dataset.orderId || '';
+      const _ts  = Date.now();
+      a.download = _oid ? 'Tiffo_QR_' + _oid + '.png' : 'Tiffo_QR_' + _ts + '.png';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -5742,24 +5757,38 @@ function _downloadQR(boxId) {
 function _openUpiApp(app) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
-  // Android intent URIs — launch app home screen directly
-  // Android intent URIs — verified package names + correct registered URL schemes
-  // PhonePe: scheme=phonepe  ✅
-  // GPay:    scheme=googlepayin  (NOT "gpay" — that's just the brand name, not the scheme)
-  // Paytm:   scheme=paytmmp     (NOT "paytm" — app registers "paytmmp")
-  // Each has S.browser_fallback_url so Play Store opens if app not installed.
+  // Android intent URIs — open app home screen directly (no payment params).
+  // User then uses "Scan from Gallery" inside the app.
+  //
+  // Rules for reliable intent:// URIs:
+  //   1. scheme  — must exactly match what the APK AndroidManifest registers
+  //   2. host    — PhonePe registers "home"; GPay & Paytm do NOT register "home"
+  //                → use empty host (intent://#Intent;...) for GPay & Paytm so
+  //                  Android matches their root launch intent-filter with no path constraint
+  //   3. package — exact Play Store package name, used by Chrome as the final target
+  //   4. S.browser_fallback_url — Play Store link if app not installed
+  //
+  // PhonePe : scheme=phonepe   package=com.phonepe.app                          ✅ user-confirmed working
+  // GPay    : scheme=tez       package=com.google.android.apps.nbu.paisa.user   ✅ "tez" is GPay's APK-registered
+  //           scheme (original app name "Tez by Google", still in manifest).
+  //           "googlepayin" is a brand alias only — NOT in the manifest → Play Store redirect.
+  //           "home" host is not registered by GPay → use empty host.
+  // Paytm   : scheme=paytm     package=net.one97.paytm                          ✅ "paytm" is the registered
+  //           scheme. "paytmmp" was the OLD package name — not a URL scheme.
+  //           "home" / "cashier" hosts require internal params → show "App upgrade required".
+  //           Empty host matches Paytm's root launch intent-filter cleanly.
   const intentMap = {
     phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
-    gpay:    'intent://upi/pay#Intent;scheme=googlepayin;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
-    paytm:   'intent://home#Intent;scheme=paytmmp;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
+    gpay:    'intent://#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
+    paytm:   'intent://#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
   };
 
-  // iOS: custom URL schemes — these open the app directly if installed.
-  // If not installed, we catch the error and redirect to App Store.
+  // iOS custom URL schemes — registered in each app's Info.plist.
+  // PhonePe: phonepe://   GPay: tez://   Paytm: paytm://
   const iosScheme = {
     phonepe: 'phonepe://',
-    gpay:    'gpay://',
-    paytm:   'paytmmp://'
+    gpay:    'tez://',
+    paytm:   'paytm://'
   };
   const appStore = {
     phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
@@ -5883,6 +5912,7 @@ async function confirmInsufOrder() {
     // Populate and show the dedicated insuf success page
     document.getElementById('si-order-id').textContent = res.orderId;
     document.getElementById('si-amount').textContent = '₹' + total;
+    const _siInfo = document.getElementById('si-amount-info'); if (_siInfo) _siInfo.textContent = '₹' + total;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
     launchConfetti();
