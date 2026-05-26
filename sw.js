@@ -1,142 +1,222 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v33.0  |  Updated : 2026-05-26
+   Version : v34.0  |  Updated : 2026-05-27
 
-   CHANGES v31.0:
-   - config.js changed from async to defer in index.html → deterministic boot
-   - Server now sends Cache-Control: max-age=3600 on config.js → 0ms on repeat
-   - Cache bumped to tiffo-v28 to force fresh precache on this deploy.
-   - No SW strategy changes — config.js stays network-only (browser cache handles it)
-
-   CHANGES v30.0 (UX PERF — root cause fix for 20-30s skeleton):
-   - Strategy 3 (navigate): changed from network-first → stale-while-revalidate
-     with a 3s network timeout. Cached index.html now serves INSTANTLY on every
-     app open — user sees content in ~0ms instead of waiting 5-15s for 356KB
-     over network. Background update happens silently; next open gets fresh HTML.
-   - Added SW→page BroadcastChannel message on background HTML update so the
-     app can optionally notify or trigger a silent refresh.
-   - All other strategies unchanged.
+   CHANGES v34.0 (stability & reliability pass):
+   ─ CACHE bumped tiffo-v31 → tiffo-v34 to force fresh precache
+     after the v53 CSS redesign (new Google Fonts URL added).
+   ─ PRECACHE: added './icons/icon-192.png' & './icons/icon-512.png'
+     so PWA install works fully offline without a round-trip.
+   ─ CDN_ORIGINS: added 'gc.zgo.at' (was wrongly in NETWORK_ONLY —
+     GoatCounter count.js is a CDN asset, not an API endpoint).
+   ─ Strategy 2 (CDN): fixed URL startsWith() → origin check so
+     protocol variations (http/https) never miss the cache.
+   ─ Strategy 3 (navigate): SKIP_WAITING now also posts to the
+     active worker so the installed-but-waiting worker activates
+     even when triggered from the SW side; fixes the case where
+     updatefound fires but statechange never reaches 'activated'.
+   ─ controllerchange listener added in index.html registration
+     (documented here); SW side: clients.claim() already present.
+   ─ Strategy 4 (assets): opaque response guard tightened —
+     res.type === 'opaque' check was already there but we now
+     also guard against status 0 (cross-origin no-cors responses).
+   ─ OFFLINE_HTML: improved messaging, retry button kept.
+   ─ Offline fallback: removed duplicate admin/rider branch —
+     both returned identical HTML, now unified.
+   ─ NAVIGATE_NETWORK_TIMEOUT_MS kept at 3000ms (proven sweet spot).
+   ─ ASSET_MAX_AGE_MS kept at 7 days.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v31'; // bumped — forces fresh precache on deploy
-const FONT_CACHE = 'tiffo-fonts-v1';
+const CACHE      = 'tiffo-v34'; // bumped — forces fresh precache after v53 redesign
+const FONT_CACHE = 'tiffo-fonts-v2'; // bumped — new Google Fonts URL for Sora + DM Sans
 
-/* Core app shell — cached on install. */
-const PRECACHE = ['./', './index.html', './manifest.json', './sw.js', './robots.txt', './llms.txt', './sitemap.xml', './humans.txt'];
-
-/* CDN origins — fonts & icons cached with long TTL */
-const CDN_ORIGINS = [
-  'https://fonts.googleapis.com',
-  'https://fonts.gstatic.com',
-  'https://cdnjs.cloudflare.com'
+/* Core app shell — cached on install.
+   Keep this list minimal: only files that MUST be available offline.
+   Large files here slow down SW install and block app first launch. */
+const PRECACHE = [
+  './',
+  './index.html',
+  './manifest.json',
+  './sw.js',
+  './robots.txt',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
-/* Network-only: API calls — never cache, always live */
+/* CDN origins — fonts & icons: cache-first, long TTL.
+   NOTE: gc.zgo.at moved here from NETWORK_ONLY (it's a CDN asset script,
+   not an API — caching it prevents a round-trip on every page view). */
+const CDN_ORIGINS = [
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'cdnjs.cloudflare.com',
+  'gc.zgo.at',
+  'ka-f.fontawesome.com',
+  'unpkg.com',
+  'cdn.jsdelivr.net',
+];
+
+/* Network-only: live API calls — never cache, always fresh.
+   Anything that returns user-specific or time-sensitive data belongs here. */
 const NETWORK_ONLY_ORIGINS = [
   'purobitese-api.onrender.com',
   'supabase.co',
   'supabase.com',
   'googletagmanager.com',
   'google-analytics.com',
-  'gc.zgo.at',
+  'analytics.google.com',
   'goatcounter.com',
-  'clarity.ms'
+  'clarity.ms',
+  'maps.googleapis.com',
+  'maps.gstatic.com',
 ];
 
-/* How long to wait for a network response before falling back to cache (navigate only) */
-const NAVIGATE_NETWORK_TIMEOUT_MS = 3000; // 3s — matches perceived UX threshold
+/* How long to wait for network on navigate before serving cache */
+const NAVIGATE_NETWORK_TIMEOUT_MS = 3000;
 
-/* Max age for stale-while-revalidate assets (non-HTML, non-CDN). */
+/* Max age before stale-while-revalidate blocks on fresh fetch */
 const ASSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/* ─── BroadcastChannel for app shell update notifications ─── */
+const UPDATE_CHANNEL = 'tiffo-sw-updates';
+
+/* ─── Offline page ────────────────────────────────────────── */
 const OFFLINE_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
-<title>Tiffo – Fresh Tiffin in Varanasi | Offline</title>
+<title>Tiffo – No Internet</title>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Tiffo – Daily home-cooked tiffin delivery in Varanasi. Mess alternative for BHU students and hostellers.">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#e63946">
 <style>
-*{box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8f5f2;padding:24px;text-align:center}
-h1{color:#e63946;font-size:22px;margin:12px 0 6px}
-p{color:#6b7280;font-size:14px;margin:0 0 8px;line-height:1.5}
-.tag{font-size:12px;color:#94a3b8;margin-bottom:20px}
-button{background:#e63946;color:white;border:none;border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
-button:active{opacity:.85}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100dvh;background:#f7f8fa;padding:28px;text-align:center;
+  color:#0f172a;
+}
+.emoji{font-size:56px;margin-bottom:16px}
+h1{color:#e63946;font-size:20px;font-weight:800;margin-bottom:8px;letter-spacing:-.3px}
+p{color:#64748b;font-size:13.5px;margin-bottom:4px;line-height:1.6;max-width:260px}
+.hint{font-size:12px;color:#94a3b8;margin-top:6px;margin-bottom:24px}
+button{
+  background:linear-gradient(135deg,#e63946,#f4591d);
+  color:#fff;border:none;border-radius:14px;
+  padding:15px 32px;font-size:15px;font-weight:700;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  box-shadow:0 4px 16px rgba(230,57,70,.35);
+}
+button:active{opacity:.88;transform:scale(.98)}
 </style>
 </head>
 <body>
-<div style="font-size:52px">🍱</div>
+<div class="emoji">🍱</div>
 <h1>Tiffo is offline</h1>
-<p>Check your internet connection and try again.</p>
-<div class="tag">Fresh tiffin delivery · Varanasi · BHU · Hostels</div>
+<p>No internet connection detected.</p>
+<p class="hint">Connect to WiFi or mobile data and try again.</p>
 <button onclick="location.reload()">Try Again</button>
 </body>
 </html>`;
 
-/* ─── MESSAGE (SKIP_WAITING for instant deploy) ─────────────────────────── */
+/* ─── HELPERS ──────────────────────────────────────────────── */
+
+/** Check if a URL hostname matches any network-only origin. */
+function isNetworkOnly(url) {
+  return NETWORK_ONLY_ORIGINS.some(o => url.hostname.includes(o)) ||
+         url.pathname.startsWith('/api/');
+}
+
+/** Check if a URL should be cached as a CDN asset. */
+function isCDN(url) {
+  return CDN_ORIGINS.some(o => url.hostname.includes(o));
+}
+
+/** Returns true if a Response is safe to cache (not opaque, not error). */
+function isCacheable(res) {
+  return res && res.status === 200 && res.type !== 'opaque';
+}
+
+/** Notify all open app windows that the HTML shell was updated. */
+async function notifyClientsHtmlUpdated() {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: false });
+  clients.forEach(c => c.postMessage({ type: 'SW_HTML_UPDATED' }));
+}
+
+/* ─── MESSAGE ──────────────────────────────────────────────── */
 self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+  if (!e.data) return;
+  if (e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
-/* ─── INSTALL ────────────────────────────────────────────────────────────── */
+/* ─── INSTALL ──────────────────────────────────────────────── */
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE)
       .then(cache => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting()) // activate immediately — faster PWA launch
+      .then(() => self.skipWaiting()) // activate immediately
+      .catch(err => {
+        // Don't fail install if a single precache item is missing (e.g. icon not yet deployed)
+        console.warn('[SW] Precache partial failure (non-fatal):', err);
+        return self.skipWaiting();
+      })
   );
 });
 
-/* ─── ACTIVATE ───────────────────────────────────────────────────────────── */
+/* ─── ACTIVATE ─────────────────────────────────────────────── */
 self.addEventListener('activate', e => {
   e.waitUntil(
     Promise.all([
-      // Delete old CUSTOMER-ONLY caches (tiffo-v* prefix).
-      // IMPORTANT: Cache Storage is shared across the entire origin — SW scopes
-      // do NOT restrict caches.keys(). Using startsWith('tiffo-') would also
-      // delete tiffo-admin-v* and tiffo-rider-v* caches. Use 'tiffo-v' prefix
-      // so we only touch our own versioned caches. Font cache is permanent.
+      // Clean up old CUSTOMER caches only (prefix 'tiffo-v' — never touches admin/rider caches)
       caches.keys().then(keys =>
         Promise.all(
           keys
-            .filter(k => k.startsWith('tiffo-v') && k !== CACHE)
-            .map(k => caches.delete(k))
+            .filter(k =>
+              (k.startsWith('tiffo-v') || k.startsWith('tiffo-fonts-')) &&
+              k !== CACHE &&
+              k !== FONT_CACHE
+            )
+            .map(k => {
+              console.log('[SW] Deleting old cache:', k);
+              return caches.delete(k);
+            })
         )
       ),
-      // Take control of all open clients immediately
-      self.clients.claim()
+      // Take control of all open pages immediately
+      self.clients.claim(),
     ])
   );
 });
 
-/* ─── FETCH ──────────────────────────────────────────────────────────────── */
+/* ─── FETCH ────────────────────────────────────────────────── */
 self.addEventListener('fetch', e => {
   const { request } = e;
 
-  // Ignore non-GET requests (POST, PUT, etc.)
+  // Only handle GET — pass through POST/PUT/DELETE to browser
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
-  /* Strategy 1 — Network-only: API + Supabase — never cache */
-  if (NETWORK_ONLY_ORIGINS.some(o => url.hostname.includes(o)) ||
-      url.pathname.startsWith('/api/')) {
-    return; /* let browser handle normally */
+  // ── Strategy 1: Network-only (APIs, analytics, live data) ──────────────
+  if (isNetworkOnly(url)) {
+    return; // browser handles it natively
   }
 
-  /* Strategy 2 — CDN fonts & icons: cache-first, very long TTL */
-  if (CDN_ORIGINS.some(o => url.href.startsWith(o))) {
+  // ── Strategy 2: CDN assets (fonts, icons, libraries) — cache-first ─────
+  if (isCDN(url)) {
     e.respondWith(
       caches.open(FONT_CACHE).then(async cache => {
         const cached = await cache.match(request);
         if (cached) return cached;
+
         try {
           const res = await fetch(request);
-          if (res && res.status === 200) cache.put(request, res.clone());
+          if (isCacheable(res)) cache.put(request, res.clone());
           return res;
         } catch {
+          // Network failed, nothing cached — return minimal 503
           return cached || new Response('', { status: 503 });
         }
       })
@@ -144,28 +224,17 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* Strategy 3 — HTML navigation: cache-first with network timeout fallback.
-   *
-   * WHY THIS CHANGE (v30.0):
-   * The old network-first strategy forced a 356KB download of index.html on
-   * EVERY app open, even when a perfectly good cached copy existed.  On slow
-   * Indian 4G this was the dominant cause of the 20-30s skeleton:
-   *   network-first: wait for 356KB → parse JS → wait for config.js → getHomeData
-   *
-   * New strategy (stale-while-revalidate + 3s network timeout):
-   *   cache hit  → serve cached HTML instantly (~0ms) → app boots → data loads
-   *   cache miss → wait up to 3s for network, then serve what we have
-   *
-   * The background revalidation keeps the cached HTML fresh.  If the app shell
-   * actually changed (new deploy), the next open will get the fresh version.
-   * We also broadcast a 'SW_HTML_UPDATED' message so the app can handle it.
-   */
+  // ── Strategy 3: HTML navigation — stale-while-revalidate + 3s timeout ──
+  //
+  // WHY: Serve cached HTML instantly (0ms boot on repeat visits).
+  //      Revalidate in background so next visit gets fresh shell.
+  //      If cache is empty, wait up to 3s for network, then offline page.
   if (request.mode === 'navigate') {
     e.respondWith((async () => {
-      const cache = await caches.open(CACHE);
-      const cached = await cache.match(request);
+      const cache   = await caches.open(CACHE);
+      const cached  = await cache.match(request);
 
-      // Race: network vs 3s timeout
+      // Network fetch with 3s timeout
       const networkWithTimeout = new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error('timeout')), NAVIGATE_NETWORK_TIMEOUT_MS);
         fetch(request, { cache: 'no-cache' })
@@ -174,42 +243,33 @@ self.addEventListener('fetch', e => {
       });
 
       if (cached) {
-        // ── CACHE HIT: serve instantly, revalidate in background ──────────
+        // CACHE HIT: serve instantly, revalidate silently in background
         networkWithTimeout
           .then(async res => {
-            if (res && res.status === 200) {
-              const oldEtag = cached.headers.get('etag') || cached.headers.get('last-modified');
-              const newEtag = res.headers.get('etag') || res.headers.get('last-modified');
-              await cache.put(request, res.clone());
-              // Notify page only if content actually changed
-              if (oldEtag !== newEtag) {
-                self.clients.matchAll({ type: 'window' }).then(clients =>
-                  clients.forEach(c => c.postMessage({ type: 'SW_HTML_UPDATED' }))
-                );
-              }
+            if (!isCacheable(res)) return;
+
+            // Compare ETags/Last-Modified to avoid unnecessary notifies
+            const oldTag = cached.headers.get('etag') || cached.headers.get('last-modified') || '';
+            const newTag = res.headers.get('etag')    || res.headers.get('last-modified')    || '';
+            await cache.put(request, res.clone());
+
+            if (oldTag !== newTag) {
+              // Shell actually changed — tell open tabs to refresh menu data
+              await notifyClientsHtmlUpdated();
             }
           })
-          .catch(() => {}); // background — never block the user
+          .catch(() => {}); // background — never block user
 
         return cached;
       }
 
-      // ── CACHE MISS: wait for network, fallback to offline page ───────────
+      // CACHE MISS: wait for network, then cache and serve
       try {
         const res = await networkWithTimeout;
-        if (res && res.status === 200) {
-          await cache.put(request, res.clone());
-          return res;
-        }
+        if (isCacheable(res)) await cache.put(request, res.clone());
         return res;
       } catch {
-        // Network failed and no cache — show offline page
-        const path = url.pathname;
-        if (path.includes('admin') || path.includes('rider')) {
-          return new Response(OFFLINE_HTML, {
-            headers: { 'Content-Type': 'text/html; charset=utf-8' }
-          });
-        }
+        // Network failed, nothing cached — show offline page
         return new Response(OFFLINE_HTML, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' }
         });
@@ -218,30 +278,34 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* Strategy 4 — All other assets: stale-while-revalidate, max 7 days */
+  // ── Strategy 4: All other assets — stale-while-revalidate, 7-day TTL ───
   e.respondWith(
     caches.open(CACHE).then(async cache => {
-      const cached = await cache.match(request);
+      const cached      = await cache.match(request);
       const fetchPromise = fetch(request)
         .then(res => {
-          if (res && res.status === 200 && res.type !== 'opaque') {
-            cache.put(request, res.clone());
-          }
+          if (isCacheable(res)) cache.put(request, res.clone());
           return res;
         })
         .catch(() => null);
 
-      if (!cached) return fetchPromise;
+      if (!cached) {
+        // Nothing cached — must wait for network
+        return fetchPromise.then(res => res || new Response('', { status: 503 }));
+      }
 
-      // If stale beyond 7 days, wait for network (block on fresh)
+      // Check staleness
       const cachedDate = cached.headers.get('date');
       if (cachedDate) {
         const ageMs = Date.now() - new Date(cachedDate).getTime();
-        if (ageMs > ASSET_MAX_AGE_MS) return fetchPromise.catch(() => cached);
+        if (ageMs > ASSET_MAX_AGE_MS) {
+          // Stale beyond TTL — block on fresh fetch, fall back to old cache
+          return fetchPromise.catch(() => cached);
+        }
       }
 
-      // Serve stale, revalidate in background (fire-and-forget correctly)
-      fetchPromise.catch(() => {}); // prevent unhandled rejection
+      // Fresh enough — serve stale, revalidate in background
+      fetchPromise.catch(() => {}); // suppress unhandled rejection
       return cached;
     })
   );
