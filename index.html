@@ -1175,7 +1175,7 @@ textarea{resize:vertical;min-height:80px}
   color: #a5b4fc;
   margin-bottom: 16px;
 }
-/* "Complete Secure Payment" label above amount */
+/* "Pay Now" label above amount */
 .pend-title {
   font-family: var(--ff);
   font-weight: 600;
@@ -1316,13 +1316,13 @@ textarea{resize:vertical;min-height:80px}
 /* ── Download button ── */
 .upi-download-btn {
   width: 100%;
-  border: 1.5px dashed #d1d5db;
-  background: transparent;
-  color: #6b7280;
+  border: 2px solid #dc2626;
+  background: #dc2626;
+  color: #fff;
   border-radius: 12px;
   padding: 11px;
   font-family: var(--ff);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13px;
   cursor: pointer;
   display: flex;
@@ -1332,7 +1332,7 @@ textarea{resize:vertical;min-height:80px}
   transition: background .15s, border-color .15s;
   margin-top: 14px;
 }
-.upi-download-btn:active { background: #f9fafb; border-color: #9ca3af; }
+.upi-download-btn:active { background: #b91c1c; border-color: #b91c1c; }
 /* How-to — 3-step strip inside QR card */
 .pay-steps {
   width: 100%;
@@ -1549,8 +1549,8 @@ textarea{resize:vertical;min-height:80px}
 .upi-qr-box canvas,.upi-qr-box img{width:200px;height:200px;display:block;border-radius:6px;image-rendering:crisp-edges}
 .upi-qr-vpa{font-family:monospace;font-size:12px;color:#6b7280;margin-top:6px;letter-spacing:.3px}
 .upi-qr-note{font-family:var(--fb);font-size:11.5px;color:#6b7280;text-align:center;line-height:1.5;margin-top:2px}
-.upi-download-btn{width:100%;border:none;background:#f1f5f9;color:#374151;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
-.upi-download-btn:active{background:#e2e8f0}
+.upi-download-btn{width:100%;border:2px solid #dc2626;background:#dc2626;color:#fff;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s,border-color .15s}
+.upi-download-btn:active{background:#b91c1c;border-color:#b91c1c}
 .upi-apps-row{display:flex;gap:10px;width:100%;justify-content:center;margin-top:2px}
 .upi-app-btn{flex:1;max-width:90px;border:1.5px solid #e5e7eb;background:#fff;border-radius:12px;padding:10px 6px 8px;font-family:var(--ff);font-weight:600;font-size:11px;color:#374151;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .15s}
 .upi-app-btn:active{background:#f9fafb}
@@ -1733,7 +1733,7 @@ textarea{resize:vertical;min-height:80px}
      Reuses existing pg-auth tab UI logic (switchTab / doLogin / doSignup)
      ══════════════════════════════════════════════ -->
 <div id="guest-auth-backdrop" onclick="_closeGuestAuthSheet()"></div>
-<div id="guest-auth-sheet" class="sheet" style="padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));background:#dc2626 !important;color:#fff !important;border:none !important">
+<div id="guest-auth-sheet" class="sheet" style="padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
     <div>
       <div style="font-size:17px;font-weight:800;color:#0f172a;font-family:var(--ff)">Sign in to continue</div>
@@ -1784,24 +1784,6 @@ textarea{resize:vertical;min-height:80px}
     <div style="display:flex;gap:10px">
       <button onclick="_hideExitConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer;color:#334155">Stay</button>
       <button onclick="_doExitApp()" style="flex:1;padding:14px;border-radius:13px;border:none;background:var(--p,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer">Exit App</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     QR LEAVE-CONFIRM OVERLAY
-     Shown when user presses back on pg-success / pg-success-insuf.
-     Controlled by _showQrLeaveConfirm / _hideQrLeaveConfirm.
-══════════════════════════════════════════════ -->
-<div id="_qr-leave-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;align-items:flex-end;justify-content:center" onclick="_hideQrLeaveConfirm()">
-  <div class="_qr-leave-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
-    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
-    <div style="font-size:32px;text-align:center;margin-bottom:10px">⚠️</div>
-    <p style="font-size:17px;font-weight:800;margin:0 0 6px;color:#0f172a;text-align:center">Leave Payment Page?</p>
-    <p style="font-size:13.5px;color:#64748b;margin:0 0 22px;line-height:1.5;text-align:center">Your QR code will be lost.<br>You have NOT paid yet — please complete payment first.</p>
-    <div style="display:flex;gap:10px">
-      <button onclick="_hideQrLeaveConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer;color:#334155">Stay &amp; Pay</button>
-      <button onclick="_confirmQrLeave()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#ef4444;color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer">Leave</button>
     </div>
   </div>
 </div>
@@ -2144,7 +2126,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="pay-steps" style="margin-top:0;border-top:none;padding-top:0;width:100%">
         <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button below</span></div>
         <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
-        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Complete payment → Save screenshot → Send payment proof on WhatsApp</span></div>
+        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, then tap "Send Screenshot" below</span></div>
       </div>
 
       <!-- QR -->
@@ -2155,15 +2137,6 @@ textarea{resize:vertical;min-height:80px}
       <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')" style="margin-top:10px">
         <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
       </button>
-
-      <div style="margin-top:10px;background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:14px;font-size:12px;line-height:1.6;color:#374151">
-        <div style="font-weight:700;margin-bottom:4px">Payment Workflow</div>
-        • Save QR if needed<br>
-        • Open any UPI app directly from buttons below<br>
-        • Complete payment successfully<br>
-        • Save payment screenshot<br>
-        • Tap WhatsApp confirmation button to send order + payment details
-      </div>
 
       <!-- App shortcuts -->
       <div class="upi-apps-row">
@@ -2184,7 +2157,7 @@ textarea{resize:vertical;min-height:80px}
     <div id="s-wa-arrow" style="display:none;width:100%;padding:0 16px;flex-direction:column;align-items:center;gap:8px;margin-top:12px">
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="s-wa-btn">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
-        Confirm Payment on WhatsApp &amp; Confirm
+        Send Screenshot &amp; Confirm
       </button>
     </div>
 
@@ -2199,8 +2172,8 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
-      <button class="btn-outline" onclick="_leavePayPage('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="_leavePayPage('pg-orders')" style="flex:1">My Orders</button>
+      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
   </div>
@@ -2253,7 +2226,7 @@ textarea{resize:vertical;min-height:80px}
       <div class="pay-steps" style="margin-top:0;border-top:none;padding-top:0;width:100%">
         <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button below</span></div>
         <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
-        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Complete payment → Save screenshot → Send payment proof on WhatsApp</span></div>
+        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, then tap "Send Screenshot" below</span></div>
       </div>
 
       <!-- QR -->
@@ -2264,15 +2237,6 @@ textarea{resize:vertical;min-height:80px}
       <button class="upi-download-btn" onclick="_downloadQR('si-qr-box')" id="si-qr-dl" style="margin-top:10px">
         <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
       </button>
-
-      <div style="margin-top:10px;background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:14px;font-size:12px;line-height:1.6;color:#374151">
-        <div style="font-weight:700;margin-bottom:4px">Payment Workflow</div>
-        • Save QR if needed<br>
-        • Open any UPI app directly from buttons below<br>
-        • Complete payment successfully<br>
-        • Save payment screenshot<br>
-        • Tap WhatsApp confirmation button to send order + payment details
-      </div>
 
       <!-- App shortcuts -->
       <div class="upi-apps-row">
@@ -2293,7 +2257,7 @@ textarea{resize:vertical;min-height:80px}
     <div style="width:100%;padding:0 16px;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:12px">
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
-        Confirm Payment on WhatsApp &amp; Confirm
+        Send Screenshot &amp; Confirm
       </button>
     </div>
 
@@ -2308,8 +2272,8 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
-      <button class="btn-outline" onclick="_leavePayPage('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="_leavePayPage('pg-orders')" style="flex:1">My Orders</button>
+      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
   </div>
@@ -2725,6 +2689,7 @@ textarea{resize:vertical;min-height:80px}
 <!-- ══════════════════════════════════════════════
      WALLET RECHARGE QR MODAL
 ══════════════════════════════════════════════ -->
+
 <div id="rch-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeRechargeModal()">
   <div class="insuf-card" style="max-width:340px;width:94%">
     <div style="font-size:36px;margin-bottom:6px">💳</div>
@@ -2773,10 +2738,10 @@ textarea{resize:vertical;min-height:80px}
         <div class="upi-divider-text">After paying</div>
         <div class="upi-divider-line"></div>
       </div>
-      <div class="upi-wa-confirm-label">Send payment screenshot + confirmation on WhatsApp to get your wallet credited instantly.</div>
+      <div class="upi-wa-confirm-label">Send payment screenshot on WhatsApp to get your wallet credited instantly.</div>
       <button class="wa-btn pend-wa-btn" id="rch-wa-btn" style="width:100%;font-size:15px!important;padding:14px!important;gap:10px!important">
         <i class="fa-brands fa-whatsapp" style="font-size:19px"></i>
-        Confirm Payment on WhatsApp &amp; Confirm
+        Send Screenshot &amp; Confirm
       </button>
     </div>
 
@@ -3394,6 +3359,49 @@ function sendOrderWA(orderId) {
   openWA(entry.phone, entry.msg);
 }
 
+/* ─── Re-open success/payment page from Orders tab "Send Screenshot" button ──
+   Navigates to the exact same pg-success or pg-success-insuf page the user
+   saw right after placing the order — same QR (regenerated with same values),
+   same WA button, same layout. Nothing new, nothing different.
+─────────────────────────────────────────────────────────────────────────── */
+function openOrderPayModal(orderId) {
+  const entry = _orderWAMap[orderId];
+  if (!entry) { toast('Payment info not available. Reload orders.'); return; }
+
+  const amt     = entry.amt || 0;
+  const isInsuf = !!entry.isInsuf;
+
+  if (isInsuf) {
+    // ── pg-success-insuf (subscriber, wallet insufficient) ──
+    document.getElementById('si-order-id').textContent = orderId;
+    document.getElementById('si-amount').textContent   = '₹' + amt;
+    const _siInfo = document.getElementById('si-amount-info');
+    if (_siInfo) _siInfo.textContent = '₹' + amt;
+    setDeliveryTime('si-delivery-time');
+    // Wire the WA button
+    const siWaBtn = document.getElementById('si-wa-btn');
+    if (siWaBtn) siWaBtn.onclick = () => openWA(entry.phone, entry.msg);
+    nav('pg-success-insuf');
+    // Regenerate QR with same amount + orderId
+    setTimeout(() => _generateQR('si-qr-box', amt, orderId), 100);
+  } else {
+    // ── pg-success (normal UPI order) ──
+    document.getElementById('s-order-id').textContent = orderId;
+    document.getElementById('s-amount').textContent   = '₹' + amt;
+    const _sInfo = document.getElementById('s-amount-info');
+    if (_sInfo) _sInfo.textContent = '₹' + amt;
+    setDeliveryTime('s-delivery-time');
+    // Show the WA button arrow section and wire it
+    const waBtn   = document.getElementById('s-wa-btn');
+    const waArrow = document.getElementById('s-wa-arrow');
+    if (waArrow) waArrow.style.display = 'flex';
+    if (waBtn)   waBtn.onclick = () => openWA(entry.phone, entry.msg);
+    nav('pg-success');
+    // Regenerate QR with same amount + orderId
+    setTimeout(() => _generateQR('s-qr-box', amt, orderId), 100);
+  }
+}
+
 function launchConfetti() {
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999';
@@ -3570,12 +3578,6 @@ function nav(id) {
 }
 
 function back() {
-  // Guard: if on payment page, show leave-confirm instead of going back
-  if (_qrGuardActive) {
-    _qrLeaveDest = _stack.length > 1 ? _stack[_stack.length - 2] : 'pg-home';
-    _showQrLeaveConfirm();
-    return;
-  }
   if (_stack.length < 2) return;
   _stack.pop();
   const prev = _stack[_stack.length - 1];
@@ -5643,7 +5645,6 @@ async function placeOrder() {
       const _saInfo = document.getElementById('s-amount-info'); if (_saInfo) _saInfo.textContent = '₹' + total;
       setDeliveryTime('s-delivery-time');
       nav('pg-success');
-      _qrGuardActive = true;
       // Generate UPI QR with pre-filled amount
       setTimeout(() => _generateQR('s-qr-box', total, res.orderId), 100);
       // Show WA confirm section with pre-built message for screenshot submission
@@ -5657,7 +5658,7 @@ async function placeOrder() {
             const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
             const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
             openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order — Payment Sent*\n${'─'.repeat(28)}\n📋 *Order ID:* ${res.orderId}\n\n👤 *Name:* ${user.name || 'Customer'}\n📞 *Mobile:* ${user.phone}\n📍 *Address:* ${_waAddr(user.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💰 *Total Paid: ₹${total}*\n💳 *UPI ID:* ${_UPI_VPA}\n${'─'.repeat(28)}\nPayment screenshot neeche attach kar raha/rahi hoon.\nPlease confirm kar dein. 🙏`);
+              `🍱 *Tiffo — UPI Payment Done*\n${'─'.repeat(28)}\n✅ *Maine payment kar di hai.*\n*Kripaya check karke mera order approve kar dein.* 🙏\n${'─'.repeat(28)}\n👤 *Customer Details*\n   Name: ${user.name || 'Customer'}\n   Mobile: ${user.phone}\n   Address: ${_waAddr(user.address)}\n${'─'.repeat(28)}\n📋 *Order Details*\n   Order ID: ${res.orderId}\n\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💳 *Transaction Details*\n   Amount Paid: ₹${total}\n   UPI ID: ${_UPI_VPA}\n   Payment Mode: UPI\n${'─'.repeat(28)}\n📸 Payment screenshot neeche attach kar raha/rahi hoon.`);
           };
         }
       }, 300);
@@ -5798,63 +5799,64 @@ function _downloadQR(boxId) {
 // The user downloads the QR, opens the app, and uses "Scan from Gallery".
 // Amount is auto-filled from the QR data by the UPI app itself.
 function _openUpiApp(app) {
-  const ua = navigator.userAgent || '';
-  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
-  // Native app schemes
-  // Using direct schemes is significantly more reliable than intent://
-  // inside Android PWAs/WebViews for GPay and Paytm.
-  const schemes = {
+  // Android intent URIs — open app home screen directly (no payment params).
+  // User then uses "Scan from Gallery" inside the app.
+  //
+  // Rules for reliable intent:// URIs:
+  //   1. scheme  — must exactly match what the APK AndroidManifest registers
+  //   2. host    — PhonePe registers "home"; GPay & Paytm do NOT register "home"
+  //                → use empty host (intent://#Intent;...) for GPay & Paytm so
+  //                  Android matches their root launch intent-filter with no path constraint
+  //   3. package — exact Play Store package name, used by Chrome as the final target
+  //   4. S.browser_fallback_url — Play Store link if app not installed
+  //
+  // PhonePe : scheme=phonepe   package=com.phonepe.app                          ✅ user-confirmed working
+  // GPay    : scheme=tez       package=com.google.android.apps.nbu.paisa.user   ✅ "tez" is GPay's APK-registered
+  //           scheme (original app name "Tez by Google", still in manifest).
+  //           "googlepayin" is a brand alias only — NOT in the manifest → Play Store redirect.
+  //           "home" host is not registered by GPay → use empty host.
+  // Paytm   : scheme=paytm     package=net.one97.paytm                          ✅ "paytm" is the registered
+  //           scheme. "paytmmp" was the OLD package name — not a URL scheme.
+  //           "home" / "cashier" hosts require internal params → show "App upgrade required".
+  //           Empty host matches Paytm's root launch intent-filter cleanly.
+  const intentMap = {
+    phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
+    gpay:    'intent://#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
+    paytm:   'intent://#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
+  };
+
+  // iOS custom URL schemes — registered in each app's Info.plist.
+  // PhonePe: phonepe://   GPay: tez://   Paytm: paytm://
+  const iosScheme = {
     phonepe: 'phonepe://',
-    gpay: 'tez://',
-    paytm: 'paytm://'
+    gpay:    'tez://',
+    paytm:   'paytm://'
   };
-
-  // Play Store fallbacks
-  const playStore = {
-    phonepe: 'https://play.google.com/store/apps/details?id=com.phonepe.app',
-    gpay: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user',
-    paytm: 'https://play.google.com/store/apps/details?id=net.one97.paytm'
-  };
-
-  // iOS App Store fallbacks
   const appStore = {
     phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
-    gpay: 'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041',
-    paytm: 'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
+    gpay:    'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041',
+    paytm:   'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
   };
 
-  const scheme = schemes[app];
-  if (!scheme) return;
+  if (isIOS) {
+    // Try custom URL scheme (opens app instantly if installed).
+    // Set a 2s timer — if app didn't open, browser stays on page, so redirect to App Store.
+    const scheme = iosScheme[app];
+    if (!scheme) return;
+    const fallback = setTimeout(() => { window.location.href = appStore[app]; }, 2000);
+    window.location.href = scheme;
+    // If app opened, page visibility changes — cancel the fallback
+    const cancel = () => { clearTimeout(fallback); document.removeEventListener('visibilitychange', cancel); };
+    document.addEventListener('visibilitychange', cancel);
+    return;
+  }
 
-  // Correct store fallback by OS
-  const fallbackUrl = isIOS ? appStore[app] : playStore[app];
-
-  let appOpened = false;
-
-  // If app opens successfully, browser becomes hidden.
-  const visibilityHandler = () => {
-    if (document.hidden) {
-      appOpened = true;
-    }
-  };
-
-  document.addEventListener('visibilitychange', visibilityHandler);
-
-  // Try opening app first.
-  window.location.href = scheme;
-
-  // Important:
-  // Give Android enough time before fallback.
-  // Without delay, Chrome/PWA may incorrectly redirect to Play Store.
-  setTimeout(() => {
-    document.removeEventListener('visibilitychange', visibilityHandler);
-
-    // App did not open → redirect to store.
-    if (!appOpened && !document.hidden) {
-      window.location.href = fallbackUrl;
-    }
-  }, 2200);
+  // Android — intent URI (Chrome handles this natively in browser + PWA)
+  const intent = intentMap[app];
+  if (!intent) return;
+  window.location.href = intent;
 }
 
 // ── Wallet Recharge QR Modal ─────────────────────────────────────────────────
@@ -5885,7 +5887,7 @@ function generateRechargeQR() {
   const phone = user?.phone || '';
   document.getElementById('rch-wa-btn').onclick = () => {
     openWA('9889760350',
-      `💰 *Wallet Recharge*\n👤 ${name} | 📞 ${phone}\n\n✅ *Amount Paid: ₹${rounded}*\n💳 UPI paid to ${_UPI_VPA}\n\nKripaya mere wallet mein ₹${rounded} add kar dein.\nPayment screenshot attach kar raha/rahi hoon. 🙏`);
+      `💰 *Tiffo — Wallet Recharge Payment Done*\n${'─'.repeat(28)}\n✅ *Maine payment kar di hai.*\n*Kripaya check karke mera wallet recharge kar dein.* 🙏\n${'─'.repeat(28)}\n👤 *Customer Details*\n   Name: ${name}\n   Mobile: ${phone}\n${'─'.repeat(28)}\n💳 *Transaction Details*\n   Amount Paid: ₹${rounded}\n   UPI ID: ${_UPI_VPA}\n   Payment Mode: UPI\n   Purpose: Wallet Recharge\n${'─'.repeat(28)}\n📸 Payment screenshot neeche attach kar raha/rahi hoon.`);
   };
   // Scroll to QR
   setTimeout(() => document.getElementById('rch-qr-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
@@ -5948,7 +5950,7 @@ async function confirmInsufOrder() {
     const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
     _insufWAData = {
       phone: CFG.TIFFIN,
-      msg: `🍱 *Tiffo Order — Payment Sent*\n${'─'.repeat(28)}\n📋 *Order ID:* ${res.orderId}\n\n👤 *Name:* ${_u?.name || 'Customer'}\n📞 *Mobile:* ${_u?.phone || ''}\n📍 *Address:* ${_waAddr(_u?.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💰 *Total Paid: ₹${total}*\n💳 *UPI ID:* ${_UPI_VPA}\n⚠️ *Note:* Wallet balance insufficient — remaining paid via UPI.\n${'─'.repeat(28)}\nPayment screenshot neeche attach kar raha/rahi hoon.\nPlease confirm kar dein. 🙏`
+      msg: `🍱 *Tiffo — UPI Payment Done (Wallet Insufficient)*\n${'─'.repeat(28)}\n✅ *Maine payment kar di hai.*\n*Kripaya check karke mera order approve kar dein.* 🙏\n${'─'.repeat(28)}\n👤 *Customer Details*\n   Name: ${_u?.name || 'Customer'}\n   Mobile: ${_u?.phone || ''}\n   Address: ${_waAddr(_u?.address)}\n${'─'.repeat(28)}\n📋 *Order Details*\n   Order ID: ${res.orderId}\n\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💳 *Transaction Details*\n   Amount Paid via UPI: ₹${total}\n   UPI ID: ${_UPI_VPA}\n   Payment Mode: UPI\n   ⚠️ Reason: Wallet balance insufficient\n${'─'.repeat(28)}\n📸 Payment screenshot neeche attach kar raha/rahi hoon.`
     };
 
     // Populate and show the dedicated insuf success page
@@ -5957,7 +5959,6 @@ async function confirmInsufOrder() {
     const _siInfo = document.getElementById('si-amount-info'); if (_siInfo) _siInfo.textContent = '₹' + total;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
-    _qrGuardActive = true;
     launchConfetti();
     // Generate UPI QR with pre-filled amount for insuf path
     setTimeout(() => _generateQR('si-qr-box', total, res.orderId), 100);
@@ -6166,9 +6167,11 @@ function renderOrderList(orders) {
     const _baseBlock = `🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${_user?.name || 'Customer'} | 📞 ${_user?.phone || ''}\n📍 ${_waAddr(_user?.address)}\n\n*Items:*\n${_ordItemLines}${_discLine}${_delLine}\n✅ *Total: ₹${ordAmt}*`;
 
     if (!isWallet) {
-      // Store the correct message for this order in the map so sendOrderWA() can use it
+      // Store order data in map — openOrderPayModal() reads amt + isInsuf to pick correct page
       _orderWAMap[orderId] = {
         phone: CFG.TIFFIN,
+        amt: ordAmt,
+        isInsuf: isInsuf,
         msg: isInsuf
           ? `${_baseBlock}\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
           : `${_baseBlock}\n\n💳 Please share your UPI/QR for payment. I will send the screenshot once paid. 🙏`
@@ -6179,12 +6182,12 @@ function renderOrderList(orders) {
       ? `<span class="ord-pay-badge" style="background:var(--gl);color:var(--g)">💳 Wallet</span>`
       : isInsuf
         ? `<span class="ord-pay-badge" style="background:#fff3cd;color:#856404">⚠️ Wallet (Insuf)</span>
-           <button onclick="sendOrderWA('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Confirm Payment on WhatsApp
+           <button onclick="openOrderPayModal('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
            </button>`
         : `<span class="ord-pay-badge">💵 Cash / UPI</span>
-           <button onclick="sendOrderWA('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
-             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Confirm Payment on WhatsApp
+           <button onclick="openOrderPayModal('${orderId}')" style="display:inline-flex;align-items:center;gap:4px;background:#25d366;color:#fff;border:none;border-radius:8px;padding:3px 9px;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;line-height:1.4">
+             <i class="fa-brands fa-whatsapp" style="font-size:13px"></i> Send Screenshot
            </button>`;
 
     // Slot indicator
@@ -8222,74 +8225,12 @@ function _doExitApp() {
   }, 200);
 }
 
-
-// ── QR Payment Page — Back Button Guard ───────────────────────────────────────
-// Prevents accidental back-press from destroying the QR before payment is done.
-// Set to the destination page when user explicitly leaves via the nav buttons.
-let _qrGuardActive   = false;  // true while on pg-success or pg-success-insuf
-let _qrLeaveDest     = null;   // destination when user confirms leave
-let _qrLeaveOpen     = false;  // prevents double-open
-
-function _showQrLeaveConfirm() {
-  if (_qrLeaveOpen) return;
-  _qrLeaveOpen = true;
-  const overlay = document.getElementById('_qr-leave-overlay');
-  if (!overlay) return;
-  overlay.style.display = 'flex';
-  requestAnimationFrame(() => {
-    const card = overlay.querySelector('._qr-leave-card');
-    if (card) card.style.transform = 'translateY(0)';
-  });
-  // Push a dummy history state so the next back press hits us again
-  history.pushState({ pg: _stack[_stack.length - 1], qrGuard: true }, '', location.href);
-}
-
-function _hideQrLeaveConfirm() {
-  _qrLeaveOpen = false;
-  _qrLeaveDest = null;
-  const overlay = document.getElementById('_qr-leave-overlay');
-  if (!overlay) return;
-  const card = overlay.querySelector('._qr-leave-card');
-  if (card) card.style.transform = 'translateY(100%)';
-  setTimeout(() => { overlay.style.display = 'none'; }, 320);
-}
-
-function _confirmQrLeave() {
-  const dest = _qrLeaveDest || 'pg-home';
-  _qrGuardActive = false;
-  _qrLeaveDest   = null;
-  _qrLeaveOpen   = false;
-  const overlay  = document.getElementById('_qr-leave-overlay');
-  if (overlay) overlay.style.display = 'none';
-  nav(dest);
-}
-
-// Called by "Back to Menu" and "My Orders" buttons on the pay pages.
-// Bypasses the guard since the user explicitly chose to leave.
-function _leavePayPage(dest) {
-  _qrGuardActive = false;
-  nav(dest);
-}
-
 // Handle hardware back button (Android)
 window.addEventListener('popstate', () => {
   // If exit dialog is showing, close it (treat back as "Stay")
   if (_exitDialogOpen) {
     history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
     _hideExitConfirm();
-    return;
-  }
-
-  // If QR leave dialog is open, close it and stay (treat back as "Stay & Pay")
-  if (_qrLeaveOpen) {
-    _hideQrLeaveConfirm();
-    return;
-  }
-
-  // If on a payment page, intercept back and show leave-confirm sheet
-  if (_qrGuardActive) {
-    _qrLeaveDest = 'pg-home';
-    _showQrLeaveConfirm();
     return;
   }
 
