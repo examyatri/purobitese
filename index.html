@@ -5678,11 +5678,10 @@ function showClosedPopup(reason) {
    │  • ecLevel H so QR still scans even if partially obscured.                │
    └───────────────────────────────────────────────────────────────────────────┘
    ┌─ App open ─────────────────────────────────────────────────────────────────┐
-   │  Custom URL scheme (phonepe://, tez://, paytm://) — works in browser AND  │
-   │  PWA standalone. intent:// was blocked by Chrome PWA shell for GPay/Paytm.│
-   │    • App installed  → OS opens app directly, page goes hidden → cancel     │
-   │    • App not installed → page stays visible → 2s timer fires → store       │
-   │  Android fallback → Play Store  |  iOS fallback → App Store                │
+   │  Android: intent:// URL — OS tries to open installed app first.            │
+   │    • App installed  → home screen opens directly (NO prefill, NO amount)   │
+   │    • App not installed → falls through to Play Store via fallback param     │
+   │  iOS: universal link → app opens if installed, App Store otherwise         │
    │  User then uses "Scan from Gallery / Scan QR" inside the app.              │
    └───────────────────────────────────────────────────────────────────────────┘
 ─────────────────────────────────────────────────────────────────────────── */
@@ -5781,40 +5780,40 @@ function _downloadQR(boxId) {
 // The user downloads the QR, opens the app, and uses "Scan from Gallery".
 // Amount is auto-filled from the QR data by the UPI app itself.
 function _openUpiApp(app) {
-  // ── WHY THIS APPROACH ────────────────────────────────────────────────────────
-  // ROOT CAUSE (v59 bug): PhonePe worked because it uses `intent://home#Intent;...`
-  // GPay & Paytm used `intent://#Intent;...` (empty host).
-  //
-  // intent:// URIs work fine in Chrome browser tab.
-  // BUT when Tiffo is installed as a PWA (standalone mode), Chrome's PWA shell
-  // BLOCKS intent:// URIs entirely for GPay/Paytm — falls straight to Play Store.
-  // PhonePe "worked" because `intent://home#Intent;...` (with explicit host "home")
-  // gets processed differently by the PWA shell.
-  //
-  // FIX: Use custom URL schemes (phonepe://, tez://, paytm://) for ALL apps on
-  // both browser and PWA. These schemes bypass the intent:// PWA restriction.
-  // Fallback is handled via visibilitychange + setTimeout:
-  //   • App installed  → OS opens app → page loses visibility → cancel fallback
-  //   • App not installed → OS can't open scheme → page stays visible → fallback fires
-  //     → redirect to Play Store (Android) or App Store (iOS)
-  // ────────────────────────────────────────────────────────────────────────────
-
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const isAndroid = /android/i.test(navigator.userAgent);
 
-  // Custom URL schemes — registered in each app's APK manifest / iOS Info.plist
+  // Android intent URIs — open app home screen directly (no payment params).
+  // User then uses "Scan from Gallery" inside the app.
+  //
+  // Rules for reliable intent:// URIs:
+  //   1. scheme  — must exactly match what the APK AndroidManifest registers
+  //   2. host    — PhonePe registers "home"; GPay & Paytm do NOT register "home"
+  //                → use empty host (intent://#Intent;...) for GPay & Paytm so
+  //                  Android matches their root launch intent-filter with no path constraint
+  //   3. package — exact Play Store package name, used by Chrome as the final target
+  //   4. S.browser_fallback_url — Play Store link if app not installed
+  //
+  // PhonePe : scheme=phonepe   package=com.phonepe.app                          ✅ user-confirmed working
+  // GPay    : scheme=tez       package=com.google.android.apps.nbu.paisa.user   ✅ "tez" is GPay's APK-registered
+  //           scheme (original app name "Tez by Google", still in manifest).
+  //           "googlepayin" is a brand alias only — NOT in the manifest → Play Store redirect.
+  //           "home" host is not registered by GPay → use empty host.
+  // Paytm   : scheme=paytm     package=net.one97.paytm                          ✅ "paytm" is the registered
+  //           scheme. "paytmmp" was the OLD package name — not a URL scheme.
+  //           "home" / "cashier" hosts require internal params → show "App upgrade required".
+  //           Empty host matches Paytm's root launch intent-filter cleanly.
+  const intentMap = {
+    phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
+    gpay:    'intent://#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
+    paytm:   'intent://#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
+  };
+
+  // iOS custom URL schemes — registered in each app's Info.plist.
   // PhonePe: phonepe://   GPay: tez://   Paytm: paytm://
-  const customScheme = {
+  const iosScheme = {
     phonepe: 'phonepe://',
     gpay:    'tez://',
     paytm:   'paytm://'
-  };
-
-  // Store fallback URLs per platform
-  const playStore = {
-    phonepe: 'https://play.google.com/store/apps/details?id=com.phonepe.app',
-    gpay:    'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user',
-    paytm:   'https://play.google.com/store/apps/details?id=net.one97.paytm'
   };
   const appStore = {
     phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
@@ -5822,50 +5821,23 @@ function _openUpiApp(app) {
     paytm:   'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
   };
 
-  const scheme = customScheme[app];
-  if (!scheme) return;
+  if (isIOS) {
+    // Try custom URL scheme (opens app instantly if installed).
+    // Set a 2s timer — if app didn't open, browser stays on page, so redirect to App Store.
+    const scheme = iosScheme[app];
+    if (!scheme) return;
+    const fallback = setTimeout(() => { window.location.href = appStore[app]; }, 2000);
+    window.location.href = scheme;
+    // If app opened, page visibility changes — cancel the fallback
+    const cancel = () => { clearTimeout(fallback); document.removeEventListener('visibilitychange', cancel); };
+    document.addEventListener('visibilitychange', cancel);
+    return;
+  }
 
-  const storeUrl = isIOS ? appStore[app] : playStore[app];
-
-  // Strategy:
-  // 1. Navigate to custom URL scheme → OS opens app if installed
-  // 2. Start a 2-second fallback timer
-  // 3. If page hides (app opened) → visibilitychange fires → cancel timer
-  // 4. If page stays visible (app not installed) → timer fires → go to store
-  // 5. Also cancel on pagehide (iOS Safari fires this instead of visibilitychange)
-  let fallbackFired = false;
-  let cancelled = false;
-
-  const doFallback = () => {
-    if (cancelled) return;
-    cancelled = true;
-    window.location.href = storeUrl;
-  };
-
-  const cancelFallback = () => {
-    if (fallbackFired) return;
-    cancelled = true;
-    clearTimeout(timer);
-    document.removeEventListener('visibilitychange', onVisible);
-    window.removeEventListener('pagehide', onVisible);
-  };
-
-  const onVisible = () => {
-    // visibilitychange fires when page goes hidden (app opened) OR comes back
-    // We only want to cancel when page goes HIDDEN
-    if (document.hidden) cancelFallback();
-  };
-
-  const timer = setTimeout(() => {
-    fallbackFired = true;
-    doFallback();
-  }, 2000);
-
-  document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('pagehide', cancelFallback); // iOS Safari
-
-  // Attempt to open app via custom scheme
-  window.location.href = scheme;
+  // Android — intent URI (Chrome handles this natively in browser + PWA)
+  const intent = intentMap[app];
+  if (!intent) return;
+  window.location.href = intent;
 }
 
 // ── Wallet Recharge QR Modal ─────────────────────────────────────────────────
