@@ -2528,32 +2528,45 @@ input[type=number]{-moz-appearance:textfield}
   </div>
   <div style="font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:16px" id="pause-sheet-desc">Choose which tiffin session to pause</div>
   <div id="pause-cutoff-msg"></div>
-  <label class="pause-option-card">
+  <!-- Card: Morning Off (today) — shown only before morning cutoff, both-plan -->
+  <label id="pcard-lunch" class="pause-option-card" style="display:none">
     <input type="radio" name="pause-opt" value="lunch">
     <div class="pause-option-icon picon-morning">☀️</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Morning Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip morning auto tiffin for tomorrow</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px" id="pcard-lunch-title">Morning Off (Today)</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px" id="pcard-lunch-sub">Skip morning auto tiffin for today</div>
     </div>
   </label>
-  <label class="pause-option-card">
+  <!-- Card: Evening Off (today) — shown before evening cutoff when plan includes evening -->
+  <label id="pcard-dinner" class="pause-option-card" style="display:none">
     <input type="radio" name="pause-opt" value="dinner">
     <div class="pause-option-icon picon-evening">🌙</div>
     <div style="flex:1">
-      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Evening Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Skip evening auto tiffin for tomorrow</div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px" id="pcard-dinner-title">Evening Off (Today)</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px" id="pcard-dinner-sub">Skip evening auto tiffin for today</div>
     </div>
   </label>
-  <label class="pause-option-card">
+  <!-- Card: Both Off — full today (before morning cutoff, both-plan) -->
+  <label id="pcard-both" class="pause-option-card" style="display:none">
     <input type="radio" name="pause-opt" value="both">
-    <div class="pause-option-icon picon-both">⏸</div>
+    <div class="pause-option-icon picon-both">⏸️</div>
+    <div style="flex:1">
+      <div style="font-family:var(--ff);font-weight:600;font-size:14px">Both Off (Today)</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Pause both morning &amp; evening auto tiffin today</div>
+    </div>
+  </label>
+  <!-- Card: Both Off split — after morning cutoff, before evening cutoff (both-plan)
+       Evening off today + Morning off from tomorrow -->
+  <label id="pcard-both-split" class="pause-option-card" style="display:none">
+    <input type="radio" name="pause-opt" value="both-split">
+    <div class="pause-option-icon picon-both">⏸️</div>
     <div style="flex:1">
       <div style="font-family:var(--ff);font-weight:600;font-size:14px">Both Off</div>
-      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Pause all auto tiffins for tomorrow</div>
+      <div style="font-family:var(--fb);font-size:12px;color:var(--gr);margin-top:2px">Evening off today + Morning off from tomorrow</div>
     </div>
   </label>
   <div class="mt16">
-    <button class="btn-primary" style="background:var(--pd)" onclick="confirmPause()">Confirm</button>
+    <button id="pause-confirm-btn" class="btn-primary" style="background:var(--pd)" onclick="confirmPause()">Confirm</button>
   </div>
   <button class="resume-link" id="resume-all-link" style="display:none" onclick="resumeDelivery()">↺ Resume All Sessions</button>
 </div>
@@ -2823,11 +2836,11 @@ let _pauseFreshTs  = 0;  // epoch ms of last successful pause fetch — skip on 
 let _walletFreshTs = 0;  // epoch ms of last successful wallet fetch — skip on rapid home returns
 const _DATA_FRESH_TTL = 12000; // 12s — if data was fetched within this window, onEnter skips duplicate DB call
 let _pollTimer   = null;
-let _activeOrdersPollTimer = null; // fast 90s order poll — runs only when _hasActiveOrders=true
+
 let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
-const _POLL_ACTIVE_ORDERS = 90_000; // 90s — faster order poll when user has pending/confirmed/out-for-delivery orders
+// _POLL_ACTIVE_ORDERS removed — active orders now handled by the normal 360s _pollTimer
 const _REVISIT_THRESHOLD = 60_000; // 60s — matches version poll interval; return after >=1 min triggers silent menu refresh for both guest and logged-in
 const _MENU_POLL_SKIP = 90000;    // skip menu re-poll if fetched within this window (e.g. right after PTR)
 const _MENU_CACHE_KEY = 'tf_menu_cache';
@@ -6088,9 +6101,8 @@ async function loadOrders(forceRender = false, silent = false) {
     // ── Update active-orders flag so poll tick skips orders DB call when nothing to watch ──
     const activeStatuses = new Set(['pending','confirmed','verified','preparing','out_for_delivery','out for delivery']);
     _hasActiveOrders = (res.orders || []).some(o => activeStatuses.has((o.order_status||'').toLowerCase().replace(/\s+/g,'_')));
-    // Start or stop the fast 90s order poll based on whether active orders exist.
-    if (_hasActiveOrders) _startActiveOrdersPoll();
-    else _stopActiveOrdersPoll();
+    // _hasActiveOrders flag drives whether _runPollTick fetches orders (no separate fast-poll timer).
+    if (_hasActiveOrders) { /* normal 360s poll covers this */ }
     const newStr = JSON.stringify(res.orders);
     // Save to local cache for instant-load on next open
     Store.setJSON(_ORDERS_CACHE_KEY, res.orders || []);
@@ -6950,95 +6962,127 @@ async function _loadAtCutoff() {
 }
 
 async function openPauseSheet() {
-  // Show only relevant pause options based on subscriber's plan
-  const plan = _session?.plan || 'morning';
-  const showMorning = plan === 'morning' || plan === 'both';
-  const showEvening = plan === 'evening' || plan === 'both';
-  const showBoth    = plan === 'both';
+  /* ── Plan flags ─────────────────────────────────────────────────────── */
+  const plan       = _session?.plan || 'morning';
+  const hasMorning = plan === 'morning' || plan === 'both';
+  const hasEvening = plan === 'evening' || plan === 'both';
+  const hasBoth    = plan === 'both';
 
-  // Fetch cutoff config then decide today vs tomorrow labels
-  const cutoff = await _loadAtCutoff();
-  const nowHHMM = _istTimeNow();
-  const morningToday = showMorning && (nowHHMM <= cutoff.morning);
-  const eveningToday = showEvening && (nowHHMM <= cutoff.evening);
+  /* ── Cutoff check ───────────────────────────────────────────────────── */
+  const cutoff     = await _loadAtCutoff();
+  const nowHHMM    = _istTimeNow();
+  const beforeMorningCutoff = hasMorning && (nowHHMM <= cutoff.morning);
+  const beforeEveningCutoff = hasEvening && (nowHHMM <= cutoff.evening);
 
-  // For morning-only plan: after cutoff there's NOTHING actionable today,
-  // and we intentionally do NOT offer tomorrow-off here (confusing UX).
-  // Instead show a clear message and disable the confirm button.
-  const cutoffMsgEl   = document.getElementById('pause-cutoff-msg');
-  const sheetDescEl   = document.getElementById('pause-sheet-desc');
-  const confirmBtn    = document.querySelector('#pause-sheet .btn-primary');
+  /* ── DOM refs — all by stable ID, no querySelector magic ───────────── */
+  const msgEl     = document.getElementById('pause-cutoff-msg');
+  const confirmBtn = document.getElementById('pause-confirm-btn');
+  const cLunch     = document.getElementById('pcard-lunch');
+  const cDinner    = document.getElementById('pcard-dinner');
+  const cBoth      = document.getElementById('pcard-both');
+  const cBothSplit = document.getElementById('pcard-both-split');
 
-  // Reset visibility
-  if (cutoffMsgEl) { cutoffMsgEl.style.display = 'none'; cutoffMsgEl.textContent = ''; }
-  if (confirmBtn)  confirmBtn.style.display = 'block';
+  /* ── Full reset ─────────────────────────────────────────────────────── */
+  if (msgEl)      { msgEl.style.display = 'none'; msgEl.innerHTML = ''; }
+  if (confirmBtn) confirmBtn.style.display = 'block';
+  [cLunch, cDinner, cBoth, cBothSplit].forEach(c => { if (c) c.style.display = 'none'; });
+  document.querySelectorAll('input[name="pause-opt"]').forEach(r => r.checked = false);
 
-  // Build per-card messages
-  document.querySelectorAll('.pause-option-card').forEach(card => {
-    const radio = card.querySelector('input[type=radio]');
-    if (!radio) return;
+  /* ════════════════════════════════════════════════════════════════════
+     STATE MACHINE  — four clean branches, no cross-contamination
+     ════════════════════════════════════════════════════════════════════ */
 
-    if (radio.value === 'lunch') {
-      if (!showMorning) { card.style.display = 'none'; return; }
-      card.style.display = '';
-      if (morningToday) {
-        // Before cutoff — allow today off
-        const sub = card.querySelector('div[style*="font-size:12px"]');
-        if (sub) sub.textContent = `Skip morning auto tiffin for today (till ${cutoff.morning})`;
-        const title = card.querySelector('div[style*="font-size:14px"]');
-        if (title) title.textContent = 'Morning Off (Today)';
-        card.style.opacity = '1'; card.style.pointerEvents = '';
-        if (radio) radio.disabled = false;
+  /* ── SCENARIO A: Both cutoffs passed → nothing actionable today ───── */
+  const allCutoffsPassed = !beforeMorningCutoff && !beforeEveningCutoff;
+  if (allCutoffsPassed) {
+    if (msgEl) {
+      msgEl.style.display = 'block';
+      if (hasBoth) {
+        msgEl.innerHTML = `⏰ <strong>Both cutoffs have passed for today.</strong><br>Come back tomorrow before ${cutoff.morning} to manage tomorrow's tiffin.`;
+      } else if (hasMorning) {
+        msgEl.innerHTML = `⏰ <strong>Today's morning cutoff (${cutoff.morning}) has passed.</strong><br>Come back tomorrow before ${cutoff.morning} to skip tomorrow's morning tiffin.`;
       } else {
-        // After morning cutoff — hide the card entirely, show info message
-        card.style.display = 'none';
-        if (cutoffMsgEl) {
-          cutoffMsgEl.style.display = 'block';
-          cutoffMsgEl.innerHTML = `⏰ <strong>Today's morning cutoff (${cutoff.morning}) has passed.</strong><br>Today's tiffin off option is unavailable. To skip tomorrow's morning tiffin, come back tomorrow before ${cutoff.morning}.`;
-        }
-        if (confirmBtn) confirmBtn.style.display = 'none';
+        msgEl.innerHTML = `⏰ <strong>Today's evening cutoff (${cutoff.evening}) has passed.</strong><br>Come back tomorrow before ${cutoff.evening} to skip tomorrow's evening tiffin.`;
       }
     }
+    if (confirmBtn) confirmBtn.style.display = 'none';
+    _openPauseSheetFinalise();
+    return;
+  }
 
-    if (radio.value === 'dinner') {
-      if (!showEvening) { card.style.display = 'none'; return; }
-      card.style.display = '';
-      if (eveningToday) {
-        const sub = card.querySelector('div[style*="font-size:12px"]');
-        if (sub) sub.textContent = `Skip evening auto tiffin for today (till ${cutoff.evening})`;
-        const title = card.querySelector('div[style*="font-size:14px"]');
-        if (title) title.textContent = 'Evening Off (Today)';
-        card.style.opacity = '1'; card.style.pointerEvents = '';
-        if (radio) radio.disabled = false;
-      } else {
-        card.style.display = 'none';
-        if (cutoffMsgEl && !morningToday) {
-          cutoffMsgEl.style.display = 'block';
-          cutoffMsgEl.innerHTML = `⏰ <strong>Today's evening cutoff (${cutoff.evening}) has passed.</strong><br>Today's tiffin off option is unavailable. To skip tomorrow's evening tiffin, come back tomorrow before ${cutoff.evening}.`;
-        }
-        if (confirmBtn && !morningToday) confirmBtn.style.display = 'none';
-      }
+  /* ── SCENARIO B: Before morning cutoff (morning or both plan) ──────
+     Show all applicable cards — everything is "today".               */
+  if (beforeMorningCutoff) {
+    // Morning card
+    if (hasMorning && cLunch) {
+      document.getElementById('pcard-lunch-sub').textContent = `Skip morning auto tiffin for today (till ${cutoff.morning})`;
+      cLunch.style.display = '';
+    }
+    // Evening card (only for both-plan — evening-only users never see morning cards)
+    if (hasBoth && cDinner && beforeEveningCutoff) {
+      document.getElementById('pcard-dinner-sub').textContent = `Skip evening auto tiffin for today (till ${cutoff.evening})`;
+      cDinner.style.display = '';
+    }
+    // Both-today card (only for both-plan)
+    if (hasBoth && cBoth) {
+      cBoth.style.display = '';
+    }
+    // Evening-only plan, before evening cutoff
+    if (!hasMorning && hasEvening && cDinner && beforeEveningCutoff) {
+      document.getElementById('pcard-dinner-sub').textContent = `Skip evening auto tiffin for today (till ${cutoff.evening})`;
+      cDinner.style.display = '';
+    }
+    _openPauseSheetFinalise();
+    return;
+  }
+
+  /* ── SCENARIO C: After morning cutoff, before evening cutoff ───────
+     Morning window closed.  Evening still open.
+     • morning-only plan  → show message, no confirm
+     • evening-only plan  → show Evening Off (today)
+     • both plan          → show Evening Off today + Both-split card
+                           + info message about morning                */
+  if (!beforeMorningCutoff && beforeEveningCutoff) {
+    // Info banner about morning
+    if (hasMorning && msgEl) {
+      msgEl.style.display = 'block';
+      msgEl.innerHTML = `⏰ <strong>Today's morning cutoff (${cutoff.morning}) has passed.</strong><br>Morning tiffin can't be paused for today.`;
     }
 
-    if (radio.value === 'both') {
-      if (!showBoth) { card.style.display = 'none'; return; }
-      const isAnyToday = morningToday || eveningToday;
-      card.style.display = isAnyToday ? '' : 'none';
-      if (isAnyToday) {
-        const sub = card.querySelector('div[style*="font-size:12px"]');
-        if (sub) sub.textContent = 'Pause all auto tiffins (applies today where cutoff not passed)';
-        const title = card.querySelector('div[style*="font-size:14px"]');
-        if (title) title.textContent = 'Both Off (Today)';
-      } else {
-        if (cutoffMsgEl) {
-          cutoffMsgEl.style.display = 'block';
-          cutoffMsgEl.innerHTML = `⏰ <strong>Today's cutoff has passed for all sessions.</strong><br>Come back tomorrow to pause tiffin.`;
-        }
-        if (confirmBtn) confirmBtn.style.display = 'none';
-      }
+    if (hasMorning && !hasEvening) {
+      // Morning-only plan: nothing to do — no confirm
+      if (confirmBtn) confirmBtn.style.display = 'none';
+      _openPauseSheetFinalise();
+      return;
     }
-  });
 
+    // Evening card (evening or both plan)
+    if (hasEvening && cDinner) {
+      document.getElementById('pcard-dinner-sub').textContent = `Skip evening auto tiffin for today (till ${cutoff.evening})`;
+      cDinner.style.display = '';
+    }
+
+    // Both-split card: evening today + morning from tomorrow (both-plan only)
+    if (hasBoth && cBothSplit) {
+      cBothSplit.style.display = '';
+    }
+
+    _openPauseSheetFinalise();
+    return;
+  }
+
+  /* ── SCENARIO D: evening-only plan, after evening cutoff ──────────
+     Handled by SCENARIO A already (beforeEveningCutoff=false → allCutoffsPassed=true)
+     This branch is a safety net / unreachable under normal conditions. */
+  if (msgEl) {
+    msgEl.style.display = 'block';
+    msgEl.innerHTML = `⏰ <strong>Today's cutoff has passed.</strong><br>Come back tomorrow to manage your tiffin.`;
+  }
+  if (confirmBtn) confirmBtn.style.display = 'none';
+  _openPauseSheetFinalise();
+}
+
+function _openPauseSheetFinalise() {
   document.getElementById('pause-sheet').style.display = 'block';
   document.getElementById('pause-sheet').classList.add('open');
   document.getElementById('sheet-backdrop').classList.add('show');
@@ -7051,8 +7095,8 @@ function closePauseSheet() {
   // Reset radio selections, cutoff message, and confirm button
   document.querySelectorAll('input[name="pause-opt"]').forEach(r => r.checked = false);
   const cutoffMsg = document.getElementById('pause-cutoff-msg');
-  if (cutoffMsg) { cutoffMsg.style.display = 'none'; cutoffMsg.textContent = ''; }
-  const confirmBtn = document.querySelector('#pause-sheet .btn-primary');
+  if (cutoffMsg) { cutoffMsg.style.display = 'none'; cutoffMsg.innerHTML = ''; }
+  const confirmBtn = document.getElementById('pause-confirm-btn');
   if (confirmBtn) confirmBtn.style.display = 'block';
 }
 
@@ -7071,31 +7115,45 @@ function onPauseToggle(chk) {
 async function confirmPause() {
   const opt = document.querySelector('input[name="pause-opt"]:checked');
   if (!opt) { toast('Select an option'); return; }
-  const mode = opt.value;
+  const mode = opt.value; // 'lunch' | 'dinner' | 'both' | 'both-split'
   const cutoff = await _loadAtCutoff();
   const nowHHMM = _istTimeNow();
-  // All options shown in sheet are today-only (after-cutoff options are hidden)
-  const morningForToday = (mode === 'lunch' || mode === 'both') && (nowHHMM <= cutoff.morning);
-  const eveningForToday = (mode === 'dinner' || mode === 'both') && (nowHHMM <= cutoff.evening);
+
+  // Determine which sessions are for today vs tomorrow based on mode + current time
+  // both-split = special: evening today + morning from tomorrow (morning cutoff already passed)
+  let pauseModeForServer, morningForToday, eveningForToday;
+  if (mode === 'both-split') {
+    pauseModeForServer = 'both';
+    morningForToday    = false;  // morning cutoff passed → activate from tomorrow
+    eveningForToday    = true;   // evening cutoff not yet passed → active today
+  } else {
+    pauseModeForServer = mode;
+    morningForToday    = (mode === 'lunch' || mode === 'both') && (nowHHMM <= cutoff.morning);
+    eveningForToday    = (mode === 'dinner' || mode === 'both') && (nowHHMM <= cutoff.evening);
+  }
+
   try {
     await api('updatePauseDelivery', {
       phone: Auth.get()?.phone,
-      pauseMode: mode,
+      pauseMode: pauseModeForServer,
       morningForToday,
       eveningForToday
     });
-    // Effective pause for today's UI state
-    const pm_eff = (mode === 'lunch' || mode === 'both') && morningForToday;
-    const pe_eff = (mode === 'dinner' || mode === 'both') && eveningForToday;
+
+    // Compute what's effectively paused TODAY for UI badge
+    const pm_eff = (pauseModeForServer === 'lunch' || pauseModeForServer === 'both') && morningForToday;
+    const pe_eff = (pauseModeForServer === 'dinner' || pauseModeForServer === 'both') && eveningForToday;
     const effectiveToday = pm_eff && pe_eff ? 'both' : pm_eff ? 'lunch' : pe_eff ? 'dinner' : 'none';
     applyPauseState(effectiveToday);
     _lastPauseMode = effectiveToday;
     closePauseSheet();
-    toast(
-      mode === 'lunch'  ? 'Morning tiffin off today ✓' :
-      mode === 'dinner' ? 'Evening tiffin off today ✓' :
-      'Both tiffins off today ✓'
-    );
+
+    const toastMsg =
+      mode === 'lunch'      ? 'Morning tiffin off today ✓' :
+      mode === 'dinner'     ? 'Evening tiffin off today ✓' :
+      mode === 'both'       ? 'Both tiffins off today ✓' :
+      /* both-split */        'Evening off today + Morning off from tomorrow ✓';
+    toast(toastMsg);
   } catch(e) { toast(e.message || 'Failed'); }
 }
 
@@ -7252,20 +7310,9 @@ function stopPolling() {
   _pollTimer = null;
 }
 
-// Fast order poll — only runs while user has active orders (pending/confirmed/out_for_delivery).
-// 90s interval so order status updates (confirmed, out for delivery, delivered) reach the
-// customer quickly during peak delivery windows, without hammering DB for idle users.
-function _startActiveOrdersPoll() {
-  if (_activeOrdersPollTimer) return; // already running
-  _activeOrdersPollTimer = setInterval(() => {
-    if (document.hidden || !_session) return; // skip if app in background or logged out
-    loadOrders(true, true).catch(() => {});
-  }, _POLL_ACTIVE_ORDERS);
-}
-
-function _stopActiveOrdersPoll() {
-  if (_activeOrdersPollTimer) { clearInterval(_activeOrdersPollTimer); _activeOrdersPollTimer = null; }
-}
+// _startActiveOrdersPoll / _stopActiveOrdersPoll removed.
+// Active orders are now refreshed by the normal 360s _runPollTick (which checks _hasActiveOrders).
+// No separate fast-poll timer needed.
 
 // Called right after order is placed — fetches orders + khata in parallel, silently.
 // When user opens those tabs they see fresh data instantly, no wait, no PTR needed.
@@ -7586,7 +7633,6 @@ function _wipeAndShowLogin() {
   _postLoginRefreshDone = false;
   _menuFreshTs     = 0;
   _hasActiveOrders  = false;
-  _stopActiveOrdersPoll(); // clear fast order poll on logout
   _khataEverVisited = false;
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
   _isGuestMode = false;
@@ -8107,7 +8153,6 @@ function doLogout() {
   _lastSchedule    = null;
   _lastCutoff      = null;
   _hasActiveOrders  = false;
-  _stopActiveOrdersPoll(); // clear fast order poll on full wipe
   _khataEverVisited = false;
   _khataAllEntries = [];
   _lastOrderPlacedTs = 0; // reset so cooldown doesn't carry to next login
