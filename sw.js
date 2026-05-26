@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v31.0  |  Updated : 2026-05-24
+   Version : v32.0  |  Updated : 2026-05-26
 
    CHANGES v31.0:
    - config.js changed from async to defer in index.html → deterministic boot
@@ -18,7 +18,7 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v29'; // bumped — forces fresh precache on deploy
+const CACHE      = 'tiffo-v30'; // bumped — forces fresh precache on deploy
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
