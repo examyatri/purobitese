@@ -153,6 +153,7 @@ const _STAFF_ACTIONS = new Set([
   'getSubscribersForBulk',
   'getRiders',
   'getNotifications',
+  'getNotifVersion',
   'markNotificationRead',
   'getCookingSessionDetail',
   'getAllKhata',
@@ -2567,6 +2568,31 @@ app.post('/api', async (req, res) => {
         _analyticsCache   = analyticsResult;
         _analyticsCacheTs = Date.now();
         return res.json(analyticsResult);
+      }
+
+      case 'getNotifVersion': {
+        // Ultra-lightweight poll endpoint — used by the 60s universal watcher.
+        // Returns only: unreadCount + latestId (id of newest unread notif).
+        // Fetches only unread rows, no joins, no full payload — minimal DB cost.
+        // The frontend compares latestId to detect new notifications without
+        // fetching the full list every 60s from every tab.
+        const { data: rows } = await supabase
+          .from('notifications')
+          .select('id, title, type, created_at')
+          .eq('is_read', false)
+          .order('created_at', { ascending: false })
+          .limit(50); // 50 is way more than enough; we only care about newest
+        const unread = rows || [];
+        const unreadCount = unread.length;
+        const latest = unread[0] || null;
+        return res.json({
+          success: true,
+          unreadCount,
+          latestId:    latest ? latest.id         : null,
+          latestTitle: latest ? latest.title       : null,
+          latestType:  latest ? latest.type        : null,
+          latestAt:    latest ? latest.created_at  : null,
+        });
       }
 
       case 'getNotifications': {
