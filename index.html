@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v52.0                                    ║
+     ║  Version : v53.0                                    ║
      ║  Updated : 2026-05-23                               ║
      ║  Changes : SEO audit — pure-veg consistency fix,    ║
      ║            voting-based tiffin added as key entity, ║
@@ -689,7 +689,7 @@ body{font-family:var(--fb);background:#fff;color:var(--dk);overflow:hidden;heigh
 .pg{position:fixed;top:0;bottom:0;overflow:hidden;transition:transform 300ms ease;background:#fff;width:100%;max-width:540px;left:50%;transform:translateX(calc(-50% + 100vw));display:flex;flex-direction:column}
 .pg.here{transform:translateX(-50%)!important}
 .pg-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--lt);padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 28px);scroll-padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);overscroll-behavior-y:contain}
-.pg-scroll-full{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+.pg-scroll-full{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom,0px) + 16px)}
 /* Bottom Nav */
 #bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:540px;height:var(--bnav-h);background:#fff;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-around;padding-bottom:var(--safe-b);z-index:900}
 #bottom-nav button{flex:1;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--ff);font-size:10px;font-weight:600;color:var(--gr);cursor:pointer;position:relative;padding:6px 0;transition:color 200ms}
@@ -710,7 +710,7 @@ body{font-family:var(--fb);background:#fff;color:var(--dk);overflow:hidden;heigh
 .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:540px;background:#fff;border-radius:20px 20px 0 0;box-shadow:var(--shl);transition:transform 350ms cubic-bezier(.4,0,.2,1);z-index:1000;padding:20px var(--pg-pad) calc(20px + var(--safe-b))}
 .sheet.open{transform:translateX(-50%) translateY(0)}
 /* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1001}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:1001;backdrop-filter:blur(2px)}
 /* Cards */
 .m-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh);display:flex;gap:12px}
 /* Skeleton */
@@ -1014,8 +1014,8 @@ textarea{resize:vertical;min-height:80px}
 .bill-divider{border:none;border-top:1px solid #f0f0f0;margin:10px 0}
 .bill-total{font-family:var(--ff);font-weight:700;font-size:18px;color:var(--dk)}
 /* Success pages */
-.success-wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:40px 24px calc(40px + env(safe-area-inset-bottom,0px));gap:16px;text-align:center;background:#fff}
-.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)) !important;}
+.success-wrap{min-height:auto;display:flex;flex-direction:column;align-items:center;padding:40px 24px calc(40px + env(safe-area-inset-bottom,0px));gap:16px;text-align:center;background:#fff}
+.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(var(--bnav-h) + env(safe-area-inset-bottom,0px) + 24px) !important;min-height:unset !important;}
 .success-icon{font-size:64px;color:var(--g);animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1)}
 @keyframes scaleIn{from{transform:scale(0)}to{transform:scale(1)}}
 .success-title{font-family:var(--ff);font-weight:800;font-size:26px}
@@ -1150,7 +1150,7 @@ textarea{resize:vertical;min-height:80px}
   text-align: center;
   width: 100%;
   background: linear-gradient(155deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-  padding: 28px 20px 36px;
+  padding: 20px 20px 28px;
   position: relative;
   overflow: hidden;
 }
@@ -1166,14 +1166,14 @@ textarea{resize:vertical;min-height:80px}
 }
 /* Decorative ring */
 .pend-clock-ring {
-  width: 48px; height: 48px;
+  width: 40px; height: 40px;
   border-radius: 50%;
   background: rgba(255,255,255,.1);
   border: 1.5px solid rgba(255,255,255,.2);
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
+  font-size: 16px;
   color: #a5b4fc;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 /* "Pay Now" label above amount */
 .pend-title {
@@ -1189,7 +1189,7 @@ textarea{resize:vertical;min-height:80px}
 .pend-amount-val {
   font-family: var(--ff);
   font-weight: 800;
-  font-size: 52px;
+  font-size: clamp(36px,10vw,52px);
   color: #fff;
   letter-spacing: -1.5px;
   line-height: 1;
@@ -1231,7 +1231,7 @@ textarea{resize:vertical;min-height:80px}
   margin: -22px auto 0;
   background: #fff;
   border-radius: 22px;
-  padding: 22px 18px 18px;
+  padding: 16px 16px 14px;
   box-shadow: 0 8px 32px rgba(0,0,0,.14);
   border: none;
   display: flex;
@@ -1254,17 +1254,17 @@ textarea{resize:vertical;min-height:80px}
 /* QR box — centrepiece, generous breathing room */
 .upi-qr-box {
   width: 220px; height: 220px;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #fff;
   display: flex; align-items: center; justify-content: center;
   position: relative;
-  padding: 10px;
-  margin-top: 10px;
+  padding: 8px;
+  margin-top: 8px;
   box-shadow: 0 0 0 1px #e5e7eb, 0 4px 24px rgba(0,0,0,.08);
   overflow: visible;
 }
 .upi-qr-box canvas, .upi-qr-box img {
-  width: 200px; height: 200px;
+  width: 204px; height: 204px;
   display: block;
   border-radius: 4px;
   image-rendering: crisp-edges;
@@ -1316,9 +1316,9 @@ textarea{resize:vertical;min-height:80px}
 /* ── Download button ── */
 .upi-download-btn {
   width: 100%;
-  border: 1.5px dashed #d1d5db;
-  background: transparent;
-  color: #6b7280;
+  border: none;
+  background: #dc2626;
+  color: #fff;
   border-radius: 12px;
   padding: 11px;
   font-family: var(--ff);
@@ -1329,10 +1329,10 @@ textarea{resize:vertical;min-height:80px}
   align-items: center;
   justify-content: center;
   gap: 7px;
-  transition: background .15s, border-color .15s;
+  transition: background .15s;
   margin-top: 14px;
 }
-.upi-download-btn:active { background: #f9fafb; border-color: #9ca3af; }
+.upi-download-btn:active { background: #b91c1c; }
 /* How-to — 3-step strip inside QR card */
 .pay-steps {
   width: 100%;
@@ -1532,7 +1532,7 @@ textarea{resize:vertical;min-height:80px}
 .closed-card{background:#fff;border-radius:20px;padding:32px 24px;text-align:center;max-width:300px;width:90%;box-shadow:var(--shl)}
 .closed-emoji{font-size:48px;margin-bottom:12px}
 /* Insufficient balance UPI popup */
-.insuf-card{background:#fff;border-radius:20px;padding:28px 22px;text-align:center;max-width:320px;width:92%;box-shadow:var(--shl)}
+.insuf-card{background:#fff;border-radius:24px 24px 0 0;text-align:center;width:100%;max-width:540px;box-shadow:0 -4px 24px rgba(0,0,0,.12)}
 .insuf-card .insuf-emoji{font-size:44px;margin-bottom:10px}
 .insuf-card .insuf-title{font-family:var(--ff);font-weight:700;font-size:17px;margin-bottom:8px;color:#1a1a1a}
 .insuf-card .insuf-bal-row{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:12px;line-height:1.6}
@@ -1545,12 +1545,12 @@ textarea{resize:vertical;min-height:80px}
 /* ── UPI QR Payment UI ── */
 .upi-qr-card{width:100%;background:#fff;border-radius:18px;padding:20px 16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #f0f0f0;display:flex;flex-direction:column;align-items:center;gap:4px}
 .upi-qr-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#6b7280;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
-.upi-qr-box{width:216px;height:216px;border-radius:16px;overflow:visible;border:none;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;padding:8px;margin-top:10px;box-shadow:0 0 0 1.5px #e5e7eb,0 4px 20px rgba(0,0,0,0.10)}
-.upi-qr-box canvas,.upi-qr-box img{width:200px;height:200px;display:block;border-radius:6px;image-rendering:crisp-edges}
+.upi-qr-box{width:220px;height:220px;border-radius:16px;overflow:visible;border:none;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;padding:8px;margin-top:8px;box-shadow:0 0 0 1.5px #e5e7eb,0 4px 20px rgba(0,0,0,0.10)}
+.upi-qr-box canvas,.upi-qr-box img{width:204px;height:204px;display:block;border-radius:6px;image-rendering:crisp-edges}
 .upi-qr-vpa{font-family:monospace;font-size:12px;color:#6b7280;margin-top:6px;letter-spacing:.3px}
 .upi-qr-note{font-family:var(--fb);font-size:11.5px;color:#6b7280;text-align:center;line-height:1.5;margin-top:2px}
-.upi-download-btn{width:100%;border:none;background:#f1f5f9;color:#374151;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
-.upi-download-btn:active{background:#e2e8f0}
+.upi-download-btn{width:100%;border:none;background:#dc2626;color:#fff;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
+.upi-download-btn:active{background:#b91c1c}
 .upi-apps-row{display:flex;gap:10px;width:100%;justify-content:center;margin-top:2px}
 .upi-app-btn{flex:1;max-width:90px;border:1.5px solid #e5e7eb;background:#fff;border-radius:12px;padding:10px 6px 8px;font-family:var(--ff);font-weight:600;font-size:11px;color:#374151;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .15s}
 .upi-app-btn:active{background:#f9fafb}
@@ -1784,6 +1784,24 @@ textarea{resize:vertical;min-height:80px}
     <div style="display:flex;gap:10px">
       <button onclick="_hideExitConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer;color:#334155">Stay</button>
       <button onclick="_doExitApp()" style="flex:1;padding:14px;border-radius:13px;border:none;background:var(--p,#f97316);color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer">Exit App</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     QR LEAVE-CONFIRM OVERLAY
+     Shown when user presses back on pg-success / pg-success-insuf.
+     Controlled by _showQrLeaveConfirm / _hideQrLeaveConfirm.
+══════════════════════════════════════════════ -->
+<div id="_qr-leave-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;align-items:flex-end;justify-content:center" onclick="_hideQrLeaveConfirm()">
+  <div class="_qr-leave-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
+    <div style="font-size:32px;text-align:center;margin-bottom:10px">⚠️</div>
+    <p style="font-size:17px;font-weight:800;margin:0 0 6px;color:#0f172a;text-align:center">Leave Payment Page?</p>
+    <p style="font-size:13.5px;color:#64748b;margin:0 0 22px;line-height:1.5;text-align:center">Your QR code will be lost.<br>You have NOT paid yet — please complete payment first.</p>
+    <div style="display:flex;gap:10px">
+      <button onclick="_hideQrLeaveConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer;color:#334155">Stay &amp; Pay</button>
+      <button onclick="_confirmQrLeave()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#ef4444;color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer">Leave</button>
     </div>
   </div>
 </div>
@@ -2172,8 +2190,8 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
-      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
+      <button class="btn-outline" onclick="_leavePayPage('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="_leavePayPage('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
   </div>
@@ -2272,8 +2290,8 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
-      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
+      <button class="btn-outline" onclick="_leavePayPage('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="_leavePayPage('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
   </div>
@@ -2690,61 +2708,71 @@ textarea{resize:vertical;min-height:80px}
      WALLET RECHARGE QR MODAL
 ══════════════════════════════════════════════ -->
 <div id="rch-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeRechargeModal()">
-  <div class="insuf-card" style="max-width:340px;width:94%">
-    <div style="font-size:36px;margin-bottom:6px">💳</div>
-    <div style="font-family:var(--ff);font-weight:700;font-size:17px;margin-bottom:4px;color:#1a1a1a">Recharge Wallet</div>
-    <div style="font-family:var(--fb);font-size:13px;color:#6b7280;margin-bottom:16px;line-height:1.5">Enter the amount you want to add to your Tiffo wallet.</div>
-
-    <!-- Amount input -->
-    <div style="display:flex;gap:8px;width:100%;margin-bottom:12px">
-      <div style="flex:1;position:relative">
-        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-family:var(--ff);font-weight:700;font-size:16px;color:#374151">₹</span>
-        <input id="rch-amount-input" type="number" min="1" max="9999" placeholder="e.g. 200"
-          style="width:100%;box-sizing:border-box;padding:13px 12px 13px 28px;border:2px solid #e5e7eb;border-radius:12px;font-family:var(--ff);font-weight:700;font-size:18px;color:#111827;background:#f9fafb;outline:none"
-          onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e5e7eb'"
-          onkeydown="if(event.key==='Enter')generateRechargeQR()">
+  <div class="insuf-card" style="max-width:540px;width:100%;border-radius:24px 24px 0 0;max-height:92dvh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;padding:0">
+    <!-- Drag handle + header -->
+    <div style="padding:12px 20px 10px;background:#fff;border-bottom:1px solid #f3f4f6;flex-shrink:0">
+      <div style="width:36px;height:4px;background:#e5e7eb;border-radius:99px;margin:0 auto 12px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:16px;color:#111827">💳 Recharge Wallet</div>
+          <div style="font-family:var(--fb);font-size:12px;color:#9ca3af;margin-top:2px">Add money to your Tiffo wallet</div>
+        </div>
+        <button onclick="closeRechargeModal()" style="background:#f3f4f6;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;color:#6b7280;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
       </div>
-      <button onclick="generateRechargeQR()" style="background:var(--grad);color:#fff;border:none;border-radius:12px;padding:13px 18px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap">Generate QR</button>
     </div>
 
-    <!-- Quick amount pills -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;justify-content:center">
-      <button onclick="document.getElementById('rch-amount-input').value=100;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:5px 12px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer">₹100</button>
-      <button onclick="document.getElementById('rch-amount-input').value=200;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:5px 12px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer">₹200</button>
-      <button onclick="document.getElementById('rch-amount-input').value=500;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:5px 12px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer">₹500</button>
-      <button onclick="document.getElementById('rch-amount-input').value=1000;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:5px 12px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer">₹1000</button>
-    </div>
+    <!-- Scrollable body -->
+    <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 20px 8px">
 
-    <!-- QR section (hidden until amount entered) -->
-    <div id="rch-qr-section" style="display:none;flex-direction:column;align-items:center;gap:8px;width:100%">
-      <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#6b7280;letter-spacing:.8px;text-transform:uppercase">Scan to Pay</div>
-      <div class="upi-qr-box" id="rch-qr-box" style="width:190px;height:190px"></div>
-      <div class="upi-qr-vpa">7233992325@ibl · Tiffo</div>
-      <div id="rch-qr-amt-label" style="font-family:var(--ff);font-weight:800;font-size:22px;color:#111827"></div>
-
-      <button class="upi-download-btn" onclick="_downloadQR('rch-qr-box')" style="margin-top:2px">
-        <i class="fa-solid fa-download"></i> Save QR to Gallery
-      </button>
-
-      <div class="upi-apps-row" style="margin-top:4px">
-        <button class="upi-app-btn" onclick="_openUpiApp('phonepe')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe</button>
-        <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay</button>
-        <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm</button>
+      <!-- Amount input -->
+      <div style="display:flex;gap:8px;width:100%;margin-bottom:10px">
+        <div style="flex:1;position:relative">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-family:var(--ff);font-weight:700;font-size:16px;color:#374151">₹</span>
+          <input id="rch-amount-input" type="number" min="1" max="9999" placeholder="Enter amount"
+            style="width:100%;box-sizing:border-box;padding:13px 12px 13px 28px;border:2px solid #e5e7eb;border-radius:12px;font-family:var(--ff);font-weight:700;font-size:18px;color:#111827;background:#f9fafb;outline:none"
+            onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e5e7eb'"
+            onkeydown="if(event.key==='Enter')generateRechargeQR()">
+        </div>
+        <button onclick="generateRechargeQR()" style="background:var(--grad);color:#fff;border:none;border-radius:12px;padding:13px 16px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;flex-shrink:0">Generate QR</button>
       </div>
 
-      <div class="upi-divider" style="margin:4px 0 0">
-        <div class="upi-divider-line"></div>
-        <div class="upi-divider-text">After paying</div>
-        <div class="upi-divider-line"></div>
+      <!-- Quick amount pills -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch">
+        <button onclick="document.getElementById('rch-amount-input').value=100;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:6px 14px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer;white-space:nowrap;flex-shrink:0">₹100</button>
+        <button onclick="document.getElementById('rch-amount-input').value=200;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:6px 14px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer;white-space:nowrap;flex-shrink:0">₹200</button>
+        <button onclick="document.getElementById('rch-amount-input').value=500;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:6px 14px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer;white-space:nowrap;flex-shrink:0">₹500</button>
+        <button onclick="document.getElementById('rch-amount-input').value=1000;generateRechargeQR()" style="border:1.5px solid #e5e7eb;background:#fff;border-radius:20px;padding:6px 14px;font-family:var(--ff);font-weight:600;font-size:12px;color:#374151;cursor:pointer;white-space:nowrap;flex-shrink:0">₹1000</button>
       </div>
-      <div class="upi-wa-confirm-label">Send payment screenshot on WhatsApp to get your wallet credited instantly.</div>
+
+      <!-- QR section (hidden until amount entered) -->
+      <div id="rch-qr-section" style="display:none;flex-direction:column;align-items:center;gap:8px;width:100%">
+        <div style="font-family:var(--ff);font-weight:700;font-size:11px;color:#9ca3af;letter-spacing:.8px;text-transform:uppercase">Scan to Pay</div>
+        <div class="upi-qr-box" id="rch-qr-box"></div>
+        <div class="upi-qr-vpa">7233992325@ibl · Tiffo</div>
+        <div id="rch-qr-amt-label" style="font-family:var(--ff);font-weight:800;font-size:22px;color:#111827"></div>
+
+        <button class="upi-download-btn" onclick="_downloadQR('rch-qr-box')" style="margin-top:4px">
+          <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
+        </button>
+
+        <div class="upi-apps-row" style="margin-top:10px">
+          <button class="upi-app-btn" onclick="_openUpiApp('phonepe')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm</button>
+        </div>
+
+        <div style="font-family:var(--fb);font-size:11.5px;color:#9ca3af;text-align:center;line-height:1.5;margin-top:6px">After paying, send screenshot on WhatsApp to get wallet credited instantly.</div>
+      </div>
+
+    </div><!-- end scrollable body -->
+
+    <!-- Sticky WA button at bottom (shown when QR visible) -->
+    <div id="rch-wa-section" style="display:none;padding:10px 20px calc(10px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #f3f4f6;flex-shrink:0">
       <button class="wa-btn pend-wa-btn" id="rch-wa-btn" style="width:100%;font-size:15px!important;padding:14px!important;gap:10px!important">
         <i class="fa-brands fa-whatsapp" style="font-size:19px"></i>
         Send Screenshot &amp; Confirm
       </button>
     </div>
-
-    <button onclick="closeRechargeModal()" style="margin-top:12px;background:none;border:none;font-family:var(--ff);font-weight:600;font-size:13px;color:#9ca3af;cursor:pointer;width:100%">Cancel</button>
   </div>
 </div>
 
@@ -3534,6 +3562,12 @@ function nav(id) {
 }
 
 function back() {
+  // Guard: if on payment page, show leave-confirm instead of going back
+  if (_qrGuardActive) {
+    _qrLeaveDest = _stack.length > 1 ? _stack[_stack.length - 2] : 'pg-home';
+    _showQrLeaveConfirm();
+    return;
+  }
   if (_stack.length < 2) return;
   _stack.pop();
   const prev = _stack[_stack.length - 1];
@@ -5601,6 +5635,7 @@ async function placeOrder() {
       const _saInfo = document.getElementById('s-amount-info'); if (_saInfo) _saInfo.textContent = '₹' + total;
       setDeliveryTime('s-delivery-time');
       nav('pg-success');
+      _qrGuardActive = true;
       // Generate UPI QR with pre-filled amount
       setTimeout(() => _generateQR('s-qr-box', total, res.orderId), 100);
       // Show WA confirm section with pre-built message for screenshot submission
@@ -5819,6 +5854,7 @@ function _openUpiApp(app) {
 function openRechargeModal() {
   document.getElementById('rch-amount-input').value = '';
   document.getElementById('rch-qr-section').style.display = 'none';
+  document.getElementById('rch-wa-section').style.display = 'none';
   document.getElementById('rch-qr-box').innerHTML = '';
   document.getElementById('rch-modal').style.display = 'flex';
   setTimeout(() => document.getElementById('rch-amount-input').focus(), 300);
@@ -5833,6 +5869,7 @@ function generateRechargeQR() {
   const rounded = Math.round(amt);
   // Show QR section
   document.getElementById('rch-qr-section').style.display = 'flex';
+  document.getElementById('rch-wa-section').style.display = 'block';
   document.getElementById('rch-qr-amt-label').textContent = '₹' + rounded;
   // Generate QR — use phone as order ref so admin can match payment
   const user = Auth.get();
@@ -5846,7 +5883,7 @@ function generateRechargeQR() {
       `💰 *Wallet Recharge*\n👤 ${name} | 📞 ${phone}\n\n✅ *Amount Paid: ₹${rounded}*\n💳 UPI paid to ${_UPI_VPA}\n\nKripaya mere wallet mein ₹${rounded} add kar dein.\nPayment screenshot attach kar raha/rahi hoon. 🙏`);
   };
   // Scroll to QR
-  setTimeout(() => document.getElementById('rch-qr-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
+  setTimeout(() => { const sc = document.querySelector('#rch-modal .insuf-card > div:nth-child(2)'); if(sc) sc.scrollTo({top:0,behavior:'smooth'}); }, 200);
 }
 
 function showInsufPopup(avail, need, subtotal, discount, delivery) {
@@ -5915,6 +5952,7 @@ async function confirmInsufOrder() {
     const _siInfo = document.getElementById('si-amount-info'); if (_siInfo) _siInfo.textContent = '₹' + total;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
+    _qrGuardActive = true;
     launchConfetti();
     // Generate UPI QR with pre-filled amount for insuf path
     setTimeout(() => _generateQR('si-qr-box', total, res.orderId), 100);
@@ -8179,12 +8217,74 @@ function _doExitApp() {
   }, 200);
 }
 
+
+// ── QR Payment Page — Back Button Guard ───────────────────────────────────────
+// Prevents accidental back-press from destroying the QR before payment is done.
+// Set to the destination page when user explicitly leaves via the nav buttons.
+let _qrGuardActive   = false;  // true while on pg-success or pg-success-insuf
+let _qrLeaveDest     = null;   // destination when user confirms leave
+let _qrLeaveOpen     = false;  // prevents double-open
+
+function _showQrLeaveConfirm() {
+  if (_qrLeaveOpen) return;
+  _qrLeaveOpen = true;
+  const overlay = document.getElementById('_qr-leave-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => {
+    const card = overlay.querySelector('._qr-leave-card');
+    if (card) card.style.transform = 'translateY(0)';
+  });
+  // Push a dummy history state so the next back press hits us again
+  history.pushState({ pg: _stack[_stack.length - 1], qrGuard: true }, '', location.href);
+}
+
+function _hideQrLeaveConfirm() {
+  _qrLeaveOpen = false;
+  _qrLeaveDest = null;
+  const overlay = document.getElementById('_qr-leave-overlay');
+  if (!overlay) return;
+  const card = overlay.querySelector('._qr-leave-card');
+  if (card) card.style.transform = 'translateY(100%)';
+  setTimeout(() => { overlay.style.display = 'none'; }, 320);
+}
+
+function _confirmQrLeave() {
+  const dest = _qrLeaveDest || 'pg-home';
+  _qrGuardActive = false;
+  _qrLeaveDest   = null;
+  _qrLeaveOpen   = false;
+  const overlay  = document.getElementById('_qr-leave-overlay');
+  if (overlay) overlay.style.display = 'none';
+  nav(dest);
+}
+
+// Called by "Back to Menu" and "My Orders" buttons on the pay pages.
+// Bypasses the guard since the user explicitly chose to leave.
+function _leavePayPage(dest) {
+  _qrGuardActive = false;
+  nav(dest);
+}
+
 // Handle hardware back button (Android)
 window.addEventListener('popstate', () => {
   // If exit dialog is showing, close it (treat back as "Stay")
   if (_exitDialogOpen) {
     history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
     _hideExitConfirm();
+    return;
+  }
+
+  // If QR leave dialog is open, close it and stay (treat back as "Stay & Pay")
+  if (_qrLeaveOpen) {
+    _hideQrLeaveConfirm();
+    return;
+  }
+
+  // If on a payment page, intercept back and show leave-confirm sheet
+  if (_qrGuardActive) {
+    _qrLeaveDest = 'pg-home';
+    _showQrLeaveConfirm();
     return;
   }
 
