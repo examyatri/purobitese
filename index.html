@@ -1015,6 +1015,7 @@ textarea{resize:vertical;min-height:80px}
 .bill-total{font-family:var(--ff);font-weight:700;font-size:18px;color:var(--dk)}
 /* Success pages */
 .success-wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:40px 24px calc(40px + env(safe-area-inset-bottom,0px));gap:16px;text-align:center;background:#fff}
+.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)) !important;}
 .success-icon{font-size:64px;color:var(--g);animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1)}
 @keyframes scaleIn{from{transform:scale(0)}to{transform:scale(1)}}
 .success-title{font-family:var(--ff);font-weight:800;font-size:26px}
@@ -1122,255 +1123,313 @@ textarea{resize:vertical;min-height:80px}
   border-width: 2px !important;
 }
 
-/* ── Pending screen — new stepwise design ── */
+/* ══════════════════════════════════════════════════════
+   SCAN & PAY PAGE  —  Pro redesign
+   Visual hierarchy:
+     1. Amount (largest, immediate attention)
+     2. QR code (centered, breathing room)
+     3. App shortcuts (tappable, clear icons)
+     4. WhatsApp CTA (animated, unmissable)
+     5. Secondary info (order ID, delivery) — small, subtle
+   ══════════════════════════════════════════════════════ */
+
+/* Page background */
 .pend-wrap {
-  gap: 12px !important;
-  padding-top: 24px !important;
-  padding-bottom: 32px !important;
-  background: #f6f7f9 !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  background: #f4f5f8 !important;
+  align-items: stretch !important;
 }
 
-/* ── Header ── */
+/* ── Top hero banner: amount + status ── */
 .pend-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   text-align: center;
   width: 100%;
+  background: linear-gradient(155deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  padding: 28px 20px 36px;
+  position: relative;
+  overflow: hidden;
 }
+/* Subtle radial glow behind amount */
+.pend-header::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 220px; height: 220px;
+  background: radial-gradient(circle, rgba(99,102,241,.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+/* Decorative ring */
 .pend-clock-ring {
-  width: 64px;
-  height: 64px;
+  width: 48px; height: 48px;
   border-radius: 50%;
-  background: #fffbeb;
-  border: 2.5px solid #f59e0b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  color: #d97706;
-  box-shadow: 0 0 0 8px rgba(245,158,11,.1);
-  animation: pendClockPulse 2.4s ease-in-out infinite;
+  background: rgba(255,255,255,.1);
+  border: 1.5px solid rgba(255,255,255,.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  color: #a5b4fc;
+  margin-bottom: 16px;
 }
-@keyframes pendClockPulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.28), 0 3px 12px rgba(245,158,11,.15); }
-  50%      { box-shadow: 0 0 0 10px rgba(245,158,11,.0), 0 5px 18px rgba(245,158,11,.22); }
-}
+/* "Pay Now" label above amount */
 .pend-title {
   font-family: var(--ff);
-  font-weight: 800;
-  font-size: 21px;
-  color: #111827;
-  letter-spacing: -.4px;
-  margin-top: 2px;
-}
-.pend-subtitle {
-  font-family: var(--fb);
-  font-size: 13px;
-  color: #6b7280;
-  max-width: 270px;
-  line-height: 1.55;
-}
-
-/* ── Amount hero card ── */
-.pend-amount-card {
-  width: 100%;
-  background: #fff;
-  border-radius: 16px;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 1px 6px rgba(0,0,0,.07);
-  border: 1px solid #f0f0f0;
-}
-.pend-amount-left {}
-.pend-amount-label {
-  font-family: var(--ff);
-  font-size: 10px;
-  font-weight: 700;
-  color: #9ca3af;
+  font-weight: 600;
+  font-size: 11px;
+  color: rgba(255,255,255,.5);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 4px;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
 }
+/* The amount — BIGGEST element on page */
 .pend-amount-val {
   font-family: var(--ff);
   font-weight: 800;
-  font-size: 28px;
-  color: #111827;
-  letter-spacing: -.5px;
+  font-size: 52px;
+  color: #fff;
+  letter-spacing: -1.5px;
   line-height: 1;
+  position: relative;
+  z-index: 1;
 }
+/* "Amount Due" micro label — not needed separately now, hidden */
+.pend-amount-label { display: none; }
+.pend-amount-card  { display: none; }  /* hero replaces this card */
 .pend-amount-due-badge {
-  background: #fef3c7;
-  color: #92400e;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  background: rgba(239,68,68,.18);
+  color: #fca5a5;
   border-radius: 20px;
-  padding: 5px 13px;
+  padding: 4px 12px;
   font-family: var(--ff);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: .3px;
+  letter-spacing: .5px;
   text-transform: uppercase;
-  border: 1px solid #fde68a;
+  border: 1px solid rgba(239,68,68,.25);
+  position: relative; z-index: 1;
+}
+.pend-subtitle {
+  font-family: var(--fb);
+  font-size: 12px;
+  color: rgba(255,255,255,.45);
+  margin-top: 8px;
+  line-height: 1.5;
+  position: relative; z-index: 1;
 }
 
-/* ── Meta row — order ID + delivery ── */
-.pend-meta-row {
-  width: 100%;
+/* ── Card lift above the hero (negative margin trick) ── */
+.upi-qr-card {
+  width: calc(100% - 32px);
+  margin: -22px auto 0;
   background: #fff;
-  border-radius: 14px;
-  padding: 13px 18px;
+  border-radius: 22px;
+  padding: 22px 18px 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.14);
+  border: none;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 0;
-  box-shadow: 0 1px 5px rgba(0,0,0,.06);
-  border: 1px solid #f0f0f0;
+  position: relative;
+  z-index: 2;
 }
-.pend-meta-block {
-  flex: 1;
-  text-align: center;
-}
-.pend-meta-label {
+/* "Scan with any UPI app" — small, secondary */
+.upi-qr-title {
   font-family: var(--ff);
-  font-size: 9.5px;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 10px;
   color: #9ca3af;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
-  letter-spacing: .9px;
-  margin-bottom: 4px;
+  margin-bottom: 14px;
 }
-.pend-meta-val {
+/* QR box — centrepiece, generous breathing room */
+.upi-qr-box {
+  width: 220px; height: 220px;
+  border-radius: 18px;
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  padding: 10px;
+  box-shadow: 0 0 0 1px #e5e7eb, 0 4px 24px rgba(0,0,0,.08);
+  overflow: visible;
+}
+.upi-qr-box canvas, .upi-qr-box img {
+  width: 200px; height: 200px;
+  display: block;
+  border-radius: 4px;
+  image-rendering: crisp-edges;
+}
+/* UPI ID — tiny, de-emphasised */
+.upi-qr-vpa {
+  font-family: monospace;
+  font-size: 11px;
+  color: #d1d5db;
+  margin-top: 10px;
+  letter-spacing: .3px;
+}
+
+/* ── App buttons — bigger, more premium ── */
+.upi-apps-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  margin-top: 18px;
+  margin-bottom: 2px;
+}
+.upi-app-btn {
+  flex: 1;
+  max-width: 96px;
+  border: 1.5px solid #f0f0f0;
+  background: #fafafa;
+  border-radius: 16px;
+  padding: 12px 6px 10px;
   font-family: var(--ff);
   font-weight: 700;
-  font-size: 13px;
-  color: #111827;
-  word-break: break-all;
-}
-.pend-meta-val.mono {
-  font-family: monospace;
   font-size: 11.5px;
   color: #374151;
-}
-.pend-meta-divider {
-  width: 1px;
-  height: 34px;
-  background: #e5e7eb;
-  flex-shrink: 0;
-  margin: 0 6px;
-}
-
-/* ── Insufficient wallet notice ── */
-.pend-insuf-notice {
-  width: 100%;
-  background: #fffbeb;
-  border: 1.5px solid #fcd34d;
-  border-radius: 12px;
-  padding: 11px 14px;
-  font-family: var(--fb);
-  font-size: 12.5px;
-  color: #78350f;
+  cursor: pointer;
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  line-height: 1.55;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: background .12s, transform .1s, box-shadow .12s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
 }
+.upi-app-btn:active {
+  background: #f0f0f0;
+  transform: scale(.96);
+  box-shadow: none;
+}
+.upi-app-icon { width: 34px; height: 34px; }
 
-/* ── Steps card ── */
-.pend-steps-card {
+/* ── Download button ── */
+.upi-download-btn {
   width: 100%;
-  background: #fff;
-  border-radius: 16px;
-  padding: 18px 16px 16px;
-  box-shadow: 0 1px 6px rgba(0,0,0,.06);
-  border: 1px solid #f0f0f0;
-}
-.pend-steps-title {
-  font-family: var(--ff);
-  font-weight: 700;
-  font-size: 12px;
+  border: 1.5px dashed #d1d5db;
+  background: transparent;
   color: #6b7280;
-  margin-bottom: 16px;
-  letter-spacing: .8px;
-  text-transform: uppercase;
-}
-.pend-step {
+  border-radius: 12px;
+  padding: 11px;
+  font-family: var(--ff);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
   display: flex;
-  align-items: flex-start;
-  gap: 13px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background .15s, border-color .15s;
+  margin-top: 14px;
 }
-.pend-step-num {
-  width: 30px;
-  height: 30px;
+.upi-download-btn:active { background: #f9fafb; border-color: #9ca3af; }
+/* How-to — 3-step strip inside QR card */
+.pay-steps {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 12px;
+}
+.pay-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.pay-step + .pay-step { border-top: 1px solid #f9fafb; }
+.pay-step-n {
+  width: 20px; height: 20px;
   border-radius: 50%;
   background: #111827;
   color: #fff;
   font-family: var(--ff);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pay-step-t {
+  font-family: var(--fb);
+  font-size: 12.5px;
+  color: #374151;
+  line-height: 1.4;
+}
+/* Order ID + delivery — quiet footnote at very bottom */
+.pend-footnote {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  gap: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+  flex-wrap: wrap;
 }
-.pend-step-body {
-  flex: 1;
-  padding-top: 4px;
+.pend-footnote-dot { color: #d1d5db; }
+
+/* ── Meta info row (order ID + delivery) — compact, below card ── */
+.pend-meta-row {
+  width: calc(100% - 32px);
+  margin: 10px auto 0;
+  background: #fff;
+  border-radius: 14px;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,.05);
+  border: 1px solid #f0f0f0;
 }
-.pend-step-head {
+.pend-meta-block { flex: 1; text-align: center; }
+.pend-meta-label {
   font-family: var(--ff);
+  font-size: 9px;
   font-weight: 700;
-  font-size: 14px;
-  color: #111827;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   margin-bottom: 3px;
 }
-.pend-step-desc {
-  font-family: var(--fb);
+.pend-meta-val {
+  font-family: var(--ff);
+  font-weight: 700;
   font-size: 12.5px;
-  color: #6b7280;
-  line-height: 1.55;
-}
-.pend-step-connector {
-  height: 18px;
-  border-left: 2px dashed #e5e7eb;
-  margin: 4px 0 4px 14px;
-}
-
-/* ── UPI pills ── */
-.pend-upi-logos {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-.pend-upi-pill {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  padding: 4px 10px;
-  font-family: var(--ff);
-  font-size: 11px;
-  font-weight: 600;
   color: #374151;
+  word-break: break-all;
+}
+.pend-meta-val.mono {
+  font-family: monospace;
+  font-size: 11px;
+  color: #6b7280;
+}
+.pend-meta-divider {
+  width: 1px; height: 28px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+  margin: 0 4px;
 }
 
-/* ── CTA area ── */
-.pend-cta-wrap {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.pend-cta-label {
-  font-family: var(--ff);
-  font-weight: 600;
-  font-size: 12px;
-  color: #9ca3af;
-  letter-spacing: .3px;
-  text-align: center;
-}
+/* ── After-payment section ── */
+.upi-divider { width: 100%; display: flex; align-items: center; gap: 10px; margin: 2px 0; }
+.upi-divider-line { flex: 1; height: 1px; background: #e5e7eb; }
+.upi-divider-text { font-family: var(--fb); font-size: 10px; color: #9ca3af; white-space: nowrap; letter-spacing: .5px; text-transform: uppercase; }
+.upi-wa-confirm-label { font-family: var(--fb); font-size: 12px; color: #9ca3af; text-align: center; line-height: 1.5; }
+
+/* ── CTA / WA section wrapper — adds horizontal padding ── */
 .pend-wa-btn {
   font-size: 16px !important;
   padding: 17px 20px !important;
@@ -1379,6 +1438,49 @@ textarea{resize:vertical;min-height:80px}
   letter-spacing: .2px;
   width: 100%;
 }
+
+/* ── Nav buttons at bottom ── */
+#pg-success .flex.gap8, #pg-success-insuf .flex.gap8 {
+  padding: 0 16px;
+  margin-top: 12px !important;
+  margin-bottom: 4px;
+}
+
+/* ── Insufficient notice (wallet partial pay) ── */
+.pend-insuf-notice {
+  width: calc(100% - 32px);
+  margin: 10px auto 0;
+  background: #fffbeb;
+  border: 1.5px solid #fcd34d;
+  border-radius: 12px;
+  padding: 10px 13px;
+  font-family: var(--fb);
+  font-size: 12px;
+  color: #78350f;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+/* Leftover classes (keep for compat, just hide/neutralise) */
+.pend-steps-card,.pend-steps-title,.pend-step,.pend-step-num,
+.pend-step-body,.pend-step-head,.pend-step-desc,.pend-step-connector,
+.pend-upi-logos,.pend-upi-pill,.pend-cta-wrap,.pend-cta-label { /* preserved */ }
+
+/* ── UPI pills ── */
+.pend-upi-logos { display:flex;gap:6px;flex-wrap:wrap;margin-top:8px; }
+.pend-upi-pill  { background:#f9fafb;border:1px solid #e5e7eb;border-radius:20px;padding:4px 10px;font-family:var(--ff);font-size:11px;font-weight:600;color:#374151; }
+
+/* ── Steps (legacy, keep visible if used) ── */
+.pend-steps-card { width:100%;background:#fff;border-radius:16px;padding:18px 16px 16px;box-shadow:0 1px 6px rgba(0,0,0,.06);border:1px solid #f0f0f0; }
+.pend-steps-title { font-family:var(--ff);font-weight:700;font-size:12px;color:#6b7280;margin-bottom:16px;letter-spacing:.8px;text-transform:uppercase; }
+.pend-step { display:flex;align-items:flex-start;gap:13px; }
+.pend-step-num { width:30px;height:30px;border-radius:50%;background:#111827;color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+.pend-step-body { flex:1;padding-top:4px; }
+.pend-step-head { font-family:var(--ff);font-weight:700;font-size:14px;color:#111827;margin-bottom:3px; }
+.pend-step-desc { font-family:var(--fb);font-size:12.5px;color:#6b7280;line-height:1.55; }
+.pend-step-connector { height:18px;border-left:2px dashed #e5e7eb;margin:4px 0 4px 14px; }
 /* Orders */
 .order-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:var(--sh)}
 .ord-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -2006,47 +2108,20 @@ textarea{resize:vertical;min-height:80px}
 <div id="pg-success" class="pg pg-scroll-full">
   <div class="success-wrap pend-wrap">
 
-    <!-- Header -->
+    <!-- Hero: amount + status -->
     <div class="pend-header">
       <div class="pend-clock-ring">
-        <i class="fa-solid fa-qrcode" style="font-size:22px"></i>
+        <i class="fa-solid fa-indian-rupee-sign" style="font-size:18px"></i>
       </div>
-      <div class="pend-title">Scan &amp; Pay</div>
-      <div class="pend-subtitle">Order placed! Scan QR below to pay via any UPI app.</div>
+      <div class="pend-title">Pay Now</div>
+      <div class="pend-amount-val" id="s-amount">—</div>
+      <div class="pend-amount-due-badge">⚡ Due Now</div>
     </div>
 
-    <!-- Amount due -->
-    <div class="pend-amount-card">
-      <div class="pend-amount-left">
-        <div class="pend-amount-label">Amount Due</div>
-        <div class="pend-amount-val" id="s-amount">—</div>
-      </div>
-      <div class="pend-amount-due-badge">Due Now</div>
-    </div>
-
-    <!-- Order ID + Delivery -->
-    <div class="pend-meta-row">
-      <div class="pend-meta-block">
-        <div class="pend-meta-label">Order ID</div>
-        <div class="pend-meta-val mono" id="s-order-id">—</div>
-      </div>
-      <div class="pend-meta-divider"></div>
-      <div class="pend-meta-block" id="s-delivery-card">
-        <div class="pend-meta-label">Est. Delivery</div>
-        <div class="pend-meta-val" id="s-delivery-time">—</div>
-      </div>
-    </div>
-
-    <!-- QR Card -->
+    <!-- QR Card — lifts over the hero -->
     <div class="upi-qr-card">
       <div class="upi-qr-title">Scan with any UPI app</div>
       <div class="upi-qr-box" id="s-qr-box"></div>
-      <div class="upi-qr-vpa">7233992325@ibl · Tiffo</div>
-
-      <!-- Download QR -->
-      <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')">
-        <i class="fa-solid fa-download"></i> Save QR to Gallery
-      </button>
 
       <!-- App shortcuts -->
       <div class="upi-apps-row">
@@ -2054,22 +2129,28 @@ textarea{resize:vertical;min-height:80px}
           <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('gpay')">
-          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff" stroke="#eee" stroke-width="1"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('paytm')">
           <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm
         </button>
       </div>
+
+      <!-- Download QR -->
+      <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')">
+        <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
+      </button>
+
+      <!-- 3-step guide -->
+      <div class="pay-steps">
+        <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button above</span></div>
+        <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
+        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, take screenshot &amp; tap the button below</span></div>
+      </div>
     </div>
 
     <!-- WA confirm section — shown after order placed -->
-    <div id="s-wa-arrow" style="display:none;width:100%;flex-direction:column;align-items:center;gap:8px">
-      <div class="upi-divider" style="margin:0">
-        <div class="upi-divider-line"></div>
-        <div class="upi-divider-text">After paying</div>
-        <div class="upi-divider-line"></div>
-      </div>
-      <div class="upi-wa-confirm-label">Paid? Send us your payment screenshot on WhatsApp to confirm your order instantly.</div>
+    <div id="s-wa-arrow" style="display:none;width:100%;padding:0 16px;flex-direction:column;align-items:center;gap:8px;margin-top:4px">
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="s-wa-btn">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
         Send Screenshot &amp; Confirm
@@ -2077,9 +2158,16 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <!-- Nav -->
-    <div class="flex gap8 w100" style="margin-top:4px">
+    <div class="flex gap8 w100" style="margin-top:8px;padding:0 16px">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
       <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
+    </div>
+
+    <!-- Reference footnote: order ID + delivery -->
+    <div class="pend-footnote" id="s-delivery-card">
+      <span id="s-order-id">—</span>
+      <span class="pend-footnote-dot">·</span>
+      <span>Delivery by <span id="s-delivery-time">—</span></span>
     </div>
 
   </div>
@@ -2115,47 +2203,20 @@ textarea{resize:vertical;min-height:80px}
 <div id="pg-success-insuf" class="pg pg-scroll-full">
   <div class="success-wrap pend-wrap">
 
-    <!-- Header -->
+    <!-- Hero: amount + status -->
     <div class="pend-header">
       <div class="pend-clock-ring">
-        <i class="fa-solid fa-qrcode" style="font-size:22px"></i>
+        <i class="fa-solid fa-indian-rupee-sign" style="font-size:18px"></i>
       </div>
-      <div class="pend-title">Scan &amp; Pay</div>
-      <div class="pend-subtitle">Wallet balance was insufficient. Scan the QR below to pay the remaining amount.</div>
-    </div>
-
-    <!-- Amount due -->
-    <div class="pend-amount-card">
-      <div class="pend-amount-left">
-        <div class="pend-amount-label">Amount Due</div>
-        <div class="pend-amount-val" id="si-amount">—</div>
-      </div>
-      <div class="pend-amount-due-badge">Due Now</div>
-    </div>
-
-    <!-- Order ID + Delivery -->
-    <div class="pend-meta-row">
-      <div class="pend-meta-block">
-        <div class="pend-meta-label">Order ID</div>
-        <div class="pend-meta-val mono" id="si-order-id">—</div>
-      </div>
-      <div class="pend-meta-divider"></div>
-      <div class="pend-meta-block">
-        <div class="pend-meta-label">Est. Delivery</div>
-        <div class="pend-meta-val" id="si-delivery-time">—</div>
-      </div>
+      <div class="pend-title">Pay Now</div>
+      <div class="pend-amount-val" id="si-amount">—</div>
+      <div class="pend-amount-due-badge">⚡ Due Now</div>
     </div>
 
     <!-- QR Card -->
     <div class="upi-qr-card">
       <div class="upi-qr-title">Scan with any UPI app</div>
       <div class="upi-qr-box" id="si-qr-box"></div>
-      <div class="upi-qr-vpa">7233992325@ibl · Tiffo</div>
-
-      <!-- Download QR -->
-      <button class="upi-download-btn" onclick="_downloadQR('si-qr-box')" id="si-qr-dl">
-        <i class="fa-solid fa-download"></i> Save QR to Gallery
-      </button>
 
       <!-- App shortcuts -->
       <div class="upi-apps-row">
@@ -2163,22 +2224,28 @@ textarea{resize:vertical;min-height:80px}
           <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#5f259f"/><path d="M14 11h8.5c3.5 0 6 2.5 5.5 6-.4 3-3 5-6 5H18v7h-4V11zm4 8h4c1.5 0 2.5-1 2.5-2.5S23.5 14 22 14h-4v5z" fill="#fff"/></svg>PhonePe
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('gpay')">
-          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay
+          <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="20" fill="#fff" stroke="#eee" stroke-width="1"/><text x="20" y="26" text-anchor="middle" font-size="16" font-family="Arial,sans-serif" font-weight="700"><tspan fill="#4285F4">G</tspan><tspan fill="#34A853">P</tspan><tspan fill="#FBBC05">a</tspan><tspan fill="#EA4335">y</tspan></text></svg>GPay
         </button>
         <button class="upi-app-btn" onclick="_openUpiApp('paytm')">
           <svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#002970"/><text x="20" y="25" text-anchor="middle" font-size="11" font-family="Arial,sans-serif" font-weight="900" fill="#00BAF2">Pay</text><text x="20" y="35" text-anchor="middle" font-size="8" font-family="Arial,sans-serif" font-weight="700" fill="#fff">TM</text></svg>Paytm
         </button>
       </div>
+
+      <!-- Download QR -->
+      <button class="upi-download-btn" onclick="_downloadQR('si-qr-box')" id="si-qr-dl">
+        <i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery
+      </button>
+
+      <!-- 3-step guide -->
+      <div class="pay-steps">
+        <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button above</span></div>
+        <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
+        <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay, take screenshot &amp; tap the button below</span></div>
+      </div>
     </div>
 
     <!-- WA confirm -->
-    <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:8px">
-      <div class="upi-divider" style="margin:0">
-        <div class="upi-divider-line"></div>
-        <div class="upi-divider-text">After paying</div>
-        <div class="upi-divider-line"></div>
-      </div>
-      <div class="upi-wa-confirm-label">Paid? Send us your payment screenshot on WhatsApp to confirm your order instantly.</div>
+    <div style="width:100%;padding:0 16px;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px">
       <button class="wa-btn wa-btn-urgent pend-wa-btn" id="si-wa-btn" onclick="sendInsufWA()">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i>
         Send Screenshot &amp; Confirm
@@ -2186,9 +2253,16 @@ textarea{resize:vertical;min-height:80px}
     </div>
 
     <!-- Nav -->
-    <div class="flex gap8 w100" style="margin-top:4px">
+    <div class="flex gap8 w100" style="margin-top:8px;padding:0 16px">
       <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
       <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
+    </div>
+
+    <!-- Reference footnote -->
+    <div class="pend-footnote">
+      <span id="si-order-id">—</span>
+      <span class="pend-footnote-dot">·</span>
+      <span>Delivery by <span id="si-delivery-time">—</span></span>
     </div>
 
   </div>
@@ -5669,18 +5743,24 @@ function _openUpiApp(app) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
   // Android intent URIs — launch app home screen directly
+  // Android intent URIs — verified package names + correct registered URL schemes
+  // PhonePe: scheme=phonepe  ✅
+  // GPay:    scheme=googlepayin  (NOT "gpay" — that's just the brand name, not the scheme)
+  // Paytm:   scheme=paytmmp     (NOT "paytm" — app registers "paytmmp")
+  // Each has S.browser_fallback_url so Play Store opens if app not installed.
   const intentMap = {
     phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
-    gpay:    'intent://pay#Intent;scheme=gpay;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
-    paytm:   'intent://home#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
+    gpay:    'intent://upi/pay#Intent;scheme=googlepayin;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
+    paytm:   'intent://home#Intent;scheme=paytmmp;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
   };
-  // iOS universal links
-  const iosMap = {
-    phonepe: 'https://phpe.app/home',
-    gpay:    'https://pay.google.com',
-    paytm:   'https://paytm.com'
+
+  // iOS: custom URL schemes — these open the app directly if installed.
+  // If not installed, we catch the error and redirect to App Store.
+  const iosScheme = {
+    phonepe: 'phonepe://',
+    gpay:    'gpay://',
+    paytm:   'paytmmp://'
   };
-  // iOS App Store fallback (used if universal link fails / app not installed)
   const appStore = {
     phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
     gpay:    'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041',
@@ -5688,17 +5768,21 @@ function _openUpiApp(app) {
   };
 
   if (isIOS) {
-    // Try universal link; if app not installed the browser will follow the link
-    // which may redirect to App Store. Safe to open in same window on iOS.
-    const ul = iosMap[app];
-    if (ul) { window.location.href = ul; }
+    // Try custom URL scheme (opens app instantly if installed).
+    // Set a 2s timer — if app didn't open, browser stays on page, so redirect to App Store.
+    const scheme = iosScheme[app];
+    if (!scheme) return;
+    const fallback = setTimeout(() => { window.location.href = appStore[app]; }, 2000);
+    window.location.href = scheme;
+    // If app opened, page visibility changes — cancel the fallback
+    const cancel = () => { clearTimeout(fallback); document.removeEventListener('visibilitychange', cancel); };
+    document.addEventListener('visibilitychange', cancel);
     return;
   }
 
-  // Android — intent URI
+  // Android — intent URI (Chrome handles this natively in browser + PWA)
   const intent = intentMap[app];
   if (!intent) return;
-  // Use location.href so Chrome processes the intent scheme properly in PWA
   window.location.href = intent;
 }
 
