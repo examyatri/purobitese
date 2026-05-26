@@ -1833,7 +1833,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div>
             <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a;margin:0">Notifications</h2>
             <div style="font-size:12px;color:#94a3b8;margin-top:2px;display:flex;align-items:center;gap:8px">
-              <span id="notif-refresh-countdown">Auto-refresh in 60s</span>
+              <span id="notif-refresh-countdown">Checking in 60s</span>
               <button onclick="loadNotifications().then(()=>resetNotifCountdown())" title="Refresh now"
                 style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 6px;border-radius:6px;font-size:12px;transition:background .15s"
                 onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">
@@ -2072,6 +2072,7 @@ async function doAdminLogin() {
     applyRoleRestrictions(role);
     showPage('p-dash');
     _updateBeepBtn(); // apply saved beep preference to button
+    startWatcher();
     startPolling();
     npDone();
   } catch(e) { npDone(); aToast(e.message || 'Login failed'); }
@@ -2087,7 +2088,8 @@ function applyRoleRestrictions(role) {
 function doAdminLogout() {
   _stopBeepLoop();
   stopPolling();
-  stopNotifAutoRefresh(); // stop dedicated notif timer if running
+  stopWatcher();
+  stopNotifAutoRefresh(); // compat shim — watcher already stopped
   AdminAuth.clear();
   _sessionExpiredHandled = false; // reset so next login gets a clean 401-recovery path
   // Hard reload — clears all in-memory state, form autofill, and any missed field.
@@ -2135,6 +2137,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     applyRoleRestrictions(session.role);
     showPage('p-dash');
     _updateBeepBtn(); // restore saved beep preference to button on session resume
+    startWatcher();
     startPolling();
   }
 
@@ -2155,63 +2158,177 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
-// ─── DEDICATED NOTIFICATIONS AUTO-REFRESH (60s, independent of main poll) ───
-let _notifCountdown = 60;
-let _notifCountdownInterval = null;
+// ═══════════════════════════════════════════════════════════════════════════
+// UNIVERSAL NOTIFICATION VERSION WATCHER (v3)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// REPLACES the old dual-timer system:
+//   OLD: 60s timer (p-notifs tab only) + 180s fetchNotifCount() (all other tabs)
+//   NEW: Single 60s version watcher that runs ALWAYS, regardless of which tab
+//        the admin is on. Max notification delay: 60 seconds (was up to 3 min).
+//
+// HOW IT WORKS:
+//   Every 60s → call getNotifVersion (ultra-lightweight: only unread rows, no
+//   full payload). Compare latestId to _knownLatestId.
+//   • No change  → update badge only, do nothing else.
+//   • New notif  → beep + refresh notif data in background + toast if not on
+//                  p-notifs tab + auto-navigate to p-notifs if admin configured.
+//
+// WHY latestId NOT unreadCount:
+//   Count-based detection has a false-positive on mark-as-read: if admin reads
+//   a notif in one tab while a new one arrives, count could stay the same and
+//   trigger no beep. Id-based comparison is immune to this race.
+//   latestId = id of the newest unread notification. Changes only when a NEW
+//   unread notification arrives (not when existing ones are read/deleted).
+//
+// ARCHITECTURE:
+//   • _watcherTimer  — the single 60s interval
+//   • _watcherCountdown — UI display countdown
+//   • _knownLatestId — the "version" (newest unread notif id seen so far)
+//   • startWatcher() / stopWatcher() — clean start/stop
+//   • runWatcherCheck() — can be called immediately (used by visibilitychange)
+//
+// ═══════════════════════════════════════════════════════════════════════════
 
-function startNotifAutoRefresh() {
-  stopNotifAutoRefresh();
-  _notifCountdown = 60;
-  _updateNotifCountdownDisplay();
-  _notifCountdownInterval = setInterval(() => {
-    _notifCountdown--;
-    if (_notifCountdown <= 0) {
-      _notifCountdown = 60;
-      if (!document.hidden && AdminAuth.get()) loadNotifications().catch(()=>{});
-    }
-    _updateNotifCountdownDisplay();
-  }, 1000);
-}
+const WATCHER_INTERVAL_MS = 60_000;
 
-function stopNotifAutoRefresh() {
-  clearInterval(_notifCountdownInterval);
-  _notifCountdownInterval = null;
-}
+let _watcherTimer     = null;
+let _watcherCountdown = 60;
+let _watcherCdInterval = null;
+let _watcherRunning   = false;
 
-function resetNotifCountdown() {
-  _notifCountdown = 60;
-  _updateNotifCountdownDisplay();
-}
-
-function _updateNotifCountdownDisplay() {
+// ── Countdown display (shown in the notif tab header) ──────────────────────
+function _updateWatcherCountdown() {
   const el = document.getElementById('notif-refresh-countdown');
-  if (el) el.textContent = `Auto-refresh in ${_notifCountdown}s`;
+  if (el) el.textContent = `Checking in ${_watcherCountdown}s`;
 }
 
-// ─── SMART POLLING (60s notif tab / 180s all others) ────
+// ── Core check: call getNotifVersion, react if changed ────────────────────
+async function runWatcherCheck() {
+  if (!AdminAuth.get() || document.hidden) return;
+  try {
+    const res = await api('getNotifVersion');
+    if (!res.success) return;
+
+    const { unreadCount, latestId, latestTitle, latestType } = res;
+
+    // ── Update badge (always, regardless of version change) ─────────────
+    const badge = document.getElementById('notif-badge');
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? 'inline' : 'none';
+    }
+
+    // ── First load: just record the baseline, no beep ───────────────────
+    if (_knownLatestId === null) {
+      _knownLatestId = latestId;
+      _prevUnreadCount = unreadCount;
+      console.log('[Watcher] Baseline set — latestId:', latestId, 'unread:', unreadCount);
+      return;
+    }
+
+    // ── Version unchanged: silent update ────────────────────────────────
+    if (latestId === _knownLatestId) {
+      _prevUnreadCount = unreadCount;
+      return;
+    }
+
+    // ── NEW NOTIFICATION DETECTED ────────────────────────────────────────
+    const newCount = unreadCount - _prevUnreadCount;
+    console.log('[Watcher] 🔔 New notif detected! latestId changed to', latestId,
+                '| unread:', _prevUnreadCount, '→', unreadCount);
+
+    _knownLatestId   = latestId;
+    _prevUnreadCount = unreadCount;
+
+    // 1. Beep!
+    _startBeepLoop();
+
+    // 2. Refresh notif data in background (update _allNotifs + render)
+    //    This keeps the notif tab fresh without forcing a tab switch.
+    loadNotifications().catch(() => {});
+
+    // 3. Toast if admin is not already on p-notifs
+    const cur = document.querySelector('.pg-v.act')?.id;
+    if (cur !== 'p-notifs') {
+      const typeIcon  = latestType === 'order' ? '🛒' : latestType === 'user' ? '👤' : '🔔';
+      const countStr  = newCount > 0 ? ` (+${newCount})` : '';
+      const titleStr  = latestTitle ? ` — ${latestTitle}` : '';
+      aToast(`${typeIcon} New notification${countStr}${titleStr}`, 5000);
+    }
+
+  } catch(e) {
+    // Silent — watcher failure should never alarm the admin
+    console.warn('[Watcher] check failed:', e.message);
+  }
+}
+
+// ── Start watcher (idempotent) ─────────────────────────────────────────────
+// skipImmediate=true: caller has already run runWatcherCheck() this cycle
+//   (used by visibilitychange to avoid the double API call).
+function startWatcher(skipImmediate = false) {
+  stopWatcher();
+  _watcherRunning   = true;
+  _watcherCountdown = 60;
+  _updateWatcherCountdown();
+
+  // Countdown display interval (ticks every second for the UI only)
+  _watcherCdInterval = setInterval(() => {
+    _watcherCountdown--;
+    if (_watcherCountdown <= 0) _watcherCountdown = 60;
+    _updateWatcherCountdown();
+  }, 1000);
+
+  // Main watcher interval (fires every 60s)
+  _watcherTimer = setInterval(async () => {
+    _watcherCountdown = 60;
+    _updateWatcherCountdown();
+    await runWatcherCheck();
+  }, WATCHER_INTERVAL_MS);
+
+  // Run immediately on first start (login/session resume).
+  // Skipped when visibilitychange already triggered the check.
+  if (!skipImmediate) runWatcherCheck().catch(() => {});
+}
+
+// ── Stop watcher ──────────────────────────────────────────────────────────
+function stopWatcher() {
+  _watcherRunning = false;
+  if (_watcherTimer)     { clearInterval(_watcherTimer);     _watcherTimer = null;     }
+  if (_watcherCdInterval){ clearInterval(_watcherCdInterval); _watcherCdInterval = null; }
+}
+
+// ── Compatibility shims: old names still used in showPage() / manualRefresh()
+function startNotifAutoRefresh() { /* now handled by universal watcher — no-op */ }
+function stopNotifAutoRefresh()  { /* now handled by universal watcher — no-op */ }
+function resetNotifCountdown() {
+  // Reset both the display AND the actual watcher interval so they stay in sync.
+  // Called after PTR or manual refresh button on p-notifs tab.
+  // skipImmediate=true: the caller just loaded fresh data, no need for another check.
+  startWatcher(true);
+}
+
+// ─── SMART POLLING (180s tab content refresh — separate from notif watcher) ─
+// The watcher handles notifications. This poll handles tab content (orders list,
+// menu, users, etc). They are now completely independent.
 let _pollTimer = null, _pollSeconds = 180, _countdownTimer = null;
-
-function _getPollInterval() {
-  return 180_000; // main poll: 180s for all tabs (notifs has its own dedicated 60s timer)
-}
-function _getPollSeconds() {
-  return 180; // main poll countdown always 180s
-}
 
 function startPolling() {
   clearTimeout(_pollTimer); clearInterval(_countdownTimer);
-  _pollSeconds = _getPollSeconds();
+  _pollSeconds = 180;
   _countdownTimer = setInterval(() => {
     _pollSeconds--;
     const el = document.getElementById('refresh-countdown');
     if (el) el.textContent = `Auto-refresh in ${_pollSeconds}s`;
-    if (_pollSeconds <= 0) _pollSeconds = _getPollSeconds();
+    if (_pollSeconds <= 0) _pollSeconds = 180;
   }, 1000);
-  // Tabs that get 180s auto-refresh. Excluded intentionally:
-  //   p-kitchen  — admin controls date/slot state + cooking locks; auto-reload mid-session causes confusion
-  //   p-bulk     — has date pickers and bulk-generate state; auto-reload would reset mid-action
+  // Tabs with 180s content auto-refresh.
+  // Excluded intentionally:
+  //   p-kitchen — admin controls date/slot state + cooking locks; auto-reload mid-session causes confusion
+  //   p-bulk    — has date pickers and bulk-generate state; auto-reload would reset mid-action
   //   p-settings — no live data; no need
-  //   p-notifs   — has its own dedicated 60s timer (startNotifAutoRefresh)
+  //   p-notifs  — watcher owns notification refresh (on new notif) + manual pull-to-refresh;
+  //               180s blind reload would double-fetch and could clear the unread list mid-read
   const _AUTO_REFRESH_TABS = {
     'p-dash':    () => loadDashboard(),
     'p-orders':  () => loadOrders(),
@@ -2230,13 +2347,10 @@ function startPolling() {
         const cur = document.querySelector('.pg-v.act')?.id;
         const loader = _AUTO_REFRESH_TABS[cur];
         if (loader) loader().catch(()=>{});
-        // p-notifs handled by its own dedicated 60s timer (startNotifAutoRefresh)
-        // Skip fetchNotifCount on that tab — loadNotifications already updates the badge every 60s
-        if (cur !== 'p-notifs') fetchNotifCount().catch(()=>{});
-        _pollSeconds = _getPollSeconds();
+        _pollSeconds = 180;
       }
       schedulePoll();
-    }, _getPollInterval());
+    }, 180_000);
   }
   schedulePoll();
 }
@@ -2247,56 +2361,56 @@ function stopPolling() {
 }
 
 function _onTabChange() {
-  // Truly restart the poll timer so new tab gets a full 180s window,
-  // not the remaining time from the previous tab's countdown.
+  // Restart the 180s content poll so the new tab gets a full window.
+  // The notification watcher keeps running uninterrupted.
   startPolling();
 }
 
 document.addEventListener('visibilitychange', async () => {
-  if (document.hidden) { stopPolling(); stopNotifAutoRefresh(); }
-  else if (AdminAuth.get()) {
-    // When browser tab regains focus, ensure the API key is present before
-    // firing any API call. On a very slow connection or after Render cold-start,
-    // the key might not yet be set (defensive guard — normally it is already set).
+  if (document.hidden) {
+    stopPolling();
+    stopWatcher();
+  } else if (AdminAuth.get()) {
+    // Ensure API key is available (defensive — usually already set)
     if (!CFG.KEY) {
       const gotKey = await _refreshApiKey();
-      if (!gotKey) return; // key still unavailable — skip this reload cycle
+      if (!gotKey) return;
     }
-    // Reload whatever admin page is active
+    // Immediately check for new notifications on return from background.
+    // This is the fix for the biggest bug: on any tab, returning from background
+    // now triggers a notif version check instantly instead of waiting up to 3 min.
+    await runWatcherCheck().catch(() => {});
+    // Also reload whatever content tab is active
     const cur = document.querySelector('.pg-v.act')?.id;
     const visLoaders = {
       'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
       'p-coupons': loadCoupons, 'p-subs': loadSubscribers, 'p-users': loadUsers,
       'p-riders': loadRiders, 'p-khata': loadAllKhata, 'p-staff': loadStaff,
-      'p-notifs': loadNotifications,
+      // p-notifs: watcher already called loadNotifications() if new notif detected;
+      // if no new notif, stale data is fine — admin can PTR to force refresh
       // p-kitchen and p-bulk intentionally excluded — admin controls state manually
     };
     const fn = visLoaders[cur];
     if (fn) fn().catch(()=>{});
-    if (cur === 'p-notifs') startNotifAutoRefresh();
+    startWatcher(true); // skipImmediate=true — runWatcherCheck() already called above
     startPolling();
   }
 });
 
-async function fetchNotifCount() {
-  // Lightweight badge-only update. Uses the same getNotifications endpoint
-  // but does NOT update _allNotifs or render the list — that's loadNotifications' job.
-  // Computes unreadCount from the notifications array (the endpoint returns the array,
-  // not a pre-computed count field).
-  try {
-    const res = await api('getNotifications');
-    const notifs = res.notifications || [];
-    const unreadCount = notifs.filter(n => !n.is_read).length;
-    const badge = document.getElementById('notif-badge');
-    if (badge) {
-      badge.textContent = unreadCount;
-      badge.style.display = unreadCount > 0 ? 'inline' : 'none';
-    }
-    // Trigger beep if unread count increased — alerts admin on any tab
-    if (_prevUnreadCount >= 0 && unreadCount > _prevUnreadCount) _startBeepLoop();
-    _prevUnreadCount = unreadCount;
-  } catch {} // silent — badge staleness is not critical
+// ─── CENTRALISED NOTIFICATION COUNT CHANGE HANDLER ──────────────────────────
+// FIX #5: Single source of truth for beep-trigger logic.
+// Both fetchNotifCount() and loadNotifications() call this — never update
+// _prevUnreadCount update only — beep is now owned by the version watcher.
+// _handleNotifCountChange() is called from loadNotifications() after a full
+// data refresh. The watcher already fired the beep before triggering the load,
+// so we must NOT beep here again (would double-beep on every watcher cycle).
+function _handleNotifCountChange(unreadCount) {
+  // Watcher has already beeped if needed. Just sync state.
+  _prevUnreadCount = unreadCount;
 }
+
+// fetchNotifCount() removed — was dead code (never called after v3 watcher).
+// Notification badge updates are now owned entirely by runWatcherCheck().
 
 function manualRefresh() {
   const cur = document.querySelector('.pg-v.act')?.id;
@@ -2310,8 +2424,6 @@ function manualRefresh() {
   if (loaders[cur]) loaders[cur]().catch(()=>{});
   // Restart main poll timer
   startPolling();
-  // If on notifs tab, also reset the dedicated 60s notif countdown
-  if (cur === 'p-notifs') startNotifAutoRefresh();
 }
 
 // ─── ROUTING ─────────────────────────────────────────────
@@ -2714,12 +2826,19 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRet
 // silently reload whatever page is active. This is what native apps do.
 window.addEventListener('online', () => {
   if (document.hidden || !AdminAuth.get()) return;
+  // Always run watcher check first — catches notifs that arrived while offline.
+  // Without this, a new order could arrive during offline period and show
+  // silently (no beep) because _handleNotifCountChange no longer beeps.
+  runWatcherCheck().catch(() => {});
+  // Also reload whatever content tab is active (except p-notifs — watcher handles it)
   const cur = document.querySelector('.pg-v.act')?.id;
   const loaders = {
     'p-dash': loadDashboard, 'p-orders': loadOrders, 'p-menu': loadMenu,
     'p-coupons': loadCoupons, 'p-subs': loadSubscribers, 'p-users': loadUsers,
     'p-riders': loadRiders, 'p-khata': loadAllKhata, 'p-staff': loadStaff,
-    'p-notifs': loadNotifications, 'p-kitchen': loadKitchen,
+    'p-kitchen': loadKitchen,
+    // p-notifs intentionally excluded: runWatcherCheck() above calls
+    // loadNotifications() if a new notif is detected, avoiding a double fetch.
   };
   const fn = loaders[cur];
   if (fn) fn().catch(() => {});
@@ -6264,51 +6383,105 @@ let _lastNotifsStr = '', _allNotifs = [], _notifTab = 'orders';
 let _nuPanelOpen = false;
 let _nuCurrentTab = 'pending';
 let _prevUnreadCount = -1; // -1 = first load, no beep yet
-// _beepEnabled and _beepLoopTimer are now managed inside AudioManager below
-// Use AudioManager.isEnabled() / AudioManager.isLooping() to query state
+let _knownLatestId   = null; // version watcher: id of newest seen unread notif
 // ═══════════════════════════════════════════════════════════════════════════
-// TIFFO AUDIO MANAGER — Production-grade, mobile-resilient notification audio
+// TIFFO AUDIO MANAGER v2 — Production-grade, mobile-resilient notification audio
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Architecture overview:
-//  • Single global AudioManager object — no scattered globals, no duplicate ctxs
-//  • Explicit state machine: locked → unlocking → ready → suspended → recovering → failed
-//  • All resume() calls are async/awaited before any oscillator is scheduled
-//  • Background recovery via visibilitychange / focus / pageshow listeners
-//  • Self-healing: if context goes bad, recreate it transparently
-//  • Beep loop tracks whether audio actually played; restarts itself if dead
-//  • Zero zombie timers: every interval/timeout is registered in AudioManager
-//  • Full debug logging via AudioManager.log() — toggle with AudioManager.debug = true
+// ROOT CAUSES FIXED vs v1:
+//  1. AudioContext is NOW pre-created eagerly on load (in SUSPENDED state).
+//     v1 deferred creation to first gesture, so _state=LOCKED blocked _ensureReady()
+//     — meaning the very first beep never played even after a gesture.
+//  2. _ensureReady() NO LONGER bails when _state===LOCKED. It always tries to
+//     create + resume, letting the browser reject if no gesture yet.
+//  3. _gestureUnlock() ALWAYS runs on every click/touch regardless of state,
+//     so re-suspension after long sessions is always recovered.
+//  4. startLoop() fires an immediate _play() that doesn't need ctx to be READY
+//     beforehand — it calls _ensureReady() internally every time.
+//  5. Single source-of-truth for _prevUnreadCount: both fetchNotifCount() and
+//     loadNotifications() now call the centralised _handleNotifCountChange()
+//     which owns all beep-trigger logic, eliminating the dual-path race.
+//  6. visibilitychange: when tab hides, _loopActive state is preserved.
+//     When tab returns, if loop was active, audio is explicitly recovered+restarted.
+//  7. Health checker interval corrected to catch stale audio reliably.
 //
+// Architecture:
+//  • Single AudioContext, pre-created on page load (suspended until gesture)
+//  • All resume() calls async/awaited with timeout guard
+//  • Gesture listeners fire on capture phase — always beat stopPropagation
+//  • Background: loop state survives tab hide/show; audio recovered on return
+//  • Health checker: detects dead loop and self-heals every 8s
+//  • Debug: AudioManager.debug = true in console for verbose logs
+//
+
+// ── Audio fallback element (plays when AudioContext is unavailable/blocked) ──
+// Base64-encoded 2-tone beep WAV (~22KB) — zero network, zero CORS issues.
+// This covers Android devices where AudioContext creation throws before a gesture,
+// or very old WebViews that don't implement the Web Audio API at all.
+// Fallback chain: (1) Web Audio oscillator → (2) inline base64 WAV <audio>
+//                → (3) Mixkit CDN sound (free, no auth, good CORS)
+const _BEEP_WAV_B64 = 'data:audio/wav;base64,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';
+const _BEEP_CDN_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+
+let _audioEl = null;
+function _getAudioEl() {
+  if (_audioEl) return _audioEl;
+  try {
+    _audioEl = new Audio();
+    // Primary src: inline base64 WAV (no network needed)
+    _audioEl.src = _BEEP_WAV_B64;
+    _audioEl.volume = 0.8;
+    _audioEl.preload = 'auto';
+    // If base64 fails to decode (shouldn't happen, but defensive):
+    _audioEl.onerror = () => {
+      if (_audioEl.src !== _BEEP_CDN_URL) {
+        console.warn('[AudioFallback] base64 WAV failed, trying CDN');
+        _audioEl.src = _BEEP_CDN_URL;
+      }
+    };
+  } catch(e) {
+    console.warn('[AudioFallback] Audio element creation failed:', e.message);
+    _audioEl = null;
+  }
+  return _audioEl;
+}
+
+// Play via <audio> element — used when Web Audio API is unavailable
+async function _playFallback() {
+  const el = _getAudioEl();
+  if (!el) return false;
+  try {
+    el.currentTime = 0;
+    await el.play();
+    return true;
+  } catch(e) {
+    // NotAllowedError: needs gesture first (same as AudioContext)
+    // NotSupportedError: format not supported → onerror fires CDN fallback
+    console.warn('[AudioFallback] play() failed:', e.message);
+    return false;
+  }
+}
+
 const AudioManager = (() => {
   // ── Constants ────────────────────────────────────────────────────────────
   const BEEP_INTERVAL_MS   = 4000;   // repeat alert every 4s
-  const RESUME_TIMEOUT_MS  = 2500;   // max time to wait for ctx.resume()
-  const RESUME_MAX_RETRIES = 4;      // retry resume this many times before giving up
-  const RESUME_RETRY_MS    = 600;    // delay between resume retries
-  const HEALTH_CHECK_MS    = 8000;   // how often health checker runs while looping
-
-  // ── Audio states ─────────────────────────────────────────────────────────
-  const S = { LOCKED:'locked', UNLOCKING:'unlocking', READY:'ready',
-              SUSPENDED:'suspended', RECOVERING:'recovering', FAILED:'failed' };
+  const RESUME_TIMEOUT_MS  = 2500;   // max time for ctx.resume() before we give up
+  const RESUME_MAX_RETRIES = 4;      // retry count before recreating ctx
+  const RESUME_RETRY_MS    = 600;    // delay between retries
+  const HEALTH_CHECK_MS    = 8000;   // health check cadence
 
   // ── Internal state ────────────────────────────────────────────────────────
-  let _ctx        = null;   // AudioContext instance
-  let _state      = S.LOCKED;
-  let _resumeRetries = 0;
-
-  // Beep loop
-  let _loopTimer      = null; // setInterval handle for repeating beep
-  let _healthTimer    = null; // setInterval handle for health checker
-  let _loopActive     = false;
-  let _lastPlayedAt   = 0;    // timestamp of last successful oscillator start
-  let _playPending    = false; // true while an async play is in-flight
-
-  // Public API shared with legacy variable names
-  let _beepEnabled = true;    // master toggle (persisted)
+  let _ctx         = null;   // AudioContext — created eagerly below
+  let _unlocked    = false;  // true after first successful resume post-gesture
+  let _loopTimer   = null;   // setInterval handle
+  let _healthTimer = null;   // setInterval handle
+  let _loopActive  = false;
+  let _lastPlayedAt  = 0;
+  let _playPending   = false;
+  let _beepEnabled   = true; // master switch (persisted)
 
   // ── Debug logging ─────────────────────────────────────────────────────────
-  let _debug = false; // set AudioManager.debug = true in console to enable
+  let _debug = false;
   function log(...args) {
     if (_debug) console.log('[AudioMgr]', new Date().toISOString().slice(11,23), ...args);
   }
@@ -6320,10 +6493,11 @@ const AudioManager = (() => {
   })();
 
   // ── Create / recreate AudioContext ────────────────────────────────────────
+  // FIX #1: Called eagerly on script load so ctx exists before first beep need.
   function _createCtx() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) { _state = S.FAILED; log('AudioContext not supported'); return false; }
+      if (!AC) { log('AudioContext not supported'); return false; }
       if (_ctx && _ctx.state !== 'closed') {
         try { _ctx.close(); } catch(e) {}
       }
@@ -6332,155 +6506,136 @@ const AudioManager = (() => {
       return true;
     } catch(e) {
       log('AudioContext creation failed:', e.message);
-      _state = S.FAILED;
       return false;
     }
   }
+  // Eagerly create on load — will be in 'suspended' state until first gesture.
+  // If this throws on Android Chrome before any gesture, _ctx stays null.
+  // _gestureUnlock + _ensureReady both call _createCtx() on demand, so the
+  // first user touch will recover automatically. No extra handling needed here.
+  _createCtx();
 
-  // ── Resume context with retry logic (fully async) ─────────────────────────
+  // ── Resume context with retry + timeout guard ─────────────────────────────
   async function _resumeCtx() {
     if (!_ctx || _ctx.state === 'closed') {
-      log('ctx closed/null — recreating before resume');
+      log('ctx closed/null — recreating');
       if (!_createCtx()) return false;
     }
     if (_ctx.state === 'running') {
       log('ctx already running');
-      _state = S.READY;
+      _unlocked = true;
       return true;
     }
-
-    _state = S.RECOVERING;
-    log('Attempting resume, attempt', _resumeRetries + 1, '/', RESUME_MAX_RETRIES);
-
+    log('Resuming ctx (state:', _ctx.state, ')');
     for (let attempt = 0; attempt < RESUME_MAX_RETRIES; attempt++) {
       try {
-        // Race resume() against a timeout — some browsers hang indefinitely
         await Promise.race([
           _ctx.resume(),
           new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), RESUME_TIMEOUT_MS))
         ]);
         if (_ctx.state === 'running') {
-          _state = S.READY;
-          _resumeRetries = 0;
-          log('ctx resumed successfully on attempt', attempt + 1);
+          _unlocked = true;
+          log('ctx resumed on attempt', attempt + 1);
           return true;
         }
-        log('resume() resolved but state is still:', _ctx.state);
+        log('resume() resolved but state=', _ctx.state);
       } catch(e) {
-        log('resume() attempt', attempt + 1, 'failed:', e.message);
+        log('resume attempt', attempt + 1, 'failed:', e.message);
       }
-      // Brief pause before retry
-      if (attempt < RESUME_MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, RESUME_RETRY_MS));
-      }
+      if (attempt < RESUME_MAX_RETRIES - 1) await new Promise(r => setTimeout(r, RESUME_RETRY_MS));
     }
-
-    // All retries exhausted — recreate ctx and try once more from scratch
-    log('All resume retries failed — recreating AudioContext');
+    // All retries exhausted — recreate from scratch
+    log('All resume retries failed — recreating ctx');
     if (!_createCtx()) return false;
     try {
       await _ctx.resume();
-      if (_ctx.state === 'running') {
-        _state = S.READY;
-        _resumeRetries = 0;
-        log('ctx resumed after recreation');
-        return true;
-      }
-    } catch(e) {
-      log('Post-recreation resume failed:', e.message);
-    }
-
-    _state = S.FAILED;
-    log('AudioContext irrecoverably failed — giving up this cycle');
+      if (_ctx.state === 'running') { _unlocked = true; return true; }
+    } catch(e) { log('Post-recreation resume failed:', e.message); }
+    log('ctx irrecoverably failed this cycle');
     return false;
   }
 
-  // ── Ensure ctx is ready (create if needed, resume if suspended) ───────────
+  // ── Ensure ctx is ready ───────────────────────────────────────────────────
+  // FIX #2: No longer gates on _state===LOCKED. Always attempts resume.
+  // Browser enforces the gesture requirement natively — we don't need to
+  // duplicate that gate here (and duplicating it was the root cause of silence).
   async function _ensureReady() {
     if (!_ctx || _ctx.state === 'closed') {
-      if (_state === S.LOCKED) {
-        log('ensureReady called before unlock — no-op');
-        return false;
-      }
       log('ctx missing — recreating');
       if (!_createCtx()) return false;
     }
-    if (_ctx.state === 'running') {
-      _state = S.READY;
-      return true;
-    }
-    if (_ctx.state === 'suspended') {
-      _state = S.SUSPENDED;
-      return await _resumeCtx();
-    }
-    // 'closed' or unknown
-    log('Unexpected ctx state:', _ctx.state, '— recreating');
-    if (!_createCtx()) return false;
+    if (_ctx.state === 'running') return true;
     return await _resumeCtx();
   }
 
-  // ── First user-gesture unlock ─────────────────────────────────────────────
-  // Mobile browsers REQUIRE a user gesture before any AudioContext can run.
-  // We keep listening (not just once) because mobile can re-suspend and we
-  // want every subsequent gesture to also attempt recovery.
+  // ── Gesture unlock: fires on every user interaction ───────────────────────
+  // FIX #3: Runs unconditionally — not gated on _unlocked state.
+  // This means re-suspension after long idle sessions always self-heals.
+  let _unlockInProgress = false; // FIX: prevents async queue buildup on rapid touches
   async function _gestureUnlock(e) {
-    if (_state === S.LOCKED || _state === S.SUSPENDED || _state === S.FAILED
-        || (_ctx && _ctx.state === 'suspended')) {
-      log('Gesture detected:', e.type, '— attempting unlock/recovery');
-      _state = S.UNLOCKING;
-      if (!_ctx) _createCtx();
-      await _resumeCtx();
-      // If beep loop was active but audio was dead, restart playback now
-      if (_loopActive && _state === S.READY) {
-        log('Gesture recovery: restarting beep after unlock');
-        _schedulePlay();
+    // Only do work if ctx actually needs help
+    if (!_ctx || _ctx.state !== 'running') {
+      if (_unlockInProgress) return; // already resuming — skip this event
+      _unlockInProgress = true;
+      log('Gesture:', e.type, '— attempting audio unlock/recovery');
+      try {
+        // Also pre-load the <audio> fallback element during this gesture.
+        // Browsers require a gesture-initiated load before audio can play;
+        // doing it here ensures the fallback is ready if AudioContext fails.
+        const fallbackEl = _getAudioEl();
+        if (fallbackEl && fallbackEl.readyState === 0) fallbackEl.load();
+        await _resumeCtx();
+        if (_ctx && _ctx.state === 'running') {
+          log('Gesture unlock succeeded');
+          if (_loopActive) {
+            log('Restarting beep loop after gesture unlock');
+            _schedulePlay();
+          }
+        }
+      } finally {
+        _unlockInProgress = false;
       }
     }
   }
-  // Capture phase so we catch gestures before any stopPropagation
+  // Capture phase: fires before any stopPropagation in the app
   document.addEventListener('click',      _gestureUnlock, { capture: true, passive: true });
   document.addEventListener('touchstart', _gestureUnlock, { capture: true, passive: true });
   document.addEventListener('touchend',   _gestureUnlock, { capture: true, passive: true });
   document.addEventListener('keydown',    _gestureUnlock, { capture: true, passive: true });
 
   // ── Background / foreground recovery ─────────────────────────────────────
+  // FIX #6: Loop state is preserved across tab hide/show.
+  // When tab returns visible, audio is explicitly resumed and loop restarted.
   document.addEventListener('visibilitychange', async () => {
     if (!document.hidden) {
-      log('Tab became visible — checking audio state');
-      await _handleForegroundReturn();
+      log('Tab visible — recovering audio');
+      if (!_ctx || _ctx.state !== 'running') {
+        const ok = await _ensureReady();
+        if (ok && _loopActive) {
+          log('Foreground recovery: restarting loop');
+          _schedulePlay();
+        }
+      }
     } else {
-      log('Tab hidden — audio may suspend');
-      if (_ctx && _ctx.state === 'running') _state = S.SUSPENDED;
+      log('Tab hidden — audio may be suspended by browser');
     }
   });
   window.addEventListener('focus', async () => {
-    log('Window focus — checking audio state');
-    await _handleForegroundReturn();
+    if (!_ctx || _ctx.state !== 'running') {
+      log('Window focus: recovering audio');
+      const ok = await _ensureReady();
+      if (ok && _loopActive) _schedulePlay();
+    }
   });
   window.addEventListener('pageshow', async (e) => {
-    log('pageshow (persisted:', e.persisted, ') — checking audio state');
-    await _handleForegroundReturn();
-  });
-  // Android Chrome sometimes fires a custom 'resume' on the AudioContext
-  // We also cover it generically via the handlers above
-
-  async function _handleForegroundReturn() {
-    if (_state === S.LOCKED) return; // never unlocked — nothing to recover
+    log('pageshow (persisted:', e.persisted, ')');
     if (!_ctx || _ctx.state !== 'running') {
-      log('Foreground return: audio not running (', _ctx?.state, ') — recovering');
-      _state = S.SUSPENDED;
       const ok = await _ensureReady();
-      if (ok && _loopActive) {
-        log('Foreground recovery succeeded — resuming beep loop');
-        _schedulePlay();
-      } else if (!ok) {
-        log('Foreground recovery failed — will retry on next gesture');
-      }
+      if (ok && _loopActive) _schedulePlay();
     }
-  }
+  });
 
   // ── Oscillator-based cash-register sound ──────────────────────────────────
-  // Returns true if oscillators were successfully scheduled, false on any failure.
   function _scheduleOscillators() {
     try {
       if (!_ctx || _ctx.state !== 'running') return false;
@@ -6504,69 +6659,68 @@ const AudioManager = (() => {
       playDing(t + 0.38, 1047, 0.18, 0.22); // C6
       playDing(t + 0.56, 1319, 0.22, 0.26); // C#6
       _lastPlayedAt = Date.now();
-      log('Oscillators scheduled at t=', t.toFixed(3));
+      log('✅ Oscillators scheduled, t=', t.toFixed(3));
       return true;
     } catch(e) {
-      log('Oscillator scheduling error:', e.message);
+      log('Oscillator error:', e.message);
       return false;
     }
   }
 
-  // ── Core play function: ensure ready → schedule → fallback ───────────────
+  // ── Core play function ────────────────────────────────────────────────────
+  // FIX #4: _ensureReady() called every time without LOCKED gate.
   async function _play() {
-    if (_playPending) { log('play() skipped — already in-flight'); return; }
+    if (_playPending) { log('play() skipped — in-flight'); return; }
     _playPending = true;
     try {
-      // Fast path: already running
+      // Fast path
       if (_ctx && _ctx.state === 'running') {
         const ok = _scheduleOscillators();
-        if (ok) return;
-        // Oscillator failed despite running state — ctx might be corrupted
-        log('Oscillator failed on running ctx — will try full recovery');
+        if (ok) { log('play() fast path OK'); return; }
+        log('Oscillator failed on running ctx — recovering');
       }
-      // Slow path: resume/recover then play
-      log('play() — ctx not ready (', _ctx?.state || 'null', '), attempting recovery');
+      log('play() slow path — ctx state:', _ctx?.state || 'null');
       const ok = await _ensureReady();
       if (ok) {
         const played = _scheduleOscillators();
         if (!played) {
-          log('Oscillators still failed after recovery — recreating ctx');
+          log('Oscillators failed after recovery — recreating ctx');
           if (_createCtx()) {
             await _resumeCtx();
             _scheduleOscillators();
           }
         }
       } else {
-        log('play() — recovery failed, no sound this cycle');
+        log('play() recovery failed — trying <audio> fallback');
+        // AudioContext unavailable: fall back to <audio> element
+        // This covers: no AudioContext support, blocked before gesture,
+        // or Android Chrome in certain low-memory states.
+        _playFallback().then(ok => {
+          log(ok ? 'Fallback play OK' : 'Fallback play also failed (needs gesture)');
+        });
       }
     } finally {
       _playPending = false;
     }
   }
 
-  // ── Schedule a single play (fire-and-forget, safe to call from interval) ──
   function _schedulePlay() {
     _play().catch(e => log('_play() uncaught:', e.message));
   }
 
-  // ── Health checker: detect dead audio loop ────────────────────────────────
-  // Runs while the beep loop is active. If _lastPlayedAt is stale, the loop
-  // is alive on the timer but audio hasn't actually played — attempt recovery.
+  // ── Health checker ────────────────────────────────────────────────────────
+  // FIX #7: Staleness threshold corrected to 2 full intervals + grace.
   function _startHealthCheck() {
     _stopHealthCheck();
     _healthTimer = setInterval(async () => {
       if (!_loopActive) { _stopHealthCheck(); return; }
       const staleness = Date.now() - _lastPlayedAt;
-      // If loop has been running but no play for 2 full cycles + 1s grace period:
       if (_lastPlayedAt > 0 && staleness > BEEP_INTERVAL_MS * 2 + 1000) {
-        log('Health check: audio stale for', staleness, 'ms — recovering');
+        log('Health: audio stale', staleness, 'ms — recovering');
         const ok = await _ensureReady();
-        if (ok) {
-          log('Health recovery succeeded — forcing immediate play');
-          _schedulePlay();
-        }
+        if (ok) { log('Health recovery OK'); _schedulePlay(); }
       } else if (_ctx && _ctx.state === 'suspended') {
-        log('Health check: ctx suspended — recovering');
+        log('Health: ctx suspended — recovering');
         await _ensureReady();
       }
     }, HEALTH_CHECK_MS);
@@ -6575,18 +6729,15 @@ const AudioManager = (() => {
     if (_healthTimer) { clearInterval(_healthTimer); _healthTimer = null; }
   }
 
-  // ── Public: Start repeating beep loop ─────────────────────────────────────
+  // ── Public: startLoop ─────────────────────────────────────────────────────
   function startLoop() {
-    if (!_beepEnabled) return;
-    if (_loopActive && _loopTimer) {
-      log('startLoop() called but loop already active — skipping');
-      return;
-    }
-    log('startLoop() — starting beep loop');
-    _loopActive = true;
-    _lastPlayedAt = 0; // reset so health check doesn't false-alarm immediately
-    _schedulePlay(); // immediate first beep
-    _stopBeepLoopTimer(); // defensive: clear any stale timer
+    if (!_beepEnabled) { log('startLoop() skipped — beep disabled'); return; }
+    if (_loopActive && _loopTimer) { log('startLoop() skipped — already looping'); return; }
+    log('startLoop() — starting');
+    _loopActive  = true;
+    _lastPlayedAt = 0;
+    _schedulePlay(); // immediate first beep — _ensureReady handles ctx state
+    if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
     _loopTimer = setInterval(() => {
       if (!_beepEnabled || !_loopActive) { stopLoop(); return; }
       _schedulePlay();
@@ -6595,34 +6746,24 @@ const AudioManager = (() => {
     _updateBeepBtn();
   }
 
-  // ── Public: Stop repeating beep loop ──────────────────────────────────────
+  // ── Public: stopLoop ──────────────────────────────────────────────────────
   function stopLoop() {
-    log('stopLoop() called');
+    log('stopLoop()');
     _loopActive = false;
-    _stopBeepLoopTimer();
+    if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
     _stopHealthCheck();
     _updateBeepBtn();
   }
 
-  function _stopBeepLoopTimer() {
-    if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
-  }
-
-  // ── Public: Play a single one-off beep (e.g. confirmation) ───────────────
-  function playOnce() {
-    _schedulePlay();
-  }
+  // ── Public: playOnce ──────────────────────────────────────────────────────
+  function playOnce() { _schedulePlay(); }
 
   // ── Public: isLooping ─────────────────────────────────────────────────────
   function isLooping() { return _loopActive && !!_loopTimer; }
 
-  // ── Public: Toggle beep master on/off ─────────────────────────────────────
+  // ── Public: toggle ────────────────────────────────────────────────────────
   function toggle() {
-    if (isLooping()) {
-      stopLoop();
-      aToast('🔔 Alert stopped');
-      return;
-    }
+    if (isLooping()) { stopLoop(); aToast('🔔 Alert stopped'); return; }
     _beepEnabled = !_beepEnabled;
     localStorage.setItem('tiffo_beep_enabled', String(_beepEnabled));
     if (_beepEnabled) playOnce();
@@ -6633,11 +6774,11 @@ const AudioManager = (() => {
   // ── Public: isEnabled ─────────────────────────────────────────────────────
   function isEnabled() { return _beepEnabled; }
 
-  // ── Expose internal state for debugging ───────────────────────────────────
+  // ── Public: getState (debug) ──────────────────────────────────────────────
   function getState() {
     return {
-      state: _state,
       ctxState: _ctx?.state || 'null',
+      unlocked: _unlocked,
       loopActive: _loopActive,
       loopTimer: !!_loopTimer,
       healthTimer: !!_healthTimer,
@@ -6650,14 +6791,10 @@ const AudioManager = (() => {
            get debug() { return _debug; }, set debug(v) { _debug = v; } };
 })();
 
-// ── Legacy shim: keep old variable names working so call-sites don't change ──
-// _beepEnabled, _beepLoopTimer are no longer real variables but we keep
-// _beepEnabled readable via AudioManager.isEnabled() and isLooping() via AudioManager.isLooping().
-
 // ─── BEEP PUBLIC API (thin wrappers over AudioManager) ───────────────────────
 
-function _startBeepLoop()  { AudioManager.startLoop(); }
-function _stopBeepLoop()   { AudioManager.stopLoop();  }
+function _startBeepLoop()    { AudioManager.startLoop(); }
+function _stopBeepLoop()     { AudioManager.stopLoop();  }
 function _playCashRegister() { AudioManager.playOnce(); }
 
 function toggleBeep() { AudioManager.toggle(); }
@@ -6719,9 +6856,8 @@ async function loadNotifications() {
     const badge = document.getElementById('notif-badge');
     const unreadCount = _allNotifs.filter(n => !n.is_read).length;
     if (badge) { badge.textContent = unreadCount; badge.style.display = unreadCount > 0 ? 'inline' : 'none'; }
-    // Start repeating beep loop on ANY new unread notification (order, txn, user, subscriber)
-    if (_prevUnreadCount >= 0 && unreadCount > _prevUnreadCount) _startBeepLoop();
-    _prevUnreadCount = unreadCount;
+    // FIX #5: Use centralised handler — never update _prevUnreadCount directly here
+    _handleNotifCountChange(unreadCount);
     renderNotifs(_allNotifs);
     updateNuPendingBadge(_allNotifs);
     npDone();
@@ -7447,9 +7583,7 @@ function showPage(id) {
     }
   };
   _onTabChange();
-  // Start/stop dedicated notification auto-refresh based on active tab
-  if (id === 'p-notifs') { startNotifAutoRefresh(); }
-  else { stopNotifAutoRefresh(); }
+  // Watcher runs universally — no per-tab start/stop needed
   try { const r = loaders[id]?.(); if (r?.catch) r.catch(()=>{}); } catch(e) { console.warn('Tab load error:', e); }
   if (id === 'p-coupons') _silentDeleteExpiredCoupons();
   closeSidebar();
