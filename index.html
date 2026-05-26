@@ -1015,7 +1015,7 @@ textarea{resize:vertical;min-height:80px}
 .bill-total{font-family:var(--ff);font-weight:700;font-size:18px;color:var(--dk)}
 /* Success pages */
 .success-wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:40px 24px calc(40px + env(safe-area-inset-bottom,0px));gap:16px;text-align:center;background:#fff}
-.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)) !important;}
+.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(32px + env(safe-area-inset-bottom,0px)) !important;}
 .success-icon{font-size:64px;color:var(--g);animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1)}
 @keyframes scaleIn{from{transform:scale(0)}to{transform:scale(1)}}
 .success-title{font-family:var(--ff);font-weight:800;font-size:26px}
@@ -1442,9 +1442,9 @@ textarea{resize:vertical;min-height:80px}
 
 /* ── Nav buttons at bottom ── */
 #pg-success .flex.gap8, #pg-success-insuf .flex.gap8 {
-  padding: 0 16px;
+  padding: 0 16px 0;
   margin-top: 12px !important;
-  margin-bottom: 4px;
+  margin-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Insufficient notice (wallet partial pay) ── */
@@ -5655,10 +5655,11 @@ async function placeOrder() {
           if (waArrow) waArrow.style.display = 'flex';
           waBtn.onclick = () => {
             const _itemLines = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-            const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
-            const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
+            const _cpnLabel  = _appliedCoupon ? ` (Code: ${_appliedCoupon.code})` : '';
+            const _discLine  = discount > 0 ? `\\n  🎟️ Offer${_cpnLabel}: −₹${discount}` : '';
+            const _delLine   = deliveryCharge > 0 ? `\\n  🚴 Delivery: +₹${deliveryCharge}` : '';
             openWA(CFG.TIFFIN,
-              `🍱 *Tiffo — UPI Payment Done*\n${'─'.repeat(28)}\n✅ *Maine payment kar di hai.*\n*Kripaya check karke mera order approve kar dein.* 🙏\n${'─'.repeat(28)}\n👤 *Customer Details*\n   Name: ${user.name || 'Customer'}\n   Mobile: ${user.phone}\n   Address: ${_waAddr(user.address)}\n${'─'.repeat(28)}\n📋 *Order Details*\n   Order ID: ${res.orderId}\n\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💳 *Transaction Details*\n   Amount Paid: ₹${total}\n   UPI ID: ${_UPI_VPA}\n   Payment Mode: UPI\n${'─'.repeat(28)}\n📸 Payment screenshot neeche attach kar raha/rahi hoon.`);
+              `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${user.name || 'Customer'}\\n📞 *Mobile:* ${user.phone}\\n📍 *Address:* ${_waAddr(user.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_itemLines}${_discLine}${_delLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${total}*\\n💳 *UPI ID:* ${_UPI_VPA}\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`);
           };
         }
       }, 300);
@@ -5945,12 +5946,13 @@ async function confirmInsufOrder() {
 
     // Build WA message for the insuf success page button
     const _u = Auth.get();
-    const _itemLines = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-    const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
-    const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
+    const _itemLines = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\\n');
+    const _cpnLabel  = _appliedCoupon ? ` (Code: ${_appliedCoupon.code})` : '';
+    const _discLine  = discount > 0 ? `\\n  🎟️ Offer${_cpnLabel}: −₹${discount}` : '';
+    const _delLine   = deliveryCharge > 0 ? `\\n  🚴 Delivery: +₹${deliveryCharge}` : '';
     _insufWAData = {
       phone: CFG.TIFFIN,
-      msg: `🍱 *Tiffo — UPI Payment Done (Wallet Insufficient)*\n${'─'.repeat(28)}\n✅ *Maine payment kar di hai.*\n*Kripaya check karke mera order approve kar dein.* 🙏\n${'─'.repeat(28)}\n👤 *Customer Details*\n   Name: ${_u?.name || 'Customer'}\n   Mobile: ${_u?.phone || ''}\n   Address: ${_waAddr(_u?.address)}\n${'─'.repeat(28)}\n📋 *Order Details*\n   Order ID: ${res.orderId}\n\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💳 *Transaction Details*\n   Amount Paid via UPI: ₹${total}\n   UPI ID: ${_UPI_VPA}\n   Payment Mode: UPI\n   ⚠️ Reason: Wallet balance insufficient\n${'─'.repeat(28)}\n📸 Payment screenshot neeche attach kar raha/rahi hoon.`
+      msg: `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${_u?.name || 'Customer'}\\n📞 *Mobile:* ${_u?.phone || ''}\\n📍 *Address:* ${_waAddr(_u?.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_itemLines}${_discLine}${_delLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${total}*\\n💳 *UPI ID:* ${_UPI_VPA}\\n⚠️ *Note:* Wallet balance insufficient — remaining paid via UPI.\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`
     };
 
     // Populate and show the dedicated insuf success page
@@ -6161,10 +6163,10 @@ function renderOrderList(orders) {
 
     // Build WA message strings safely and store in _orderWAMap (keyed by orderId)
     // This avoids embedding encoded URLs in onclick HTML attributes (single-quote bug)
-    const _ordItemLines = items.map(i => `• ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\n');
-    const _discLine  = o.discount > 0 ? `\n🎟️ Discount: −₹${o.discount}` : '';
-    const _delLine   = o.delivery_charge > 0 ? `\n🚴 Delivery: ₹${o.delivery_charge}` : '';
-    const _baseBlock = `🍱 *Tiffo Order*\n📋 ID: *${orderId}*\n👤 ${_user?.name || 'Customer'} | 📞 ${_user?.phone || ''}\n📍 ${_waAddr(_user?.address)}\n\n*Items:*\n${_ordItemLines}${_discLine}${_delLine}\n✅ *Total: ₹${ordAmt}*`;
+    const _ordItemLines = items.map(i => `  • ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\\n');
+    const _ordDiscLine  = o.discount > 0 ? `\\n  🎟️ Offer${o.coupon_code ? ` (Code: ${o.coupon_code})` : ''}: −₹${o.discount}` : '';
+    const _ordDelLine   = o.delivery_charge > 0 ? `\\n  🚴 Delivery: +₹${o.delivery_charge}` : '';
+    // WA messages built per-case below
 
     if (!isWallet) {
       // Store order data in map — openOrderPayModal() reads amt + isInsuf to pick correct page
@@ -6173,8 +6175,8 @@ function renderOrderList(orders) {
         amt: ordAmt,
         isInsuf: isInsuf,
         msg: isInsuf
-          ? `${_baseBlock}\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
-          : `${_baseBlock}\n\n💳 Please share your UPI/QR for payment. I will send the screenshot once paid. 🙏`
+          ? `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${_user?.name || 'Customer'}\\n📞 *Mobile:* ${_user?.phone || ''}\\n📍 *Address:* ${_waAddr(_user?.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${ordAmt}*\\n⚠️ *Note:* Wallet balance insufficient — remaining paid via UPI.\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`
+          : `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${_user?.name || 'Customer'}\\n📞 *Mobile:* ${_user?.phone || ''}\\n📍 *Address:* ${_waAddr(_user?.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${ordAmt}*\\n💳 *UPI ID:* ${_UPI_VPA}\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`
       };
     }
 
