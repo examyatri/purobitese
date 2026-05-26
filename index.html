@@ -689,7 +689,7 @@ body{font-family:var(--fb);background:#fff;color:var(--dk);overflow:hidden;heigh
 .pg{position:fixed;top:0;bottom:0;overflow:hidden;transition:transform 300ms ease;background:#fff;width:100%;max-width:540px;left:50%;transform:translateX(calc(-50% + 100vw));display:flex;flex-direction:column}
 .pg.here{transform:translateX(-50%)!important}
 .pg-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--lt);padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 28px);scroll-padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px);overscroll-behavior-y:contain}
-.pg-scroll-full{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+.pg-scroll-full{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 16px)}
 /* Bottom Nav */
 #bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:540px;height:var(--bnav-h);background:#fff;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-around;padding-bottom:var(--safe-b);z-index:900}
 #bottom-nav button{flex:1;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--ff);font-size:10px;font-weight:600;color:var(--gr);cursor:pointer;position:relative;padding:6px 0;transition:color 200ms}
@@ -1015,7 +1015,7 @@ textarea{resize:vertical;min-height:80px}
 .bill-total{font-family:var(--ff);font-weight:700;font-size:18px;color:var(--dk)}
 /* Success pages */
 .success-wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:40px 24px calc(40px + env(safe-area-inset-bottom,0px));gap:16px;text-align:center;background:#fff}
-.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)) !important;}
+.success-wrap.pend-wrap{padding:0 !important;gap:0 !important;background:#f4f5f8 !important;padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 20px) !important;}
 .success-icon{font-size:64px;color:var(--g);animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1)}
 @keyframes scaleIn{from{transform:scale(0)}to{transform:scale(1)}}
 .success-title{font-family:var(--ff);font-weight:800;font-size:26px}
@@ -1228,7 +1228,7 @@ textarea{resize:vertical;min-height:80px}
 /* ── Card lift above the hero (negative margin trick) ── */
 .upi-qr-card {
   width: calc(100% - 32px);
-  margin: -22px auto 0;
+  margin: 16px auto 0;
   background: #fff;
   border-radius: 22px;
   padding: 22px 18px 18px;
@@ -1789,9 +1789,28 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- ══════════════════════════════════════════════
+     QR LEAVE-CONFIRM OVERLAY
+     Shown when user presses back on pg-success / pg-success-insuf.
+     Controlled by _showQrLeaveConfirm / _hideQrLeaveConfirm.
+══════════════════════════════════════════════ -->
+<div id="_qr-leave-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;align-items:flex-end;justify-content:center" onclick="_hideQrLeaveConfirm()">
+  <div class="_qr-leave-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
+    <div style="font-size:32px;text-align:center;margin-bottom:10px">⚠️</div>
+    <p style="font-size:17px;font-weight:800;margin:0 0 6px;color:#0f172a;text-align:center">Leave Payment Page?</p>
+    <p style="font-size:13.5px;color:#64748b;margin:0 0 22px;line-height:1.5;text-align:center">Your QR code will be lost.<br>You have NOT paid yet — please complete payment first.</p>
+    <div style="display:flex;gap:10px">
+      <button onclick="_hideQrLeaveConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer;color:#334155">Stay &amp; Pay</button>
+      <button onclick="_confirmQrLeave()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#ef4444;color:#fff;font-size:15px;font-family:var(--ff,sans-serif);font-weight:700;cursor:pointer">Leave</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
      PAGE: AUTH
 ══════════════════════════════════════════════ -->
-<div id="pg-auth" class="pg pg-scroll-full">
+<div id="pg-auth" class="pg">
+  <div class="pg-scroll-full" style="padding-bottom:0">
   <div class="auth-top">
     <div class="auth-logo">🍱 Tiffo</div>
     <div class="auth-sub">Ghar Ka Tiffin 😍</div>
@@ -2101,22 +2120,20 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
   </div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: SUCCESS (non-subscriber)
 ══════════════════════════════════════════════ -->
-<div id="pg-success" class="pg pg-scroll-full">
+<div id="pg-success" class="pg">
+  <div class="pg-scroll-full">
   <div class="success-wrap pend-wrap">
 
-    <!-- Hero: amount + status -->
-    <div class="pend-header">
-      <div class="pend-clock-ring">
-        <i class="fa-solid fa-indian-rupee-sign" style="font-size:18px"></i>
-      </div>
-      <div class="pend-title">Pay Now</div>
-      <div class="pend-amount-val" id="s-amount">—</div>
-      <div class="pend-amount-due-badge">⚡ Due Now</div>
+    <!-- Amount strip -->
+    <div style="width:100%;background:#fff;padding:14px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f0f0">
+      <div style="font-family:var(--ff);font-size:12px;color:#64748b;font-weight:600">Amount Due</div>
+      <div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#0f172a" id="s-amount">—</div>
     </div>
 
     <!-- QR Card -->
@@ -2172,17 +2189,19 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
-      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
+      <button class="btn-outline" onclick="_leavePayPage('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="_leavePayPage('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
+  </div>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: SUCCESS-SUB (subscriber)
 ══════════════════════════════════════════════ -->
-<div id="pg-success-sub" class="pg pg-scroll-full">
+<div id="pg-success-sub" class="pg">
+  <div class="pg-scroll-full">
   <div class="success-wrap">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
     <div class="success-title">Order Placed! 🎉</div>
@@ -2201,22 +2220,20 @@ textarea{resize:vertical;min-height:80px}
     </div>
     <button class="btn-primary" onclick="nav('pg-orders')">My Orders</button>
   </div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
      PAGE: SUCCESS-INSUF (subscriber, insufficient wallet → UPI)
 ══════════════════════════════════════════════ -->
-<div id="pg-success-insuf" class="pg pg-scroll-full">
+<div id="pg-success-insuf" class="pg">
+  <div class="pg-scroll-full">
   <div class="success-wrap pend-wrap">
 
-    <!-- Hero: amount + status -->
-    <div class="pend-header">
-      <div class="pend-clock-ring">
-        <i class="fa-solid fa-indian-rupee-sign" style="font-size:18px"></i>
-      </div>
-      <div class="pend-title">Pay Now</div>
-      <div class="pend-amount-val" id="si-amount">—</div>
-      <div class="pend-amount-due-badge">⚡ Due Now</div>
+    <!-- Amount strip -->
+    <div style="width:100%;background:#fff;padding:14px 20px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f0f0f0">
+      <div style="font-family:var(--ff);font-size:12px;color:#64748b;font-weight:600">Amount Due</div>
+      <div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#0f172a" id="si-amount">—</div>
     </div>
 
     <!-- QR Card -->
@@ -2272,10 +2289,11 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <div class="flex gap8 w100" style="padding:0 16px 4px;margin-top:8px">
-      <button class="btn-outline" onclick="nav('pg-home')" style="flex:1">Back to Menu</button>
-      <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1">My Orders</button>
+      <button class="btn-outline" onclick="_leavePayPage('pg-home')" style="flex:1">Back to Menu</button>
+      <button class="btn-primary" onclick="_leavePayPage('pg-orders')" style="flex:1">My Orders</button>
     </div>
 
+  </div>
   </div>
 </div>
 
@@ -3534,6 +3552,12 @@ function nav(id) {
 }
 
 function back() {
+  // Guard: if on payment page, show leave-confirm instead of going back
+  if (_qrGuardActive) {
+    _qrLeaveDest = _stack.length > 1 ? _stack[_stack.length - 2] : 'pg-home';
+    _showQrLeaveConfirm();
+    return;
+  }
   if (_stack.length < 2) return;
   _stack.pop();
   const prev = _stack[_stack.length - 1];
@@ -5601,6 +5625,7 @@ async function placeOrder() {
       const _saInfo = document.getElementById('s-amount-info'); if (_saInfo) _saInfo.textContent = '₹' + total;
       setDeliveryTime('s-delivery-time');
       nav('pg-success');
+      _qrGuardActive = true;
       // Generate UPI QR with pre-filled amount
       setTimeout(() => _generateQR('s-qr-box', total, res.orderId), 100);
       // Show WA confirm section with pre-built message for screenshot submission
@@ -5614,7 +5639,7 @@ async function placeOrder() {
             const _discLine  = discount > 0 ? `\n🎟️ Discount: −₹${discount}` : '';
             const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
             openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order — Payment Sent*\n${'─'.repeat(28)}\n📋 *Order ID:* ${res.orderId}\n\n👤 *Name:* ${user.name || 'Customer'}\n📞 *Mobile:* ${user.phone}\n📍 *Address:* ${_waAddr(user.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💰 *Total Paid: ₹${total}*\n💳 *UPI ID:* ${_UPI_VPA}\n${'─'.repeat(28)}\nPayment screenshot neeche attach kar raha/rahi hoon.\nPlease confirm kar dein. 🙏`);
+              `🍱 *Tiffo Order — Payment Done!*\n\nHi! Maine apna payment kar diya hai UPI se. Screenshot neeche bhej raha/rahi hoon — please verify karke order confirm kar dein. 🙏\n\n${'─'.repeat(28)}\n🆔 *Order ID:* ${res.orderId}\n📅 *Time:* ${new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})}\n${'─'.repeat(28)}\n👤 *Name:* ${user.name || 'Customer'}\n📞 *Mobile:* ${user.phone}\n📍 *Address:* ${_waAddr(user.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💵 *Amount Paid: ₹${total}*\n💳 *UPI ID:* ${_UPI_VPA}`);
           };
         }
       }, 300);
@@ -5843,7 +5868,7 @@ function generateRechargeQR() {
   const phone = user?.phone || '';
   document.getElementById('rch-wa-btn').onclick = () => {
     openWA('9889760350',
-      `💰 *Wallet Recharge*\n👤 ${name} | 📞 ${phone}\n\n✅ *Amount Paid: ₹${rounded}*\n💳 UPI paid to ${_UPI_VPA}\n\nKripaya mere wallet mein ₹${rounded} add kar dein.\nPayment screenshot attach kar raha/rahi hoon. 🙏`);
+      `💳 *Wallet Recharge — Payment Done!*\n\nHi! Maine ₹${rounded} ka payment kar diya hai UPI se. Screenshot neeche bhej raha/rahi hoon — please verify karke mere wallet mein add kar dein. 🙏\n\n${'─'.repeat(28)}\n📅 *Time:* ${new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})}\n${'─'.repeat(28)}\n👤 *Name:* ${name}\n📞 *Mobile:* ${phone}\n📍 *Address:* ${_waAddr(user?.address)}\n${'─'.repeat(28)}\n💵 *Recharge Amount: ₹${rounded}*\n💳 *UPI ID:* ${_UPI_VPA}\n👛 *Current Wallet Balance:* ₹${Math.round(_walletBal)}`);
   };
   // Scroll to QR
   setTimeout(() => document.getElementById('rch-qr-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 200);
@@ -5906,7 +5931,7 @@ async function confirmInsufOrder() {
     const _delLine   = deliveryCharge > 0 ? `\n🚴 Delivery: ₹${deliveryCharge}` : '';
     _insufWAData = {
       phone: CFG.TIFFIN,
-      msg: `🍱 *Tiffo Order — Payment Sent*\n${'─'.repeat(28)}\n📋 *Order ID:* ${res.orderId}\n\n👤 *Name:* ${_u?.name || 'Customer'}\n📞 *Mobile:* ${_u?.phone || ''}\n📍 *Address:* ${_waAddr(_u?.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💰 *Total Paid: ₹${total}*\n💳 *UPI ID:* ${_UPI_VPA}\n⚠️ *Note:* Wallet balance insufficient — remaining paid via UPI.\n${'─'.repeat(28)}\nPayment screenshot neeche attach kar raha/rahi hoon.\nPlease confirm kar dein. 🙏`
+      msg: `🍱 *Tiffo Order — Payment Done!*\n\nHi! Wallet mein balance kam tha toh maine poora payment UPI se kar diya. Screenshot neeche bhej raha/rahi hoon — please verify karke order confirm kar dein. 🙏\n\n${'─'.repeat(28)}\n🆔 *Order ID:* ${res.orderId}\n📅 *Time:* ${new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})}\n${'─'.repeat(28)}\n👤 *Name:* ${_u?.name || 'Customer'}\n📞 *Mobile:* ${_u?.phone || ''}\n📍 *Address:* ${_waAddr(_u?.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_itemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n👛 *Wallet Balance (at order):* ₹${Math.round(_walletBal)}\n💵 *Amount Paid via UPI: ₹${total}*\n💳 *UPI ID:* ${_UPI_VPA}`
     };
 
     // Populate and show the dedicated insuf success page
@@ -5915,6 +5940,7 @@ async function confirmInsufOrder() {
     const _siInfo = document.getElementById('si-amount-info'); if (_siInfo) _siInfo.textContent = '₹' + total;
     setDeliveryTime('si-delivery-time');
     nav('pg-success-insuf');
+    _qrGuardActive = true;
     launchConfetti();
     // Generate UPI QR with pre-filled amount for insuf path
     setTimeout(() => _generateQR('si-qr-box', total, res.orderId), 100);
@@ -6127,8 +6153,8 @@ function renderOrderList(orders) {
       _orderWAMap[orderId] = {
         phone: CFG.TIFFIN,
         msg: isInsuf
-          ? `${_baseBlock}\n\n⚠️ *Note:* Wallet balance was insufficient for this order.\nPaying the remaining amount via UPI.\n\n💳 Please share your UPI/QR so I can pay and send the screenshot. 🙏`
-          : `${_baseBlock}\n\n💳 Please share your UPI/QR for payment. I will send the screenshot once paid. 🙏`
+          ? `🍱 *Tiffo Order — Payment Done!*\n\nHi! Wallet mein balance kam tha toh maine poora payment UPI se kar diya. Screenshot neeche bhej raha/rahi hoon — please verify karke order confirm kar dein. 🙏\n\n${'─'.repeat(28)}\n🆔 *Order ID:* ${orderId}\n👤 *Name:* ${_user?.name || 'Customer'}\n📞 *Mobile:* ${_user?.phone || ''}\n📍 *Address:* ${_waAddr(_user?.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_ordItemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💵 *Amount: ₹${ordAmt}*\n💳 *UPI ID:* ${_UPI_VPA}`
+          : `🍱 *Tiffo Order — Payment Done!*\n\nHi! Maine apna payment kar diya hai UPI se. Screenshot neeche bhej raha/rahi hoon — please verify karke order confirm kar dein. 🙏\n\n${'─'.repeat(28)}\n🆔 *Order ID:* ${orderId}\n👤 *Name:* ${_user?.name || 'Customer'}\n📞 *Mobile:* ${_user?.phone || ''}\n📍 *Address:* ${_waAddr(_user?.address)}\n${'─'.repeat(28)}\n🛒 *Items:*\n${_ordItemLines}${_discLine}${_delLine}\n${'─'.repeat(28)}\n💵 *Amount: ₹${ordAmt}*\n💳 *UPI ID:* ${_UPI_VPA}`
       };
     }
 
@@ -8179,12 +8205,77 @@ function _doExitApp() {
   }, 200);
 }
 
+
+// ── QR Payment Page — Back Button Guard ───────────────────────────────────────
+// Prevents accidental back-press from destroying the QR before payment is done.
+// Set to the destination page when user explicitly leaves via the nav buttons.
+let _qrGuardActive   = false;  // true while on pg-success or pg-success-insuf
+let _qrLeaveDest     = null;   // destination when user confirms leave
+let _qrLeaveOpen     = false;  // prevents double-open
+
+function _showQrLeaveConfirm() {
+  if (_qrLeaveOpen) return;
+  _qrLeaveOpen = true;
+  const overlay = document.getElementById('_qr-leave-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => {
+    const card = overlay.querySelector('._qr-leave-card');
+    if (card) card.style.transform = 'translateY(0)';
+  });
+  // Push a dummy history state so the next back press hits us again
+  history.pushState({ pg: _stack[_stack.length - 1], qrGuard: true }, '', location.href);
+}
+
+function _hideQrLeaveConfirm() {
+  _qrLeaveOpen = false;
+  _qrLeaveDest = null;
+  const overlay = document.getElementById('_qr-leave-overlay');
+  if (!overlay) return;
+  const card = overlay.querySelector('._qr-leave-card');
+  if (card) card.style.transform = 'translateY(100%)';
+  setTimeout(() => { overlay.style.display = 'none'; }, 320);
+}
+
+function _confirmQrLeave() {
+  const dest = _qrLeaveDest || 'pg-home';
+  _qrGuardActive = false;
+  _qrLeaveDest   = null;
+  _qrLeaveOpen   = false;
+  const overlay  = document.getElementById('_qr-leave-overlay');
+  if (overlay) overlay.style.display = 'none';
+  nav(dest);
+}
+
+// Called by "Back to Menu" and "My Orders" buttons on the pay pages.
+// Bypasses the guard since the user explicitly chose to leave.
+function _leavePayPage(dest) {
+  _qrGuardActive = false;
+  nav(dest);
+}
+
 // Handle hardware back button (Android)
 window.addEventListener('popstate', () => {
   // If exit dialog is showing, close it (treat back as "Stay")
   if (_exitDialogOpen) {
     history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
     _hideExitConfirm();
+    return;
+  }
+
+  // If QR leave dialog is open, close it and stay (treat back as "Stay & Pay")
+  if (_qrLeaveOpen) {
+    _hideQrLeaveConfirm();
+    return;
+  }
+
+  // If on a payment page, intercept back and show leave-confirm sheet
+  if (_qrGuardActive) {
+    // Re-push the current page state FIRST so history never drains on repeated back presses.
+    // Without this, every back press consumes one history entry and the user eventually escapes.
+    history.pushState({ pg: _stack[_stack.length - 1], stackLen: _stack.length }, '', location.href);
+    _qrLeaveDest = 'pg-home';
+    _showQrLeaveConfirm();
     return;
   }
 
