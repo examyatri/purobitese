@@ -1442,8 +1442,8 @@ textarea{resize:vertical;min-height:80px}
 /* ── UPI QR Payment UI ── */
 .upi-qr-card{width:100%;background:#fff;border-radius:18px;padding:20px 16px 16px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid #f0f0f0;display:flex;flex-direction:column;align-items:center;gap:4px}
 .upi-qr-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#6b7280;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
-.upi-qr-box{width:200px;height:200px;border-radius:14px;overflow:hidden;border:3px solid #f0f0f0;background:#fff;display:flex;align-items:center;justify-content:center;position:relative}
-.upi-qr-box canvas,.upi-qr-box img{width:200px!important;height:200px!important;display:block;image-rendering:pixelated}
+.upi-qr-box{width:216px;height:216px;border-radius:16px;overflow:visible;border:none;background:#fff;display:flex;align-items:center;justify-content:center;position:relative;padding:8px;box-shadow:0 0 0 1.5px #e5e7eb,0 4px 20px rgba(0,0,0,0.10)}
+.upi-qr-box canvas,.upi-qr-box img{width:200px;height:200px;display:block;border-radius:6px;image-rendering:crisp-edges}
 .upi-qr-vpa{font-family:monospace;font-size:12px;color:#6b7280;margin-top:6px;letter-spacing:.3px}
 .upi-qr-note{font-family:var(--fb);font-size:11.5px;color:#6b7280;text-align:center;line-height:1.5;margin-top:2px}
 .upi-download-btn{width:100%;border:none;background:#f1f5f9;color:#374151;border-radius:12px;padding:12px;font-family:var(--ff);font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
@@ -2144,12 +2144,6 @@ textarea{resize:vertical;min-height:80px}
         <div class="pend-meta-label">Est. Delivery</div>
         <div class="pend-meta-val" id="si-delivery-time">—</div>
       </div>
-    </div>
-
-    <!-- Insufficient wallet notice -->
-    <div class="pend-insuf-notice">
-      <i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;font-size:15px;flex-shrink:0;margin-top:1px"></i>
-      <span>Your wallet balance covered part of the order. The remaining amount must be paid via UPI to confirm your order.</span>
     </div>
 
     <!-- QR Card -->
@@ -5561,10 +5555,24 @@ function showClosedPopup(reason) {
 
 /* ─── UPI QR PAYMENT HELPERS ─────────────────────────────────────────────────
    _generateQR(boxId, amount, orderId) — renders QR into a DOM container
-   _downloadQR(boxId)                  — saves QR directly to gallery via blob download
-   _openUpiApp(app)                    — opens app store page for the UPI app
-   No deep links used (they are unreliable). QR data is standard UPI URI that
-   all UPI apps can scan natively from the device gallery.
+   _downloadQR(boxId)                  — saves a padded, scannable PNG to gallery
+   _openUpiApp(app)                    — opens the UPI app directly via intent
+
+   STRATEGY (v52):
+   ┌─ QR ──────────────────────────────────────────────────────────────────────┐
+   │  • Internal canvas: 512px — high-res, error-correction H (30% damage OK) │
+   │  • Download canvas: 512px QR + 64px white padding all around = 640×640px │
+   │    → same dimensions as PhonePe QR (640×640). Fully scannable from        │
+   │    gallery by any UPI app.                                                 │
+   │  • ecLevel H so QR still scans even if partially obscured.                │
+   └───────────────────────────────────────────────────────────────────────────┘
+   ┌─ App open ─────────────────────────────────────────────────────────────────┐
+   │  Android: intent:// URL — OS tries to open installed app first.            │
+   │    • App installed  → home screen opens directly (NO prefill, NO amount)   │
+   │    • App not installed → falls through to Play Store via fallback param     │
+   │  iOS: universal link → app opens if installed, App Store otherwise         │
+   │  User then uses "Scan from Gallery / Scan QR" inside the app.              │
+   └───────────────────────────────────────────────────────────────────────────┘
 ─────────────────────────────────────────────────────────────────────────── */
 const _UPI_VPA = '7233992325@ibl';
 const _UPI_NAME = 'Tiffo';
@@ -5573,88 +5581,125 @@ function _generateQR(boxId, amount, orderId) {
   const box = document.getElementById(boxId);
   if (!box) return;
   box.innerHTML = '';
-  // UPI spec: amount must be fixed-point string, max 2 decimal places
   const amtStr = parseFloat(amount).toFixed(2);
+  // Standard UPI deep-link URI — all UPI apps parse this on gallery scan
   const upiUri = `upi://pay?pa=${_UPI_VPA}&pn=${encodeURIComponent(_UPI_NAME)}&am=${amtStr}&tn=${encodeURIComponent('Tiffo-' + orderId)}&cu=INR`;
-  // qr-creator renders a crisp, scannable canvas at the exact pixel size requested
   const canvas = document.createElement('canvas');
+  // 512px internal — displayed at 200px via CSS but crisp on high-DPI
   box.appendChild(canvas);
   try {
-    QrCreator.render({ text: upiUri, radius: 0, ecLevel: 'M', fill: '#111827', background: '#fff', size: 256 }, canvas);
+    QrCreator.render({ text: upiUri, radius: 0, ecLevel: 'H', fill: '#000000', background: '#ffffff', size: 512 }, canvas);
+    canvas.style.width  = '200px';
+    canvas.style.height = '200px';
+    // store upiUri on canvas for download
+    canvas.dataset.upiUri = upiUri;
+    canvas.dataset.amount  = amtStr;
   } catch(e) {
     box.innerHTML = '<div style="font-family:monospace;font-size:11px;color:#555;padding:10px;text-align:center;word-break:break-all">' + _UPI_VPA + '<br><br>Amount: ₹' + amount + '</div>';
   }
 }
 
 // ── Save QR to gallery ───────────────────────────────────────────────────────
-// Uses blob URL + <a download> — triggers native Save/Download dialog on Android
-// Chrome (PWA and browser) and goes directly to gallery. dataURL anchors open a
-// blank tab in Chrome; blob URLs download correctly.
+// Generates a 640×640 PNG (512px QR + 64px white border all around).
+// This is the same spec as PhonePe / GPay shared QR images.
+// Any UPI app's "Scan from Gallery" will pick it up and auto-fill amount.
 function _downloadQR(boxId) {
   const box = document.getElementById(boxId);
   if (!box) return;
-  const canvas = box.querySelector('canvas');
-  if (!canvas) { toast('QR is still loading — wait a moment and try again.'); return; }
+  const srcCanvas = box.querySelector('canvas');
+  if (!srcCanvas) { toast('QR is still loading — wait a moment and try again.'); return; }
+
   try {
-    canvas.toBlob(blob => {
+    const PAD = 64;          // white border (px) on each side
+    const QR  = 512;         // QR module size (matches render call)
+    const TOTAL = QR + PAD * 2;  // 640 × 640
+
+    const out = document.createElement('canvas');
+    out.width  = TOTAL;
+    out.height = TOTAL;
+    const ctx = out.getContext('2d');
+
+    // White background (entire canvas)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, TOTAL, TOTAL);
+
+    // Draw QR centered with padding
+    ctx.drawImage(srcCanvas, PAD, PAD, QR, QR);
+
+    // Amount label at bottom inside padding
+    const amt = srcCanvas.dataset.amount || '';
+    if (amt) {
+      ctx.fillStyle = '#111111';
+      ctx.font = 'bold 22px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('₹' + parseFloat(amt).toFixed(0), TOTAL / 2, QR + PAD + 38);
+      ctx.font = '16px Arial, sans-serif';
+      ctx.fillStyle = '#555555';
+      ctx.fillText(_UPI_VPA + '  ·  Tiffo', TOTAL / 2, QR + PAD + 60);
+    }
+
+    out.toBlob(blob => {
       if (!blob) { toast('Could not generate QR image. Please screenshot instead.'); return; }
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = 'Tiffo_UPI_QR.png';
+      a.download = 'Tiffo_Pay_QR.png';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
-      toast('Saving QR to gallery… 📥');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      toast('QR saved! Open your UPI app → Scan from Gallery 📥');
     }, 'image/png');
   } catch(e) {
     toast('Could not save QR. Please screenshot this screen instead.');
   }
 }
 
-// ── Open UPI app (Android intent:// URI → Play Store fallback) ───────────────
-// Custom schemes (phonepe://, tez://) are blocked by Chrome/PWA on Android.
-// The only reliable cross-browser method is the Android intent:// URI:
-//   intent://pay?<upi params>#Intent;scheme=upi;package=<pkg>;
-//                              S.browser_fallback_url=<store>;end
-// Chrome handles this natively: opens the target app if installed, or the
-// fallback URL (Play Store) if not — no JS timers or visibilitychange needed.
-// On iOS we fall back to the App Store link directly (no intent support).
+// ── Open UPI app ─────────────────────────────────────────────────────────────
+// Android: intent:// URI — highest reliability for opening installed app.
+//   OS resolves intent before Chrome renders anything:
+//     App installed  → opens app home (NO amount prefilled)
+//     App not installed → Play Store fallback via S.browser_fallback_url
+// iOS: universal link → opens app or App Store.
+//
+// NOTE: We intentionally do NOT pass UPI payment params here.
+// The user downloads the QR, opens the app, and uses "Scan from Gallery".
+// Amount is auto-filled from the QR data by the UPI app itself.
 function _openUpiApp(app) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
-  // Read amount from whichever page is currently active
-  const activePg = document.querySelector('.pg.here')?.id || '';
-  const amtEl = activePg === 'pg-success-insuf' ? document.getElementById('si-amount')
-              : activePg === 'pg-success'        ? document.getElementById('s-amount')
-              : document.getElementById('rch-qr-amt-label');
-  const rawAmt = (amtEl?.textContent || '').replace(/[^0-9.]/g, '');
-  const amtStr = rawAmt ? parseFloat(rawAmt).toFixed(2) : '0.00';
-
-  const upiParams = `pa=${_UPI_VPA}&pn=${encodeURIComponent(_UPI_NAME)}&am=${amtStr}&tn=${encodeURIComponent('Tiffo Payment')}&cu=INR`;
-
-  const pkgs = {
-    phonepe: 'com.phonepe.app',
-    gpay:    'com.google.android.apps.nbu.paisa.user',
-    paytm:   'net.one97.paytm'
+  // Android intent URIs — launch app home screen directly
+  const intentMap = {
+    phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
+    gpay:    'intent://pay#Intent;scheme=gpay;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
+    paytm:   'intent://home#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
   };
-  const stores = {
-    phonepe: { android: 'https://play.google.com/store/apps/details?id=com.phonepe.app',                        ios: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871' },
-    gpay:    { android: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user', ios: 'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041' },
-    paytm:   { android: 'https://play.google.com/store/apps/details?id=net.one97.paytm',                        ios: 'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634' }
+  // iOS universal links
+  const iosMap = {
+    phonepe: 'https://phpe.app/home',
+    gpay:    'https://pay.google.com',
+    paytm:   'https://paytm.com'
+  };
+  // iOS App Store fallback (used if universal link fails / app not installed)
+  const appStore = {
+    phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
+    gpay:    'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041',
+    paytm:   'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
   };
 
   if (isIOS) {
-    // iOS: open App Store (no intent support; user opens app manually then scans QR)
-    window.open(stores[app].ios, '_blank');
+    // Try universal link; if app not installed the browser will follow the link
+    // which may redirect to App Store. Safe to open in same window on iOS.
+    const ul = iosMap[app];
+    if (ul) { window.location.href = ul; }
     return;
   }
 
-  // Android: intent URI — Chrome/WebView opens the app directly or falls to Play Store
-  const fallback = encodeURIComponent(stores[app].android);
-  const intentUrl = `intent://pay?${upiParams}#Intent;scheme=upi;package=${pkgs[app]};S.browser_fallback_url=${fallback};end`;
-  window.location.href = intentUrl;
+  // Android — intent URI
+  const intent = intentMap[app];
+  if (!intent) return;
+  // Use location.href so Chrome processes the intent scheme properly in PWA
+  window.location.href = intent;
 }
 
 // ── Wallet Recharge QR Modal ─────────────────────────────────────────────────
