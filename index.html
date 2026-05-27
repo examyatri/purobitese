@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v54.0                                    ║
+     ║  Version : v55.0                                    ║
      ║  Updated : 2026-05-27                               ║
-     ║  Changes : UPI Smart Monitor (_upiMon) system.      ║
+     ║  Changes : UPI QR note logic updated.               ║
      ║            Auto-saves QR before opening UPI app.    ║
      ║            Debounce on app icon taps & download btn.║
      ║            Global lock prevents duplicate launches. ║
@@ -5861,27 +5861,28 @@ function _generateQR(boxId, amount, orderId, custName, custPhone) {
   const amtStr  = (isFinite(_rawAmt) && _rawAmt > 0) ? _rawAmt.toFixed(2) : '';
 
   // ── Build UPI transaction note (tn=) ────────────────────────────────────────
-  // Hard cap: 35 chars — ultra-safe across PhonePe, GPay, Paytm.
-  // Order:    #orderId → add phone if fits → add name if fits → else fallback to #orderId only.
-  // Recharge: phone → add name if fits → else fallback to phone only.
+  // Hard cap: 50 chars — safe upper limit for GPay, PhonePe, Paytm tn= field.
+  // Order:    orderId only (clean, no prefix/labels/name/phone).
+  //           Fallback if orderId alone exceeds cap → phone only.
+  // Recharge: phone + name (e.g. "9876543210 Rahul").
+  //           Fallback if full string exceeds cap → phone only.
   // All inputs stripped to ASCII-safe range to prevent encodeURIComponent
   // from throwing on surrogate/emoji chars in name fields.
   const _safe   = s => String(s || '').replace(/[^\x20-\x7E]/g, '').trim();
-  const _CAP    = 35;
+  const _CAP    = 50;
   const _isRecharge = String(orderId).startsWith('Recharge-');
   let _tn;
   try {
     if (_isRecharge) {
+      // Recharge: "9876543210 Rahul" — phone is mandatory base
       const _rBase = custPhone ? _safe(custPhone).slice(0,10) : 'Recharge';
-      const _rFull = custName  ? _rBase + ' ' + _safe(custName).slice(0,14) : _rBase;
+      const _rFull = custName  ? _rBase + ' ' + _safe(custName).slice(0,20) : _rBase;
       _tn = _rFull.length <= _CAP ? _rFull : _rBase;
     } else {
-      const _oid    = '#' + _safe(orderId);
-      const _wPhone = custPhone ? _oid + ' ' + _safe(custPhone).slice(0,10) : _oid;
-      const _wName  = custName  ? _wPhone + ' ' + _safe(custName).slice(0,14) : _wPhone;
-      if      (_wName.length  <= _CAP) _tn = _wName;
-      else if (_wPhone.length <= _CAP) _tn = _wPhone;
-      else                             _tn = _oid;
+      // Order: orderId only — clean, no labels, no customer details
+      const _oid   = _safe(orderId);
+      const _phone = custPhone ? _safe(custPhone).slice(0,10) : '';
+      _tn = _oid.length <= _CAP ? _oid : (_phone || _oid.slice(0, _CAP));
     }
   } catch(_) { _tn = ''; }
 
@@ -6308,13 +6309,13 @@ function generateRechargeQR() {
   sec.style.display = 'flex';
   sec.style.flexDirection = 'column';
   document.getElementById('rch-qr-amt-label').textContent = '₹' + rounded;
-  // Generate QR — use phone as order ref so admin can match payment
+  // Generate QR — pass full phone + name so tn= = "9876543210 Rahul"
   const user = Auth.get();
-  const ref = user?.phone ? user.phone.slice(-4) : 'RCH';
-  setTimeout(() => _generateQR('rch-qr-box', rounded, 'Recharge-' + ref, name, phone), 80);
-  // Pre-build WA message for the confirm button
   const name = user?.name || 'Customer';
   const phone = user?.phone || '';
+  const ref = phone ? phone.slice(-4) : 'RCH';
+  setTimeout(() => _generateQR('rch-qr-box', rounded, 'Recharge-' + ref, name, phone), 80);
+  // Pre-build WA message for the confirm button
   document.getElementById('rch-wa-btn').onclick = () => {
     openWA('9889760350',
       `💰 *Tiffo — Wallet Recharge Request*\n${'━'.repeat(32)}\n👤 *MY DETAILS*\n   Name:      ${name}\n   Phone:     ${phone}\n${'━'.repeat(32)}\n💳 *PAYMENT DETAILS*\n   Purpose:   Wallet Top-Up / Recharge\n   Amount:    ₹${rounded}\n   UPI ID:    ${_UPI_VPA}\n   Mode:      UPI\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly add ₹${rounded} to my Tiffo wallet. Thank you! 🙏`);
@@ -8065,33 +8066,48 @@ async function bootApp() {
   _loadSignupAreas();
 
   // Register service worker silently (no await — don't block boot)
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js', { scope: '/' }).then(reg => {
-      // Auto-reload when a new SW version is installed (e.g. after GitHub deploy)
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version ready — reload silently to activate it
-            newWorker.postMessage({ type: 'SKIP_WAITING' });
-          }
-        });
-      });
+  // ONCE-GUARD: bootApp() can be called multiple times (DOMContentLoaded,
+  // bfcache pageshow restore, retry button). SW registration and all
+  // serviceWorker event listeners must only be attached once per page
+  // lifetime — otherwise each call stacks another controllerchange listener
+  // with its own independent _swReloading flag, causing multiple reloads.
+  if ('serviceWorker' in navigator && !window._swInitDone) {
+    window._swInitDone = true;
+
+    // Capture controller state NOW — before any async work.
+    // True  → existing SW is running  → a future controllerchange = update → reload.
+    // False → no SW yet (first install) → controllerchange from clients.claim() → NO reload.
+    window._swHadController = !!navigator.serviceWorker.controller;
+
+    navigator.serviceWorker.register('./sw.js', { scope: '/', updateViaCache: 'none' }).then(reg => {
+      // Force-check for a new SW on every page load.
+      // updateViaCache:'none' bypasses the browser's HTTP cache for sw.js so
+      // a new deploy is detected immediately, not after the 24h cache window.
+      reg.update().catch(() => {});
+      // sw.js calls self.skipWaiting() in its own install handler — the new
+      // worker activates immediately without needing a message from us.
+      // controllerchange listener below handles the page reload.
     }).catch(() => {});
-    // Listen for SW background HTML update notification (v30.0 sw.js)
-    // When index.html is refreshed in background cache, SW notifies us.
-    // We use this to trigger a silent menu re-fetch so content matches the new shell.
+
+    // Reload once when a new SW takes control (= SW update deployed).
+    // _swHadController guards against reloading on first install.
+    // _swReloading guards against a second reload if the event fires twice.
+    window._swReloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!window._swHadController) return; // first install — skip
+      if (window._swReloading) return;      // already reloading
+      window._swReloading = true;
+      window.location.reload();
+    });
+
+    // SW background HTML update notification (sw.js Strategy 3 revalidation).
+    // When SW refreshes index.html in cache, it posts SW_HTML_UPDATED so we
+    // can quietly re-fetch menu data to match the new app shell.
     navigator.serviceWorker.addEventListener('message', e => {
       if (e.data?.type === 'SW_HTML_UPDATED') {
-        // App shell updated in background — quietly refresh menu data too.
-        // No _session guard — guests also need fresh data when index.html changes.
         loadMenu(true, true).catch(() => {});
       }
     });
-    // NOTE: We do NOT reload on controllerchange.
-    // New SW already controls the page and will serve fresh assets on next navigation.
-    // Immediate location.reload() caused a visible jerk on every post-deploy visit.
   }
 
   /* ══════════════════════════════════════════════════════════════

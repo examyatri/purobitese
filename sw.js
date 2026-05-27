@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v33.1  |  Updated : 2026-05-27
+   Version : v34.0  |  Updated : 2026-05-27
 
    CHANGES v31.0:
    - config.js changed from async to defer in index.html → deterministic boot
@@ -18,7 +18,7 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v35'; // bumped for v48 release — UPI smart monitor + QR fallback system
+const CACHE      = 'tiffo-v36'; // bumped for v55 — QR note logic: order=orderId only, recharge=phone+name
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
