@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v21.1                                    ║
+     ║  Version : v21.2                                    ║
      ║  Updated : 2026-05-27                               ║
      ║  Changes : Earnings 6-bug fix —                     ║
      ║   1. earnQuick fires correct loader per active tab  ║
@@ -1751,6 +1751,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <div class="settings-item" onclick="showSettingPanel('auto-tiffin-cutoff',this)">
               <div class="si-icon" style="background:#fef9c3"><i class="fa fa-stopwatch" style="color:#b45309"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Auto Tiffin Cutoff</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('help-videos',this)">
+              <div class="si-icon" style="background:#fdf4ff"><i class="fa-brands fa-youtube" style="color:#9333ea"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Help Videos</span>
             </div>
             <div class="settings-item" onclick="showSettingPanel('master-del',this)">
               <div class="si-icon" style="background:#fee2e2"><i class="fa fa-skull-crossbones" style="color:#be123c"></i></div>
@@ -5754,7 +5758,8 @@ function showSettingPanel(type, el) {
     'master-del': renderMasterDelPanel,
     'delivery-zone': renderDeliveryZonePanel,
     'delivery-areas': renderDeliveryAreasPanel,
-    'auto-tiffin-cutoff': renderAutoTiffinCutoffPanel
+    'auto-tiffin-cutoff': renderAutoTiffinCutoffPanel,
+    'help-videos': renderHelpVideosPanel
   };
   if (panels[type]) panels[type](area);
 }
@@ -6164,6 +6169,532 @@ async function doMasterDelete() {
     }
   );
 }
+
+// ─── HELP VIDEOS SETTINGS ────────────────────────────────
+let _hvVideos     = [];
+let _hvCategories = []; // dynamic — fetched from DB
+
+async function renderHelpVideosPanel(area) {
+  area.innerHTML = `
+    <div class="settings-panel">
+
+      <!-- ── Header ── -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#fdf4ff,#ede9fe);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 2px 8px rgba(147,51,234,.15)">
+          <i class="fa-brands fa-youtube" style="color:#9333ea"></i>
+        </div>
+        <div>
+          <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#0f172a">TiffoTube — Help Videos</div>
+          <div style="font-size:12px;color:#64748b;font-family:var(--fb);margin-top:1px">Manage tutorial videos displayed in the help section</div>
+        </div>
+      </div>
+
+      <!-- ── Add Video Form ── -->
+      <div style="background:linear-gradient(135deg,#faf5ff,#f5f3ff);border:1.5px solid #e9d5ff;border-radius:14px;padding:18px;margin-bottom:20px">
+        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:14px;display:flex;align-items:center;gap:7px">
+          <div style="width:24px;height:24px;background:#9333ea;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <i class="fa fa-plus" style="color:#fff;font-size:10px"></i>
+          </div>
+          Add New Video
+        </div>
+
+        <div class="field" style="margin-bottom:12px">
+          <label style="font-size:12px;font-weight:700;color:#374151;display:flex;align-items:center;gap:5px;margin-bottom:6px">
+            <i class="fa fa-heading" style="color:#9333ea;font-size:10px"></i> Video Title <span style="color:var(--p)">*</span>
+          </label>
+          <input id="hv-title" placeholder="e.g. How to Place Your First Order" autocomplete="off"
+            style="background:#fff;border:1.5px solid #e9d5ff;border-radius:10px;padding:10px 13px;width:100%;font-family:var(--fb);font-size:13px;color:#0f172a;outline:none;transition:border-color .2s,box-shadow .2s"
+            onfocus="this.style.borderColor='#9333ea';this.style.boxShadow='0 0 0 3px rgba(147,51,234,.1)'"
+            onblur="this.style.borderColor='#e9d5ff';this.style.boxShadow='none'">
+        </div>
+
+        <div class="field" style="margin-bottom:12px">
+          <label style="font-size:12px;font-weight:700;color:#374151;display:flex;align-items:center;gap:5px;margin-bottom:6px">
+            <i class="fa-brands fa-youtube" style="color:#9333ea;font-size:10px"></i> YouTube Link <span style="color:var(--p)">*</span>
+          </label>
+          <input id="hv-url" type="url" placeholder="https://youtube.com/watch?v=..." autocomplete="off"
+            style="background:#fff;border:1.5px solid #e9d5ff;border-radius:10px;padding:10px 13px;width:100%;font-family:var(--fb);font-size:13px;color:#0f172a;outline:none;transition:border-color .2s,box-shadow .2s;font-family:monospace"
+            onfocus="this.style.borderColor='#9333ea';this.style.boxShadow='0 0 0 3px rgba(147,51,234,.1)'"
+            onblur="this.style.borderColor='#e9d5ff';this.style.boxShadow='none'"
+            oninput="hvPreviewThumb(this.value)">
+          <!-- Thumbnail preview -->
+          <div id="hv-thumb-preview" style="display:none;margin-top:8px;border-radius:10px;overflow:hidden;border:1px solid #e9d5ff;position:relative">
+            <img id="hv-thumb-img" src="" alt="Thumbnail" style="width:100%;display:block;max-height:120px;object-fit:cover">
+            <div style="position:absolute;bottom:6px;left:6px;background:rgba(147,51,234,.85);color:#fff;font-size:10px;font-family:var(--ff);font-weight:700;padding:2px 8px;border-radius:20px">
+              <i class="fa fa-check" style="margin-right:3px"></i>Valid YouTube Link
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:700;color:#374151;display:flex;align-items:center;gap:5px;margin-bottom:6px">
+            <i class="fa fa-tag" style="color:#9333ea;font-size:10px"></i> Category
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="hv-cat-grid">
+            <div style="grid-column:1/-1;text-align:center;padding:10px;color:#94a3b8;font-size:12px;font-family:var(--fb)"><i class="fa fa-spinner fa-spin"></i> Loading…</div>
+          </div>
+        </div>
+
+        <button class="btn btn-p" style="width:100%;font-size:13px;padding:11px;border-radius:10px;background:linear-gradient(135deg,#9333ea,#7c3aed)" onclick="hvAddVideo()">
+          <i class="fa fa-plus"></i> Add Video to TiffoTube
+        </button>
+      </div>
+
+      <!-- ── Category Management ── -->
+      <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;border-radius:14px;padding:16px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#15803d;display:flex;align-items:center;gap:7px">
+            <div style="width:24px;height:24px;background:#16a34a;border-radius:6px;display:flex;align-items:center;justify-content:center">
+              <i class="fa fa-tags" style="color:#fff;font-size:10px"></i>
+            </div>
+            Manage Categories
+          </div>
+          <button onclick="hvToggleCatManager()" id="hv-cat-toggle-btn"
+            style="font-size:11px;font-family:var(--fb);font-weight:600;color:#15803d;background:rgba(22,163,74,.1);border:1px solid #bbf7d0;border-radius:8px;padding:4px 10px;cursor:pointer">
+            <i class="fa fa-chevron-down" id="hv-cat-toggle-icon"></i> Show
+          </button>
+        </div>
+        <div id="hv-cat-manager" style="display:none">
+          <!-- Add category row -->
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+            <input id="hv-new-cat-label" placeholder="Category name e.g. Offers"
+              style="flex:1;padding:8px 11px;border:1.5px solid #bbf7d0;border-radius:9px;font-family:var(--fb);font-size:13px;color:#0f172a;background:#fff;outline:none"
+              onfocus="this.style.borderColor='#16a34a'" onblur="this.style.borderColor='#bbf7d0'"
+              onkeydown="if(event.key==='Enter')hvAddCategory()">
+            <input id="hv-new-cat-color" type="color" value="#475569" title="Text color"
+              style="width:36px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;padding:2px;cursor:pointer;background:#fff">
+            <input id="hv-new-cat-bg" type="color" value="#f1f5f9" title="Background color"
+              style="width:36px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;padding:2px;cursor:pointer;background:#fff">
+            <button onclick="hvAddCategory()"
+              style="padding:8px 14px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:9px;font-family:var(--fb);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">
+              <i class="fa fa-plus"></i> Add
+            </button>
+          </div>
+          <div style="font-size:10.5px;color:#64748b;font-family:var(--fb);margin-bottom:10px">
+            <i class="fa fa-circle-info" style="margin-right:4px;color:#16a34a"></i>
+            Deleting a category moves its videos to <strong>General</strong>. The General category cannot be deleted.
+          </div>
+          <!-- Category list -->
+          <div id="hv-cat-list" style="display:flex;flex-direction:column;gap:6px">
+            <div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px;font-family:var(--fb)"><i class="fa fa-spinner fa-spin"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Video List ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">
+          <i class="fa fa-list" style="color:#9333ea;margin-right:6px"></i>Published Videos
+        </div>
+        <div id="hv-count" style="font-size:11px;color:#64748b;font-family:var(--fb);background:#f1f5f9;padding:3px 10px;border-radius:20px"></div>
+      </div>
+      <div id="hv-list">
+        <div style="text-align:center;padding:32px;color:#94a3b8;font-size:13px;font-family:var(--fb)">
+          <i class="fa fa-spinner fa-spin" style="margin-bottom:8px;display:block;font-size:20px;color:#c4b5fd"></i>Loading videos…
+        </div>
+      </div>
+
+    </div>`;
+
+  /* ── Load categories first, then videos ── */
+  await hvLoadCategories();
+  await hvLoad();
+}
+
+/* ── Toggle category manager ── */
+function hvToggleCatManager() {
+  const mgr  = document.getElementById('hv-cat-manager');
+  const icon = document.getElementById('hv-cat-toggle-icon');
+  const btn  = document.getElementById('hv-cat-toggle-btn');
+  if (!mgr) return;
+  const open = mgr.style.display === 'none';
+  mgr.style.display = open ? 'block' : 'none';
+  if (icon) { icon.className = open ? 'fa fa-chevron-up' : 'fa fa-chevron-down'; }
+  if (btn)  { btn.innerHTML = (open ? '<i class="fa fa-chevron-up"></i> Hide' : '<i class="fa fa-chevron-down"></i> Show'); }
+}
+
+/* ── Load & render categories ── */
+async function hvLoadCategories() {
+  try {
+    const d = await api('getHelpCategories');
+    _hvCategories = d.categories || [];
+  } catch(e) {
+    _hvCategories = [];
+  }
+  hvRenderCatRadios();
+  hvRenderCatList();
+}
+
+/* ── Render radio buttons dynamically ── */
+function hvRenderCatRadios() {
+  const grid = document.getElementById('hv-cat-grid');
+  if (!grid) return;
+  if (!_hvCategories.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;color:#94a3b8;font-size:12px;font-family:var(--fb);padding:8px">No categories yet</div>';
+    return;
+  }
+  grid.innerHTML = _hvCategories.map((cat, i) => `
+    <label class="hv-cat-opt" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1.5px solid ${i===0?'#9333ea':'#e9d5ff'};border-radius:10px;cursor:pointer;background:${i===0?'#faf5ff':'#fff'};transition:all .18s">
+      <input type="radio" name="hv-cat" value="${escAdminAttr(cat.slug)}" ${i===0?'checked':''} style="accent-color:#9333ea"
+        onchange="hvCatRadioChange(this)">
+      <span style="font-family:var(--fb);font-size:12.5px;font-weight:600;color:#374151">${escAdminHtml(cat.label)}</span>
+      <span style="width:8px;height:8px;border-radius:50%;background:${escAdminAttr(cat.color)};flex-shrink:0;margin-left:auto"></span>
+    </label>`).join('');
+}
+
+function hvCatRadioChange(radio) {
+  document.querySelectorAll('#hv-cat-grid .hv-cat-opt').forEach(lbl => {
+    lbl.style.borderColor = '#e9d5ff';
+    lbl.style.background  = '#fff';
+  });
+  if (radio?.closest('.hv-cat-opt')) {
+    radio.closest('.hv-cat-opt').style.borderColor = '#9333ea';
+    radio.closest('.hv-cat-opt').style.background  = '#faf5ff';
+  }
+}
+
+/* ── Render category management list ── */
+function hvRenderCatList() {
+  const el = document.getElementById('hv-cat-list');
+  if (!el) return;
+  if (!_hvCategories.length) {
+    el.innerHTML = '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px;font-family:var(--fb)">No categories</div>';
+    return;
+  }
+  el.innerHTML = _hvCategories.map(cat => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:1px solid #d1fae5;border-radius:9px">
+      <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;background:${escAdminAttr(cat.bg_color)};color:${escAdminAttr(cat.color)};border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700;min-width:0;flex:1">
+        <span style="width:7px;height:7px;border-radius:50%;background:${escAdminAttr(cat.color)};flex-shrink:0"></span>
+        ${escAdminHtml(cat.label)}
+      </span>
+      <span style="font-size:10px;color:#94a3b8;font-family:monospace">${escAdminHtml(cat.slug)}</span>
+      ${cat.slug === 'general'
+        ? `<span style="font-size:10px;color:#94a3b8;font-family:var(--fb);padding:2px 8px;background:#f8fafc;border-radius:6px">default</span>`
+        : `<button onclick="hvDeleteCategory('${escAdminAttr(cat.slug)}','${escAdminAttr(cat.label)}')"
+            style="width:28px;height:28px;border:1.5px solid #fecdd3;border-radius:7px;background:#fff1f2;cursor:pointer;font-size:11px;color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0"
+            onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fff1f2'">
+            <i class="fa fa-trash"></i>
+          </button>`
+      }
+    </div>`).join('');
+}
+
+async function hvAddCategory() {
+  const labelEl = document.getElementById('hv-new-cat-label');
+  const colorEl = document.getElementById('hv-new-cat-color');
+  const bgEl    = document.getElementById('hv-new-cat-bg');
+  const label   = labelEl?.value.trim();
+  const color   = colorEl?.value || '#475569';
+  const bg_color = bgEl?.value   || '#f1f5f9';
+  if (!label) { aToast('Category name required'); return; }
+  try {
+    await api('addHelpCategory', { label, color, bg_color });
+    aToast(`Category "${label}" added ✅`);
+    if (labelEl) labelEl.value = '';
+    await hvLoadCategories();
+  } catch(e) { aToast(e.message); }
+}
+
+async function hvDeleteCategory(slug, label) {
+  if (!confirm(`Delete category "${label}"?\n\nAll videos in this category will be moved to General.`)) return;
+  try {
+    await api('deleteHelpCategory', { slug });
+    aToast(`Category "${label}" deleted`);
+    await hvLoadCategories();
+    await hvLoad(); // refresh videos list (some may have moved to general)
+  } catch(e) { aToast(e.message); }
+}
+
+/* ── Thumbnail preview on URL input ── */
+function hvPreviewThumb(url) {
+  const id = hvYtId(url);
+  const preview = document.getElementById('hv-thumb-preview');
+  const img     = document.getElementById('hv-thumb-img');
+  if (!preview || !img) return;
+  if (id) {
+    img.src = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+    img.src = '';
+  }
+}
+
+/* ── Extract YT ID ── */
+function hvYtId(url) {
+  if (!url) return '';
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+
+/* ── Load from API ── */
+async function hvLoad() {
+  try {
+    const d = await api('getHelpVideos');
+    _hvVideos = (d.videos || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    hvRenderList();
+  } catch(e) {
+    const el = document.getElementById('hv-list');
+    if (el) el.innerHTML = `<div style="color:var(--p);font-size:13px;font-family:var(--fb);padding:16px;background:#fff1f2;border-radius:10px"><i class="fa fa-triangle-exclamation" style="margin-right:6px"></i>Error: ${escAdminHtml(e.message)}</div>`;
+  }
+}
+
+/* ── Render list ── */
+function hvRenderList() {
+  const el = document.getElementById('hv-list');
+  if (!el) return;
+
+  const countEl = document.getElementById('hv-count');
+  if (countEl) countEl.textContent = `${_hvVideos.length} video${_hvVideos.length !== 1 ? 's' : ''}`;
+
+  if (!_hvVideos.length) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:36px 24px;background:#faf5ff;border:1.5px dashed #e9d5ff;border-radius:12px">
+        <i class="fa-brands fa-youtube" style="font-size:28px;color:#c4b5fd;margin-bottom:10px;display:block"></i>
+        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:4px">No videos yet</div>
+        <div style="font-size:12px;color:#94a3b8;font-family:var(--fb)">Add your first tutorial video above</div>
+      </div>`;
+    return;
+  }
+
+  const CAT_LABEL = Object.fromEntries(_hvCategories.map(c => [c.slug, c.label]));
+  const CAT_COLOR = Object.fromEntries(_hvCategories.map(c => [c.slug, c.color]));
+  const CAT_BG    = Object.fromEntries(_hvCategories.map(c => [c.slug, c.bg_color]));
+
+  el.innerHTML = _hvVideos.map((v, idx) => {
+    const thumbId  = hvYtId(v.youtube_url);
+    const thumbUrl = thumbId ? `https://img.youtube.com/vi/${thumbId}/mqdefault.jpg` : '';
+    const catLabel = CAT_LABEL[v.category] || 'General';
+    const catColor = CAT_COLOR[v.category] || '#64748b';
+    const catBg    = CAT_BG[v.category]    || '#f1f5f9';
+    const isFirst  = idx === 0;
+    const isLast   = idx === _hvVideos.length - 1;
+
+    return `
+    <div id="hv-row-${v.id}" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:8px;overflow:hidden;transition:box-shadow .2s">
+
+      <!-- View mode -->
+      <div id="hv-view-${v.id}" style="display:flex;align-items:stretch;gap:0">
+
+        <!-- Drag handles / order controls -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 8px;background:#f8fafc;border-right:1px solid #f1f5f9;flex-shrink:0">
+          <button onclick="hvMove(${v.id},-1)" title="Move Up"
+            style="width:26px;height:26px;border:1px solid #e2e8f0;border-radius:6px;background:${isFirst?'#f8fafc':'#fff'};cursor:${isFirst?'not-allowed':'pointer'};font-size:11px;color:${isFirst?'#cbd5e1':'#475569'};display:flex;align-items:center;justify-content:center;transition:all .15s"
+            ${isFirst ? 'disabled' : ''}>
+            <i class="fa fa-arrow-up"></i>
+          </button>
+          <span style="font-size:10px;font-weight:700;color:#94a3b8;font-family:var(--ff)">${idx + 1}</span>
+          <button onclick="hvMove(${v.id},1)" title="Move Down"
+            style="width:26px;height:26px;border:1px solid #e2e8f0;border-radius:6px;background:${isLast?'#f8fafc':'#fff'};cursor:${isLast?'not-allowed':'pointer'};font-size:11px;color:${isLast?'#cbd5e1':'#475569'};display:flex;align-items:center;justify-content:center;transition:all .15s"
+            ${isLast ? 'disabled' : ''}>
+            <i class="fa fa-arrow-down"></i>
+          </button>
+        </div>
+
+        <!-- Thumbnail -->
+        <div style="width:80px;flex-shrink:0;position:relative;overflow:hidden;background:#1a1a2e">
+          ${thumbUrl
+            ? `<img src="${thumbUrl}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#16213e)"><i class="fa-brands fa-youtube" style="color:#c4b5fd;font-size:20px"></i></div>`}
+        </div>
+
+        <!-- Info -->
+        <div style="flex:1;min-width:0;padding:10px 12px">
+          <div style="font-family:var(--ff);font-weight:700;font-size:12.5px;color:#0f172a;line-height:1.4;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escAdminHtml(v.title)}</div>
+          <span style="display:inline-block;padding:2px 8px;background:${catBg};color:${catColor};border-radius:20px;font-size:10px;font-family:var(--ff);font-weight:700;margin-bottom:5px">${catLabel}</span>
+          <div style="font-size:10.5px;color:#94a3b8;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAdminHtml(v.youtube_url)}</div>
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;flex-direction:column;gap:4px;padding:10px 10px 10px 0;flex-shrink:0;justify-content:center">
+          <button onclick="hvStartEdit(${v.id})" title="Edit"
+            style="width:32px;height:32px;border:1.5px solid #bfdbfe;border-radius:8px;background:#eff6ff;cursor:pointer;font-size:12px;color:#2563eb;display:flex;align-items:center;justify-content:center;transition:all .15s"
+            onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">
+            <i class="fa fa-pen"></i>
+          </button>
+          <button onclick="hvDelete(${v.id})" title="Delete"
+            style="width:32px;height:32px;border:1.5px solid #fecdd3;border-radius:8px;background:#fff1f2;cursor:pointer;font-size:12px;color:#dc2626;display:flex;align-items:center;justify-content:center;transition:all .15s"
+            onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fff1f2'">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Edit mode (hidden by default) -->
+      <div id="hv-edit-${v.id}" style="display:none;padding:14px;border-top:1.5px solid #e9d5ff;background:#faf5ff">
+
+        <div style="font-size:11px;font-weight:700;color:#6d28d9;font-family:var(--ff);margin-bottom:10px;display:flex;align-items:center;gap:5px">
+          <i class="fa fa-pen" style="font-size:9px"></i> Editing: ${escAdminHtml(v.title.length > 30 ? v.title.slice(0,30)+'…' : v.title)}
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:5px"><i class="fa fa-heading" style="color:#9333ea;font-size:9px;margin-right:4px"></i>Title <span style="color:var(--p)">*</span></label>
+          <input id="hv-etitle-${v.id}" value="${escAdminAttr(v.title)}"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e9d5ff;border-radius:9px;font-family:var(--fb);font-size:13px;color:#0f172a;background:#fff;outline:none;transition:border-color .2s"
+            onfocus="this.style.borderColor='#9333ea'" onblur="this.style.borderColor='#e9d5ff'">
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:5px"><i class="fa-brands fa-youtube" style="color:#9333ea;font-size:9px;margin-right:4px"></i>YouTube URL <span style="color:var(--p)">*</span></label>
+          <input id="hv-eurl-${v.id}" value="${escAdminAttr(v.youtube_url)}"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e9d5ff;border-radius:9px;font-family:monospace;font-size:12px;color:#0f172a;background:#fff;outline:none;transition:border-color .2s"
+            onfocus="this.style.borderColor='#9333ea'" onblur="this.style.borderColor='#e9d5ff'"
+            oninput="hvEditThumbPreview(${v.id}, this.value)">
+          <div id="hv-ethumb-${v.id}" style="margin-top:6px;border-radius:8px;overflow:hidden;border:1px solid #e9d5ff;display:${thumbUrl?'block':'none'}">
+            <img id="hv-ethumb-img-${v.id}" src="${thumbUrl}" alt="" style="width:100%;max-height:100px;object-fit:cover;display:block">
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;font-weight:700;color:#374151;display:block;margin-bottom:8px"><i class="fa fa-tag" style="color:#9333ea;font-size:9px;margin-right:4px"></i>Category</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            ${_hvCategories.map(cat => {
+              const isSelected = v.category === cat.slug;
+              return `<label style="display:flex;align-items:center;gap:7px;padding:8px 10px;border:1.5px solid ${isSelected?'#9333ea':'#e9d5ff'};border-radius:8px;cursor:pointer;background:${isSelected?'#faf5ff':'#fff'};transition:all .15s" id="hv-ecat-lbl-${v.id}-${escAdminAttr(cat.slug)}">
+                <input type="radio" name="hv-ecat-${v.id}" value="${escAdminAttr(cat.slug)}" ${isSelected?'checked':''} style="accent-color:#9333ea"
+                  onchange="hvEditCatChange(${v.id})">
+                <span style="font-family:var(--fb);font-size:11.5px;font-weight:600;color:#374151">${escAdminHtml(cat.label)}</span>
+                <span style="width:6px;height:6px;border-radius:50%;background:${escAdminAttr(cat.color)};flex-shrink:0;margin-left:auto"></span>
+              </label>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <button onclick="hvSaveEdit(${v.id})" class="btn btn-p" style="flex:1;font-size:12px;padding:9px;border-radius:9px;background:linear-gradient(135deg,#9333ea,#7c3aed);box-shadow:0 3px 10px rgba(147,51,234,.3)">
+            <i class="fa fa-check"></i> Save Changes
+          </button>
+          <button onclick="hvCancelEdit(${v.id})" class="btn btn-outline" style="font-size:12px;padding:9px 14px;border-radius:9px">
+            Cancel
+          </button>
+        </div>
+      </div>
+
+    </div>`;
+  }).join('');
+}
+
+/* ── Edit mode helpers ── */
+function hvStartEdit(id) {
+  /* Close any other open edits first */
+  _hvVideos.forEach(v => {
+    if (v.id !== id) hvCancelEdit(v.id);
+  });
+  const view = document.getElementById(`hv-view-${id}`);
+  const edit = document.getElementById(`hv-edit-${id}`);
+  if (!view || !edit) return;
+  view.style.opacity = '.5';
+  edit.style.display = 'block';
+  const titleEl = document.getElementById(`hv-etitle-${id}`);
+  if (titleEl) setTimeout(() => titleEl.focus(), 50);
+}
+
+function hvCancelEdit(id) {
+  const view = document.getElementById(`hv-view-${id}`);
+  const edit = document.getElementById(`hv-edit-${id}`);
+  if (!view || !edit) return;
+  view.style.opacity = '';
+  edit.style.display = 'none';
+}
+
+function hvEditThumbPreview(id, url) {
+  const ytId   = hvYtId(url);
+  const wrap   = document.getElementById(`hv-ethumb-${id}`);
+  const img    = document.getElementById(`hv-ethumb-img-${id}`);
+  if (!wrap || !img) return;
+  if (ytId) {
+    img.src = `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`;
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function hvEditCatChange(id) {
+  _hvCategories.forEach(cat => {
+    const lbl   = document.getElementById(`hv-ecat-lbl-${id}-${cat.slug}`);
+    const radio = lbl ? lbl.querySelector('input[type=radio]') : null;
+    if (!lbl || !radio) return;
+    if (radio.checked) {
+      lbl.style.borderColor = '#9333ea';
+      lbl.style.background  = '#faf5ff';
+    } else {
+      lbl.style.borderColor = '#e9d5ff';
+      lbl.style.background  = '#fff';
+    }
+  });
+}
+
+async function hvSaveEdit(id) {
+  const title = document.getElementById(`hv-etitle-${id}`)?.value.trim();
+  const url   = document.getElementById(`hv-eurl-${id}`)?.value.trim();
+  const catEl = document.querySelector(`input[name="hv-ecat-${id}"]:checked`);
+  const cat   = catEl ? catEl.value : 'general';
+  if (!title) { aToast('Title is required'); return; }
+  if (!url)   { aToast('YouTube URL is required'); return; }
+  if (!url.includes('youtube.com') && !url.includes('youtu.be')) { aToast('Enter a valid YouTube link'); return; }
+  try {
+    await api('updateHelpVideo', { id, title, youtube_url: url, category: cat });
+    aToast('Video updated ✅');
+    await hvLoad();
+  } catch(e) { aToast(e.message); }
+}
+
+async function hvDelete(id) {
+  const v = _hvVideos.find(x => x.id === id);
+  const name = v ? v.title : 'this video';
+  if (!confirm(`Delete "${name}"?\n\nThis cannot be undone.`)) return;
+  try {
+    await api('deleteHelpVideo', { id });
+    aToast('Video deleted');
+    await hvLoad();
+  } catch(e) { aToast(e.message); }
+}
+
+async function hvMove(id, dir) {
+  const idx = _hvVideos.findIndex(v => v.id === id);
+  if (idx === -1) return;
+  const swapIdx = idx + dir;
+  if (swapIdx < 0 || swapIdx >= _hvVideos.length) return;
+  const ids = _hvVideos.map(v => v.id);
+  [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+  try {
+    await api('reorderHelpVideos', { ordered_ids: ids });
+    await hvLoad();
+  } catch(e) { aToast(e.message); }
+}
+
+async function hvAddVideo() {
+  const title   = document.getElementById('hv-title')?.value.trim();
+  const url     = document.getElementById('hv-url')?.value.trim();
+  const catEl   = document.querySelector('input[name="hv-cat"]:checked');
+  const cat     = catEl ? catEl.value : 'general';
+  if (!title) { aToast('Video title is required'); return; }
+  if (!url)   { aToast('YouTube URL is required'); return; }
+  if (!url.includes('youtube.com') && !url.includes('youtu.be')) { aToast('Please enter a valid YouTube link'); return; }
+  const btn = document.querySelector('button[onclick="hvAddVideo()"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Adding…'; }
+  try {
+    await api('addHelpVideo', { title, youtube_url: url, category: cat, description: '' });
+    aToast('Video added to TiffoTube ✅');
+    /* Reset form */
+    const titleEl = document.getElementById('hv-title');
+    const urlEl   = document.getElementById('hv-url');
+    if (titleEl) titleEl.value = '';
+    if (urlEl)   urlEl.value   = '';
+    const firstCat = document.querySelector('input[name="hv-cat"]');
+    if (firstCat) { firstCat.checked = true; hvCatRadioChange(firstCat); }
+    hvPreviewThumb('');
+    await hvLoad();
+  } catch(e) { aToast(e.message); }
+  finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-plus"></i> Add Video to TiffoTube'; }
+  }
+}
+
+function escAdminHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAdminAttr(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/`/g,'&#96;'); }
 
 // ─── DELIVERY ZONE SETTINGS ───────────────────────────────
 function renderDeliveryZonePanel(area) {
