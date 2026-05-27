@@ -1,22 +1,20 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v53.2                                    ║
+     ║  Version : v54.0                                    ║
      ║  Updated : 2026-05-27                               ║
-     ║  Changes : WhatsApp messages — full audit & fix.    ║
-     ║            7 messages rewritten: clearer English,   ║
-     ║            Order ID, slot, coupon code, delivery,   ║
-     ║            totals in all order messages.            ║
-     ║            >> BUG FIX: coupon code was always blank ║
-     ║            in both UPI & insuf WA messages because  ║
-     ║            _appliedCoupon was nulled before msg     ║
-     ║            was built. Captured into _snapCoupon /   ║
-     ║            _snapCouponI before Cart.clear().        ║
-     ║            >> separator unified to ━×32 everywhere. ║
-     ║            >> Help msg auto-fills name+phone.       ║
-     ║            >> Monthly plan removes placeholder text.║
-     ║            >> Closing line unified across all msgs. ║
-     ║            >> _orderWAMap flow 100% unchanged.      ║
+     ║  Changes : UPI Smart Monitor (_upiMon) system.      ║
+     ║            Auto-saves QR before opening UPI app.    ║
+     ║            Debounce on app icon taps & download btn.║
+     ║            Global lock prevents duplicate launches. ║
+     ║            3-level QR fallback cascade in           ║
+     ║            _generateQR: full URI → amount only →    ║
+     ║            bare VPA. Canvas blank-check via finder  ║
+     ║            pattern pixel (25% offset). Hard         ║
+     ║            fallback renders VPA card + canvas stub  ║
+     ║            so _downloadQR never crashes. Amount &   ║
+     ║            input sanitisation guards NaN/emoji.     ║
+     ║            SW cache bumped: tiffo-v35.              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1594,7 +1592,8 @@ input[type=number]{-moz-appearance:textfield}
 .upi-download-btn:active{background:#b91c1c;border-color:#b91c1c}
 .upi-apps-row{display:flex;gap:10px;width:100%;justify-content:center;margin-top:2px}
 .upi-app-btn{flex:1;max-width:90px;border:1.5px solid #e5e7eb;background:#fff;border-radius:12px;padding:10px 6px 8px;font-family:var(--ff);font-weight:600;font-size:11px;color:#374151;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .15s}
-.upi-app-btn:active{background:#f9fafb}
+.upi-app-btn:hover{background:#f5f3ff;border-color:#c4b5fd;box-shadow:0 4px 12px rgba(95,37,159,.13);transform:translateY(-1px)}
+.upi-app-btn:active{background:#f0f0f0;transform:scale(.96);box-shadow:none}
 .upi-app-icon{font-size:22px;line-height:1;width:32px;height:32px}
 .upi-divider{width:100%;display:flex;align-items:center;gap:10px;margin:2px 0}
 .upi-divider-line{flex:1;height:1px;background:#e5e7eb}
@@ -2181,9 +2180,10 @@ input[type=number]{-moz-appearance:textfield}
         <div class="upi-qr-box" id="s-qr-box" style="width:min(220px,70vw);height:min(220px,70vw)"></div>
         <button class="upi-download-btn" onclick="_downloadQR('s-qr-box')" style="width:100%;margin-top:16px"><i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery</button>
         <div class="upi-apps-row" style="width:100%;margin-top:14px">
-          <button class="upi-app-btn upi-app-btn--recommended" onclick="_openUpiApp('phonepe')" style="padding-top:14px"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#5f259f"/><path d="M27 13H19.5C18.1 13 17 14.1 17 15.5V25l3.5-3.5H27c2.2 0 4-1.8 4-4v-0.5C31 14.8 29.2 13 27 13zm-.5 8H21l3.5-3.5V16h2C27.7 16 28.5 16.8 28.5 18v1C28.5 20.1 27.7 21 26.5 21zM13 13h2v14h-2z" fill="#fff"/></svg>PhonePe</button>
-          <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><path d="M20 15.5c1.5 0 2.8.5 3.8 1.4l2.8-2.8C24.8 12.3 22.5 11.3 20 11.3c-3.9 0-7.2 2.2-8.8 5.5l3.3 2.5c.8-2.3 2.9-3.8 5.5-3.8z" fill="#EA4335"/><path d="M28.6 20.5c.1-.5.2-1 .2-1.5H20v3.5h4.9c-.4 1.2-1.2 2.1-2.4 2.8l3 2.3c1.8-1.7 2.8-4.1 2.8-7.1h-.7z" fill="#4285F4"/><path d="M13.5 21.5c-.3-.8-.5-1.7-.5-2.5s.2-1.7.5-2.5l-3.3-2.5C9.5 15.7 9 17.3 9 19c0 1.7.5 3.3 1.2 4.7l3.3-2.2z" fill="#FBBC05"/><path d="M20 28.5c2.6 0 4.8-.9 6.4-2.4l-3-2.3c-.9.6-2 1-3.4 1-2.6 0-4.7-1.7-5.5-4l-3.3 2.5c1.6 3.2 4.9 5.2 8.8 5.2z" fill="#34A853"/></svg>GPay</button>
-          <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#002970"/><rect x="3" y="3" width="34" height="34" rx="7" fill="#00BAF2"/><text x="20" y="18.5" text-anchor="middle" font-size="10" font-family="Arial,sans-serif" font-weight="900" fill="#002970">Pay</text><rect x="7" y="21" width="26" height="1.5" fill="#002970" rx="1"/><text x="20" y="31" text-anchor="middle" font-size="7.5" font-family="Arial,sans-serif" font-weight="800" fill="#002970" letter-spacing="3">TM</text></svg>Paytm</button>
+          <button class="upi-app-btn upi-app-btn--recommended" onclick="_openUpiApp('phonepe')" style="padding-top:14px" aria-label="Pay with PhonePe"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PhonePe"><title>PhonePe</title><svg width="40" height="40" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet" fill-rule="evenodd" clip-rule="evenodd" overflow="hidden"><circle cx="-25.926" cy="41.954" r="29.873" fill="#5f259f" transform="rotate(-76.714 -48.435 5.641) scale(8.56802)"/><path d="M372.164 189.203c0-10.008-8.576-18.593-18.584-18.593h-34.323l-78.638-90.084c-7.154-8.577-18.592-11.439-30.03-8.577l-27.17 8.577c-4.292 1.43-5.723 7.154-2.862 10.007l85.8 81.508H136.236c-4.293 0-7.154 2.861-7.154 7.154v14.292c0 10.016 8.585 18.592 18.592 18.592h20.015v68.639c0 51.476 27.17 81.499 72.931 81.499 14.292 0 25.739-1.431 40.03-7.146v45.753c0 12.87 10.016 22.886 22.885 22.886h20.015c4.293 0 8.577-4.293 8.577-8.586V210.648h32.893c4.292 0 7.145-2.861 7.145-7.145v-14.3zM280.65 312.17c-8.576 4.292-20.015 5.723-28.591 5.723-22.886 0-34.324-11.438-34.324-37.176v-68.639h62.915v100.092z" fill="#fff" fill-rule="nonzero"/></svg></svg>PhonePe</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('gpay')" aria-label="Pay with Google Pay"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Google Pay"><title>Google Pay</title><rect width="40" height="40" rx="8" fill="#fff"/><rect width="40" height="40" rx="8" fill="none" stroke="#e0e0e0" stroke-width="1"/><svg x="2" y="2" width="36" height="36" viewBox="0 105 512 302" preserveAspectRatio="xMidYMid meet" overflow="hidden"><g transform="matrix(.6782 0 0 .6782 1.226 120.628)"><clipPath id="gpay_clip_1"><path d="M0 0h752v400H0z"/></clipPath><g clip-path="url(#gpay_clip_1)"><path d="M552 0H200C90 0 0 90 0 200s90 200 200 200h352c110 0 200-90 200-200S662 0 552 0z" fill="#fff" fill-rule="nonzero"/><path d="M552 16.2c24.7 0 48.7 4.9 71.3 14.5 21.9 9.3 41.5 22.6 58.5 39.5 16.9 16.9 30.2 36.6 39.5 58.5 9.6 22.6 14.5 46.6 14.5 71.3 0 24.7-4.9 48.7-14.5 71.3-9.3 21.9-22.6 41.5-39.5 58.5-16.9 16.9-36.6 30.2-58.5 39.5-22.6 9.6-46.6 14.5-71.3 14.5H200c-24.7 0-48.7-4.9-71.3-14.5-21.9-9.3-41.5-22.6-58.5-39.5-16.9-16.9-30.2-36.6-39.5-58.5-9.6-22.6-14.5-46.6-14.5-71.3 0-24.7 4.9-48.7 14.5-71.3 9.3-21.9 22.6-41.5 39.5-58.5 16.9-16.9 36.6-30.2 58.5-39.5 22.6-9.6 46.6-14.5 71.3-14.5h352M552 0H200C90 0 0 90 0 200s90 200 200 200h352c110 0 200-90 200-200S662 0 552 0z" fill="#3c4043" fill-rule="nonzero"/><g fill-rule="nonzero"><g fill="#3c4043"><path d="M358.6 214.1v60.6h-19.2V125.3h50.9c12.9 0 23.9 4.3 32.9 12.9 9.2 8.6 13.8 19.1 13.8 31.5 0 12.7-4.6 23.2-13.8 31.7-8.9 8.5-19.9 12.7-32.9 12.7h-31.7zm0-70.4v52.1h32.1c7.6 0 14-2.6 19-7.7 5.1-5.1 7.7-11.3 7.7-18.3 0-6.9-2.6-13-7.7-18.1-5-5.3-11.3-7.9-19-7.9h-32.1v-.1zM487.2 169.1c14.2 0 25.4 3.8 33.6 11.4 8.2 7.6 12.3 18 12.3 31.2v63h-18.3v-14.2h-.8c-7.9 11.7-18.5 17.5-31.7 17.5-11.3 0-20.7-3.3-28.3-10-7.6-6.7-11.4-15-11.4-25 0-10.6 4-19 12-25.2 8-6.3 18.7-9.4 32-9.4 11.4 0 20.8 2.1 28.1 6.3v-4.4c0-6.7-2.6-12.3-7.9-17-5.3-4.7-11.5-7-18.6-7-10.7 0-19.2 4.5-25.4 13.6l-16.9-10.6c9.3-13.5 23.1-20.2 41.3-20.2zm-24.8 74.2c0 5 2.1 9.2 6.4 12.5 4.2 3.3 9.2 5 14.9 5 8.1 0 15.3-3 21.6-9 6.3-6 9.5-13 9.5-21.1-6-4.7-14.3-7.1-25-7.1-7.8 0-14.3 1.9-19.5 5.6-5.3 3.9-7.9 8.6-7.9 14.1zM637.5 172.4l-64 147.2h-19.8l23.8-51.5-42.2-95.7h20.9l30.4 73.4h.4l29.6-73.4h20.9z"/></g><path d="M282.23 202c0-6.26-.56-12.25-1.6-18.01h-80.48v33l46.35.01c-1.88 10.98-7.93 20.34-17.2 26.58v21.41h27.59c16.11-14.91 25.34-36.95 25.34-62.99z" fill="#4285f4"/><path d="M229.31 243.58c-7.68 5.18-17.57 8.21-29.14 8.21-22.35 0-41.31-15.06-48.1-35.36h-28.46v22.08c14.1 27.98 43.08 47.18 76.56 47.18 23.14 0 42.58-7.61 56.73-20.71l-27.59-21.4z" fill="#34a853"/><path d="M149.39 200.05c0-5.7.95-11.21 2.68-16.39v-22.08h-28.46c-5.83 11.57-9.11 24.63-9.11 38.47s3.29 26.9 9.11 38.47l28.46-22.08a51.657 51.657 0 01-2.68-16.39z" fill="#fabb05"/><path d="M200.17 148.3c12.63 0 23.94 4.35 32.87 12.85l24.45-24.43c-14.85-13.83-34.21-22.32-57.32-22.32-33.47 0-62.46 19.2-76.56 47.18l28.46 22.08c6.79-20.3 25.75-35.36 48.1-35.36z" fill="#e94235"/></g></g></g></svg></svg>GPay</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('paytm')" aria-label="Pay with Paytm"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Paytm"><title>Paytm</title><rect width="40" height="40" rx="8" fill="#00BAF2"/><text x="20" y="18" text-anchor="middle" font-size="13" font-family="Arial,sans-serif" font-weight="900" fill="#003087">Pay</text><rect x="5" y="21" width="30" height="1.8" fill="#003087" rx="0.9"/><text x="20" y="32" text-anchor="middle" font-size="9" font-family="Arial,sans-serif" font-weight="900" fill="#003087" letter-spacing="3.5">TM</text></svg>Paytm</button>
+          
         </div>
       </div>
 
@@ -2272,9 +2272,10 @@ input[type=number]{-moz-appearance:textfield}
         <div class="upi-qr-box" id="si-qr-box" style="width:min(220px,70vw);height:min(220px,70vw)"></div>
         <button class="upi-download-btn" id="si-qr-dl" onclick="_downloadQR('si-qr-box')" style="width:100%;margin-top:16px"><i class="fa-solid fa-arrow-down-to-bracket"></i> Save QR to Gallery</button>
         <div class="upi-apps-row" style="width:100%;margin-top:14px">
-          <button class="upi-app-btn upi-app-btn--recommended" onclick="_openUpiApp('phonepe')" style="padding-top:14px"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#5f259f"/><path d="M27 13H19.5C18.1 13 17 14.1 17 15.5V25l3.5-3.5H27c2.2 0 4-1.8 4-4v-0.5C31 14.8 29.2 13 27 13zm-.5 8H21l3.5-3.5V16h2C27.7 16 28.5 16.8 28.5 18v1C28.5 20.1 27.7 21 26.5 21zM13 13h2v14h-2z" fill="#fff"/></svg>PhonePe</button>
-          <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><path d="M20 15.5c1.5 0 2.8.5 3.8 1.4l2.8-2.8C24.8 12.3 22.5 11.3 20 11.3c-3.9 0-7.2 2.2-8.8 5.5l3.3 2.5c.8-2.3 2.9-3.8 5.5-3.8z" fill="#EA4335"/><path d="M28.6 20.5c.1-.5.2-1 .2-1.5H20v3.5h4.9c-.4 1.2-1.2 2.1-2.4 2.8l3 2.3c1.8-1.7 2.8-4.1 2.8-7.1h-.7z" fill="#4285F4"/><path d="M13.5 21.5c-.3-.8-.5-1.7-.5-2.5s.2-1.7.5-2.5l-3.3-2.5C9.5 15.7 9 17.3 9 19c0 1.7.5 3.3 1.2 4.7l3.3-2.2z" fill="#FBBC05"/><path d="M20 28.5c2.6 0 4.8-.9 6.4-2.4l-3-2.3c-.9.6-2 1-3.4 1-2.6 0-4.7-1.7-5.5-4l-3.3 2.5c1.6 3.2 4.9 5.2 8.8 5.2z" fill="#34A853"/></svg>GPay</button>
-          <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#002970"/><rect x="3" y="3" width="34" height="34" rx="7" fill="#00BAF2"/><text x="20" y="18.5" text-anchor="middle" font-size="10" font-family="Arial,sans-serif" font-weight="900" fill="#002970">Pay</text><rect x="7" y="21" width="26" height="1.5" fill="#002970" rx="1"/><text x="20" y="31" text-anchor="middle" font-size="7.5" font-family="Arial,sans-serif" font-weight="800" fill="#002970" letter-spacing="3">TM</text></svg>Paytm</button>
+          <button class="upi-app-btn upi-app-btn--recommended" onclick="_openUpiApp('phonepe')" style="padding-top:14px" aria-label="Pay with PhonePe"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PhonePe"><title>PhonePe</title><svg width="40" height="40" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet" fill-rule="evenodd" clip-rule="evenodd" overflow="hidden"><circle cx="-25.926" cy="41.954" r="29.873" fill="#5f259f" transform="rotate(-76.714 -48.435 5.641) scale(8.56802)"/><path d="M372.164 189.203c0-10.008-8.576-18.593-18.584-18.593h-34.323l-78.638-90.084c-7.154-8.577-18.592-11.439-30.03-8.577l-27.17 8.577c-4.292 1.43-5.723 7.154-2.862 10.007l85.8 81.508H136.236c-4.293 0-7.154 2.861-7.154 7.154v14.292c0 10.016 8.585 18.592 18.592 18.592h20.015v68.639c0 51.476 27.17 81.499 72.931 81.499 14.292 0 25.739-1.431 40.03-7.146v45.753c0 12.87 10.016 22.886 22.885 22.886h20.015c4.293 0 8.577-4.293 8.577-8.586V210.648h32.893c4.292 0 7.145-2.861 7.145-7.145v-14.3zM280.65 312.17c-8.576 4.292-20.015 5.723-28.591 5.723-22.886 0-34.324-11.438-34.324-37.176v-68.639h62.915v100.092z" fill="#fff" fill-rule="nonzero"/></svg></svg>PhonePe</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('gpay')" aria-label="Pay with Google Pay"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Google Pay"><title>Google Pay</title><rect width="40" height="40" rx="8" fill="#fff"/><rect width="40" height="40" rx="8" fill="none" stroke="#e0e0e0" stroke-width="1"/><svg x="2" y="2" width="36" height="36" viewBox="0 105 512 302" preserveAspectRatio="xMidYMid meet" overflow="hidden"><g transform="matrix(.6782 0 0 .6782 1.226 120.628)"><clipPath id="gpay_clip_2"><path d="M0 0h752v400H0z"/></clipPath><g clip-path="url(#gpay_clip_2)"><path d="M552 0H200C90 0 0 90 0 200s90 200 200 200h352c110 0 200-90 200-200S662 0 552 0z" fill="#fff" fill-rule="nonzero"/><path d="M552 16.2c24.7 0 48.7 4.9 71.3 14.5 21.9 9.3 41.5 22.6 58.5 39.5 16.9 16.9 30.2 36.6 39.5 58.5 9.6 22.6 14.5 46.6 14.5 71.3 0 24.7-4.9 48.7-14.5 71.3-9.3 21.9-22.6 41.5-39.5 58.5-16.9 16.9-36.6 30.2-58.5 39.5-22.6 9.6-46.6 14.5-71.3 14.5H200c-24.7 0-48.7-4.9-71.3-14.5-21.9-9.3-41.5-22.6-58.5-39.5-16.9-16.9-30.2-36.6-39.5-58.5-9.6-22.6-14.5-46.6-14.5-71.3 0-24.7 4.9-48.7 14.5-71.3 9.3-21.9 22.6-41.5 39.5-58.5 16.9-16.9 36.6-30.2 58.5-39.5 22.6-9.6 46.6-14.5 71.3-14.5h352M552 0H200C90 0 0 90 0 200s90 200 200 200h352c110 0 200-90 200-200S662 0 552 0z" fill="#3c4043" fill-rule="nonzero"/><g fill-rule="nonzero"><g fill="#3c4043"><path d="M358.6 214.1v60.6h-19.2V125.3h50.9c12.9 0 23.9 4.3 32.9 12.9 9.2 8.6 13.8 19.1 13.8 31.5 0 12.7-4.6 23.2-13.8 31.7-8.9 8.5-19.9 12.7-32.9 12.7h-31.7zm0-70.4v52.1h32.1c7.6 0 14-2.6 19-7.7 5.1-5.1 7.7-11.3 7.7-18.3 0-6.9-2.6-13-7.7-18.1-5-5.3-11.3-7.9-19-7.9h-32.1v-.1zM487.2 169.1c14.2 0 25.4 3.8 33.6 11.4 8.2 7.6 12.3 18 12.3 31.2v63h-18.3v-14.2h-.8c-7.9 11.7-18.5 17.5-31.7 17.5-11.3 0-20.7-3.3-28.3-10-7.6-6.7-11.4-15-11.4-25 0-10.6 4-19 12-25.2 8-6.3 18.7-9.4 32-9.4 11.4 0 20.8 2.1 28.1 6.3v-4.4c0-6.7-2.6-12.3-7.9-17-5.3-4.7-11.5-7-18.6-7-10.7 0-19.2 4.5-25.4 13.6l-16.9-10.6c9.3-13.5 23.1-20.2 41.3-20.2zm-24.8 74.2c0 5 2.1 9.2 6.4 12.5 4.2 3.3 9.2 5 14.9 5 8.1 0 15.3-3 21.6-9 6.3-6 9.5-13 9.5-21.1-6-4.7-14.3-7.1-25-7.1-7.8 0-14.3 1.9-19.5 5.6-5.3 3.9-7.9 8.6-7.9 14.1zM637.5 172.4l-64 147.2h-19.8l23.8-51.5-42.2-95.7h20.9l30.4 73.4h.4l29.6-73.4h20.9z"/></g><path d="M282.23 202c0-6.26-.56-12.25-1.6-18.01h-80.48v33l46.35.01c-1.88 10.98-7.93 20.34-17.2 26.58v21.41h27.59c16.11-14.91 25.34-36.95 25.34-62.99z" fill="#4285f4"/><path d="M229.31 243.58c-7.68 5.18-17.57 8.21-29.14 8.21-22.35 0-41.31-15.06-48.1-35.36h-28.46v22.08c14.1 27.98 43.08 47.18 76.56 47.18 23.14 0 42.58-7.61 56.73-20.71l-27.59-21.4z" fill="#34a853"/><path d="M149.39 200.05c0-5.7.95-11.21 2.68-16.39v-22.08h-28.46c-5.83 11.57-9.11 24.63-9.11 38.47s3.29 26.9 9.11 38.47l28.46-22.08a51.657 51.657 0 01-2.68-16.39z" fill="#fabb05"/><path d="M200.17 148.3c12.63 0 23.94 4.35 32.87 12.85l24.45-24.43c-14.85-13.83-34.21-22.32-57.32-22.32-33.47 0-62.46 19.2-76.56 47.18l28.46 22.08c6.79-20.3 25.75-35.36 48.1-35.36z" fill="#e94235"/></g></g></g></svg></svg>GPay</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('paytm')" aria-label="Pay with Paytm"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Paytm"><title>Paytm</title><rect width="40" height="40" rx="8" fill="#00BAF2"/><text x="20" y="18" text-anchor="middle" font-size="13" font-family="Arial,sans-serif" font-weight="900" fill="#003087">Pay</text><rect x="5" y="21" width="30" height="1.8" fill="#003087" rx="0.9"/><text x="20" y="32" text-anchor="middle" font-size="9" font-family="Arial,sans-serif" font-weight="900" fill="#003087" letter-spacing="3.5">TM</text></svg>Paytm</button>
+          
         </div>
       </div>
 
@@ -2793,9 +2794,10 @@ input[type=number]{-moz-appearance:textfield}
         </button>
 
         <div class="upi-apps-row" style="width:100%;margin-top:14px">
-          <button class="upi-app-btn upi-app-btn--recommended" onclick="_openUpiApp('phonepe')" style="padding-top:14px"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#5f259f"/><path d="M27 13H19.5C18.1 13 17 14.1 17 15.5V25l3.5-3.5H27c2.2 0 4-1.8 4-4v-0.5C31 14.8 29.2 13 27 13zm-.5 8H21l3.5-3.5V16h2C27.7 16 28.5 16.8 28.5 18v1C28.5 20.1 27.7 21 26.5 21zM13 13h2v14h-2z" fill="#fff"/></svg>PhonePe</button>
-          <button class="upi-app-btn" onclick="_openUpiApp('gpay')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><path d="M20 15.5c1.5 0 2.8.5 3.8 1.4l2.8-2.8C24.8 12.3 22.5 11.3 20 11.3c-3.9 0-7.2 2.2-8.8 5.5l3.3 2.5c.8-2.3 2.9-3.8 5.5-3.8z" fill="#EA4335"/><path d="M28.6 20.5c.1-.5.2-1 .2-1.5H20v3.5h4.9c-.4 1.2-1.2 2.1-2.4 2.8l3 2.3c1.8-1.7 2.8-4.1 2.8-7.1h-.7z" fill="#4285F4"/><path d="M13.5 21.5c-.3-.8-.5-1.7-.5-2.5s.2-1.7.5-2.5l-3.3-2.5C9.5 15.7 9 17.3 9 19c0 1.7.5 3.3 1.2 4.7l3.3-2.2z" fill="#FBBC05"/><path d="M20 28.5c2.6 0 4.8-.9 6.4-2.4l-3-2.3c-.9.6-2 1-3.4 1-2.6 0-4.7-1.7-5.5-4l-3.3 2.5c1.6 3.2 4.9 5.2 8.8 5.2z" fill="#34A853"/></svg>GPay</button>
-          <button class="upi-app-btn" onclick="_openUpiApp('paytm')"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#002970"/><rect x="3" y="3" width="34" height="34" rx="7" fill="#00BAF2"/><text x="20" y="18.5" text-anchor="middle" font-size="10" font-family="Arial,sans-serif" font-weight="900" fill="#002970">Pay</text><rect x="7" y="21" width="26" height="1.5" fill="#002970" rx="1"/><text x="20" y="31" text-anchor="middle" font-size="7.5" font-family="Arial,sans-serif" font-weight="800" fill="#002970" letter-spacing="3">TM</text></svg>Paytm</button>
+          <button class="upi-app-btn upi-app-btn--recommended" onclick="_openUpiApp('phonepe')" style="padding-top:14px" aria-label="Pay with PhonePe"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PhonePe"><title>PhonePe</title><svg width="40" height="40" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet" fill-rule="evenodd" clip-rule="evenodd" overflow="hidden"><circle cx="-25.926" cy="41.954" r="29.873" fill="#5f259f" transform="rotate(-76.714 -48.435 5.641) scale(8.56802)"/><path d="M372.164 189.203c0-10.008-8.576-18.593-18.584-18.593h-34.323l-78.638-90.084c-7.154-8.577-18.592-11.439-30.03-8.577l-27.17 8.577c-4.292 1.43-5.723 7.154-2.862 10.007l85.8 81.508H136.236c-4.293 0-7.154 2.861-7.154 7.154v14.292c0 10.016 8.585 18.592 18.592 18.592h20.015v68.639c0 51.476 27.17 81.499 72.931 81.499 14.292 0 25.739-1.431 40.03-7.146v45.753c0 12.87 10.016 22.886 22.885 22.886h20.015c4.293 0 8.577-4.293 8.577-8.586V210.648h32.893c4.292 0 7.145-2.861 7.145-7.145v-14.3zM280.65 312.17c-8.576 4.292-20.015 5.723-28.591 5.723-22.886 0-34.324-11.438-34.324-37.176v-68.639h62.915v100.092z" fill="#fff" fill-rule="nonzero"/></svg></svg>PhonePe</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('gpay')" aria-label="Pay with Google Pay"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Google Pay"><title>Google Pay</title><rect width="40" height="40" rx="8" fill="#fff"/><rect width="40" height="40" rx="8" fill="none" stroke="#e0e0e0" stroke-width="1"/><svg x="2" y="2" width="36" height="36" viewBox="0 105 512 302" preserveAspectRatio="xMidYMid meet" overflow="hidden"><g transform="matrix(.6782 0 0 .6782 1.226 120.628)"><clipPath id="gpay_clip_3"><path d="M0 0h752v400H0z"/></clipPath><g clip-path="url(#gpay_clip_3)"><path d="M552 0H200C90 0 0 90 0 200s90 200 200 200h352c110 0 200-90 200-200S662 0 552 0z" fill="#fff" fill-rule="nonzero"/><path d="M552 16.2c24.7 0 48.7 4.9 71.3 14.5 21.9 9.3 41.5 22.6 58.5 39.5 16.9 16.9 30.2 36.6 39.5 58.5 9.6 22.6 14.5 46.6 14.5 71.3 0 24.7-4.9 48.7-14.5 71.3-9.3 21.9-22.6 41.5-39.5 58.5-16.9 16.9-36.6 30.2-58.5 39.5-22.6 9.6-46.6 14.5-71.3 14.5H200c-24.7 0-48.7-4.9-71.3-14.5-21.9-9.3-41.5-22.6-58.5-39.5-16.9-16.9-30.2-36.6-39.5-58.5-9.6-22.6-14.5-46.6-14.5-71.3 0-24.7 4.9-48.7 14.5-71.3 9.3-21.9 22.6-41.5 39.5-58.5 16.9-16.9 36.6-30.2 58.5-39.5 22.6-9.6 46.6-14.5 71.3-14.5h352M552 0H200C90 0 0 90 0 200s90 200 200 200h352c110 0 200-90 200-200S662 0 552 0z" fill="#3c4043" fill-rule="nonzero"/><g fill-rule="nonzero"><g fill="#3c4043"><path d="M358.6 214.1v60.6h-19.2V125.3h50.9c12.9 0 23.9 4.3 32.9 12.9 9.2 8.6 13.8 19.1 13.8 31.5 0 12.7-4.6 23.2-13.8 31.7-8.9 8.5-19.9 12.7-32.9 12.7h-31.7zm0-70.4v52.1h32.1c7.6 0 14-2.6 19-7.7 5.1-5.1 7.7-11.3 7.7-18.3 0-6.9-2.6-13-7.7-18.1-5-5.3-11.3-7.9-19-7.9h-32.1v-.1zM487.2 169.1c14.2 0 25.4 3.8 33.6 11.4 8.2 7.6 12.3 18 12.3 31.2v63h-18.3v-14.2h-.8c-7.9 11.7-18.5 17.5-31.7 17.5-11.3 0-20.7-3.3-28.3-10-7.6-6.7-11.4-15-11.4-25 0-10.6 4-19 12-25.2 8-6.3 18.7-9.4 32-9.4 11.4 0 20.8 2.1 28.1 6.3v-4.4c0-6.7-2.6-12.3-7.9-17-5.3-4.7-11.5-7-18.6-7-10.7 0-19.2 4.5-25.4 13.6l-16.9-10.6c9.3-13.5 23.1-20.2 41.3-20.2zm-24.8 74.2c0 5 2.1 9.2 6.4 12.5 4.2 3.3 9.2 5 14.9 5 8.1 0 15.3-3 21.6-9 6.3-6 9.5-13 9.5-21.1-6-4.7-14.3-7.1-25-7.1-7.8 0-14.3 1.9-19.5 5.6-5.3 3.9-7.9 8.6-7.9 14.1zM637.5 172.4l-64 147.2h-19.8l23.8-51.5-42.2-95.7h20.9l30.4 73.4h.4l29.6-73.4h20.9z"/></g><path d="M282.23 202c0-6.26-.56-12.25-1.6-18.01h-80.48v33l46.35.01c-1.88 10.98-7.93 20.34-17.2 26.58v21.41h27.59c16.11-14.91 25.34-36.95 25.34-62.99z" fill="#4285f4"/><path d="M229.31 243.58c-7.68 5.18-17.57 8.21-29.14 8.21-22.35 0-41.31-15.06-48.1-35.36h-28.46v22.08c14.1 27.98 43.08 47.18 76.56 47.18 23.14 0 42.58-7.61 56.73-20.71l-27.59-21.4z" fill="#34a853"/><path d="M149.39 200.05c0-5.7.95-11.21 2.68-16.39v-22.08h-28.46c-5.83 11.57-9.11 24.63-9.11 38.47s3.29 26.9 9.11 38.47l28.46-22.08a51.657 51.657 0 01-2.68-16.39z" fill="#fabb05"/><path d="M200.17 148.3c12.63 0 23.94 4.35 32.87 12.85l24.45-24.43c-14.85-13.83-34.21-22.32-57.32-22.32-33.47 0-62.46 19.2-76.56 47.18l28.46 22.08c6.79-20.3 25.75-35.36 48.1-35.36z" fill="#e94235"/></g></g></g></svg></svg>GPay</button>
+          <button class="upi-app-btn" onclick="_openUpiApp('paytm')" aria-label="Pay with Paytm"><svg class="upi-app-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Paytm"><title>Paytm</title><rect width="40" height="40" rx="8" fill="#00BAF2"/><text x="20" y="18" text-anchor="middle" font-size="13" font-family="Arial,sans-serif" font-weight="900" fill="#003087">Pay</text><rect x="5" y="21" width="30" height="1.8" fill="#003087" rx="0.9"/><text x="20" y="32" text-anchor="middle" font-size="9" font-family="Arial,sans-serif" font-weight="900" fill="#003087" letter-spacing="3.5">TM</text></svg>Paytm</button>
+          
         </div>
       </div>
 
@@ -3446,7 +3448,7 @@ function openOrderPayModal(orderId) {
     if (siWaBtn) siWaBtn.onclick = () => openWA(entry.phone, entry.msg);
     nav('pg-success-insuf');
     // Regenerate QR with same amount + orderId
-    setTimeout(() => _generateQR('si-qr-box', amt, orderId), 100);
+    setTimeout(() => { const _u = Auth.get(); _generateQR('si-qr-box', amt, orderId, _u?.name, _u?.phone); }, 100);
   } else {
     // ── pg-success (normal UPI order) ──
     document.getElementById('s-order-id').textContent = orderId;
@@ -3461,7 +3463,7 @@ function openOrderPayModal(orderId) {
     if (waBtn)   waBtn.onclick = () => openWA(entry.phone, entry.msg);
     nav('pg-success');
     // Regenerate QR with same amount + orderId
-    setTimeout(() => _generateQR('s-qr-box', amt, orderId), 100);
+    setTimeout(() => { const _u = Auth.get(); _generateQR('s-qr-box', amt, orderId, _u?.name, _u?.phone); }, 100);
   }
 }
 
@@ -5730,7 +5732,7 @@ async function placeOrder() {
       setDeliveryTime('s-delivery-time');
       nav('pg-success');
       // Generate UPI QR with pre-filled amount
-      setTimeout(() => _generateQR('s-qr-box', total, res.orderId), 100);
+      setTimeout(() => _generateQR('s-qr-box', total, res.orderId, user.name, user.phone), 100);
       // Pre-build full WA message (all vars captured above, coupon is safe)
       const _waMsg = `🍱 *Tiffo — New Order (UPI Payment)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${res.orderId}\n   Customer:  ${user.name || 'Customer'}\n   Phone:     ${user.phone}\n   Slot:      ${_snapSlot}\n   Address:   ${_waAddr(user.address)}${_snapCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_snapItemLines}${_snapDiscLine}${_snapDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${total}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    UPI\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${total}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`;
       // Wire WA button
@@ -5764,7 +5766,7 @@ function showClosedPopup(reason) {
 }
 
 /* ─── UPI QR PAYMENT HELPERS ─────────────────────────────────────────────────
-   _generateQR(boxId, amount, orderId) — renders QR into a DOM container
+   _generateQR(boxId, amount, orderId, custName, custPhone) — renders QR into a DOM container
    _downloadQR(boxId)                  — saves a padded, scannable PNG to gallery
    _openUpiApp(app)                    — opens the UPI app directly via intent
 
@@ -5787,27 +5789,259 @@ function showClosedPopup(reason) {
 const _UPI_VPA = '7233992325@ibl';
 const _UPI_NAME = 'Tiffo';
 
-function _generateQR(boxId, amount, orderId) {
+/* ─── UPI SMART MONITOR ──────────────────────────────────────────────────────
+   Prevents:  duplicate downloads, multiple UPI app launches, spam taps,
+              race conditions, and QR being lost because user skipped Save.
+
+   State per QR box:
+     saved    — true once _downloadQR succeeds for that boxId
+     activeBox— which QR card is currently visible (set by _generateQR)
+     _lock    — global action lock (bool) — resets after 1500ms or on completion
+     _dlLock  — download-only lock — resets after 2000ms
+   ─────────────────────────────────────────────────────────────────────────── */
+const _upiMon = {
+  saved:     {},          // { boxId: true|false }
+  activeBox: null,        // last boxId passed to _generateQR
+  _lock:     false,       // prevents duplicate UPI app opens
+  _dlLock:   false,       // prevents duplicate downloads
+
+  /* Call when a new QR is rendered — resets saved state for that box */
+  onNewQR(boxId) {
+    this.saved[boxId] = false;
+    this.activeBox    = boxId;
+    this._lock        = false;
+    this._dlLock      = false;
+  },
+
+  /* Try to acquire global action lock. Returns false if already locked. */
+  acquireLock() {
+    if (this._lock) return false;
+    this._lock = true;
+    return true;
+  },
+
+  /* Release global lock after delay (ms). 0 = immediate. */
+  releaseLock(ms = 0) {
+    if (ms <= 0) { this._lock = false; return; }
+    setTimeout(() => { this._lock = false; }, ms);
+  },
+
+  /* Try to acquire download-only lock */
+  acquireDlLock() {
+    if (this._dlLock) return false;
+    this._dlLock = true;
+    return true;
+  },
+
+  releaseDlLock(ms = 2000) {
+    if (ms <= 0) { this._dlLock = false; return; }
+    setTimeout(() => { this._dlLock = false; }, ms);
+  },
+
+  /* Mark QR as saved for boxId */
+  markSaved(boxId) {
+    this.saved[boxId] = true;
+  },
+
+  /* Is QR already saved for boxId? */
+  isSaved(boxId) {
+    return !!this.saved[boxId];
+  }
+};
+
+function _generateQR(boxId, amount, orderId, custName, custPhone) {
   const box = document.getElementById(boxId);
   if (!box) return;
+  _upiMon.onNewQR(boxId);  // reset saved state + locks BEFORE DOM clear
   box.innerHTML = '';
-  const amtStr = parseFloat(amount).toFixed(2);
-  // Standard UPI deep-link URI — all UPI apps parse this on gallery scan
-  const upiUri = `upi://pay?pa=${_UPI_VPA}&pn=${encodeURIComponent(_UPI_NAME)}&am=${amtStr}&tn=${encodeURIComponent('Tiffo-' + orderId)}&cu=INR`;
-  const canvas = document.createElement('canvas');
-  // 512px internal — displayed at 200px via CSS but crisp on high-DPI
-  box.appendChild(canvas);
+
+  // ── Amount sanitisation ───────────────────────────────────────────────────
+  // parseFloat guards against undefined/null/NaN/Infinity inputs.
+  const _rawAmt = parseFloat(amount);
+  const amtStr  = (isFinite(_rawAmt) && _rawAmt > 0) ? _rawAmt.toFixed(2) : '';
+
+  // ── Build UPI transaction note (tn=) ────────────────────────────────────────
+  // Hard cap: 35 chars — ultra-safe across PhonePe, GPay, Paytm.
+  // Order:    #orderId → add phone if fits → add name if fits → else fallback to #orderId only.
+  // Recharge: phone → add name if fits → else fallback to phone only.
+  // All inputs stripped to ASCII-safe range to prevent encodeURIComponent
+  // from throwing on surrogate/emoji chars in name fields.
+  const _safe   = s => String(s || '').replace(/[^\x20-\x7E]/g, '').trim();
+  const _CAP    = 35;
+  const _isRecharge = String(orderId).startsWith('Recharge-');
+  let _tn;
   try {
+    if (_isRecharge) {
+      const _rBase = custPhone ? _safe(custPhone).slice(0,10) : 'Recharge';
+      const _rFull = custName  ? _rBase + ' ' + _safe(custName).slice(0,14) : _rBase;
+      _tn = _rFull.length <= _CAP ? _rFull : _rBase;
+    } else {
+      const _oid    = '#' + _safe(orderId);
+      const _wPhone = custPhone ? _oid + ' ' + _safe(custPhone).slice(0,10) : _oid;
+      const _wName  = custName  ? _wPhone + ' ' + _safe(custName).slice(0,14) : _wPhone;
+      if      (_wName.length  <= _CAP) _tn = _wName;
+      else if (_wPhone.length <= _CAP) _tn = _wPhone;
+      else                             _tn = _oid;
+    }
+  } catch(_) { _tn = ''; }
+
+  // ── URI builder — all three fallback levels ───────────────────────────────
+  // Level 1: full  — pa + pn + am + tn + cu   (ideal, amount + note)
+  // Level 2: light — pa + pn + am + cu         (drop tn if it caused issues)
+  // Level 3: bare  — pa + cu only              (always scans; no amount)
+  //
+  // encodeURIComponent is called inside _buildUri so any bad chars are caught
+  // per-level rather than aborting all levels at once.
+  const _buildUri = (level) => {
+    const pa = encodeURIComponent(_UPI_VPA);
+    const pn = encodeURIComponent(_UPI_NAME);
+    if (level === 3) return `upi://pay?pa=${pa}&cu=INR`;
+    if (level === 2) return amtStr ? `upi://pay?pa=${pa}&pn=${pn}&am=${amtStr}&cu=INR`
+                                   : `upi://pay?pa=${pa}&pn=${pn}&cu=INR`;
+    // Level 1
+    const tn = _tn ? encodeURIComponent(_tn) : '';
+    return amtStr
+      ? `upi://pay?pa=${pa}&pn=${pn}&am=${amtStr}${tn ? '&tn=' + tn : ''}&cu=INR`
+      : `upi://pay?pa=${pa}&pn=${pn}${tn ? '&tn=' + tn : ''}&cu=INR`;
+  };
+
+  // ── QR canvas validator ───────────────────────────────────────────────────
+  // QrCreator.render() is synchronous but can silently produce an all-white
+  // canvas if the input URI is too long or has encoding it can't handle.
+  //
+  // Sample strategy: 4×4 block at 25% offset (sz*0.25, sz*0.25).
+  // This lands inside the top-left FINDER PATTERN which is mandatory in every
+  // QR version and always contains black modules at that position.
+  // Why NOT centre: centre modules are data-dependent and can legitimately be
+  // white (especially for short level-3 URIs → small QR version).
+  // Why NOT (2,2): qr-creator@1.0.0 renders with a quiet zone so (2,2) is
+  // always white regardless of render success.
+  const _isCanvasBlank = (canvas) => {
+    try {
+      const sz  = canvas.width;
+      if (!sz || !canvas.height) return true;  // 0×0 stub or uninitialised
+      const off = Math.floor(sz * 0.25);        // lands in finder pattern body
+      const ctx2 = canvas.getContext('2d');
+      const d    = ctx2.getImageData(off, off, 4, 4).data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] < 200 || d[i+1] < 200 || d[i+2] < 200) return false; // found dark pixel → valid QR
+      }
+      return true; // all light → blank or failed render
+    } catch(_) { return true; } // getImageData blocked (e.g. tainted canvas) → treat as blank
+  };
+
+  // ── DOM builder (shared across all levels) ────────────────────────────────
+  const _buildDOM = (upiUri, level) => {
+    box.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;width:200px;height:200px;display:inline-block;flex-shrink:0';
+
+    const canvas = document.createElement('canvas');
+    wrapper.appendChild(canvas);
+    box.appendChild(wrapper);
+
+    // Render — throws on library error
     QrCreator.render({ text: upiUri, radius: 0, ecLevel: 'H', fill: '#000000', background: '#ffffff', size: 512 }, canvas);
-    canvas.style.width  = '200px';
-    canvas.style.height = '200px';
-    // store upiUri on canvas for download
+    canvas.style.cssText = 'width:200px;height:200px;display:block;border-radius:6px;image-rendering:crisp-edges';
+
+    // Validate — if blank, treat as render failure
+    if (_isCanvasBlank(canvas)) throw new Error('blank');
+
+    // Store on canvas for _downloadQR and _upiMon
     canvas.dataset.upiUri  = upiUri;
-    canvas.dataset.amount   = amtStr;
-    canvas.dataset.orderId  = orderId || '';
-  } catch(e) {
-    box.innerHTML = '<div style="font-family:monospace;font-size:11px;color:#555;padding:10px;text-align:center;word-break:break-all">' + _UPI_VPA + '<br><br>Amount: ₹' + amount + '</div>';
+    canvas.dataset.amount  = amtStr;   // used by download overlay; empty = no badge
+    canvas.dataset.orderId = orderId || '';
+    canvas.dataset.level   = String(level); // diagnostic only
+
+    // ── Center amount badge (only when amount is known) ───────────────────────
+    if (amtStr) {
+      const displayAmt = '₹' + parseFloat(amtStr).toFixed(0);
+      const badge = document.createElement('div');
+      badge.style.cssText = [
+        'position:absolute',
+        'top:50%',
+        'left:50%',
+        'transform:translate(-50%,-50%)',
+        'width:46px',
+        'height:46px',
+        'border-radius:50%',
+        'background:#ffffff',
+        'box-shadow:0 0 0 2.5px #e5e7eb,0 2px 8px rgba(0,0,0,.18)',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'pointer-events:none'
+      ].join(';');
+      const badgeText = document.createElement('span');
+      badgeText.style.cssText = 'font-family:Arial,sans-serif;font-weight:800;font-size:11px;color:#111827;letter-spacing:-.3px;line-height:1';
+      badgeText.textContent = displayAmt;
+      badge.appendChild(badgeText);
+      wrapper.appendChild(badge);
+    }
+
+    return true; // success
+  };
+
+  // ── 3-level cascade ───────────────────────────────────────────────────────
+  // Each level tries to build a URI and render; on any failure drops to next.
+  // A "hard fail" (last level throws) triggers the plain-text safety net which
+  // still injects a canvas stub so _downloadQR does not crash.
+  for (let _lvl = 1; _lvl <= 3; _lvl++) {
+    try {
+      const _uri = _buildUri(_lvl);
+      const _ok  = _buildDOM(_uri, _lvl);
+      if (_ok) return; // rendered cleanly — done
+    } catch(_e) {
+      // This level failed — try next
+      box.innerHTML = ''; // clean slate for next attempt
+    }
   }
+
+  // ── Hard fallback: plain-text safety net ──────────────────────────────────
+  // All 3 QR levels failed. Render a text VPA card so user can still pay.
+  // Also inject a hidden canvas stub (0×0) so _downloadQR never crashes
+  // trying to find a canvas element.
+  box.innerHTML = '';
+  const _stub = document.createElement('canvas');
+  _stub.width  = 0;
+  _stub.height = 0;
+  _stub.style.display = 'none';
+  _stub.dataset.amount  = amtStr;
+  _stub.dataset.orderId = orderId || '';
+  box.appendChild(_stub);
+
+  const _card = document.createElement('div');
+  _card.style.cssText = [
+    'width:200px',
+    'min-height:120px',
+    'border:2px dashed #e5e7eb',
+    'border-radius:12px',
+    'background:#fafafa',
+    'display:flex',
+    'flex-direction:column',
+    'align-items:center',
+    'justify-content:center',
+    'gap:6px',
+    'padding:14px',
+    'text-align:center'
+  ].join(';');
+  _card.innerHTML = [
+    '<div style="font-size:22px">📲</div>',
+    '<div style="font-family:Arial,sans-serif;font-weight:700;font-size:12px;color:#374151">Pay via UPI</div>',
+    '<div style="font-family:monospace;font-size:11px;color:#6b7280;word-break:break-all">' + _UPI_VPA + '</div>',
+    amtStr ? '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:14px;color:#111827">₹' + parseFloat(amtStr).toFixed(0) + '</div>' : '',
+    '<div style="font-family:Arial,sans-serif;font-size:10px;color:#9ca3af">Open UPI app → Pay to this ID</div>'
+  ].join('');
+  box.appendChild(_card);
+}
+
+// ── Unique QR filename generator ─────────────────────────────────────────────
+// Format: upi_qr_<timestamp_ms>_<5-random-digits>.png
+// Timestamp + random5 combo guarantees collision-free filenames.
+function generateQRFileName() {
+  const timestamp = Date.now();
+  const random5   = Math.floor(10000 + Math.random() * 90000);
+  return 'upi_qr_' + timestamp + '_' + random5 + '.png';
 }
 
 // ── Save QR to gallery ───────────────────────────────────────────────────────
@@ -5815,10 +6049,14 @@ function _generateQR(boxId, amount, orderId) {
 // This is the same spec as PhonePe / GPay shared QR images.
 // Any UPI app's "Scan from Gallery" will pick it up and auto-fill amount.
 function _downloadQR(boxId) {
+  // Debounce: block duplicate/rapid taps on download button
+  if (!_upiMon.acquireDlLock()) return;
+
   const box = document.getElementById(boxId);
-  if (!box) return;
+  if (!box) { _upiMon.releaseDlLock(0); return; }
   const srcCanvas = box.querySelector('canvas');
-  if (!srcCanvas) { toast('QR is still loading — wait a moment and try again.'); return; }
+  if (!srcCanvas) { _upiMon.releaseDlLock(0); toast('QR is still loading — wait a moment and try again.'); return; }
+  if (!srcCanvas.width || !srcCanvas.height) { _upiMon.releaseDlLock(0); toast('QR unavailable — open your UPI app and pay to ' + _UPI_VPA); return; }
 
   try {
     const PAD = 64;          // white border (px) on each side
@@ -5837,33 +6075,58 @@ function _downloadQR(boxId) {
     // Draw QR centered with padding
     ctx.drawImage(srcCanvas, PAD, PAD, QR, QR);
 
-    // Amount label at bottom inside padding
     const amt = srcCanvas.dataset.amount || '';
     if (amt) {
-      ctx.fillStyle = '#111111';
-      ctx.font = 'bold 22px Arial, sans-serif';
+      // ── Center amount badge (matches live UI badge, scaled to 640px canvas) ─
+      const cx = TOTAL / 2;
+      const cy = PAD + QR / 2;   // vertical center of QR area
+      const BADGE_R = 58;        // badge radius px on 640px canvas
+
+      // White filled circle
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, BADGE_R, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      // Subtle grey border
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      ctx.restore();
+
+      // Amount text centred inside badge
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 26px Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('₹' + parseFloat(amt).toFixed(0), TOTAL / 2, QR + PAD + 38);
-      ctx.font = '16px Arial, sans-serif';
-      ctx.fillStyle = '#555555';
-      ctx.fillText(_UPI_VPA + '  ·  Tiffo', TOTAL / 2, QR + PAD + 60);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('₹' + parseFloat(amt).toFixed(0), cx, cy);
+      ctx.textBaseline = 'alphabetic';
+
+      // Brand + UPI ID label in bottom padding strip
+      ctx.font = 'bold 18px Arial, sans-serif';
+      ctx.fillStyle = '#111827';
+      ctx.fillText('Tiffo  ·  ₹' + parseFloat(amt).toFixed(0), TOTAL / 2, QR + PAD + 36);
+      ctx.font = '14px Arial, sans-serif';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(_UPI_VPA, TOTAL / 2, QR + PAD + 56);
     }
 
     out.toBlob(blob => {
+      _upiMon.releaseDlLock(3000);  // allow re-download after 3s
       if (!blob) { toast('Could not generate QR image. Please screenshot instead.'); return; }
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      const _oid = srcCanvas.dataset.orderId || '';
-      const _ts  = Date.now();
-      a.download = _oid ? 'Tiffo_QR_' + _oid + '_' + _ts + '.png' : 'Tiffo_QR_' + _ts + '.png';
+      a.download = generateQRFileName();
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      _upiMon.markSaved(boxId);    // ✅ mark QR as saved for this session
       toast('QR saved! Open your UPI app → Scan from Gallery 📥');
     }, 'image/png');
   } catch(e) {
+    _upiMon.releaseDlLock(0);      // release on error so user can retry
     toast('Could not save QR. Please screenshot this screen instead.');
   }
 }
@@ -5879,64 +6142,147 @@ function _downloadQR(boxId) {
 // The user downloads the QR, opens the app, and uses "Scan from Gallery".
 // Amount is auto-filled from the QR data by the UPI app itself.
 function _openUpiApp(app) {
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  // ── Global debounce: prevent double-tap / spam ────────────────────────────
+  if (!_upiMon.acquireLock()) return;
 
-  // Android intent URIs — open app home screen directly (no payment params).
-  // User then uses "Scan from Gallery" inside the app.
-  //
-  // Rules for reliable intent:// URIs:
-  //   1. scheme  — must exactly match what the APK AndroidManifest registers
-  //   2. host    — PhonePe registers "home"; GPay & Paytm do NOT register "home"
-  //                → use empty host (intent://#Intent;...) for GPay & Paytm so
-  //                  Android matches their root launch intent-filter with no path constraint
-  //   3. package — exact Play Store package name, used by Chrome as the final target
-  //   4. S.browser_fallback_url — Play Store link if app not installed
-  //
-  // PhonePe : scheme=phonepe   package=com.phonepe.app                          ✅ user-confirmed working
-  // GPay    : scheme=tez       package=com.google.android.apps.nbu.paisa.user   ✅ "tez" is GPay's APK-registered
-  //           scheme (original app name "Tez by Google", still in manifest).
-  //           "googlepayin" is a brand alias only — NOT in the manifest → Play Store redirect.
-  //           "home" host is not registered by GPay → use empty host.
-  // Paytm   : scheme=paytm     package=net.one97.paytm                          ✅ "paytm" is the registered
-  //           scheme. "paytmmp" was the OLD package name — not a URL scheme.
-  //           "home" / "cashier" hosts require internal params → show "App upgrade required".
-  //           Empty host matches Paytm's root launch intent-filter cleanly.
-  const intentMap = {
-    phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
-    gpay:    'intent://#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
-    paytm:   'intent://#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
+  const _doOpen = () => {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    // Android intent URIs — open app home screen directly (no payment params).
+    // User then uses "Scan from Gallery" inside the app.
+    //
+    // Rules for reliable intent:// URIs:
+    //   1. scheme  — must exactly match what the APK AndroidManifest registers
+    //   2. host    — PhonePe registers "home"; GPay & Paytm do NOT register "home"
+    //                → use empty host (intent://#Intent;...) for GPay & Paytm so
+    //                  Android matches their root launch intent-filter with no path constraint
+    //   3. package — exact Play Store package name, used by Chrome as the final target
+    //   4. S.browser_fallback_url — Play Store link if app not installed
+    //
+    // PhonePe : scheme=phonepe   package=com.phonepe.app                          ✅ user-confirmed working
+    // GPay    : scheme=tez       package=com.google.android.apps.nbu.paisa.user   ✅ "tez" is GPay's APK-registered
+    //           scheme (original app name "Tez by Google", still in manifest).
+    //           "googlepayin" is a brand alias only — NOT in the manifest → Play Store redirect.
+    //           "home" host is not registered by GPay → use empty host.
+    // Paytm   : scheme=paytm     package=net.one97.paytm                          ✅ "paytm" is the registered
+    //           scheme. "paytmmp" was the OLD package name — not a URL scheme.
+    //           "home" / "cashier" hosts require internal params → show "App upgrade required".
+    //           Empty host matches Paytm's root launch intent-filter cleanly.
+    const intentMap = {
+      phonepe: 'intent://home#Intent;scheme=phonepe;package=com.phonepe.app;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.phonepe.app;end',
+      gpay:    'intent://#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.google.android.apps.nbu.paisa.user;end',
+      paytm:   'intent://#Intent;scheme=paytm;package=net.one97.paytm;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dnet.one97.paytm;end'
+    };
+
+    // iOS custom URL schemes — registered in each app's Info.plist.
+    // PhonePe: phonepe://   GPay: tez://   Paytm: paytm://
+    const iosScheme = {
+      phonepe: 'phonepe://',
+      gpay:    'tez://',
+      paytm:   'paytm://'
+    };
+    const appStore = {
+      phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
+      gpay:    'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041',
+      paytm:   'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
+    };
+
+    if (isIOS) {
+      const scheme = iosScheme[app];
+      if (!scheme) { _upiMon.releaseLock(0); return; }
+      const fallback = setTimeout(() => { window.location.href = appStore[app]; }, 2000);
+      window.location.href = scheme;
+      const cancel = () => { clearTimeout(fallback); document.removeEventListener('visibilitychange', cancel); };
+      document.addEventListener('visibilitychange', cancel);
+      _upiMon.releaseLock(2500);
+      return;
+    }
+
+    // Android
+    const intent = intentMap[app];
+    if (!intent) { _upiMon.releaseLock(0); return; }
+    window.location.href = intent;
+    _upiMon.releaseLock(1500);
   };
 
-  // iOS custom URL schemes — registered in each app's Info.plist.
-  // PhonePe: phonepe://   GPay: tez://   Paytm: paytm://
-  const iosScheme = {
-    phonepe: 'phonepe://',
-    gpay:    'tez://',
-    paytm:   'paytm://'
-  };
-  const appStore = {
-    phonepe: 'https://apps.apple.com/in/app/phonepe-upi-payment-app/id1170699871',
-    gpay:    'https://apps.apple.com/in/app/google-pay-save-pay-manage/id1193357041',
-    paytm:   'https://apps.apple.com/in/app/paytm-secure-upi-payments/id473941634'
-  };
-
-  if (isIOS) {
-    // Try custom URL scheme (opens app instantly if installed).
-    // Set a 2s timer — if app didn't open, browser stays on page, so redirect to App Store.
-    const scheme = iosScheme[app];
-    if (!scheme) return;
-    const fallback = setTimeout(() => { window.location.href = appStore[app]; }, 2000);
-    window.location.href = scheme;
-    // If app opened, page visibility changes — cancel the fallback
-    const cancel = () => { clearTimeout(fallback); document.removeEventListener('visibilitychange', cancel); };
-    document.addEventListener('visibilitychange', cancel);
+  // ── Smart QR save check ───────────────────────────────────────────────────
+  // If QR not yet saved → auto-download first, then open UPI app after 900ms
+  // (enough time for browser's save dialog to appear before app switch).
+  // If already saved → open UPI app immediately.
+  const boxId = _upiMon.activeBox;
+  if (boxId && !_upiMon.isSaved(boxId)) {
+    // Auto-save QR silently, then open app
+    // We bypass _upiMon.acquireDlLock here because the global lock already
+    // prevents re-entry; just force the download directly.
+    const box = document.getElementById(boxId);
+    const srcCanvas = box ? box.querySelector('canvas') : null;
+    if (srcCanvas && (!srcCanvas.width || !srcCanvas.height)) {
+      // Hard fallback was shown — no real QR to save; open app directly
+      _doOpen();
+      return;
+    }
+    if (srcCanvas) {
+      // Trigger silent download
+      try {
+        const PAD = 64, QR = 512, TOTAL = QR + PAD * 2;
+        const out = document.createElement('canvas');
+        out.width = TOTAL; out.height = TOTAL;
+        const ctx = out.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, TOTAL, TOTAL);
+        ctx.drawImage(srcCanvas, PAD, PAD, QR, QR);
+        const amt = srcCanvas.dataset.amount || '';
+        if (amt) {
+          const cx = TOTAL / 2, cy = PAD + QR / 2, BADGE_R = 58;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, BADGE_R, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff'; ctx.fill();
+          ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 3.5; ctx.stroke();
+          ctx.restore();
+          ctx.fillStyle = '#111827';
+          ctx.font = 'bold 26px Arial, sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('₹' + parseFloat(amt).toFixed(0), cx, cy);
+          ctx.textBaseline = 'alphabetic';
+          ctx.font = 'bold 18px Arial, sans-serif';
+          ctx.fillText('Tiffo  ·  ₹' + parseFloat(amt).toFixed(0), TOTAL / 2, QR + PAD + 36);
+          ctx.font = '14px Arial, sans-serif'; ctx.fillStyle = '#6b7280';
+          ctx.fillText(_UPI_VPA, TOTAL / 2, QR + PAD + 56);
+        }
+        out.toBlob(blob => {
+          if (blob) {
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = generateQRFileName();
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+            _upiMon.markSaved(boxId);
+            toast('QR saved! Opening app… 📥');
+          } else {
+            toast('Opening app — QR save failed, screenshot it if needed.');
+          }
+          // Open UPI app after 900ms — gives browser time to handle the blob download
+          setTimeout(_doOpen, 900);
+        }, 'image/png');
+        return;  // _doOpen will be called inside the blob callback
+      } catch(e) {
+        // Canvas failed — just open app anyway
+        toast('Opening app — please save QR first if needed.');
+        setTimeout(_doOpen, 200);
+        return;
+      }
+    }
+    // No canvas found — open app directly
+    _doOpen();
     return;
   }
 
-  // Android — intent URI (Chrome handles this natively in browser + PWA)
-  const intent = intentMap[app];
-  if (!intent) return;
-  window.location.href = intent;
+  // QR already saved (or no active box) — open immediately
+  _doOpen();
 }
 
 // ── Wallet Recharge Page ─────────────────────────────────────────────────────
@@ -5965,7 +6311,7 @@ function generateRechargeQR() {
   // Generate QR — use phone as order ref so admin can match payment
   const user = Auth.get();
   const ref = user?.phone ? user.phone.slice(-4) : 'RCH';
-  setTimeout(() => _generateQR('rch-qr-box', rounded, 'Recharge-' + ref), 80);
+  setTimeout(() => _generateQR('rch-qr-box', rounded, 'Recharge-' + ref, name, phone), 80);
   // Pre-build WA message for the confirm button
   const name = user?.name || 'Customer';
   const phone = user?.phone || '';
@@ -6050,7 +6396,7 @@ async function confirmInsufOrder() {
     nav('pg-success-insuf');
     launchConfetti();
     // Generate UPI QR with pre-filled amount for insuf path
-    setTimeout(() => _generateQR('si-qr-box', total, res.orderId), 100);
+    setTimeout(() => _generateQR('si-qr-box', total, res.orderId, _u?.name || user.name, _u?.phone || user.phone), 100);
 
     // Prefetch orders in background so My Orders tab is ready
     _lastOrderPlacedTs = Date.now();

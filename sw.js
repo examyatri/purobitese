@@ -18,7 +18,7 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v34'; // bumped for v77 release // bumped — forces fresh precache on deploy
+const CACHE      = 'tiffo-v35'; // bumped for v48 release — UPI smart monitor + QR fallback system
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
