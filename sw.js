@@ -18,7 +18,7 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v37'; // bumped for v55.2 — ecLevel H→M fix (Order ID now shows in PhonePe receipt)
+const CACHE      = 'tiffo-v38'; // bumped for v58 — dynamic help video categories
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

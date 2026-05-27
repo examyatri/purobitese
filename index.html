@@ -1608,8 +1608,8 @@ input[type=number]{-moz-appearance:textfield}
 #guest-auth-backdrop.show{display:block}
 #guest-home-avatar{background:#f1f5f9;border:1.5px dashed #cbd5e1}
 #guest-home-avatar span{color:#94a3b8;font-size:15px;font-weight:600}
-/* Wallet nav button */
-#bnav-wallet{transition:background 300ms}
+/* Wallet nav — balance badge color transition */
+#bnav-bal.badge{transition:background 300ms}
 /* ── RESPONSIVE: flexible layout for all screen sizes ── */
 /* Tiny phones (<360px): tighter padding, smaller text */
 @media(max-width:359px){
@@ -2537,11 +2537,14 @@ input[type=number]{-moz-appearance:textfield}
   <button onclick="nav('pg-orders')" data-pg="pg-orders">
     <i class="fa-solid fa-receipt"></i><span>Orders</span>
   </button>
-  <button id="bnav-wallet" class="khata-gated" onclick="nav('pg-khata')" style="display:none;background:var(--g);color:#fff;border-radius:10px;margin:4px 2px;padding:4px 8px">
-    <i class="fa-solid fa-wallet"></i>
-    <span id="bnav-bal">₹0</span>
+  <button id="bnav-wallet" class="khata-gated" onclick="nav('pg-khata')" data-pg="pg-khata" style="display:none">
+    <span style="position:relative;display:inline-flex;align-items:center;justify-content:center">
+      <i class="fa-solid fa-wallet"></i>
+      <span id="bnav-bal" class="badge" style="display:none;font-size:8px;padding:1px 4px;min-width:auto;height:14px;line-height:14px;right:-14px;top:-5px">₹0</span>
+    </span>
+    <span>Wallet</span>
   </button>
-  <button onclick="window.location.href='help.html'" style="color:var(--p)">
+  <button onclick="window.location.href='help.html'">
     <i class="fa-solid fa-circle-play"></i><span>Help</span>
   </button>
 </nav>
@@ -3519,8 +3522,11 @@ function updateWalletUI(bal) {
   document.querySelectorAll('.wallet-bal').forEach(el => el.textContent = '₹' + rounded);
   const navBtn = document.getElementById('bnav-wallet');
   const navBal = document.getElementById('bnav-bal');
-  if (navBal) navBal.textContent = '₹' + rounded;
-  if (navBtn) navBtn.style.background = _walletBal >= 200 ? 'var(--g)' : 'var(--pd)';
+  if (navBal) {
+    navBal.textContent = '₹' + rounded;
+    navBal.style.display = rounded > 0 ? '' : 'none';
+    navBal.style.background = _walletBal >= 200 ? 'var(--g)' : 'var(--pd)';
+  }
   // Update balance card color: green >=200, red <200
   const balCard = document.querySelector('.khata-bal-card');
   if (balCard) balCard.style.background = _walletBal >= 200 ? 'linear-gradient(135deg,#2a9d8f,#3ab5a5)' : 'linear-gradient(135deg,#c1121f,#e63946)';
@@ -8587,7 +8593,7 @@ function doLogout() {
   const bnavWallet = document.getElementById('bnav-wallet');
   if (bnavWallet) bnavWallet.style.display = 'none';
   const bnavBal = document.getElementById('bnav-bal');
-  if (bnavBal) bnavBal.textContent = '₹0';
+  if (bnavBal) { bnavBal.textContent = '₹0'; bnavBal.style.display = 'none'; }
 
   // Home avatar + subscriber UI reset (must mirror _applySubscriberUI for non-subscriber)
   const avatarInitials = document.getElementById('home-avatar-initials');

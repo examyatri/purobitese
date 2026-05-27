@@ -4,588 +4,810 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#e63946">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>TiffoTube — Help & Tutorials</title>
-<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
 <link rel="manifest" href="./manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
+/* ── Design tokens ─────────────────────────────────── */
 :root {
   --p:#e63946; --pd:#c1121f; --pl:#fde8ea;
   --grad:linear-gradient(135deg,#e63946,#f4591d);
-  --g:#2a9d8f; --gl:#e8f5f3;
-  --dk:#111827; --gr:#6b7280; --lt:#f8f5f2; --wh:#fff;
-  --sh:0 2px 12px rgba(0,0,0,.07); --shl:0 8px 32px rgba(0,0,0,.14);
-  --ff:'Sora',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --fb:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --dk:#0f172a; --mid:#374151; --gr:#6b7280; --lt:#f8f7f5; --wh:#fff;
+  --border:#eaecf0;
+  --ff:'Sora',-apple-system,BlinkMacSystemFont,sans-serif;
+  --fb:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06);
+  --sh-hover:0 4px 20px rgba(0,0,0,.13);
   --safe-b:env(safe-area-inset-bottom,0px);
-  --bnav-h:64px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --header-h:56px;
+  --chips-h:48px;
+  --footer-h:64px;
 }
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:#fff;color:var(--dk);font-family:var(--fb)}
-body{display:flex;flex-direction:column;overflow:hidden;height:100dvh}
 
-/* ── Header ── */
+/* ── Reset ─────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%;background:#fff;overflow:hidden}
+body{height:100dvh;display:flex;flex-direction:column;background:var(--lt);color:var(--dk);font-family:var(--fb);overflow:hidden}
+
+/* ── Header ────────────────────────────────────────── */
 #tt-header {
+  height:calc(var(--header-h) + var(--safe-t));
+  padding-top:var(--safe-t);
   background:#fff;
-  border-bottom:1px solid #f0f0f0;
-  padding:0 16px;
+  border-bottom:1px solid var(--border);
   display:flex;
   align-items:center;
   justify-content:space-between;
-  height:56px;
+  padding-left:8px;
+  padding-right:12px;
   flex-shrink:0;
-  position:sticky;
-  top:0;
-  z-index:100;
-  box-shadow:0 1px 8px rgba(0,0,0,.06);
+  position:relative;
+  z-index:200;
+  box-shadow:0 1px 0 var(--border),0 2px 12px rgba(0,0,0,.04);
 }
-.tt-logo {
-  display:flex;
-  align-items:center;
-  gap:6px;
-  text-decoration:none;
-  cursor:pointer;
-}
-.tt-logo-icon {
-  width:32px;
-  height:32px;
-  background:var(--grad);
-  border-radius:8px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:#fff;
-  font-size:14px;
-}
-.tt-logo-text {
-  font-family:var(--ff);
-  font-weight:800;
-  font-size:18px;
-  color:var(--dk);
-  letter-spacing:-.3px;
-}
-.tt-logo-text span{color:var(--p)}
-#tt-search-btn {
-  width:40px;height:40px;
-  border:none;background:#f3f4f6;
+.tt-back {
+  width:40px;height:40px;border:none;background:none;
   border-radius:50%;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  color:var(--dk);font-size:16px;
-  transition:background .2s;
+  color:var(--mid);font-size:17px;
+  transition:background .15s;
+  flex-shrink:0;
+}
+.tt-back:hover,.tt-back:active{background:#f3f4f6}
+
+.tt-logo {
+  display:flex;align-items:center;gap:7px;
+  cursor:pointer;text-decoration:none;
+  flex:1;justify-content:center;
+}
+.tt-logo-badge {
+  width:30px;height:30px;
+  background:var(--grad);
+  border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:13px;
+  box-shadow:0 3px 8px rgba(230,57,70,.35);
+  flex-shrink:0;
+}
+.tt-logo-text {
+  font-family:var(--ff);font-weight:800;font-size:17px;
+  color:var(--dk);letter-spacing:-.4px;
+  line-height:1;
+}
+.tt-logo-text em{color:var(--p);font-style:normal}
+
+#tt-search-btn {
+  width:40px;height:40px;border:none;
+  background:#f3f4f6;border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--mid);font-size:15px;
+  transition:background .15s;
+  flex-shrink:0;
 }
 #tt-search-btn:hover{background:#e5e7eb}
 
-/* ── Search Bar ── */
-#search-bar {
+/* ── Search bar (slides down) ──────────────────────── */
+#tt-search-bar {
   background:#fff;
-  border-bottom:1px solid #f0f0f0;
-  padding:10px 16px;
-  display:none;
+  border-bottom:1px solid var(--border);
+  padding:0 14px 10px;
+  overflow:hidden;
+  max-height:0;
+  opacity:0;
+  transition:max-height .25s cubic-bezier(.4,0,.2,1),opacity .2s,padding .25s;
   flex-shrink:0;
 }
-#search-bar.open{display:block}
-#search-input {
+#tt-search-bar.open {
+  max-height:60px;
+  opacity:1;
+  padding:8px 14px 10px;
+}
+.tt-search-inner {
+  position:relative;
+  display:flex;
+  align-items:center;
+}
+.tt-search-icon {
+  position:absolute;left:13px;
+  color:var(--gr);font-size:13px;pointer-events:none;
+  z-index:1;
+}
+#tt-search-input {
   width:100%;
-  padding:10px 16px 10px 40px;
+  padding:9px 36px 9px 36px;
   border:1.5px solid #e5e7eb;
   border-radius:24px;
-  font-family:var(--fb);
-  font-size:14px;
-  color:var(--dk);
-  background:#f8fafc;
-  outline:none;
-  transition:border-color .2s;
+  font-family:var(--fb);font-size:14px;color:var(--dk);
+  background:#f8fafc;outline:none;
+  transition:border-color .2s,box-shadow .2s,background .2s;
 }
-#search-input:focus{border-color:var(--p);background:#fff}
-.search-icon-abs{position:absolute;left:28px;top:50%;transform:translateY(-50%);color:var(--gr);font-size:14px;pointer-events:none}
-.search-wrap{position:relative}
+#tt-search-input:focus {
+  border-color:var(--p);
+  box-shadow:0 0 0 3px rgba(230,57,70,.1);
+  background:#fff;
+}
+.tt-search-clear {
+  position:absolute;right:11px;
+  width:22px;height:22px;border:none;background:#e5e7eb;
+  border-radius:50%;cursor:pointer;font-size:10px;color:var(--gr);
+  display:none;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.tt-search-clear.show{display:flex}
+.tt-search-clear:hover{background:#d1d5db}
 
-/* ── Scroll Container ── */
+/* ── Category chips ────────────────────────────────── */
+#tt-chips {
+  display:flex;gap:8px;
+  padding:0 14px;
+  height:var(--chips-h);
+  align-items:center;
+  overflow-x:auto;
+  scrollbar-width:none;
+  background:#fff;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+#tt-chips::-webkit-scrollbar{display:none}
+.chip {
+  flex-shrink:0;
+  padding:5px 14px;
+  border-radius:20px;
+  border:1.5px solid #e5e7eb;
+  font-family:var(--ff);font-size:12px;font-weight:600;
+  color:var(--gr);background:#fff;cursor:pointer;
+  transition:all .18s;white-space:nowrap;
+  user-select:none;
+}
+.chip.active {
+  background:var(--p);color:#fff;border-color:var(--p);
+  box-shadow:0 2px 8px rgba(230,57,70,.3);
+}
+.chip:not(.active):hover{border-color:#c4c9d4;color:var(--mid)}
+
+/* ── Scroll area ───────────────────────────────────── */
 #tt-scroll {
   flex:1;
   overflow-y:auto;
+  overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
   overscroll-behavior-y:contain;
-  background:var(--lt);
-  padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 20px);
+  padding-bottom:calc(var(--footer-h) + var(--safe-b) + 24px);
 }
 
-/* ── Category Chips ── */
-#chips-row {
-  display:flex;
-  gap:8px;
-  padding:12px 16px;
-  overflow-x:auto;
-  scrollbar-width:none;
-  -webkit-overflow-scrolling:touch;
-  background:#fff;
-  border-bottom:1px solid #f4f4f4;
-  flex-shrink:0;
+/* ── Section header ────────────────────────────────── */
+.tt-section-hd {
+  padding:16px 14px 8px;
+  font-family:var(--ff);font-weight:700;font-size:13px;
+  color:var(--mid);
+  display:flex;align-items:center;gap:6px;
 }
-#chips-row::-webkit-scrollbar{display:none}
-.chip {
-  flex-shrink:0;
-  padding:6px 14px;
-  border-radius:20px;
-  border:1.5px solid #e5e7eb;
-  font-family:var(--ff);
-  font-size:12px;
-  font-weight:600;
-  color:var(--gr);
-  background:#fff;
-  cursor:pointer;
-  transition:all .18s;
-  white-space:nowrap;
-}
-.chip.active,.chip:hover{background:var(--p);color:#fff;border-color:var(--p)}
-
-/* ── Section Header ── */
-.section-header {
-  padding:16px 16px 8px;
-  font-family:var(--ff);
-  font-weight:700;
-  font-size:15px;
-  color:var(--dk);
+.tt-section-hd::after {
+  content:'';flex:1;height:1px;background:var(--border);
 }
 
-/* ── Video Grid ── */
-.video-grid {
+/* ── Video grid ────────────────────────────────────── */
+.tt-grid {
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:12px;
-  padding:0 12px 12px;
+  padding:0 12px 8px;
 }
-@media(max-width:360px){.video-grid{grid-template-columns:1fr}}
+@media(max-width:340px){.tt-grid{grid-template-columns:1fr}}
 
-/* ── Video Card ── */
+/* ── Video card ────────────────────────────────────── */
 .vcard {
-  background:#fff;
-  border-radius:14px;
-  overflow:hidden;
-  box-shadow:var(--sh);
-  cursor:pointer;
-  transition:transform .18s,box-shadow .18s;
+  background:#fff;border-radius:14px;overflow:hidden;
+  box-shadow:var(--sh);cursor:pointer;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s;
   -webkit-tap-highlight-color:transparent;
+  will-change:transform;
 }
-.vcard:active{transform:scale(.97)}
+.vcard:hover{box-shadow:var(--sh-hover);transform:translateY(-2px)}
+.vcard:active{transform:scale(.96)}
+
+/* Thumbnail wrapper — always 16:9 */
 .vcard-thumb {
   position:relative;
   width:100%;
-  padding-top:56.25%; /* 16:9 */
-  background:#1a1a1a;
-  overflow:hidden;
+  padding-top:56.25%;
+  background:#1a1a2e;overflow:hidden;
 }
-.vcard-thumb img{
-  position:absolute;
-  inset:0;width:100%;height:100%;
+.vcard-thumb img {
+  position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;
+  transition:transform .35s;
 }
-.vcard-thumb-placeholder{
-  position:absolute;
-  inset:0;
+.vcard:hover .vcard-thumb img{transform:scale(1.04)}
+.vcard-thumb-placeholder {
+  position:absolute;inset:0;
   display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#1a1a2e,#16213e);
+  background:linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%);
 }
-.vcard-play-icon{
-  width:36px;height:36px;
+/* Gradient overlay on thumb for readability */
+.vcard-thumb-overlay {
+  position:absolute;bottom:0;left:0;right:0;height:50%;
+  background:linear-gradient(to top,rgba(0,0,0,.5),transparent);
+  pointer-events:none;
+}
+.vcard-play {
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;
+  transition:opacity .2s;
+}
+.vcard:hover .vcard-play{opacity:1}
+.vcard-play-circle {
+  width:40px;height:40px;
   background:rgba(230,57,70,.9);
   border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  color:#fff;font-size:13px;
-  padding-left:2px;
+  color:#fff;font-size:14px;padding-left:2px;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+  backdrop-filter:blur(4px);
 }
-.vcard-duration{
+.vcard-badge {
   position:absolute;bottom:6px;right:6px;
-  background:rgba(0,0,0,.75);
-  color:#fff;font-size:10px;font-family:var(--ff);font-weight:600;
+  background:rgba(0,0,0,.7);
+  color:#fff;font-size:9px;font-family:var(--ff);font-weight:600;
   padding:2px 6px;border-radius:4px;
+  backdrop-filter:blur(4px);
+  display:flex;align-items:center;gap:4px;
 }
-.vcard-body{padding:10px}
-.vcard-title{
-  font-family:var(--ff);
-  font-size:12px;
-  font-weight:700;
-  color:var(--dk);
-  line-height:1.4;
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
-}
-.vcard-meta{
-  margin-top:5px;
-  font-size:11px;
-  color:var(--gr);
-  font-family:var(--fb);
+.vcard-cat-dot {
+  position:absolute;top:7px;left:7px;
+  padding:2px 7px;border-radius:20px;
+  font-size:9px;font-family:var(--ff);font-weight:700;
+  backdrop-filter:blur(8px);
 }
 
-/* ── Empty State ── */
-#empty-state{
-  text-align:center;
-  padding:48px 24px;
+/* Card body */
+.vcard-body{padding:9px 10px 10px}
+.vcard-title {
+  font-family:var(--ff);font-weight:700;font-size:12px;
+  color:var(--dk);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  margin-bottom:5px;
+}
+.vcard-meta {
+  display:flex;align-items:center;gap:5px;
+  font-size:10.5px;color:var(--gr);font-family:var(--fb);
+}
+.vcard-meta-dot{width:3px;height:3px;border-radius:50%;background:#d1d5db}
+
+/* ── Featured / wide card ──────────────────────────── */
+.vcard-wide {
+  grid-column:1 / -1;
+  display:flex;
+  flex-direction:column;
+}
+.vcard-wide .vcard-thumb{padding-top:44%}
+
+/* ── Empty state ───────────────────────────────────── */
+#tt-empty {
   display:none;
+  text-align:center;
+  padding:52px 28px;
 }
-#empty-state i{font-size:40px;color:#d1d5db;margin-bottom:12px}
-#empty-state p{font-family:var(--ff);font-size:14px;color:var(--gr);font-weight:600}
-#empty-state small{font-size:12px;color:#9ca3af}
+#tt-empty i{font-size:42px;color:#d1d5db;margin-bottom:14px;display:block}
+#tt-empty h3{font-family:var(--ff);font-size:15px;font-weight:700;color:var(--mid);margin-bottom:6px}
+#tt-empty p{font-size:13px;color:var(--gr);font-family:var(--fb);line-height:1.6}
 
-/* ── Video Player Sheet ── */
-#player-overlay{
+/* ── Skeleton ──────────────────────────────────────── */
+#tt-skeleton{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 12px 0}
+.sk-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--sh)}
+.sk-thumb{width:100%;padding-top:56.25%;background:#f1f5f9;position:relative;overflow:hidden}
+.sk-body{padding:10px}
+.sk-line{height:10px;background:#f1f5f9;border-radius:6px;margin-bottom:7px;overflow:hidden;position:relative}
+.sk-line.short{width:55%}
+.sk-shimmer{animation:shimmer 1.5s infinite}
+.sk-shimmer::after,.sk-thumb::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.65) 50%,transparent 100%);
+  animation:shimmer 1.5s infinite;
+}
+@keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+
+/* ── Player overlay ────────────────────────────────── */
+#player-overlay {
   position:fixed;inset:0;
-  background:rgba(0,0,0,.55);
+  background:rgba(0,0,0,.6);
   z-index:500;
   display:none;
   align-items:flex-end;
   justify-content:center;
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
 }
 #player-overlay.open{display:flex}
-#player-sheet{
-  width:100%;
-  max-width:540px;
+#player-sheet {
+  width:100%;max-width:560px;
   background:#fff;
-  border-radius:20px 20px 0 0;
+  border-radius:22px 22px 0 0;
   overflow:hidden;
-  max-height:90dvh;
-  display:flex;
-  flex-direction:column;
+  max-height:92dvh;
+  display:flex;flex-direction:column;
   transform:translateY(100%);
-  transition:transform .35s cubic-bezier(.4,0,.2,1);
+  transition:transform .38s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 -8px 40px rgba(0,0,0,.2);
 }
 #player-overlay.open #player-sheet{transform:translateY(0)}
-#player-iframe-wrap{
-  position:relative;
-  width:100%;
-  padding-top:56.25%;
-  background:#000;
-  flex-shrink:0;
-}
-#player-iframe{
-  position:absolute;
-  inset:0;width:100%;height:100%;
-  border:none;
-}
-#player-info{
-  padding:16px;
-  overflow-y:auto;
-  flex:1;
-  min-height:0;
-}
-#player-title{
-  font-family:var(--ff);
-  font-weight:700;
-  font-size:15px;
-  color:var(--dk);
-  line-height:1.5;
-  margin-bottom:6px;
-}
-#player-category{
-  display:inline-block;
-  padding:3px 10px;
-  background:var(--pl);
-  color:var(--p);
-  border-radius:20px;
-  font-size:11px;
-  font-family:var(--ff);
-  font-weight:700;
-  margin-bottom:10px;
-}
-#player-close{
-  position:absolute;top:12px;right:12px;
-  width:36px;height:36px;
-  background:rgba(0,0,0,.5);
-  border-radius:50%;border:none;
-  color:#fff;font-size:16px;
-  cursor:pointer;
-  z-index:10;
-  display:flex;align-items:center;justify-content:center;
-}
 
-/* ── Footer Nav ── */
-#tt-footer{
-  height:var(--bnav-h);
-  flex-shrink:0;
-  background:#fff;
-  border-top:1px solid #f0f0f0;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:0 16px;
+/* Drag handle */
+#player-sheet::before {
+  content:'';display:block;
+  width:36px;height:4px;background:#d1d5db;border-radius:2px;
+  margin:12px auto -4px;flex-shrink:0;
+}
+#player-iframe-wrap {
+  position:relative;width:100%;padding-top:56.25%;background:#000;flex-shrink:0;
+}
+#player-iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+#player-close {
+  position:absolute;top:10px;right:10px;
+  width:34px;height:34px;border:none;background:rgba(0,0,0,.55);
+  border-radius:50%;color:#fff;font-size:14px;cursor:pointer;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s;backdrop-filter:blur(4px);
+}
+#player-close:hover{background:rgba(0,0,0,.8)}
+#player-info {
+  padding:16px 16px 20px;overflow-y:auto;flex:1;min-height:0;
+}
+#player-title {
+  font-family:var(--ff);font-weight:800;font-size:15px;
+  color:var(--dk);line-height:1.5;margin-bottom:10px;
+}
+.player-cat-pill {
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 11px;border-radius:20px;
+  font-size:11px;font-family:var(--ff);font-weight:700;
+  margin-bottom:14px;
+}
+/* Related videos in player */
+#player-related-hd {
+  font-family:var(--ff);font-weight:700;font-size:12px;
+  color:var(--mid);margin-bottom:10px;padding-top:10px;
+  border-top:1px solid var(--border);
+}
+.player-related-list{display:flex;flex-direction:column;gap:8px}
+.pr-item {
+  display:flex;gap:9px;align-items:flex-start;cursor:pointer;
+  padding:7px 8px;border-radius:10px;
+  transition:background .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.pr-item:hover,.pr-item:active{background:#f8f7f5}
+.pr-thumb {
+  width:70px;height:44px;border-radius:7px;overflow:hidden;
+  background:#1a1a2e;flex-shrink:0;position:relative;
+}
+.pr-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pr-thumb-placeholder{
+  width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#1a1a2e,#16213e);
+}
+.pr-play-icon{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.3);opacity:0;transition:opacity .15s;
+}
+.pr-item:hover .pr-play-icon{opacity:1}
+.pr-title{
+  font-family:var(--ff);font-size:12px;font-weight:700;color:var(--dk);
+  line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  flex:1;
+}
+.pr-meta{font-size:10.5px;color:var(--gr);font-family:var(--fb);margin-top:3px}
+
+/* ── Footer ────────────────────────────────────────── */
+#tt-footer {
+  height:var(--footer-h);
+  flex-shrink:0;background:#fff;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 12px;
   padding-bottom:var(--safe-b);
-  box-shadow:0 -2px 12px rgba(0,0,0,.06);
-  gap:12px;
+  gap:10px;
+  box-shadow:0 -2px 16px rgba(0,0,0,.05);
 }
-.tt-footer-btn{
-  flex:1;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  padding:11px 10px;
-  border-radius:12px;
-  border:none;
-  font-family:var(--ff);
-  font-size:13px;
-  font-weight:700;
-  cursor:pointer;
-  transition:all .18s;
-  text-decoration:none;
+.tt-fbtn {
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:11px 10px;border-radius:12px;border:none;
+  font-family:var(--ff);font-size:13px;font-weight:700;
+  cursor:pointer;transition:all .18s;text-decoration:none;
+  user-select:none;
 }
-.tt-footer-btn-offer{
-  background:linear-gradient(135deg,#f59e0b,#f4591d);
-  color:#fff;
-}
-.tt-footer-btn-wa{
-  background:#25d366;
-  color:#fff;
-}
-.tt-footer-btn:active{transform:scale(.97)}
+.tt-fbtn:active{transform:scale(.96)}
+.tt-fbtn-offer{background:linear-gradient(135deg,#f59e0b,#f4591d);color:#fff;box-shadow:0 3px 10px rgba(245,158,11,.3)}
+.tt-fbtn-wa{background:#25d366;color:#fff;box-shadow:0 3px 10px rgba(37,211,102,.3)}
+.tt-fbtn-offer:hover{box-shadow:0 4px 14px rgba(245,158,11,.4)}
+.tt-fbtn-wa:hover{box-shadow:0 4px 14px rgba(37,211,102,.4)}
 
-/* ── Skeleton ── */
-.skel-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--sh)}
-.skel-thumb{width:100%;padding-top:56.25%;background:#f3f4f6;position:relative;overflow:hidden}
-.skel-body{padding:10px}
-.skel-line{height:10px;background:#f3f4f6;border-radius:6px;margin-bottom:6px;overflow:hidden;position:relative}
-.skel-line:after,.skel-thumb:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.6) 50%,transparent 100%);animation:shimmer 1.4s infinite}
-@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-.skel-line-short{width:60%}
-
-/* ── Back button ── */
-#back-btn{
-  width:36px;height:36px;border:none;
-  background:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  border-radius:50%;color:var(--dk);font-size:18px;
-  transition:background .18s;
-  margin-left:-6px;
-}
-#back-btn:hover{background:#f3f4f6}
-
-/* ── Toast ── */
-#tt-toast{
-  position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;
-  transform:translateX(-50%) translateY(20px);
-  background:#1a1a2e;color:#fff;border-radius:24px;
-  padding:10px 20px;opacity:0;transition:all .3s;
+/* ── Toast ─────────────────────────────────────────── */
+#tt-toast {
+  position:fixed;bottom:calc(var(--footer-h) + 14px);
+  left:50%;transform:translateX(-50%) translateY(16px);
+  background:#0f172a;color:#fff;border-radius:24px;
+  padding:9px 20px;opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);
   z-index:9999;pointer-events:none;
-  font-family:var(--fb);font-size:13px;
-  white-space:nowrap;
+  font-family:var(--fb);font-size:13px;font-weight:500;
+  white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.25);
 }
 #tt-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── Category colour map ───────────────────────────── */
+/* applied via JS data-cat attribute */
+[data-cat=order]  .vcard-cat-dot{background:rgba(3,105,161,.8);color:#fff}
+[data-cat=recharge] .vcard-cat-dot{background:rgba(5,150,105,.8);color:#fff}
+[data-cat=payment] .vcard-cat-dot{background:rgba(217,119,6,.85);color:#fff}
+[data-cat=subscription] .vcard-cat-dot{background:rgba(124,58,237,.8);color:#fff}
+[data-cat=general] .vcard-cat-dot{background:rgba(100,116,139,.75);color:#fff}
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<div id="tt-header">
-  <button id="back-btn" onclick="window.location.href='./'" aria-label="Go back">
+<!-- ── Header ── -->
+<header id="tt-header">
+  <button class="tt-back" onclick="window.location.href='./'" aria-label="Back to Tiffo">
     <i class="fa fa-arrow-left"></i>
   </button>
-  <div class="tt-logo" onclick="window.location.href='./'">
-    <div class="tt-logo-icon"><i class="fa-brands fa-youtube"></i></div>
-    <div class="tt-logo-text">Tiffo<span>Tube</span></div>
-  </div>
+  <a class="tt-logo" onclick="resetFilters()" href="javascript:void(0)" aria-label="TiffoTube home">
+    <div class="tt-logo-badge"><i class="fa-brands fa-youtube"></i></div>
+    <div class="tt-logo-text">Tiffo<em>Tube</em></div>
+  </a>
   <button id="tt-search-btn" onclick="toggleSearch()" aria-label="Search">
     <i class="fa fa-magnifying-glass"></i>
   </button>
-</div>
+</header>
 
-<!-- Search Bar -->
-<div id="search-bar">
-  <div class="search-wrap">
-    <i class="fa fa-magnifying-glass search-icon-abs"></i>
-    <input id="search-input" type="search" placeholder="Search help videos…" inputmode="search"
-      oninput="onSearch(this.value)" autocomplete="off">
+<!-- ── Search bar ── -->
+<div id="tt-search-bar" role="search">
+  <div class="tt-search-inner">
+    <i class="fa fa-magnifying-glass tt-search-icon"></i>
+    <input id="tt-search-input" type="search" inputmode="search"
+      placeholder="Search help videos…" autocomplete="off" autocorrect="off"
+      oninput="onSearchInput(this.value)">
+    <button class="tt-search-clear" id="tt-search-clear" onclick="clearSearch()" aria-label="Clear search">
+      <i class="fa fa-xmark"></i>
+    </button>
   </div>
 </div>
 
-<!-- Category Chips -->
-<div id="chips-row">
-  <div class="chip active" onclick="filterChip('all',this)">All</div>
-  <div class="chip" onclick="filterChip('order',this)">How to Order</div>
-  <div class="chip" onclick="filterChip('recharge',this)">Recharge</div>
-  <div class="chip" onclick="filterChip('payment',this)">Payment</div>
-  <div class="chip" onclick="filterChip('subscription',this)">Subscription</div>
-  <div class="chip" onclick="filterChip('general',this)">General</div>
+<!-- ── Category chips ── -->
+<div id="tt-chips" role="tablist" aria-label="Filter by category">
+  <div class="chip active" role="tab" aria-selected="true" onclick="setChip('all',this)">All</div>
+  <!-- Additional chips injected dynamically after categories load -->
 </div>
 
-<!-- Main Scroll -->
-<div id="tt-scroll">
-  <div id="tt-main">
-    <!-- Skeleton loading -->
-    <div id="skel-grid" class="video-grid" style="padding-top:12px">
-      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
-      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
-      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
-      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
-    </div>
-    <!-- Real content injected here -->
-    <div id="video-grid-wrap"></div>
-    <!-- Empty state -->
-    <div id="empty-state">
-      <i class="fa fa-film"></i>
-      <p>No videos found</p>
-      <small id="empty-sub">Try a different search term</small>
-    </div>
+<!-- ── Main scroll area ── -->
+<main id="tt-scroll">
+
+  <!-- Skeleton (shown while loading) -->
+  <div id="tt-skeleton">
+    <div class="sk-card"><div class="sk-thumb"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+    <div class="sk-card"><div class="sk-thumb"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+    <div class="sk-card"><div class="sk-thumb"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
+    <div class="sk-card"><div class="sk-thumb"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div></div></div>
   </div>
-</div>
 
-<!-- Footer -->
-<div id="tt-footer">
-  <button class="tt-footer-btn tt-footer-btn-offer" onclick="window.location.href='offer.html'">
+  <!-- Video content injected here -->
+  <div id="tt-content"></div>
+
+  <!-- Empty state -->
+  <div id="tt-empty">
+    <i class="fa fa-film"></i>
+    <h3 id="tt-empty-title">No videos found</h3>
+    <p id="tt-empty-sub">Try searching with different keywords,<br>or browse a different category.</p>
+  </div>
+
+</main>
+
+<!-- ── Footer ── -->
+<footer id="tt-footer">
+  <button class="tt-fbtn tt-fbtn-offer" onclick="window.location.href='offer.html'">
     <i class="fa fa-tag"></i> Offers
   </button>
-  <button class="tt-footer-btn tt-footer-btn-wa" onclick="openWA()">
+  <button class="tt-fbtn tt-fbtn-wa" onclick="openWA()">
     <i class="fa-brands fa-whatsapp"></i> WhatsApp Help
   </button>
-</div>
+</footer>
 
-<!-- Player Overlay -->
-<div id="player-overlay" onclick="closePlayerOnBg(event)">
+<!-- ── Player sheet ── -->
+<div id="player-overlay" role="dialog" aria-modal="true" aria-label="Video player"
+  onclick="onOverlayClick(event)">
   <div id="player-sheet">
     <div id="player-iframe-wrap">
-      <iframe id="player-iframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-      <button id="player-close" onclick="closePlayer()"><i class="fa fa-xmark"></i></button>
+      <iframe id="player-iframe" src="" title="Help video"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen></iframe>
+      <button id="player-close" onclick="closePlayer()" aria-label="Close video">
+        <i class="fa fa-xmark"></i>
+      </button>
     </div>
     <div id="player-info">
       <div id="player-title"></div>
-      <div id="player-category"></div>
-      <p id="player-desc" style="font-size:13px;color:var(--gr);font-family:var(--fb);line-height:1.6"></p>
+      <div id="player-cat-pill" class="player-cat-pill"></div>
+      <div id="player-related-hd" style="display:none">Up Next</div>
+      <div id="player-related" class="player-related-list"></div>
     </div>
   </div>
 </div>
 
-<!-- Toast -->
-<div id="tt-toast"></div>
+<!-- ── Toast ── -->
+<div id="tt-toast" role="status" aria-live="polite"></div>
 
 <script src="https://purobitese-api.onrender.com/config.js" async></script>
 <script>
-const API = 'https://purobitese-api.onrender.com';
-let _allVideos = [];
+/* ═══════════════════════════════════════════════════
+   TiffoTube — help.html  (v2.0)
+   Clean, zero-bug implementation
+   ═══════════════════════════════════════════════════ */
+
+const API_BASE = 'https://purobitese-api.onrender.com';
+
+/* ── State ── */
+let _videos     = [];
 let _activeChip = 'all';
-let _searchQ = '';
-let _loadError = false;
+let _searchQ    = '';
+let _searchTimer = null;
+let _loadError  = false;
+
+/* ── Category config — seeded with fallback, overwritten after API load ── */
+let CAT = {
+  all:     { label:'All',     color:'#e63946', bg:'#fde8ea' },
+  general: { label:'General', color:'#475569', bg:'#f1f5f9' },
+};
+
+/* ── Load categories from API and build CAT map + chips ── */
+async function loadCategories() {
+  try {
+    await _ensureKey();
+    const res = await fetch(API_BASE + '/api', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'getHelpCategories', data:{}, apiKey:_getKey() })
+    });
+    const data = await res.json();
+    const cats = data.categories || [];
+    // Rebuild CAT map
+    CAT = { all: { label:'All', color:'#e63946', bg:'#fde8ea' } };
+    cats.forEach(c => {
+      CAT[c.slug] = { label: c.label, color: c.color, bg: c.bg_color };
+    });
+    // Render chips dynamically
+    const chipsEl = document.getElementById('tt-chips');
+    if (chipsEl) {
+      // Keep the "All" chip, remove old dynamic ones
+      const allChip = chipsEl.querySelector('.chip');
+      chipsEl.innerHTML = '';
+      if (allChip) chipsEl.appendChild(allChip);
+      cats.forEach(c => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.role = 'tab';
+        chip.setAttribute('aria-selected', 'false');
+        chip.textContent = c.label;
+        chip.onclick = function() { setChip(c.slug, this); };
+        chipsEl.appendChild(chip);
+      });
+    }
+  } catch(e) {
+    // Fallback: keep defaults silently
+  }
+}
 
 /* ── API key ── */
 function _getKey() {
   return window.__TIFFO_API_KEY__ || localStorage.getItem('tf_api_key') || '';
 }
-
 async function _ensureKey() {
   if (_getKey()) return;
   try {
-    const r = await fetch(API + '/config.js');
-    const txt = await r.text();
-    const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
+    const r = await fetch(API_BASE + '/config.js');
+    const t = await r.text();
+    const m = t.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
     if (m) { window.__TIFFO_API_KEY__ = m[1]; localStorage.setItem('tf_api_key', m[1]); }
   } catch(_) {}
 }
 
-/* ── Fetch videos ── */
+/* ── Load videos from API ── */
 async function loadVideos() {
+  _loadError = false;
   try {
     await _ensureKey();
-    const r = await fetch(API + '/api', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'getHelpVideos', data: {}, apiKey: _getKey() })
-    });
-    const d = await r.json();
-    _allVideos = (d.videos || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    // Load categories and videos in parallel
+    const [_, videoRes] = await Promise.all([
+      loadCategories(),
+      fetch(API_BASE + '/api', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action:'getHelpVideos', data:{}, apiKey:_getKey() })
+      })
+    ]);
+    const data = await videoRes.json();
+    _videos = (data.videos || []).sort((a,b) => (a.order_index||0) - (b.order_index||0));
   } catch(e) {
-    _allVideos = [];
+    _videos = [];
     _loadError = true;
   }
-  hideSkeleton();
-  renderVideos();
+  document.getElementById('tt-skeleton').style.display = 'none';
+  render();
 }
 
-function hideSkeleton() {
-  document.getElementById('skel-grid').style.display = 'none';
-}
-
-/* ── Extract YT video ID ── */
+/* ── Extract YouTube video ID ── */
 function ytId(url) {
   if (!url) return '';
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
   return m ? m[1] : '';
 }
-
-/* ── Thumbnail URL ── */
 function ytThumb(url) {
   const id = ytId(url);
   return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : '';
 }
-
-/* ── Embed URL ── */
 function ytEmbed(url) {
   const id = ytId(url);
   return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1` : '';
 }
 
-/* ── Category label ── */
-const CAT_LABELS = {
-  order: 'How to Order', recharge: 'Recharge', payment: 'Payment',
-  subscription: 'Subscription', general: 'General', all: 'All'
-};
+/* ── Escape HTML ── */
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
-/* ── Render ── */
-function renderVideos() {
-  let list = _allVideos;
+/* ── Filter videos ── */
+function filteredVideos() {
+  let list = _videos;
   if (_activeChip !== 'all') list = list.filter(v => v.category === _activeChip);
   if (_searchQ) {
     const q = _searchQ.toLowerCase();
-    list = list.filter(v => (v.title || '').toLowerCase().includes(q) || (v.description || '').toLowerCase().includes(q));
+    list = list.filter(v =>
+      (v.title||'').toLowerCase().includes(q) ||
+      (v.description||'').toLowerCase().includes(q)
+    );
   }
+  return list;
+}
 
-  const wrap = document.getElementById('video-grid-wrap');
-  const empty = document.getElementById('empty-state');
+/* ── Build a single video card ── */
+function buildCard(v, wide) {
+  const thumb    = ytThumb(v.youtube_url);
+  const catCfg   = CAT[v.category] || CAT.general;
+  const wideClass = wide ? ' vcard-wide' : '';
+
+  const thumbContent = thumb
+    ? `<img src="${esc(thumb)}" alt="${esc(v.title)}" loading="lazy"
+         onerror="this.closest('.vcard-thumb').innerHTML='<div class=vcard-thumb-placeholder><i class=\\'fa fa-play-circle\\' style=\\'font-size:28px;color:#c4b5fd\\'></i></div>'">`
+    : `<div class="vcard-thumb-placeholder">
+         <i class="fa fa-play-circle" style="font-size:28px;color:#c4b5fd"></i>
+       </div>`;
+
+  return `
+    <div class="vcard${wideClass}" data-cat="${esc(v.category)}" onclick="openPlayer(${v.id})" role="button" tabindex="0"
+      onkeydown="if(event.key==='Enter')openPlayer(${v.id})">
+      <div class="vcard-thumb">
+        ${thumbContent}
+        <div class="vcard-thumb-overlay"></div>
+        <div class="vcard-play"><div class="vcard-play-circle"><i class="fa fa-play" style="margin-left:2px"></i></div></div>
+        <div class="vcard-cat-dot">${esc(catCfg.label)}</div>
+        <div class="vcard-badge"><i class="fa fa-play" style="font-size:7px"></i> Watch</div>
+      </div>
+      <div class="vcard-body">
+        <div class="vcard-title">${esc(v.title)}</div>
+        <div class="vcard-meta">
+          <span>${esc(catCfg.label)}</span>
+          <span class="vcard-meta-dot"></span>
+          <span>Tap to watch</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── Main render function ── */
+function render() {
+  const list    = filteredVideos();
+  const content = document.getElementById('tt-content');
+  const empty   = document.getElementById('tt-empty');
 
   if (!list.length) {
-    wrap.innerHTML = '';
+    content.innerHTML = '';
     empty.style.display = 'block';
-    if (_loadError && !_searchQ && _activeChip === 'all') {
-      document.getElementById('empty-sub').textContent = 'Could not load videos. Please check your connection.';
-    } else {
-      document.getElementById('empty-sub').textContent = _searchQ ? `No results for "${_searchQ}"` : 'No videos in this category yet';
-    }
+    const isError = _loadError && !_searchQ && _activeChip === 'all';
+    document.getElementById('tt-empty-title').textContent = isError ? 'Could not load videos' : 'No videos found';
+    document.getElementById('tt-empty-sub').textContent   = isError
+      ? 'Check your connection and try again.'
+      : _searchQ
+        ? `No results for "${_searchQ}" — try different keywords`
+        : 'No videos in this category yet. Check back soon!';
     return;
   }
   empty.style.display = 'none';
 
-  const cards = list.map(v => {
-    const thumb = ytThumb(v.youtube_url);
-    const thumbHtml = thumb
-      ? `<img src="${thumb}" alt="${escHtml(v.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=vcard-thumb-placeholder><div class=vcard-play-icon><i class=\"fa fa-play\"></i></div></div>'">`
-      : `<div class="vcard-thumb-placeholder"><div class="vcard-play-icon"><i class="fa fa-play"></i></div></div>`;
-    return `
-      <div class="vcard" onclick="openPlayer(${v.id})">
-        <div class="vcard-thumb">${thumbHtml}<div class="vcard-duration"><i class="fa fa-play" style="font-size:8px;margin-right:3px"></i>Watch</div></div>
-        <div class="vcard-body">
-          <div class="vcard-title">${escHtml(v.title)}</div>
-          <div class="vcard-meta">${CAT_LABELS[v.category] || 'General'}</div>
-        </div>
-      </div>`;
-  }).join('');
-
-  wrap.innerHTML = `<div class="video-grid" style="padding-top:4px">${cards}</div>`;
+  /* Group by category when showing "All" without search */
+  if (_activeChip === 'all' && !_searchQ) {
+    const cats   = Object.keys(CAT).filter(k => k !== 'all');
+    let html = '';
+    /* First card (featured, full-width) */
+    const first = list[0];
+    if (first) {
+      html += `<div class="tt-section-hd">Featured</div><div style="padding:0 12px 12px">${buildCard(first, true)}</div>`;
+    }
+    /* Rest grouped by category */
+    cats.forEach(cat => {
+      const group = list.filter(v => v.category === cat && v.id !== first?.id);
+      if (!group.length) return;
+      const catCfg = CAT[cat];
+      html += `<div class="tt-section-hd">${esc(catCfg.label)}</div>`;
+      html += `<div class="tt-grid">`;
+      group.forEach(v => { html += buildCard(v, false); });
+      html += `</div>`;
+    });
+    content.innerHTML = html;
+  } else {
+    /* Flat grid for filtered/searched results */
+    const hd = _searchQ
+      ? `<div class="tt-section-hd">${list.length} result${list.length!==1?'s':''} for "${esc(_searchQ)}"</div>`
+      : `<div class="tt-section-hd">${esc((CAT[_activeChip]||CAT.all).label)} · ${list.length} video${list.length!==1?'s':''}</div>`;
+    content.innerHTML = hd + `<div class="tt-grid">${list.map(v=>buildCard(v,false)).join('')}</div>`;
+  }
 }
 
-/* ── Open Player ── */
+/* ── Open player ── */
 function openPlayer(id) {
-  const v = _allVideos.find(x => x.id === id);
+  const v = _videos.find(x => x.id === id);
   if (!v) return;
   const embedUrl = ytEmbed(v.youtube_url);
   if (!embedUrl) { showToast('Invalid video link'); return; }
+
+  const catCfg = CAT[v.category] || CAT.general;
+
+  /* Set iframe */
   document.getElementById('player-iframe').src = embedUrl;
+
+  /* Set info */
   document.getElementById('player-title').textContent = v.title;
-  document.getElementById('player-category').textContent = CAT_LABELS[v.category] || 'General';
-  document.getElementById('player-desc').textContent = v.description || '';
+  const pill = document.getElementById('player-cat-pill');
+  pill.textContent = catCfg.label;
+  pill.style.background = catCfg.bg;
+  pill.style.color       = catCfg.color;
+
+  /* Related videos (same category, excluding current) */
+  const related = _videos.filter(x => x.id !== id && (x.category === v.category || !v.category)).slice(0, 4);
+  const relHd   = document.getElementById('player-related-hd');
+  const relList = document.getElementById('player-related');
+  if (related.length) {
+    relHd.style.display = 'block';
+    relList.innerHTML = related.map(r => {
+      const t = ytThumb(r.youtube_url);
+      const rc = CAT[r.category] || CAT.general;
+      return `
+        <div class="pr-item" onclick="openPlayer(${r.id})" role="button" tabindex="0">
+          <div class="pr-thumb">
+            ${t ? `<img src="${esc(t)}" alt="" loading="lazy">` : `<div class="pr-thumb-placeholder"><i class="fa-brands fa-youtube" style="color:#c4b5fd;font-size:16px"></i></div>`}
+            <div class="pr-play-icon"><i class="fa fa-play" style="color:#fff;font-size:10px;margin-left:1px"></i></div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="pr-title">${esc(r.title)}</div>
+            <div class="pr-meta" style="color:${esc(rc.color)}">${esc(rc.label)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } else {
+    relHd.style.display = 'none';
+    relList.innerHTML = '';
+  }
+
+  /* Open sheet */
   const overlay = document.getElementById('player-overlay');
   overlay.style.display = 'flex';
   requestAnimationFrame(() => overlay.classList.add('open'));
+  document.body.style.overflow = 'hidden';
 }
 
 function closePlayer() {
@@ -594,54 +816,115 @@ function closePlayer() {
   setTimeout(() => {
     overlay.style.display = 'none';
     document.getElementById('player-iframe').src = '';
-  }, 350);
+    document.body.style.overflow = '';
+  }, 380);
 }
 
-function closePlayerOnBg(e) {
+function onOverlayClick(e) {
   if (e.target === document.getElementById('player-overlay')) closePlayer();
 }
 
 /* ── Search ── */
-let _searchTimer;
-function onSearch(val) {
+function onSearchInput(val) {
   clearTimeout(_searchTimer);
-  _searchTimer = setTimeout(() => { _searchQ = val.trim(); renderVideos(); }, 250);
+  const clearBtn = document.getElementById('tt-search-clear');
+  if (clearBtn) clearBtn.classList.toggle('show', val.length > 0);
+  _searchTimer = setTimeout(() => {
+    _searchQ = val.trim();
+    render();
+  }, 220);
 }
 
 function toggleSearch() {
-  const bar = document.getElementById('search-bar');
+  const bar = document.getElementById('tt-search-bar');
   const btn = document.getElementById('tt-search-btn');
   const isOpen = bar.classList.toggle('open');
-  btn.innerHTML = isOpen ? '<i class="fa fa-xmark"></i>' : '<i class="fa fa-magnifying-glass"></i>';
-  if (isOpen) { setTimeout(() => document.getElementById('search-input').focus(), 100); }
-  else { document.getElementById('search-input').value = ''; _searchQ = ''; renderVideos(); }
+  btn.innerHTML = isOpen
+    ? '<i class="fa fa-xmark"></i>'
+    : '<i class="fa fa-magnifying-glass"></i>';
+  if (isOpen) {
+    setTimeout(() => document.getElementById('tt-search-input').focus(), 120);
+  } else {
+    clearSearch();
+  }
 }
 
-/* ── Chip filter ── */
-function filterChip(cat, el) {
+function clearSearch() {
+  const inp = document.getElementById('tt-search-input');
+  const clearBtn = document.getElementById('tt-search-clear');
+  if (inp) inp.value = '';
+  if (clearBtn) clearBtn.classList.remove('show');
+  _searchQ = '';
+  render();
+}
+
+/* ── Chips ── */
+function setChip(cat, el) {
   _activeChip = cat;
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#tt-chips .chip').forEach(c => {
+    c.classList.remove('active');
+    c.setAttribute('aria-selected','false');
+  });
   el.classList.add('active');
-  renderVideos();
+  el.setAttribute('aria-selected','true');
+  render();
+  /* Scroll chip into view */
+  el.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+}
+
+function resetFilters() {
+  _activeChip = 'all';
+  _searchQ    = '';
+  document.querySelectorAll('#tt-chips .chip').forEach((c,i) => {
+    c.classList.toggle('active', i===0);
+    c.setAttribute('aria-selected', i===0 ? 'true':'false');
+  });
+  const inp = document.getElementById('tt-search-input');
+  if (inp) inp.value = '';
+  const bar = document.getElementById('tt-search-bar');
+  if (bar.classList.contains('open')) toggleSearch();
+  render();
 }
 
 /* ── WhatsApp ── */
 function openWA() {
-  const msg = encodeURIComponent('🆘 *Tiffo — Help Request*\n' + '━'.repeat(28) + '\nHi Tiffo Team! 👋\n\nI need help. Please assist me.\n\nThank you! 🙏');
+  const msg = encodeURIComponent(
+    '\uD83C\uDD98 *Tiffo \u2014 Help Request*\n' +
+    '\u2501'.repeat(28) + '\n' +
+    'Hi Tiffo Team! \uD83D\uDC4B\n\n' +
+    'I need help. Please assist me.\n\n' +
+    'Thank you! \uD83D\uDE4F'
+  );
   window.open('https://wa.me/919889760350?text=' + msg, '_blank');
 }
 
-/* ── Helpers ── */
-function escHtml(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function showToast(msg, dur = 2200) {
+/* ── Toast ── */
+function showToast(msg, dur = 2400) {
   const t = document.getElementById('tt-toast');
-  t.textContent = msg; t.classList.add('show');
+  t.textContent = msg;
+  t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), dur);
 }
 
-/* ── Init ── */
+/* ── Keyboard: close player on Escape ── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('player-overlay');
+    if (overlay.classList.contains('open')) closePlayer();
+  }
+});
+
+/* ── Swipe down to close player ── */
+(function() {
+  let startY = 0;
+  const sheet = document.getElementById('player-sheet');
+  sheet.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive:true });
+  sheet.addEventListener('touchend', e => {
+    if (e.changedTouches[0].clientY - startY > 80) closePlayer();
+  }, { passive:true });
+})();
+
+/* ── Boot ── */
 loadVideos();
 </script>
 </body>
