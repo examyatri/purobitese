@@ -203,6 +203,8 @@ const _STAFF_ACTIONS = new Set([
   'updateHelpVideo',
   'deleteHelpVideo',
   'reorderHelpVideos',
+  'addHelpCategory',
+  'deleteHelpCategory',
   // ── Read-only admin data — still require a valid staff session ──
   'getSettings',           // returns full admin_settings (cutoff, zone, schedule, etc.)
   'getOrderTransactions',  // returns user's khata_entries — sensitive financial data
@@ -2936,10 +2938,26 @@ app.post('/api', async (req, res) => {
 
       // ── Help Videos (TiffoTube) ──────────────────────────────────────────
 
+      // Merged endpoint for help.html — 1 HTTP request, 2 parallel Supabase queries.
+      // Admin panel still uses getHelpCategories / getHelpVideos separately (unchanged).
+      case 'getHelpData': {
+        const [catsResult, videosResult] = await Promise.all([
+          supabase.from('help_video_categories')
+            .select('slug,label,color,bg_color,sort_order')
+            .order('sort_order', { ascending: true }),
+          supabase.from('help_videos')
+            .select('id,title,youtube_url,category,description,order_index')
+            .order('order_index', { ascending: true })
+        ]);
+        if (catsResult.error)   return res.json({ success: false, error: catsResult.error.message });
+        if (videosResult.error) return res.json({ success: false, error: videosResult.error.message });
+        return res.json({ success: true, categories: catsResult.data || [], videos: videosResult.data || [] });
+      }
+
       case 'getHelpCategories': {
         const { data: rows, error } = await supabase
           .from('help_video_categories')
-          .select('*')
+          .select('slug,label,color,bg_color,sort_order')
           .order('sort_order', { ascending: true });
         if (error) return res.json({ success: false, error: error.message });
         return res.json({ success: true, categories: rows || [] });
@@ -2989,7 +3007,7 @@ app.post('/api', async (req, res) => {
       case 'getHelpVideos': {
         const { data: rows, error } = await supabase
           .from('help_videos')
-          .select('*')
+          .select('id,title,youtube_url,category,description,order_index')
           .order('order_index', { ascending: true });
         if (error) return res.json({ success: false, error: error.message });
         return res.json({ success: true, videos: rows || [] });
