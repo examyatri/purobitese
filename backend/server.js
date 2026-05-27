@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v60.3                                    ║
+// ║  Version : v60.4                                    ║
 // ║  Updated : 2026-05-27                               ║
 // ║  Changes : Security & logic fixes —                 ║
 // ║            adminDeleteUser moved to _ADMIN_ONLY     ║
@@ -199,6 +199,10 @@ const _STAFF_ACTIONS = new Set([
   'setDeliveryAreas',
   'adminSetUserAddress',
   'createRider',
+  'addHelpVideo',
+  'updateHelpVideo',
+  'deleteHelpVideo',
+  'reorderHelpVideos',
   // ── Read-only admin data — still require a valid staff session ──
   'getSettings',           // returns full admin_settings (cutoff, zone, schedule, etc.)
   'getOrderTransactions',  // returns user's khata_entries — sensitive financial data
@@ -2929,6 +2933,136 @@ app.post('/api', async (req, res) => {
         { const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
           await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
           return res.json({ success: true }); }
+
+      // ── Help Videos (TiffoTube) ──────────────────────────────────────────
+
+      case 'getHelpCategories': {
+        const { data: rows, error } = await supabase
+          .from('help_video_categories')
+          .select('*')
+          .order('sort_order', { ascending: true });
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true, categories: rows || [] });
+      }
+
+      case 'addHelpCategory': {
+        const { label, color, bg_color } = data;
+        if (!label || !label.trim()) return res.json({ success: false, error: 'label required' });
+        // Generate slug from label: lowercase, alphanumeric+underscore only
+        const slug = label.trim().toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 40);
+        if (!slug) return res.json({ success: false, error: 'Invalid label — use letters/numbers' });
+        // Check duplicate slug
+        const { data: existing } = await supabase
+          .from('help_video_categories').select('id').eq('slug', slug).maybeSingle();
+        if (existing) return res.json({ success: false, error: `Category "${slug}" already exists` });
+        // Get max sort_order
+        const { data: maxRow } = await supabase
+          .from('help_video_categories').select('sort_order')
+          .order('sort_order', { ascending: false }).limit(1).maybeSingle();
+        const nextOrder = (maxRow?.sort_order ?? -1) + 1;
+        const { error } = await supabase.from('help_video_categories').insert({
+          slug,
+          label:     label.trim(),
+          color:     color     || '#475569',
+          bg_color:  bg_color  || '#f1f5f9',
+          sort_order: nextOrder
+        });
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true, slug });
+      }
+
+      case 'deleteHelpCategory': {
+        const { slug } = data;
+        if (!slug) return res.json({ success: false, error: 'slug required' });
+        // Safety: prevent deleting 'general' (fallback category)
+        if (slug === 'general') return res.json({ success: false, error: 'Cannot delete the "general" category' });
+        // Reassign videos in this category to 'general' before deleting
+        await supabase.from('help_videos').update({ category: 'general' }).eq('category', slug);
+        const { error } = await supabase.from('help_video_categories').delete().eq('slug', slug);
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true });
+      }
+
+      case 'getHelpVideos': {
+        const { data: rows, error } = await supabase
+          .from('help_videos')
+          .select('*')
+          .order('order_index', { ascending: true });
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true, videos: rows || [] });
+      }
+
+      case 'addHelpVideo': {
+        const { title, youtube_url, category, description } = data;
+        if (!title || !youtube_url) return res.json({ success: false, error: 'title and youtube_url required' });
+        // Dynamic category validation from DB
+        const { data: catRow } = await supabase
+          .from('help_video_categories').select('slug').eq('slug', category || 'general').maybeSingle();
+        const safeCategory = catRow ? catRow.slug : 'general';
+        // Use maybeSingle() — returns null (not an error) when table is empty
+        const { data: maxRow } = await supabase
+          .from('help_videos').select('order_index')
+          .order('order_index', { ascending: false }).limit(1).maybeSingle();
+        const nextOrder = (maxRow?.order_index ?? -1) + 1;
+        const { error } = await supabase.from('help_videos').insert({
+          title:       title.trim(),
+          youtube_url: youtube_url.trim(),
+          category:    safeCategory,
+          description: (description || '').trim(),
+          order_index: nextOrder
+        });
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true });
+      }
+
+      case 'updateHelpVideo': {
+        const { id, title, youtube_url, category, description } = data;
+        if (!id) return res.json({ success: false, error: 'id required' });
+        const updates = {};
+        if (title)       updates.title       = title.trim();
+        if (youtube_url) updates.youtube_url = youtube_url.trim();
+        if (category) {
+          // Dynamic category validation from DB
+          const { data: catRow } = await supabase
+            .from('help_video_categories').select('slug').eq('slug', category).maybeSingle();
+          if (catRow) updates.category = catRow.slug;
+        }
+        if (description !== undefined) updates.description = description.trim();
+        if (!Object.keys(updates).length) return res.json({ success: false, error: 'No fields to update' });
+        const { error } = await supabase.from('help_videos').update(updates).eq('id', id);
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true });
+      }
+
+      case 'deleteHelpVideo': {
+        const { id } = data;
+        if (!id) return res.json({ success: false, error: 'id required' });
+        const { error } = await supabase.from('help_videos').delete().eq('id', id);
+        if (error) return res.json({ success: false, error: error.message });
+        return res.json({ success: true });
+      }
+
+      case 'reorderHelpVideos': {
+        const { ordered_ids } = data;
+        if (!Array.isArray(ordered_ids) || !ordered_ids.length)
+          return res.json({ success: false, error: 'ordered_ids must be a non-empty array' });
+        // Validate all IDs are safe integers before touching DB
+        const safeIds = ordered_ids.map(id => parseInt(id, 10)).filter(id => Number.isFinite(id) && id > 0);
+        if (safeIds.length !== ordered_ids.length)
+          return res.json({ success: false, error: 'Invalid id in ordered_ids' });
+        const results = await Promise.all(
+          safeIds.map((id, idx) =>
+            supabase.from('help_videos').update({ order_index: idx }).eq('id', id)
+          )
+        );
+        const failed = results.find(r => r.error);
+        if (failed) return res.json({ success: false, error: failed.error.message });
+        return res.json({ success: true });
+      }
+      // ── End Help Videos ──────────────────────────────────────────────────
 
       case 'adminSetUserAddress': {
         const phone = cleanPhone(data.phone);
