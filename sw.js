@@ -5,7 +5,7 @@
    CHANGES v31.0:
    - config.js changed from async to defer in index.html → deterministic boot
    - Server now sends Cache-Control: max-age=3600 on config.js → 0ms on repeat
-   - Cache bumped to tiffo-v28 to force fresh precache on this deploy.
+   - Cache bumped to tiffo-v29 to force fresh precache on this deploy.
    - No SW strategy changes — config.js stays network-only (browser cache handles it)
 
    CHANGES v30.0 (UX PERF — root cause fix for 20-30s skeleton):
@@ -18,11 +18,11 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v36'; // bumped for v55 — QR note logic: order=orderId only, recharge=phone+name
+const CACHE      = 'tiffo-v37'; // bumped for v55.2 — ecLevel H→M fix (Order ID now shows in PhonePe receipt)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
-const PRECACHE = ['./', './index.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
+const PRECACHE = ['./', './index.html', './help.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [

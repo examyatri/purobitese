@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#e63946">
+<title>TiffoTube — Help & Tutorials</title>
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="manifest" href="./manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --p:#e63946; --pd:#c1121f; --pl:#fde8ea;
+  --grad:linear-gradient(135deg,#e63946,#f4591d);
+  --g:#2a9d8f; --gl:#e8f5f3;
+  --dk:#111827; --gr:#6b7280; --lt:#f8f5f2; --wh:#fff;
+  --sh:0 2px 12px rgba(0,0,0,.07); --shl:0 8px 32px rgba(0,0,0,.14);
+  --ff:'Sora',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --fb:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --bnav-h:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#fff;color:var(--dk);font-family:var(--fb)}
+body{display:flex;flex-direction:column;overflow:hidden;height:100dvh}
+
+/* ── Header ── */
+#tt-header {
+  background:#fff;
+  border-bottom:1px solid #f0f0f0;
+  padding:0 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  height:56px;
+  flex-shrink:0;
+  position:sticky;
+  top:0;
+  z-index:100;
+  box-shadow:0 1px 8px rgba(0,0,0,.06);
+}
+.tt-logo {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  text-decoration:none;
+  cursor:pointer;
+}
+.tt-logo-icon {
+  width:32px;
+  height:32px;
+  background:var(--grad);
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  font-size:14px;
+}
+.tt-logo-text {
+  font-family:var(--ff);
+  font-weight:800;
+  font-size:18px;
+  color:var(--dk);
+  letter-spacing:-.3px;
+}
+.tt-logo-text span{color:var(--p)}
+#tt-search-btn {
+  width:40px;height:40px;
+  border:none;background:#f3f4f6;
+  border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--dk);font-size:16px;
+  transition:background .2s;
+}
+#tt-search-btn:hover{background:#e5e7eb}
+
+/* ── Search Bar ── */
+#search-bar {
+  background:#fff;
+  border-bottom:1px solid #f0f0f0;
+  padding:10px 16px;
+  display:none;
+  flex-shrink:0;
+}
+#search-bar.open{display:block}
+#search-input {
+  width:100%;
+  padding:10px 16px 10px 40px;
+  border:1.5px solid #e5e7eb;
+  border-radius:24px;
+  font-family:var(--fb);
+  font-size:14px;
+  color:var(--dk);
+  background:#f8fafc;
+  outline:none;
+  transition:border-color .2s;
+}
+#search-input:focus{border-color:var(--p);background:#fff}
+.search-icon-abs{position:absolute;left:28px;top:50%;transform:translateY(-50%);color:var(--gr);font-size:14px;pointer-events:none}
+.search-wrap{position:relative}
+
+/* ── Scroll Container ── */
+#tt-scroll {
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+  background:var(--lt);
+  padding-bottom:calc(var(--bnav-h) + var(--safe-b) + 20px);
+}
+
+/* ── Category Chips ── */
+#chips-row {
+  display:flex;
+  gap:8px;
+  padding:12px 16px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  background:#fff;
+  border-bottom:1px solid #f4f4f4;
+  flex-shrink:0;
+}
+#chips-row::-webkit-scrollbar{display:none}
+.chip {
+  flex-shrink:0;
+  padding:6px 14px;
+  border-radius:20px;
+  border:1.5px solid #e5e7eb;
+  font-family:var(--ff);
+  font-size:12px;
+  font-weight:600;
+  color:var(--gr);
+  background:#fff;
+  cursor:pointer;
+  transition:all .18s;
+  white-space:nowrap;
+}
+.chip.active,.chip:hover{background:var(--p);color:#fff;border-color:var(--p)}
+
+/* ── Section Header ── */
+.section-header {
+  padding:16px 16px 8px;
+  font-family:var(--ff);
+  font-weight:700;
+  font-size:15px;
+  color:var(--dk);
+}
+
+/* ── Video Grid ── */
+.video-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  padding:0 12px 12px;
+}
+@media(max-width:360px){.video-grid{grid-template-columns:1fr}}
+
+/* ── Video Card ── */
+.vcard {
+  background:#fff;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:var(--sh);
+  cursor:pointer;
+  transition:transform .18s,box-shadow .18s;
+  -webkit-tap-highlight-color:transparent;
+}
+.vcard:active{transform:scale(.97)}
+.vcard-thumb {
+  position:relative;
+  width:100%;
+  padding-top:56.25%; /* 16:9 */
+  background:#1a1a1a;
+  overflow:hidden;
+}
+.vcard-thumb img{
+  position:absolute;
+  inset:0;width:100%;height:100%;
+  object-fit:cover;
+}
+.vcard-thumb-placeholder{
+  position:absolute;
+  inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#1a1a2e,#16213e);
+}
+.vcard-play-icon{
+  width:36px;height:36px;
+  background:rgba(230,57,70,.9);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:13px;
+  padding-left:2px;
+}
+.vcard-duration{
+  position:absolute;bottom:6px;right:6px;
+  background:rgba(0,0,0,.75);
+  color:#fff;font-size:10px;font-family:var(--ff);font-weight:600;
+  padding:2px 6px;border-radius:4px;
+}
+.vcard-body{padding:10px}
+.vcard-title{
+  font-family:var(--ff);
+  font-size:12px;
+  font-weight:700;
+  color:var(--dk);
+  line-height:1.4;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.vcard-meta{
+  margin-top:5px;
+  font-size:11px;
+  color:var(--gr);
+  font-family:var(--fb);
+}
+
+/* ── Empty State ── */
+#empty-state{
+  text-align:center;
+  padding:48px 24px;
+  display:none;
+}
+#empty-state i{font-size:40px;color:#d1d5db;margin-bottom:12px}
+#empty-state p{font-family:var(--ff);font-size:14px;color:var(--gr);font-weight:600}
+#empty-state small{font-size:12px;color:#9ca3af}
+
+/* ── Video Player Sheet ── */
+#player-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.55);
+  z-index:500;
+  display:none;
+  align-items:flex-end;
+  justify-content:center;
+}
+#player-overlay.open{display:flex}
+#player-sheet{
+  width:100%;
+  max-width:540px;
+  background:#fff;
+  border-radius:20px 20px 0 0;
+  overflow:hidden;
+  max-height:90dvh;
+  display:flex;
+  flex-direction:column;
+  transform:translateY(100%);
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+}
+#player-overlay.open #player-sheet{transform:translateY(0)}
+#player-iframe-wrap{
+  position:relative;
+  width:100%;
+  padding-top:56.25%;
+  background:#000;
+  flex-shrink:0;
+}
+#player-iframe{
+  position:absolute;
+  inset:0;width:100%;height:100%;
+  border:none;
+}
+#player-info{
+  padding:16px;
+  overflow-y:auto;
+  flex:1;
+  min-height:0;
+}
+#player-title{
+  font-family:var(--ff);
+  font-weight:700;
+  font-size:15px;
+  color:var(--dk);
+  line-height:1.5;
+  margin-bottom:6px;
+}
+#player-category{
+  display:inline-block;
+  padding:3px 10px;
+  background:var(--pl);
+  color:var(--p);
+  border-radius:20px;
+  font-size:11px;
+  font-family:var(--ff);
+  font-weight:700;
+  margin-bottom:10px;
+}
+#player-close{
+  position:absolute;top:12px;right:12px;
+  width:36px;height:36px;
+  background:rgba(0,0,0,.5);
+  border-radius:50%;border:none;
+  color:#fff;font-size:16px;
+  cursor:pointer;
+  z-index:10;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* ── Footer Nav ── */
+#tt-footer{
+  height:var(--bnav-h);
+  flex-shrink:0;
+  background:#fff;
+  border-top:1px solid #f0f0f0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 16px;
+  padding-bottom:var(--safe-b);
+  box-shadow:0 -2px 12px rgba(0,0,0,.06);
+  gap:12px;
+}
+.tt-footer-btn{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:11px 10px;
+  border-radius:12px;
+  border:none;
+  font-family:var(--ff);
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .18s;
+  text-decoration:none;
+}
+.tt-footer-btn-offer{
+  background:linear-gradient(135deg,#f59e0b,#f4591d);
+  color:#fff;
+}
+.tt-footer-btn-wa{
+  background:#25d366;
+  color:#fff;
+}
+.tt-footer-btn:active{transform:scale(.97)}
+
+/* ── Skeleton ── */
+.skel-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:var(--sh)}
+.skel-thumb{width:100%;padding-top:56.25%;background:#f3f4f6;position:relative;overflow:hidden}
+.skel-body{padding:10px}
+.skel-line{height:10px;background:#f3f4f6;border-radius:6px;margin-bottom:6px;overflow:hidden;position:relative}
+.skel-line:after,.skel-thumb:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.6) 50%,transparent 100%);animation:shimmer 1.4s infinite}
+@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.skel-line-short{width:60%}
+
+/* ── Back button ── */
+#back-btn{
+  width:36px;height:36px;border:none;
+  background:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;color:var(--dk);font-size:18px;
+  transition:background .18s;
+  margin-left:-6px;
+}
+#back-btn:hover{background:#f3f4f6}
+
+/* ── Toast ── */
+#tt-toast{
+  position:fixed;bottom:calc(var(--bnav-h) + 16px);left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:#1a1a2e;color:#fff;border-radius:24px;
+  padding:10px 20px;opacity:0;transition:all .3s;
+  z-index:9999;pointer-events:none;
+  font-family:var(--fb);font-size:13px;
+  white-space:nowrap;
+}
+#tt-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="tt-header">
+  <button id="back-btn" onclick="window.location.href='./'" aria-label="Go back">
+    <i class="fa fa-arrow-left"></i>
+  </button>
+  <div class="tt-logo" onclick="window.location.href='./'">
+    <div class="tt-logo-icon"><i class="fa-brands fa-youtube"></i></div>
+    <div class="tt-logo-text">Tiffo<span>Tube</span></div>
+  </div>
+  <button id="tt-search-btn" onclick="toggleSearch()" aria-label="Search">
+    <i class="fa fa-magnifying-glass"></i>
+  </button>
+</div>
+
+<!-- Search Bar -->
+<div id="search-bar">
+  <div class="search-wrap">
+    <i class="fa fa-magnifying-glass search-icon-abs"></i>
+    <input id="search-input" type="search" placeholder="Search help videos…" inputmode="search"
+      oninput="onSearch(this.value)" autocomplete="off">
+  </div>
+</div>
+
+<!-- Category Chips -->
+<div id="chips-row">
+  <div class="chip active" onclick="filterChip('all',this)">All</div>
+  <div class="chip" onclick="filterChip('order',this)">How to Order</div>
+  <div class="chip" onclick="filterChip('recharge',this)">Recharge</div>
+  <div class="chip" onclick="filterChip('payment',this)">Payment</div>
+  <div class="chip" onclick="filterChip('subscription',this)">Subscription</div>
+  <div class="chip" onclick="filterChip('general',this)">General</div>
+</div>
+
+<!-- Main Scroll -->
+<div id="tt-scroll">
+  <div id="tt-main">
+    <!-- Skeleton loading -->
+    <div id="skel-grid" class="video-grid" style="padding-top:12px">
+      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
+      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
+      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
+      <div class="skel-card"><div class="skel-thumb"></div><div class="skel-body"><div class="skel-line"></div><div class="skel-line skel-line-short"></div></div></div>
+    </div>
+    <!-- Real content injected here -->
+    <div id="video-grid-wrap"></div>
+    <!-- Empty state -->
+    <div id="empty-state">
+      <i class="fa fa-film"></i>
+      <p>No videos found</p>
+      <small id="empty-sub">Try a different search term</small>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div id="tt-footer">
+  <button class="tt-footer-btn tt-footer-btn-offer" onclick="window.location.href='offer.html'">
+    <i class="fa fa-tag"></i> Offers
+  </button>
+  <button class="tt-footer-btn tt-footer-btn-wa" onclick="openWA()">
+    <i class="fa-brands fa-whatsapp"></i> WhatsApp Help
+  </button>
+</div>
+
+<!-- Player Overlay -->
+<div id="player-overlay" onclick="closePlayerOnBg(event)">
+  <div id="player-sheet">
+    <div id="player-iframe-wrap">
+      <iframe id="player-iframe" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      <button id="player-close" onclick="closePlayer()"><i class="fa fa-xmark"></i></button>
+    </div>
+    <div id="player-info">
+      <div id="player-title"></div>
+      <div id="player-category"></div>
+      <p id="player-desc" style="font-size:13px;color:var(--gr);font-family:var(--fb);line-height:1.6"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="tt-toast"></div>
+
+<script src="https://purobitese-api.onrender.com/config.js" async></script>
+<script>
+const API = 'https://purobitese-api.onrender.com';
+let _allVideos = [];
+let _activeChip = 'all';
+let _searchQ = '';
+let _loadError = false;
+
+/* ── API key ── */
+function _getKey() {
+  return window.__TIFFO_API_KEY__ || localStorage.getItem('tf_api_key') || '';
+}
+
+async function _ensureKey() {
+  if (_getKey()) return;
+  try {
+    const r = await fetch(API + '/config.js');
+    const txt = await r.text();
+    const m = txt.match(/window\.__TIFFO_API_KEY__\s*=\s*"([^"]*)"/);
+    if (m) { window.__TIFFO_API_KEY__ = m[1]; localStorage.setItem('tf_api_key', m[1]); }
+  } catch(_) {}
+}
+
+/* ── Fetch videos ── */
+async function loadVideos() {
+  try {
+    await _ensureKey();
+    const r = await fetch(API + '/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getHelpVideos', data: {}, apiKey: _getKey() })
+    });
+    const d = await r.json();
+    _allVideos = (d.videos || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+  } catch(e) {
+    _allVideos = [];
+    _loadError = true;
+  }
+  hideSkeleton();
+  renderVideos();
+}
+
+function hideSkeleton() {
+  document.getElementById('skel-grid').style.display = 'none';
+}
+
+/* ── Extract YT video ID ── */
+function ytId(url) {
+  if (!url) return '';
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : '';
+}
+
+/* ── Thumbnail URL ── */
+function ytThumb(url) {
+  const id = ytId(url);
+  return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : '';
+}
+
+/* ── Embed URL ── */
+function ytEmbed(url) {
+  const id = ytId(url);
+  return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1` : '';
+}
+
+/* ── Category label ── */
+const CAT_LABELS = {
+  order: 'How to Order', recharge: 'Recharge', payment: 'Payment',
+  subscription: 'Subscription', general: 'General', all: 'All'
+};
+
+/* ── Render ── */
+function renderVideos() {
+  let list = _allVideos;
+  if (_activeChip !== 'all') list = list.filter(v => v.category === _activeChip);
+  if (_searchQ) {
+    const q = _searchQ.toLowerCase();
+    list = list.filter(v => (v.title || '').toLowerCase().includes(q) || (v.description || '').toLowerCase().includes(q));
+  }
+
+  const wrap = document.getElementById('video-grid-wrap');
+  const empty = document.getElementById('empty-state');
+
+  if (!list.length) {
+    wrap.innerHTML = '';
+    empty.style.display = 'block';
+    if (_loadError && !_searchQ && _activeChip === 'all') {
+      document.getElementById('empty-sub').textContent = 'Could not load videos. Please check your connection.';
+    } else {
+      document.getElementById('empty-sub').textContent = _searchQ ? `No results for "${_searchQ}"` : 'No videos in this category yet';
+    }
+    return;
+  }
+  empty.style.display = 'none';
+
+  const cards = list.map(v => {
+    const thumb = ytThumb(v.youtube_url);
+    const thumbHtml = thumb
+      ? `<img src="${thumb}" alt="${escHtml(v.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=vcard-thumb-placeholder><div class=vcard-play-icon><i class=\"fa fa-play\"></i></div></div>'">`
+      : `<div class="vcard-thumb-placeholder"><div class="vcard-play-icon"><i class="fa fa-play"></i></div></div>`;
+    return `
+      <div class="vcard" onclick="openPlayer(${v.id})">
+        <div class="vcard-thumb">${thumbHtml}<div class="vcard-duration"><i class="fa fa-play" style="font-size:8px;margin-right:3px"></i>Watch</div></div>
+        <div class="vcard-body">
+          <div class="vcard-title">${escHtml(v.title)}</div>
+          <div class="vcard-meta">${CAT_LABELS[v.category] || 'General'}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  wrap.innerHTML = `<div class="video-grid" style="padding-top:4px">${cards}</div>`;
+}
+
+/* ── Open Player ── */
+function openPlayer(id) {
+  const v = _allVideos.find(x => x.id === id);
+  if (!v) return;
+  const embedUrl = ytEmbed(v.youtube_url);
+  if (!embedUrl) { showToast('Invalid video link'); return; }
+  document.getElementById('player-iframe').src = embedUrl;
+  document.getElementById('player-title').textContent = v.title;
+  document.getElementById('player-category').textContent = CAT_LABELS[v.category] || 'General';
+  document.getElementById('player-desc').textContent = v.description || '';
+  const overlay = document.getElementById('player-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('open'));
+}
+
+function closePlayer() {
+  const overlay = document.getElementById('player-overlay');
+  overlay.classList.remove('open');
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    document.getElementById('player-iframe').src = '';
+  }, 350);
+}
+
+function closePlayerOnBg(e) {
+  if (e.target === document.getElementById('player-overlay')) closePlayer();
+}
+
+/* ── Search ── */
+let _searchTimer;
+function onSearch(val) {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => { _searchQ = val.trim(); renderVideos(); }, 250);
+}
+
+function toggleSearch() {
+  const bar = document.getElementById('search-bar');
+  const btn = document.getElementById('tt-search-btn');
+  const isOpen = bar.classList.toggle('open');
+  btn.innerHTML = isOpen ? '<i class="fa fa-xmark"></i>' : '<i class="fa fa-magnifying-glass"></i>';
+  if (isOpen) { setTimeout(() => document.getElementById('search-input').focus(), 100); }
+  else { document.getElementById('search-input').value = ''; _searchQ = ''; renderVideos(); }
+}
+
+/* ── Chip filter ── */
+function filterChip(cat, el) {
+  _activeChip = cat;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderVideos();
+}
+
+/* ── WhatsApp ── */
+function openWA() {
+  const msg = encodeURIComponent('🆘 *Tiffo — Help Request*\n' + '━'.repeat(28) + '\nHi Tiffo Team! 👋\n\nI need help. Please assist me.\n\nThank you! 🙏');
+  window.open('https://wa.me/919889760350?text=' + msg, '_blank');
+}
+
+/* ── Helpers ── */
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showToast(msg, dur = 2200) {
+  const t = document.getElementById('tt-toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+/* ── Init ── */
+loadVideos();
+</script>
+</body>
+</html>
