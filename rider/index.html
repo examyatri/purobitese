@@ -3455,27 +3455,41 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── ACCIDENTAL BACK PREVENTION (Rider) ──────────────────
-// Uses tf_rider_creds token to detect logged-in state
+// Double-back-to-exit: mirrors customer/index implementation.
+// First back  → toast hint (2 s window)
+// Second back within 2 s → show pre-built exit confirm sheet
+// Back while map modal open → close map instead
+let _riderExitBackTs  = 0;
+let _riderExitOpen    = false;
+
 function _riderShowExitConfirm() {
-  if (document.getElementById('_rider-exit-overlay')) return;
-  const overlay = document.createElement('div');
-  overlay.id = '_rider-exit-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:flex-end;justify-content:center;animation:_fadeIn .15s ease';
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
-      <p style="font-size:17px;font-weight:700;margin:0 0 6px;color:#0f172a">Exit Rider App?</p>
-      <p style="font-size:14px;color:#64748b;margin:0 0 22px;line-height:1.5">You are still logged in. Are you sure you want to leave?</p>
-      <div style="display:flex;gap:10px">
-        <button id="_rider-stay-btn" style="flex:1;padding:13px;border-radius:12px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-weight:600;cursor:pointer;color:#334155">Stay</button>
-        <button id="_rider-leave-btn" style="flex:1;padding:13px;border-radius:12px;border:none;background:#0f172a;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Exit App</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.getElementById('_rider-stay-btn').onclick = () => {
-    overlay.remove();
-    history.pushState({ riderPg: 'stay' }, '', location.href);
-  };
-  document.getElementById('_rider-leave-btn').onclick = () => { overlay.remove(); history.go(-2); };
+  if (_riderExitOpen) return;
+  _riderExitOpen = true;
+  const overlay = document.getElementById('_rider-exit-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => {
+    const card = overlay.querySelector('._rider-exit-card');
+    if (card) card.style.transform = 'translateY(0)';
+  });
+}
+
+function _riderHideExitConfirm() {
+  _riderExitOpen    = false;
+  _riderExitBackTs  = 0;
+  const overlay = document.getElementById('_rider-exit-overlay');
+  if (!overlay) return;
+  const card = overlay.querySelector('._rider-exit-card');
+  if (card) card.style.transform = 'translateY(100%)';
+  setTimeout(() => { overlay.style.display = 'none'; }, 320);
+}
+
+function _riderDoExit() {
+  _riderHideExitConfirm();
+  setTimeout(() => {
+    try { window.close(); } catch(e) {}
+    history.go(-(history.length));
+  }, 200);
 }
 
 window.addEventListener('popstate', () => {
@@ -3484,17 +3498,30 @@ window.addEventListener('popstate', () => {
     closeRiderMap();
     return;
   }
-  const creds = getRiderCreds();
+
+  // If exit sheet is open — treat back as "Stay"
+  if (_riderExitOpen) {
+    history.pushState({ riderPg: 'guard' }, '', location.href);
+    _riderHideExitConfirm();
+    return;
+  }
+
+  const creds      = getRiderCreds();
   const appVisible = document.getElementById('pg-app')?.style.display !== 'none';
   const authVisible = document.getElementById('pg-auth')?.style.display !== 'none';
-  if (creds && appVisible) {
-    // Logged in and inside app — block exit and confirm
+
+  if ((creds && appVisible) || authVisible) {
+    // Block navigation — push guard state
     history.pushState({ riderPg: 'guard' }, '', location.href);
-    _riderShowExitConfirm();
-  } else if (authVisible) {
-    // On login screen — block exit and confirm (may have typed password)
-    history.pushState({ riderPg: 'auth-guard' }, '', location.href);
-    _riderShowExitConfirm();
+    const now = Date.now();
+    if (now - _riderExitBackTs < 2000) {
+      // Second back within 2 s → show exit confirm
+      _riderShowExitConfirm();
+    } else {
+      // First back → hint toast, start 2 s window
+      _riderExitBackTs = now;
+      rToast('Press back again to exit');
+    }
   }
 });
 
@@ -3594,5 +3621,22 @@ if ('serviceWorker' in navigator) {
   if (!navigator.onLine) setOffline();
 })();
 </script>
+
+<!-- ══════════════════════════════════════════════
+     EXIT CONFIRM — rider back button guard
+     Pre-built in DOM; controlled by _riderShowExitConfirm / _riderHideExitConfirm.
+     Mirrors customer/index pattern exactly.
+══════════════════════════════════════════════ -->
+<div id="_rider-exit-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;align-items:flex-end;justify-content:center" onclick="_riderHideExitConfirm()">
+  <div class="_rider-exit-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
+    <p style="font-size:18px;font-weight:800;margin:0 0 6px;color:#0f172a">Exit Rider App?</p>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.5">You are still logged in. Are you sure you want to leave?</p>
+    <div style="display:flex;gap:10px">
+      <button onclick="_riderHideExitConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-weight:700;cursor:pointer;color:#334155">Stay</button>
+      <button onclick="_riderDoExit()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#0f172a;color:#fff;font-size:15px;font-weight:700;cursor:pointer">Exit App</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
