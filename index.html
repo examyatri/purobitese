@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v52.0                                    ║
-     ║  Updated : 2026-05-23                               ║
-     ║  Changes : SEO audit — pure-veg consistency fix,    ║
-     ║            voting-based tiffin added as key entity, ║
-     ║            >> meta tag bugs fixed, duplicate og:type║
-     ║            removed, hash anchors removed from       ║
-     ║            sitemap, non-veg refs purged throughout, ║
-     ║            llms.txt + ai.txt fully rewritten        ║
+     ║  Version : v53.2                                    ║
+     ║  Updated : 2026-05-27                               ║
+     ║  Changes : WhatsApp messages — full audit & fix.    ║
+     ║            7 messages rewritten: clearer English,   ║
+     ║            Order ID, slot, coupon code, delivery,   ║
+     ║            totals in all order messages.            ║
+     ║            >> BUG FIX: coupon code was always blank ║
+     ║            in both UPI & insuf WA messages because  ║
+     ║            _appliedCoupon was nulled before msg     ║
+     ║            was built. Captured into _snapCoupon /   ║
+     ║            _snapCouponI before Cart.clear().        ║
+     ║            >> separator unified to ━×32 everywhere. ║
+     ║            >> Help msg auto-fills name+phone.       ║
+     ║            >> Monthly plan removes placeholder text.║
+     ║            >> Closing line unified across all msgs. ║
+     ║            >> _orderWAMap flow 100% unchanged.      ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -2123,12 +2131,12 @@ input[type=number]{-moz-appearance:textfield}
   <div class="pg-scroll" style="background:#f4f5f8">
 
     <!-- Dark hero -->
-    <div style="background:linear-gradient(155deg,#1a1a2e,#0f3460);padding:28px 16px 48px;text-align:center;position:relative;overflow:hidden">
+    <div style="background:linear-gradient(155deg,#1a1a2e,#0f3460);padding:10px 16px 32px;text-align:center;position:relative;overflow:hidden">
       <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 60%,rgba(99,102,241,.2),transparent 65%);pointer-events:none"></div>
-      <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#a5b4fc;position:relative;z-index:1"><i class="fa-solid fa-indian-rupee-sign" style="font-size:17px"></i></div>
-      <div style="font-family:var(--ff);font-weight:600;font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;position:relative;z-index:1">Total Due</div>
-      <div id="s-amount" style="font-family:var(--ff);font-weight:800;font-size:50px;color:#fff;letter-spacing:-2px;line-height:1;position:relative;z-index:1">—</div>
-      <div style="display:inline-flex;align-items:center;gap:5px;margin-top:10px;background:rgba(239,68,68,.18);color:#fca5a5;border-radius:20px;padding:4px 14px;font-family:var(--ff);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid rgba(239,68,68,.2);position:relative;z-index:1">⚡ Pay Now</div>
+      <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;color:#a5b4fc;position:relative;z-index:1"><i class="fa-solid fa-indian-rupee-sign" style="font-size:17px"></i></div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:2px;margin-bottom:3px;position:relative;z-index:1">TOTAL DUE</div>
+      <div id="s-amount" style="font-family:var(--ff);font-weight:800;font-size:40px;color:#fff;letter-spacing:-2px;line-height:1;position:relative;z-index:1">—</div>
+      <div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(239,68,68,.18);color:#fca5a5;border-radius:20px;padding:4px 14px;font-family:var(--ff);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid rgba(239,68,68,.2);position:relative;z-index:1">⚡ Pay Now</div>
     </div>
 
     <!-- Cards — lifted over hero -->
@@ -2138,9 +2146,9 @@ input[type=number]{-moz-appearance:textfield}
       <div style="background:#fff;border-radius:20px;padding:20px 16px;box-shadow:0 6px 28px rgba(0,0,0,.11);display:flex;flex-direction:column;align-items:center">
         <!-- Steps -->
         <div class="pay-steps" style="width:100%;border-top:none;margin-top:0;padding-top:0">
-          <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button below</span></div>
-          <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
-          <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay exact amount, then tap WhatsApp button</span></div>
+          <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Tap <strong>Save QR to Gallery</strong> button below to download the QR code</span></div>
+          <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → tap <strong>Scan QR</strong> → select <strong>From Gallery</strong></span></div>
+          <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay the <strong>exact amount</strong> shown above → take a screenshot of the success screen → come back here and tap <strong>Send Screenshot &amp; Confirm</strong> ↓</span></div>
         </div>
         <div style="font-family:var(--ff);font-weight:600;font-size:10px;color:#9ca3af;letter-spacing:1.2px;text-transform:uppercase;margin:14px 0 12px">Scan with any UPI app</div>
         <div class="upi-qr-box" id="s-qr-box" style="width:min(220px,70vw);height:min(220px,70vw)"></div>
@@ -2215,12 +2223,12 @@ input[type=number]{-moz-appearance:textfield}
   <div class="pg-scroll" style="background:#f4f5f8">
 
     <!-- Dark hero -->
-    <div style="background:linear-gradient(155deg,#1a1a2e,#0f3460);padding:28px 16px 48px;text-align:center;position:relative;overflow:hidden">
+    <div style="background:linear-gradient(155deg,#1a1a2e,#0f3460);padding:10px 16px 32px;text-align:center;position:relative;overflow:hidden">
       <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 60%,rgba(99,102,241,.2),transparent 65%);pointer-events:none"></div>
-      <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#a5b4fc;position:relative;z-index:1"><i class="fa-solid fa-indian-rupee-sign" style="font-size:17px"></i></div>
-      <div style="font-family:var(--ff);font-weight:600;font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:2px;margin-bottom:5px;position:relative;z-index:1">Total Due</div>
-      <div id="si-amount" style="font-family:var(--ff);font-weight:800;font-size:50px;color:#fff;letter-spacing:-2px;line-height:1;position:relative;z-index:1">—</div>
-      <div style="display:inline-flex;align-items:center;gap:5px;margin-top:10px;background:rgba(239,68,68,.18);color:#fca5a5;border-radius:20px;padding:4px 14px;font-family:var(--ff);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid rgba(239,68,68,.2);position:relative;z-index:1">⚡ Pay Now</div>
+      <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;color:#a5b4fc;position:relative;z-index:1"><i class="fa-solid fa-indian-rupee-sign" style="font-size:17px"></i></div>
+      <div style="font-family:var(--ff);font-weight:600;font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:2px;margin-bottom:3px;position:relative;z-index:1">TOTAL DUE</div>
+      <div id="si-amount" style="font-family:var(--ff);font-weight:800;font-size:40px;color:#fff;letter-spacing:-2px;line-height:1;position:relative;z-index:1">—</div>
+      <div style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(239,68,68,.18);color:#fca5a5;border-radius:20px;padding:4px 14px;font-family:var(--ff);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid rgba(239,68,68,.2);position:relative;z-index:1">⚡ Pay Now</div>
     </div>
 
     <!-- Cards -->
@@ -2229,9 +2237,9 @@ input[type=number]{-moz-appearance:textfield}
       <!-- QR Card -->
       <div style="background:#fff;border-radius:20px;padding:20px 16px;box-shadow:0 6px 28px rgba(0,0,0,.11);display:flex;flex-direction:column;align-items:center">
         <div class="pay-steps" style="width:100%;border-top:none;margin-top:0;padding-top:0">
-          <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Save QR to gallery using button below</span></div>
-          <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → Scan from Gallery</span></div>
-          <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay exact amount, then tap WhatsApp button</span></div>
+          <div class="pay-step"><span class="pay-step-n">1</span><span class="pay-step-t">Tap <strong>Save QR to Gallery</strong> button below to download the QR code</span></div>
+          <div class="pay-step"><span class="pay-step-n">2</span><span class="pay-step-t">Open PhonePe / GPay / Paytm → tap <strong>Scan QR</strong> → select <strong>From Gallery</strong></span></div>
+          <div class="pay-step"><span class="pay-step-n">3</span><span class="pay-step-t">Pay the <strong>exact amount</strong> shown above → take a screenshot of the success screen → come back here and tap <strong>Send Screenshot &amp; Confirm</strong> ↓</span></div>
         </div>
         <div style="font-family:var(--ff);font-weight:600;font-size:10px;color:#9ca3af;letter-spacing:1.2px;text-transform:uppercase;margin:14px 0 12px">Scan with any UPI app</div>
         <div class="upi-qr-box" id="si-qr-box" style="width:min(220px,70vw);height:min(220px,70vw)"></div>
@@ -2507,7 +2515,7 @@ input[type=number]{-moz-appearance:textfield}
     <i class="fa-solid fa-wallet"></i>
     <span id="bnav-bal">₹0</span>
   </button>
-  <button onclick="openWA(CFG.WA,'🆘 *Help Required*\n\nHi Tiffo Team! 🙏\nMujhe kuch help chahiye.\n\nKripaya jald se jald respond karein.\nThank you!')" style="color:#25d366">
+  <button onclick="(function(){var _hu=Auth.get();var _hn=_hu&&_hu.name?_hu.name:'—';var _hp=_hu&&_hu.phone?_hu.phone:'—';openWA(CFG.WA,'🆘 *Tiffo — Help Request*\n'+'━'.repeat(32)+'\nHi Tiffo Team! 👋\n\nI need help with my Tiffo account or order.\nPlease assist me at the earliest.\n\n👤 *MY DETAILS*\n   Name:   '+_hn+'\n   Phone:  '+_hp+'\n'+'━'.repeat(32)+'\nThank you! 🙏');})()" style="color:#25d366">
     <i class="fa-brands fa-whatsapp"></i><span>Help</span>
   </button>
 </nav>
@@ -2766,7 +2774,7 @@ input[type=number]{-moz-appearance:textfield}
 
       <!-- WA confirm card -->
       <div style="background:#fff;border-radius:18px;padding:18px 16px;box-shadow:var(--sh)">
-        <div style="font-family:var(--fb);font-size:13px;color:#374151;margin-bottom:12px;line-height:1.6;text-align:center">Screenshot lo aur WhatsApp pe bhejo — wallet turant credit hoga ✅</div>
+        <div style="font-family:var(--fb);font-size:13px;color:#374151;margin-bottom:12px;line-height:1.6;text-align:center">Pay, take a screenshot of the success screen, then tap the button below to confirm your wallet recharge ✅</div>
         <button class="wa-btn" id="rch-wa-btn" style="width:100%;padding:15px!important;border-radius:14px!important;font-size:15px!important;gap:10px!important;display:flex!important;align-items:center!important;justify-content:center!important">
           <i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Send Screenshot &amp; Confirm
         </button>
@@ -3570,7 +3578,7 @@ function setDeliveryTime(elId) {
    WHATSAPP PLAN
 ═══════════════════════════════════════════ */
 function openWhatsAppPlan() {
-  var msg = encodeURIComponent("🍱 *Monthly Tiffin Plan Enquiry*\n\nNamaste! 🙏\nMujhe *Tiffo Monthly Tiffin Plan* join karna hai.\nKripaya plan details, pricing aur subscription process batayein.\n\nThank you!");
+  var msg = encodeURIComponent("🍱 *Tiffo — Monthly Plan Enquiry*\n" + "━".repeat(32) + "\nHi Tiffo Team! 👋\n\nI'm interested in subscribing to the *Monthly Tiffin Plan*.\nCould you please share the following details?\n\n  • 📋 Available plans & monthly pricing\n  • 🥗 Meal options (Veg / Non-Veg)\n  • 🚴 Delivery availability in my area\n  • ⏰ Morning & Evening slot timings\n  • 💳 Payment process & how to activate\n\n" + "━".repeat(32) + "\nThank you! 🙏");
   window.open("https://wa.me/" + (CFG.WA || '919889760350') + "?text=" + msg, "_blank");
 }
 
@@ -3712,7 +3720,7 @@ function prefillLoginForm(wrongCreds) {
 
 function forgotPw() {
   const phone = document.getElementById('login-phone').value.replace(/\D/g, '');
-  openWA(CFG.WA, `🔐 *Password Reset Request*\n\nHi Tiffo Team! 🙏\nMujhe apna password reset karna hai.\n\n📞 Registered Phone: ${phone || 'not entered'}\n\nKripaya help karein. Thank you!`);
+  openWA(CFG.WA, `🔐 *Tiffo — Password Reset Request*\n${'━'.repeat(32)}\nHi Tiffo Team! 👋\n\nI have forgotten my Tiffo account password and need help resetting it.\n\n📞 My Registered Phone Number: ${phone || '(please enter your phone number)'}\n${'━'.repeat(32)}\nKindly help me reset my password at the earliest. Thank you! 🙏`);
 }
 
 /* ─── Auth status text (no spinner) ─── */
@@ -5666,6 +5674,15 @@ async function placeOrder() {
       phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null,
       address: user.address || null
     });
+    // ── Snapshot everything BEFORE clearing cart/coupon ──────────────────
+    const _snapCoupon    = _appliedCoupon;   // capture coupon ref before null
+    const _snapCart      = cart.slice();     // cart is already local but keep explicit copy
+    const _snapSlot      = _visibleSession() === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : '🌙 Evening (6 PM – 9 PM)';
+    const _snapItemLines = _snapCart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
+    const _snapCouponLine = _snapCoupon ? `\n   Coupon:    ${_snapCoupon.code} (−₹${discount})` : '';
+    const _snapDiscLine  = discount > 0 ? `\n  🎟️ Discount (${_snapCoupon ? _snapCoupon.code : 'applied'}): −₹${discount}` : '';
+    const _snapDelLine   = deliveryCharge > 0 ? `\n  🚴 Delivery Charge: +₹${deliveryCharge}` : '\n  🚴 Delivery: Free';
+    // ── Now safe to clear ──────────────────────────────────────────────────
     Cart.clear();
     _appliedCoupon = null;
     updateCartBadge();
@@ -5687,20 +5704,15 @@ async function placeOrder() {
       nav('pg-success');
       // Generate UPI QR with pre-filled amount
       setTimeout(() => _generateQR('s-qr-box', total, res.orderId), 100);
-      // Show WA confirm section with pre-built message for screenshot submission
+      // Pre-build full WA message (all vars captured above, coupon is safe)
+      const _waMsg = `🍱 *Tiffo — New Order (UPI Payment)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${res.orderId}\n   Customer:  ${user.name || 'Customer'}\n   Phone:     ${user.phone}\n   Slot:      ${_snapSlot}\n   Address:   ${_waAddr(user.address)}${_snapCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_snapItemLines}${_snapDiscLine}${_snapDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${total}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    UPI\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${total}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`;
+      // Wire WA button
       setTimeout(() => {
         const waBtn = document.getElementById('s-wa-btn');
         const waArrow = document.getElementById('s-wa-arrow');
         if (waBtn) {
           if (waArrow) waArrow.style.display = 'flex';
-          waBtn.onclick = () => {
-            const _itemLines = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
-            const _cpnLabel  = _appliedCoupon ? ` (Code: ${_appliedCoupon.code})` : '';
-            const _discLine  = discount > 0 ? `\\n  🎟️ Offer${_cpnLabel}: −₹${discount}` : '';
-            const _delLine   = deliveryCharge > 0 ? `\\n  🚴 Delivery: +₹${deliveryCharge}` : '';
-            openWA(CFG.TIFFIN,
-              `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${user.name || 'Customer'}\\n📞 *Mobile:* ${user.phone}\\n📍 *Address:* ${_waAddr(user.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_itemLines}${_discLine}${_delLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${total}*\\n💳 *UPI ID:* ${_UPI_VPA}\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`);
-          };
+          waBtn.onclick = () => openWA(CFG.TIFFIN, _waMsg);
         }
       }, 300);
     }
@@ -5932,7 +5944,7 @@ function generateRechargeQR() {
   const phone = user?.phone || '';
   document.getElementById('rch-wa-btn').onclick = () => {
     openWA('9889760350',
-      `💰 *Tiffo — Wallet Recharge Payment Done*\n${'─'.repeat(28)}\n✅ *Maine payment kar di hai.*\n*Kripaya check karke mera wallet recharge kar dein.* 🙏\n${'─'.repeat(28)}\n👤 *Customer Details*\n   Name: ${name}\n   Mobile: ${phone}\n${'─'.repeat(28)}\n💳 *Transaction Details*\n   Amount Paid: ₹${rounded}\n   UPI ID: ${_UPI_VPA}\n   Payment Mode: UPI\n   Purpose: Wallet Recharge\n${'─'.repeat(28)}\n📸 Payment screenshot neeche attach kar raha/rahi hoon.`);
+      `💰 *Tiffo — Wallet Recharge Request*\n${'━'.repeat(32)}\n👤 *MY DETAILS*\n   Name:      ${name}\n   Phone:     ${phone}\n${'━'.repeat(32)}\n💳 *PAYMENT DETAILS*\n   Purpose:   Wallet Top-Up / Recharge\n   Amount:    ₹${rounded}\n   UPI ID:    ${_UPI_VPA}\n   Mode:      UPI\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly add ₹${rounded} to my Tiffo wallet. Thank you! 🙏`);
   };
   // Scroll to QR section smoothly
   setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
@@ -5984,19 +5996,23 @@ async function confirmInsufOrder() {
       phone: user.phone, items: cart, deliveryCharge, coupon: _appliedCoupon || null,
       address: user.address || null, paymentMode: 'upi_insuf'
     });
+    // ── Snapshot everything BEFORE clearing cart/coupon ──────────────────
+    const _u             = Auth.get();
+    const _snapCouponI   = _appliedCoupon;   // capture before null
+    const _snapSlotI     = _visibleSession() === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : '🌙 Evening (6 PM – 9 PM)';
+    const _snapItemLinesI = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
+    const _snapCouponLineI = _snapCouponI ? `\n   Coupon:    ${_snapCouponI.code} (−₹${discount})` : '';
+    const _snapDiscLineI = discount > 0 ? `\n  🎟️ Discount (${_snapCouponI ? _snapCouponI.code : 'applied'}): −₹${discount}` : '';
+    const _snapDelLineI  = deliveryCharge > 0 ? `\n  🚴 Delivery Charge: +₹${deliveryCharge}` : '\n  🚴 Delivery: Free';
+    // ── Now safe to clear ──────────────────────────────────────────────────
     Cart.clear();
     _appliedCoupon = null;
     updateCartBadge();
 
     // Build WA message for the insuf success page button
-    const _u = Auth.get();
-    const _itemLines = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\\n');
-    const _cpnLabel  = _appliedCoupon ? ` (Code: ${_appliedCoupon.code})` : '';
-    const _discLine  = discount > 0 ? `\\n  🎟️ Offer${_cpnLabel}: −₹${discount}` : '';
-    const _delLine   = deliveryCharge > 0 ? `\\n  🚴 Delivery: +₹${deliveryCharge}` : '';
     _insufWAData = {
       phone: CFG.TIFFIN,
-      msg: `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${_u?.name || 'Customer'}\\n📞 *Mobile:* ${_u?.phone || ''}\\n📍 *Address:* ${_waAddr(_u?.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_itemLines}${_discLine}${_delLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${total}*\\n💳 *UPI ID:* ${_UPI_VPA}\\n⚠️ *Note:* Wallet balance insufficient — remaining paid via UPI.\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`
+      msg: `🍱 *Tiffo — New Order (Wallet + UPI)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${res.orderId}\n   Customer:  ${_u?.name || 'Customer'}\n   Phone:     ${_u?.phone || ''}\n   Slot:      ${_snapSlotI}\n   Address:   ${_waAddr(_u?.address)}${_snapCouponLineI}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_snapItemLinesI}${_snapDiscLineI}${_snapDelLineI}\n   ─────────────────────────\n   💰 Total Paid: ₹${total}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    Wallet balance used + UPI for remaining amount\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${total}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`
     };
 
     // Populate and show the dedicated insuf success page
@@ -6206,9 +6222,11 @@ function renderOrderList(orders) {
 
     // Build WA message strings safely and store in _orderWAMap (keyed by orderId)
     // This avoids embedding encoded URLs in onclick HTML attributes (single-quote bug)
-    const _ordItemLines = items.map(i => `  • ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\\n');
-    const _ordDiscLine  = o.discount > 0 ? `\\n  🎟️ Offer${o.coupon_code ? ` (Code: ${o.coupon_code})` : ''}: −₹${o.discount}` : '';
-    const _ordDelLine   = o.delivery_charge > 0 ? `\\n  🚴 Delivery: +₹${o.delivery_charge}` : '';
+    const _ordItemLines  = items.map(i => `  • ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\n');
+    const _ordCouponLine = o.coupon_code ? `\n   Coupon:    ${o.coupon_code} (−₹${o.discount || 0})` : '';
+    const _ordDiscLine   = o.discount > 0 ? `\n  🎟️ Discount (${o.coupon_code || 'applied'}): −₹${o.discount}` : '';
+    const _ordDelLine    = o.delivery_charge > 0 ? `\n  🚴 Delivery Charge: +₹${o.delivery_charge}` : '\n  🚴 Delivery: Free';
+    const _ordSlotLabel  = o.slot === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : o.slot === 'evening' ? '🌙 Evening (6 PM – 9 PM)' : '—';
     // WA messages built per-case below
 
     if (!isWallet) {
@@ -6218,8 +6236,8 @@ function renderOrderList(orders) {
         amt: ordAmt,
         isInsuf: isInsuf,
         msg: isInsuf
-          ? `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${_user?.name || 'Customer'}\\n📞 *Mobile:* ${_user?.phone || ''}\\n📍 *Address:* ${_waAddr(_user?.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${ordAmt}*\\n⚠️ *Note:* Wallet balance insufficient — remaining paid via UPI.\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`
-          : `🍱 *Tiffo Order — Payment Sent*\\n${'─'.repeat(28)}\\n👤 *Name:* ${_user?.name || 'Customer'}\\n📞 *Mobile:* ${_user?.phone || ''}\\n📍 *Address:* ${_waAddr(_user?.address)}\\n${'─'.repeat(28)}\\n🛒 *Items:*\\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\\n${'─'.repeat(28)}\\n💰 *Total Paid: ₹${ordAmt}*\\n💳 *UPI ID:* ${_UPI_VPA}\\n${'─'.repeat(28)}\\n📸 Payment screenshot neeche attach kar raha/rahi hoon.\\nPlease confirm kar dein. 🙏`
+          ? `🍱 *Tiffo — New Order (Wallet + UPI)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${orderId}\n   Customer:  ${_user?.name || 'Customer'}\n   Phone:     ${_user?.phone || ''}\n   Slot:      ${_ordSlotLabel}\n   Address:   ${_waAddr(_user?.address)}${_ordCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${ordAmt}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    Wallet balance used + UPI for remaining amount\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${ordAmt}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`
+          : `🍱 *Tiffo — New Order (UPI Payment)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${orderId}\n   Customer:  ${_user?.name || 'Customer'}\n   Phone:     ${_user?.phone || ''}\n   Slot:      ${_ordSlotLabel}\n   Address:   ${_waAddr(_user?.address)}${_ordCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${ordAmt}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    UPI\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${ordAmt}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`
       };
     }
 

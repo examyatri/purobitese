@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v33.0  |  Updated : 2026-05-26
+   Version : v33.1  |  Updated : 2026-05-27
 
    CHANGES v31.0:
    - config.js changed from async to defer in index.html → deterministic boot
@@ -18,11 +18,11 @@
    - All other strategies unchanged.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v31'; // bumped — forces fresh precache on deploy
+const CACHE      = 'tiffo-v34'; // bumped for v77 release // bumped — forces fresh precache on deploy
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
-const PRECACHE = ['./', './index.html', './manifest.json', './sw.js', './robots.txt', './llms.txt', './sitemap.xml', './humans.txt'];
+const PRECACHE = ['./', './index.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
@@ -204,12 +204,6 @@ self.addEventListener('fetch', e => {
         return res;
       } catch {
         // Network failed and no cache — show offline page
-        const path = url.pathname;
-        if (path.includes('admin') || path.includes('rider')) {
-          return new Response(OFFLINE_HTML, {
-            headers: { 'Content-Type': 'text/html; charset=utf-8' }
-          });
-        }
         return new Response(OFFLINE_HTML, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' }
         });
@@ -231,7 +225,7 @@ self.addEventListener('fetch', e => {
         })
         .catch(() => null);
 
-      if (!cached) return fetchPromise;
+      if (!cached) return fetchPromise.then(r => r || new Response('', { status: 503 })).catch(() => new Response('', { status: 503 }));
 
       // If stale beyond 7 days, wait for network (block on fresh)
       const cachedDate = cached.headers.get('date');
@@ -243,6 +237,33 @@ self.addEventListener('fetch', e => {
       // Serve stale, revalidate in background (fire-and-forget correctly)
       fetchPromise.catch(() => {}); // prevent unhandled rejection
       return cached;
+    })
+  );
+});
+
+/* ─── PUSH NOTIFICATIONS ────────────────────────────────────────────────── */
+self.addEventListener('push', e => {
+  if (!e.data) return;
+  let data;
+  try { data = e.data.json(); } catch { data = { title: 'Tiffo', body: e.data.text() }; }
+  e.waitUntil(
+    self.registration.showNotification(data.title || 'Tiffo', {
+      body: data.body || '',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      data: { url: data.url || '/' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const target = e.notification.data?.url || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      const existing = clients.find(c => c.url.includes(self.location.origin));
+      if (existing) return existing.focus();
+      return self.clients.openWindow(target);
     })
   );
 });
