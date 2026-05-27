@@ -1,8 +1,8 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v60.2                                    ║
-// ║  Updated : 2026-05-21                               ║
+// ║  Version : v60.3                                    ║
+// ║  Updated : 2026-05-27                               ║
 // ║  Changes : Security & logic fixes —                 ║
 // ║            adminDeleteUser moved to _ADMIN_ONLY     ║
 // ║            rechargeWallet/manualRefund amount guard ║
@@ -105,7 +105,7 @@ if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
 // Secret is separate from API_KEY so rotating one doesn't break the other.
 const SESSION_SECRET = process.env.SESSION_SECRET || SECURE_API_KEY + '_session';
 if (!process.env.SESSION_SECRET) console.warn('[WARN] SESSION_SECRET env var not set — falling back to derived secret. Set SESSION_SECRET in production.');
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function _b64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -153,7 +153,6 @@ const _STAFF_ACTIONS = new Set([
   'getSubscribersForBulk',
   'getRiders',
   'getNotifications',
-  'getNotifVersion',
   'markNotificationRead',
   'getCookingSessionDetail',
   'getAllKhata',
@@ -203,6 +202,7 @@ const _STAFF_ACTIONS = new Set([
   // ── Read-only admin data — still require a valid staff session ──
   'getSettings',           // returns full admin_settings (cutoff, zone, schedule, etc.)
   'getOrderTransactions',  // returns user's khata_entries — sensitive financial data
+  'getAdminNotifVersion',  // lightweight version check — admin frontend polls every 60s
 ]);
 
 
@@ -424,6 +424,18 @@ let _menuContentVersion = Date.now(); // seed with epoch so each deploy is uniqu
 
 function _bumpMenuVersion() {
   _menuContentVersion = Date.now();
+}
+
+// ── Admin notification version ────────────────────────────────────────────────
+// Separate lightweight monotonic counter bumped every time a new notification
+// is created (new order, new user, etc.). Admin frontend polls getAdminNotifVersion
+// every 60 s — if version changed, it triggers beep + full notification refresh.
+// This replaces the old dumb 60s loadNotifications() timer with a near-zero-cost
+// version check (~80 bytes) that only triggers a full DB fetch when truly needed.
+let _adminNotifVersion = Date.now(); // seed with epoch so each deploy is unique
+
+function _bumpAdminNotifVersion() {
+  _adminNotifVersion = Date.now();
 }
 
 function _invalidateSettingsCache() {
@@ -741,6 +753,8 @@ async function _createNotification(fields) {
     read_at:    null,
     created_at: new Date().toISOString()
   });
+  // Bump version so admin frontend detects new notification on next version poll
+  _bumpAdminNotifVersion();
 }
 
 async function _deductMenuStock(items) {
@@ -1220,6 +1234,14 @@ app.post('/api', async (req, res) => {
       // Response is ~80 bytes — virtually no cost on Render free tier.
       case 'getMenuVersion': {
         return res.json({ success: true, version: _menuContentVersion });
+      }
+
+      // ── ADMIN NOTIFICATION VERSION CHECK (lightweight — no DB hit) ────────
+      // Monotonic counter bumped every time _createNotification() is called.
+      // Admin frontend polls this every 60 s; only fetches getNotifications when
+      // version changes — eliminates constant full-payload DB queries.
+      case 'getAdminNotifVersion': {
+        return res.json({ success: true, version: _adminNotifVersion });
       }
 
       case 'getHomeData': {
@@ -2568,31 +2590,6 @@ app.post('/api', async (req, res) => {
         _analyticsCache   = analyticsResult;
         _analyticsCacheTs = Date.now();
         return res.json(analyticsResult);
-      }
-
-      case 'getNotifVersion': {
-        // Ultra-lightweight poll endpoint — used by the 60s universal watcher.
-        // Returns only: unreadCount + latestId (id of newest unread notif).
-        // Fetches only unread rows, no joins, no full payload — minimal DB cost.
-        // The frontend compares latestId to detect new notifications without
-        // fetching the full list every 60s from every tab.
-        const { data: rows } = await supabase
-          .from('notifications')
-          .select('id, title, type, created_at')
-          .eq('is_read', false)
-          .order('created_at', { ascending: false })
-          .limit(50); // 50 is way more than enough; we only care about newest
-        const unread = rows || [];
-        const unreadCount = unread.length;
-        const latest = unread[0] || null;
-        return res.json({
-          success: true,
-          unreadCount,
-          latestId:    latest ? latest.id         : null,
-          latestTitle: latest ? latest.title       : null,
-          latestType:  latest ? latest.type        : null,
-          latestAt:    latest ? latest.created_at  : null,
-        });
       }
 
       case 'getNotifications': {
