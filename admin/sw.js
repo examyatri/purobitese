@@ -1,8 +1,8 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v7.7  |  Updated : 2026-05-26
+   Version : v7.7  |  Updated : 2026-05-27
 
-   CHANGES v7.6:
+   CHANGES v7.7:
    - Cache bumped → tiffo-admin-v10 (earnings: combo calc, trend chart,
      udhar tracker, CSV export, 7 bug fixes)
 
@@ -17,7 +17,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v11';
+const CACHE      = 'tiffo-admin-v10';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
