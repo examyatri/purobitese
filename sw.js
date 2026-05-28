@@ -1,24 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v34.0  |  Updated : 2026-05-27
+   Version : v35.0  |  Updated : 2026-05-28
 
-   CHANGES v31.0:
-   - config.js changed from async to defer in index.html → deterministic boot
-   - Server now sends Cache-Control: max-age=3600 on config.js → 0ms on repeat
-   - Cache bumped to tiffo-v29 to force fresh precache on this deploy.
-   - No SW strategy changes — config.js stays network-only (browser cache handles it)
-
-   CHANGES v30.0 (UX PERF — root cause fix for 20-30s skeleton):
-   - Strategy 3 (navigate): changed from network-first → stale-while-revalidate
-     with a 3s network timeout. Cached index.html now serves INSTANTLY on every
-     app open — user sees content in ~0ms instead of waiting 5-15s for 356KB
-     over network. Background update happens silently; next open gets fresh HTML.
-   - Added SW→page BroadcastChannel message on background HTML update so the
-     app can optionally notify or trigger a silent refresh.
-   - All other strategies unchanged.
+   CHANGES v35.0:
+   - Cache bumped to tiffo-v40 for v76 deploy.
+   - Map pin lock/unlock workflow in index.html:
+     pin auto-locks after detect, Recenter unlocks,
+     Save Location re-locks. Prevents accidental scroll
+     from shifting pin during signup/settings form fill.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v38'; // bumped for v58 — dynamic help video categories
+const CACHE      = 'tiffo-v40'; // bumped for v76 — signup/settings pin flow async fixes
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

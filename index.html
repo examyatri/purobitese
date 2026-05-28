@@ -1,18 +1,15 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v55.3                                    ║
-     ║  Updated : 2026-05-27                               ║
-     ║  BUGFIX  : ecLevel H → M. ECC H forced Version 14    ║
-     ║            (73×73) for 84-char UPI URIs. qr-creator  ║
-     ║            @1.0.0 silently blanked at V14/H, causing ║
-     ║            Level1 (tn=orderId) rejection → Order ID  ║
-     ║            gone from PhonePe Message field.          ║
-     ║            ECC M: same URI → Version 5 (37×37).     ║
-     ║            Industry standard for digital screens.    ║
-     ║            _isCanvasBlank: dark-pixel % (v55.1 fix)  ║
-     ║            retained as safety net for library edge   ║
-     ║            cases. SW cache bumped: tiffo-v37.        ║
+     ║  Version : v75                                      ║
+     ║  Updated : 2026-05-28                               ║
+     ║  CHANGE  : Map pin lock/unlock workflow added.      ║
+     ║            On "Detect My Location", pin auto-locks  ║
+     ║            preventing accidental scroll movement.   ║
+     ║            "Recenter" unlocks + shows blinking      ║
+     ║            "Save Location" btn. Save re-locks pin.  ║
+     ║            Applied to both Signup + Settings maps.  ║
+     ║            SW cache bumped: tiffo-v39.              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -863,6 +860,8 @@ textarea{resize:vertical;min-height:80px}
 #su-leaflet-map .leaflet-control-zoom{border:none;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 #su-leaflet-map .leaflet-control-zoom a{color:#1a1a2e;font-weight:700;background:#fff}
 .leaflet-container{font-family:var(--fb)!important}
+@keyframes pinSaveBlink{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.5)}50%{opacity:.82;box-shadow:0 0 0 5px rgba(34,197,94,0)}}
+#su-leaflet-map.map-locked,#acct-leaflet-map.map-locked{opacity:.88}
 .tab-bar{display:flex;background:#f5f5f5;border-radius:12px;padding:4px;margin-bottom:20px}
 .tab-btn{flex:1;border:none;background:none;padding:10px;font-family:var(--ff);font-weight:600;font-size:14px;border-radius:9px;cursor:pointer;color:var(--gr);transition:all 200ms}
 .tab-btn.active{background:#fff;color:var(--p);box-shadow:var(--sh)}
@@ -1898,15 +1897,20 @@ input[type=number]{-moz-appearance:textfield}
         <div id="su-map-pin-area" style="display:none">
           <div class="loc-map-wrap">
             <div class="loc-map-hdr" style="justify-content:space-between">
-              <span><i class="fa fa-map-pin"></i>&nbsp;Pin your exact location</span>
-              <button type="button" onclick="_recenterToGPS()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
-                <i class="fa fa-location-crosshairs"></i> Recenter
-              </button>
+              <span><i class="fa fa-map-pin"></i>&nbsp;Your pinned location</span>
+              <div style="display:flex;gap:6px;align-items:center">
+                <button type="button" id="su-recenter-btn" onclick="_recenterToGPS()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                  <i class="fa fa-location-crosshairs"></i> Recenter
+                </button>
+                <button type="button" id="su-save-pin-btn" onclick="_suSavePinLocation()" style="display:none;background:#22c55e;border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:700;align-items:center;gap:5px;animation:pinSaveBlink 0.8s ease-in-out infinite">
+                  <i class="fa fa-check"></i> Save Location
+                </button>
+              </div>
             </div>
             <div id="su-leaflet-map" style="width:100%;height:260px;display:block"></div>
             <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
               <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
-                📌 Drag the red pin to your exact spot — coordinates will be saved automatically.
+                📌 Pin locked at your GPS location. Tap <b>Recenter</b> to adjust.
               </div>
             </div>
           </div>
@@ -2382,15 +2386,20 @@ input[type=number]{-moz-appearance:textfield}
           <div id="acct-map-pin-area" style="display:none;margin-top:8px">
             <div class="loc-map-wrap">
               <div class="loc-map-hdr" style="justify-content:space-between">
-                <span><i class="fa fa-map-pin"></i>&nbsp;Drag pin to exact location</span>
-                <button type="button" onclick="_acctRecenter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
-                  <i class="fa fa-location-crosshairs"></i> Recenter
-                </button>
+                <span><i class="fa fa-map-pin"></i>&nbsp;Your pinned location</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button type="button" id="acct-recenter-btn" onclick="_acctRecenter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                    <i class="fa fa-location-crosshairs"></i> Recenter
+                  </button>
+                  <button type="button" id="acct-save-pin-btn" onclick="_acctSavePinLocation()" style="display:none;background:#22c55e;border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:700;align-items:center;gap:5px;animation:pinSaveBlink 0.8s ease-in-out infinite">
+                    <i class="fa fa-check"></i> Save Location
+                  </button>
+                </div>
               </div>
               <div id="acct-leaflet-map" style="width:100%;height:240px;display:block"></div>
               <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
                 <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
-                  📌 Drag the pin to your exact spot — coordinates + plus code saved automatically.
+                  📌 Pin locked at your GPS location. Tap <b>Recenter</b> to adjust.
                 </div>
               </div>
             </div>
@@ -3940,6 +3949,53 @@ let _leafletMap    = null;
 let _leafletMarker = null;
 let _pendingLat    = null;
 let _pendingLng    = null;
+let _suMapLocked   = true;
+
+/* ── Signup map lock helpers ── */
+function _suLockMap() {
+  _suMapLocked = true;
+  if (_leafletMap) {
+    _leafletMap.dragging.disable();
+    _leafletMap.touchZoom.disable();
+    _leafletMap.scrollWheelZoom.disable();
+    _leafletMap.doubleClickZoom.disable();
+    _leafletMap.boxZoom.disable();
+    _leafletMap.keyboard.disable();
+  }
+  if (_leafletMarker) _leafletMarker.dragging.disable();
+  const mapEl = document.getElementById('su-leaflet-map');
+  if (mapEl) mapEl.classList.add('map-locked');
+  const rBtn = document.getElementById('su-recenter-btn');
+  const sBtn = document.getElementById('su-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'flex';
+  if (sBtn) sBtn.style.display = 'none';
+}
+
+function _suUnlockMap() {
+  _suMapLocked = false;
+  if (_leafletMap) {
+    _leafletMap.dragging.enable();
+    _leafletMap.touchZoom.enable();
+    _leafletMap.scrollWheelZoom.enable();
+    _leafletMap.doubleClickZoom.enable();
+    _leafletMap.boxZoom.enable();
+    _leafletMap.keyboard.enable();
+  }
+  if (_leafletMarker) _leafletMarker.dragging.enable();
+  const mapEl = document.getElementById('su-leaflet-map');
+  if (mapEl) mapEl.classList.remove('map-locked');
+  const rBtn = document.getElementById('su-recenter-btn');
+  const sBtn = document.getElementById('su-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'none';
+  if (sBtn) sBtn.style.display = 'flex';
+}
+
+async function _suSavePinLocation() {
+  if (_pendingLat !== null && _pendingLng !== null) {
+    await _updateAddressFromPin(_pendingLat, _pendingLng);
+  }
+  _suLockMap();
+}
 
 /* ── Open Location Code (Plus Code) encoder ─────────────────────────────
    Minimal implementation — no external library needed.                    */
@@ -4215,13 +4271,14 @@ function _showMapPin(lat, lng) {
       });
 
       _leafletMarker = L.marker([lat, lng], {
-        draggable: true,
+        draggable: false,
         icon: redIcon,
         autoPan: true
       }).addTo(_leafletMap);
 
-      // On drag end → re-evaluate + geocode
+      // On drag end → only fires when unlocked
       _leafletMarker.on('dragend', async function(e) {
+        if (_suMapLocked) return;
         const pos = e.target.getLatLng();
         _pendingLat = pos.lat;
         _pendingLng = pos.lng;
@@ -4229,8 +4286,9 @@ function _showMapPin(lat, lng) {
         await _updateAddressFromPin(pos.lat, pos.lng);
       });
 
-      // Tap on map → move pin there
+      // Tap on map → only fires when unlocked
       _leafletMap.on('click', async function(e) {
+        if (_suMapLocked) return;
         _leafletMarker.setLatLng(e.latlng);
         _pendingLat = e.latlng.lat;
         _pendingLng = e.latlng.lng;
@@ -4245,8 +4303,9 @@ function _showMapPin(lat, lng) {
       setTimeout(() => _leafletMap.invalidateSize(), 100);
     }
 
-    // Trigger initial geocode
+    // Trigger initial geocode, then lock pin
     _updateAddressFromPin(lat, lng);
+    _suLockMap();
   }
 
   _initLeaflet();
@@ -4265,7 +4324,8 @@ function _recenterToGPS() {
         _leafletMarker.setLatLng([lat, lng]);
         _pendingLat = lat; _pendingLng = lng;
         document.getElementById('su-loc-ok').value = '0';
-        _updateAddressFromPin(lat, lng);
+        _suUnlockMap();
+        if (hint) hint.innerHTML = '📌 Pin unlocked — drag pin or tap map to adjust. Tap <b>Save Location</b> when done.';
       }
     },
     () => toast('Could not get GPS. Try again.'),
@@ -6759,11 +6819,58 @@ async function refreshAccountData() {
 }
 
 // ── Account page address state ─────────────────────────────
-let _acctMap       = null;
-let _acctMarker    = null;
-let _acctPendingLat = null;
-let _acctPendingLng = null;
+let _acctMap          = null;
+let _acctMarker       = null;
+let _acctPendingLat   = null;
+let _acctPendingLng   = null;
 let _acctPinConfirmed = false;
+let _acctMapLocked    = true;
+
+/* ── Settings map lock helpers ── */
+function _acctLockMap() {
+  _acctMapLocked = true;
+  if (_acctMap) {
+    _acctMap.dragging.disable();
+    _acctMap.touchZoom.disable();
+    _acctMap.scrollWheelZoom.disable();
+    _acctMap.doubleClickZoom.disable();
+    _acctMap.boxZoom.disable();
+    _acctMap.keyboard.disable();
+  }
+  if (_acctMarker) _acctMarker.dragging.disable();
+  const mapEl = document.getElementById('acct-leaflet-map');
+  if (mapEl) mapEl.classList.add('map-locked');
+  const rBtn = document.getElementById('acct-recenter-btn');
+  const sBtn = document.getElementById('acct-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'flex';
+  if (sBtn) sBtn.style.display = 'none';
+}
+
+function _acctUnlockMap() {
+  _acctMapLocked = false;
+  if (_acctMap) {
+    _acctMap.dragging.enable();
+    _acctMap.touchZoom.enable();
+    _acctMap.scrollWheelZoom.enable();
+    _acctMap.doubleClickZoom.enable();
+    _acctMap.boxZoom.enable();
+    _acctMap.keyboard.enable();
+  }
+  if (_acctMarker) _acctMarker.dragging.enable();
+  const mapEl = document.getElementById('acct-leaflet-map');
+  if (mapEl) mapEl.classList.remove('map-locked');
+  const rBtn = document.getElementById('acct-recenter-btn');
+  const sBtn = document.getElementById('acct-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'none';
+  if (sBtn) sBtn.style.display = 'flex';
+}
+
+async function _acctSavePinLocation() {
+  if (_acctPendingLat !== null && _acctPendingLng !== null) {
+    await _acctUpdateAddress(_acctPendingLat, _acctPendingLng);
+  }
+  _acctLockMap();
+}
 
 function toggleAddrUpdateForm() {
   const form = document.getElementById('acct-addr-update-form');
@@ -6846,6 +6953,7 @@ async function detectAcctLocation() {
       _acctPendingLat = lat; _acctPendingLng = lng;
       document.getElementById('acct-lat').value = lat;
       document.getElementById('acct-lng').value = lng;
+      document.getElementById('acct-loc-ok').value = '1';
       showSt('✅ Location detected — drag pin to fine-tune, then save.', true);
       _acctShowMap(lat, lng);
     },
@@ -6877,13 +6985,15 @@ function _acctShowMap(lat, lng) {
         html:`<div style="width:32px;height:42px"><svg viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 26 16 26S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.5"/><circle cx="16" cy="16" r="6" fill="white"/></svg></div>`,
         iconSize:[32,42], iconAnchor:[16,42]
       });
-      _acctMarker = L.marker([lat,lng], { draggable:true, icon:redIcon, autoPan:true }).addTo(_acctMap);
+      _acctMarker = L.marker([lat,lng], { draggable:false, icon:redIcon, autoPan:true }).addTo(_acctMap);
       _acctMarker.on('dragend', async e => {
+        if (_acctMapLocked) return;
         const p = e.target.getLatLng();
         _acctPendingLat = p.lat; _acctPendingLng = p.lng; _acctPinConfirmed = false;
         await _acctUpdateAddress(p.lat, p.lng);
       });
       _acctMap.on('click', async e => {
+        if (_acctMapLocked) return;
         _acctMarker.setLatLng(e.latlng);
         _acctPendingLat = e.latlng.lat; _acctPendingLng = e.latlng.lng; _acctPinConfirmed = false;
         await _acctUpdateAddress(e.latlng.lat, e.latlng.lng);
@@ -6894,19 +7004,24 @@ function _acctShowMap(lat, lng) {
       setTimeout(() => _acctMap.invalidateSize(), 100);
     }
     _acctUpdateAddress(lat, lng);
+    _acctLockMap();
   }
   _initAcctLeaflet();
 }
 
 function _acctRecenter() {
   if (!navigator.geolocation) { toast('GPS not supported'); return; }
+  const hint = document.getElementById('acct-geocode-hint');
+  if (hint) hint.textContent = '⏳ Getting your GPS position…';
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude:lat, longitude:lng } = pos.coords;
     if (_acctMap && _acctMarker) {
       _acctMap.setView([lat,lng], 17);
       _acctMarker.setLatLng([lat,lng]);
       _acctPendingLat = lat; _acctPendingLng = lng; _acctPinConfirmed = false;
-      _acctUpdateAddress(lat, lng);
+      document.getElementById('acct-loc-ok').value = '0';
+      _acctUnlockMap();
+      if (hint) hint.innerHTML = '📌 Pin unlocked — drag pin or tap map to adjust. Tap <b>Save Location</b> when done.';
     }
   }, () => toast('Could not get GPS. Try again.'), { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
 }
