@@ -633,6 +633,11 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 
     <!-- Active filter summary -->
     <div id="filter-summary" style="margin-top:8px;font-family:var(--fb);font-size:12px;color:var(--mu);display:none"></div>
+    <!-- Last search timestamp -->
+    <div id="last-search-bar" style="display:none;margin-top:6px;font-family:var(--fb);font-size:11px;color:#94a3b8;align-items:center;gap:5px">
+      <span>🕐</span><span id="last-search-ts">—</span>
+      <span style="margin-left:auto;font-size:10px;color:#cbd5e1">Pull down or tap Search to refresh</span>
+    </div>
   </div>
 
   <!-- Orders Content -->
@@ -772,8 +777,16 @@ let _pending               = [];
 let _delivered             = [];
 let _activeTab             = 'pending';
 let _routeAddresses        = [];
-let _pollTimer             = null;
+let _pollTimer             = null;  // kept for PTR reset compat — no longer used for auto-polling
 let _sessionExpiredHandled = false; // guard: prevent duplicate logout toasts on parallel 401s
+
+// ── Manual-refresh tracking ───────────────────────────────────────────────────
+// Rider panel is intentional/manual-only: no auto-poll.
+// Search button is the single trigger for DB fetch.
+// _lastFetchTs  — epoch ms of last successful DB fetch (used by last-search display + stale guard)
+// _lastFetchHash — lightweight fingerprint of last fetched order set (skip re-render if unchanged)
+let _lastFetchTs   = 0;
+let _lastFetchHash = '';
 
 // Filter state — applied only when Search button is clicked
 let _filterDate     = 'today';   // 'today' | 'yesterday' | 'day_before' | 'all'
@@ -967,6 +980,8 @@ async function doRiderLogin() {
     RiderSession.save(_rider);
     showApp();
     await loadOrders();
+    updateFilterSummary();
+    _updateLastSearchBar();
     startPolling();
   } catch(e) {
     rToast(e.message || 'Login failed. Check Rider ID and password.');
@@ -999,12 +1014,9 @@ function doRiderLogout() {
 
 /* ─── ORDER LOADING ──────────────────────────────────── */
 async function loadOrders() {
-  if (!_rider) return;
+  if (!_rider) return false;
 
   // ── Instant render from cache (stale-while-revalidate) ──────────────────────
-  // Shows last-known orders immediately on app open / revisit — no blank screen.
-  // The live fetch below ALWAYS fires and overwrites with fresh data.
-  // Cache key is per-rider so switching riders never shows wrong data.
   const _RCACHE_KEY = '_rcache_' + _rider.rider_id;
   try {
     const _cached = localStorage.getItem(_RCACHE_KEY);
@@ -1014,26 +1026,48 @@ async function loadOrders() {
       _pending   = _orders.filter(o => { const s=(o.order_status||'').toLowerCase(); return s!=='delivered'&&s!=='rejected'&&s!=='cancelled'; });
       _delivered = _orders.filter(o => o.order_status === 'delivered');
       updateStats();
-      renderOrders(); // instant — user sees data before network round-trip
+      renderOrders();
     }
   } catch(_) { /* corrupt cache — ignore, live fetch still runs */ }
 
-  // ── Always fetch fresh from server — PTR, poll, login all hit DB ────────────
+  // ── Fetch fresh from server ──────────────────────────────────────────────────
   try {
     const res  = await api('getRiderOrders', { riderId: _rider.rider_id });
-    _orders    = res.orders || [];
+    const fresh = res.orders || [];
+
+    // ── Hash: count + concatenated order_id:status — cheap, no JSON.stringify ──
+    const newHash = fresh.length + ':' + fresh.map(o => o.order_id + '=' + (o.order_status||'')).join(',');
+    const changed = newHash !== _lastFetchHash;
+
+    _orders    = fresh;
     _pending   = _orders.filter(o => {
       const s = (o.order_status||'').toLowerCase();
       return s !== 'delivered' && s !== 'rejected' && s !== 'cancelled';
     });
     _delivered = _orders.filter(o => o.order_status === 'delivered');
-    // Update cache with fresh data for next open/revisit
+
+    // Update cache
     try { localStorage.setItem(_RCACHE_KEY, JSON.stringify(_orders)); } catch(_) {}
-    _areaCache.prune(); // remove expired geocode cache entries (7-day TTL)
-    updateStats();
-    renderOrders();
-    enrichAreasAndChips(); // reverse-geocode coords → area names, then rebuild chips
-  } catch(e) { /* silent poll error */ }
+    _areaCache.prune();
+
+    // Update last-fetch tracking
+    _lastFetchTs   = Date.now();
+    _lastFetchHash = newHash;
+    _updateLastSearchBar();
+
+    if (changed) {
+      updateStats();
+      renderOrders();
+      enrichAreasAndChips(); // re-enrich only when data actually changed
+    } else {
+      // Data unchanged — stats + render already correct, just update timestamp
+      updateStats();
+    }
+
+    return changed;
+  } catch(e) {
+    return false;
+  }
 }
 
 /* ─── AREA ENRICHMENT — runs after every loadOrders ─────
@@ -1272,15 +1306,37 @@ async function markOutForDelivery(orderId) {
   const btn  = document.getElementById('out-btn-' + orderId);
   const card = document.getElementById('card-' + orderId);
   if (!btn || btn.disabled) return;
+
+  // ── Optimistic UI: update in-memory immediately, revert on failure ──
+  const o = _pending.find(o => o.order_id === orderId);
+  const prevStatus = o ? o.order_status : null;
+  if (o) o.order_status = 'out for delivery';
+
   btn.textContent = '…'; btn.disabled = true;
+  // Swap buttons immediately — no waiting for server
+  if (card) {
+    const actionsEl = card.querySelector('.o-actions');
+    if (actionsEl) {
+      const delBtnHtml = `<button class="o-btn o-btn-done" id="del-btn-${orderId}" onclick="markDelivered('${orderId}')">✅ Mark Delivered</button>`;
+      // Replace the two-button row with just the delivered button
+      const outBtn = actionsEl.querySelector('#out-btn-' + orderId);
+      if (outBtn) outBtn.remove();
+      const existingDel = actionsEl.querySelector('#del-btn-' + orderId);
+      if (existingDel) {
+        existingDel.outerHTML = delBtnHtml;
+      } else {
+        actionsEl.insertAdjacentHTML('beforeend', delBtnHtml);
+      }
+    }
+  }
+
   try {
     await api('updateOrderStatus', { orderId, status: 'out for delivery' });
-    const o = _pending.find(o => o.order_id === orderId);
-    if (o) o.order_status = 'out for delivery';
-    renderOrders();
     rToast('🛵 Out for delivery!');
   } catch(e) {
-    btn.textContent = '🛵 Out for Delivery'; btn.disabled = false;
+    // Revert in-memory state
+    if (o && prevStatus !== null) o.order_status = prevStatus;
+    renderOrders(); // full re-render to restore correct buttons
     rToast('Failed: ' + (e.message || 'Try again'));
   }
 }
@@ -1347,13 +1403,69 @@ function applyFilters() {
   updateFilterSummary();
 }
 
-/* ─── SEARCH BUTTON / ENTER — fetch fresh orders then filter ─── */
+/* ─── LAST SEARCH TIMESTAMP ──────────────────────────────────────────────────
+   Shows "Last searched: 2 min ago" below filter summary.
+   Called after every successful loadOrders(). */
+function _updateLastSearchBar() {
+  const bar  = document.getElementById('last-search-bar');
+  const tsEl = document.getElementById('last-search-ts');
+  if (!bar || !tsEl || !_lastFetchTs) return;
+  bar.style.display = 'flex';
+  const diffMs  = Date.now() - _lastFetchTs;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffSec = Math.floor(diffMs / 1000);
+  let label;
+  if (diffSec < 10)       label = 'Last searched: just now';
+  else if (diffSec < 60)  label = `Last searched: ${diffSec}s ago`;
+  else if (diffMin === 1) label = 'Last searched: 1 min ago';
+  else if (diffMin < 60)  label = `Last searched: ${diffMin} min ago`;
+  else                    label = `Last searched: ${Math.floor(diffMin/60)}h ago`;
+  tsEl.textContent = label;
+}
+
+/* ─── SEARCH BUTTON ── intentional DB fetch only ─────────────────────────────
+   Strategy:
+   • If data was fetched < 30s ago AND filters haven't changed → skip DB hit,
+     just re-apply filters on in-memory data. Prevents accidental double-taps
+     from hammering the server.
+   • Otherwise → fresh DB fetch → enrich → render.
+   This is the ONLY place that hits getRiderOrders (no auto-poll). */
 async function searchOrders() {
-  _appliedDate  = _filterDate;
-  _appliedSlot  = _filterSlot;
-  _appliedArea  = _filterArea;
-  _appliedQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
-  await loadOrders(); // fresh server fetch → enrichAreasAndChips → renderOrders + updateFilterSummary inside
+  const searchBtn = document.querySelector('button[onclick="searchOrders()"]');
+
+  const newDate  = _filterDate;
+  const newSlot  = _filterSlot;
+  const newArea  = _filterArea;
+  const newQuery = (document.getElementById('r-search')?.value || '').trim().toLowerCase();
+
+  const filtersChanged = newDate !== _appliedDate || newSlot !== _appliedSlot
+                      || newArea !== _appliedArea  || newQuery !== _appliedQuery;
+
+  // Apply filter state immediately
+  _appliedDate  = newDate;
+  _appliedSlot  = newSlot;
+  _appliedArea  = newArea;
+  _appliedQuery = newQuery;
+
+  // ── Stale guard: skip DB hit if data is fresh (<30s) and filters unchanged ──
+  const age = _lastFetchTs ? Date.now() - _lastFetchTs : Infinity;
+  if (age < 30_000 && !filtersChanged && _orders.length) {
+    renderOrders();
+    updateFilterSummary();
+    _updateLastSearchBar();
+    rToast('Already up to date ✓');
+    return;
+  }
+
+  // ── Fresh DB fetch ──────────────────────────────────────────────────────────
+  if (searchBtn) { searchBtn.textContent = '⏳'; searchBtn.disabled = true; }
+  try {
+    await loadOrders();
+    updateFilterSummary();
+    _updateLastSearchBar();
+  } finally {
+    if (searchBtn) { searchBtn.innerHTML = '🔍 Search'; searchBtn.disabled = false; }
+  }
 }
 
 function clearFilters() {
@@ -2142,7 +2254,9 @@ function closeRiderMap() {
   if (_gpsCircle && _map)  { _map.removeLayer(_gpsCircle); _gpsCircle = null; }
   _clearRouteLayer();
   _routeDrawing = false; // reset in case OSRM fetch was mid-flight
-
+  // Re-render order list so cards reflect any deliveries made via the map
+  renderOrders();
+  updateStats();
 }
 
 // ── FLY TO STOP ───────────────────────────────────────────────
@@ -3211,6 +3325,19 @@ function openRouteModal(orders) { openRiderMap(orders); }
 function closeRouteModal()      { closeRiderMap(); }
 function openInMaps()           { openInMapsFromModal(); }
 
+/* ── planAndGo: "Plan & Go" top button ───────────────────────────
+   Opens the route map with all currently-filtered pending orders.
+   Same as clicking the 🗺 Route button on a session group, but
+   covers all pending stops across all slots in the current filter. */
+function planAndGo() {
+  const stops = _buildFilteredStops();
+  if (!stops.length) {
+    rToast('No pending orders to route. Search first.');
+    return;
+  }
+  openRiderMap(stops);
+}
+
 /* ─── HELPERS ────────────────────────────────────────── */
 function openWA(phone, msg) {
   const a = document.createElement('a');
@@ -3338,11 +3465,10 @@ function togglePw(id, btn) {
 
 /* ─── POLLING ────────────────────────────────────────── */
 function startPolling() {
+  // Auto-polling removed — rider panel is manual/intentional refresh only.
+  // This stub is kept so PTR reset call (startPolling() after PTR) doesn't error.
   clearInterval(_pollTimer);
-  _pollTimer = setInterval(() => {
-    if (document.hidden) return;
-    loadOrders();
-  }, 60_000); // 60s — rider needs timely order updates; 1000000ms (16.6 min) was a typo
+  _pollTimer = null;
 }
 
 function stopPolling() {
@@ -3350,9 +3476,10 @@ function stopPolling() {
   _pollTimer = null;
 }
 
+// On tab return from background: just update the last-search timestamp display.
+// Do NOT auto-fetch — rider is intentional, Search button is the trigger.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopPolling();
-  else { loadOrders(); startPolling(); }
+  if (!document.hidden && _lastFetchTs) _updateLastSearchBar();
 });
 
 /* ─── INIT ───────────────────────────────────────────── */
@@ -3406,7 +3533,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Same pattern as index.html: no "signing you in…" spinner
     _rider = RiderSession.get() || cachedRider; // pick up refreshed rider if token was just renewed
     showApp();
-    loadOrders();
+    loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); });
     startPolling();
 
     // BACKGROUND VERIFY — at most once every 48 hours.
@@ -3447,7 +3574,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         _rider = { ...res.rider, sessionToken: res.sessionToken || '' };
         RiderSession.save(_rider);
         showApp();
-        loadOrders();
+        loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); });
         startPolling();
       })
       .catch(() => { /* stay on login screen, creds already prefilled */ });
@@ -3570,9 +3697,11 @@ window.addEventListener('popstate', () => {
       zone.style.height = '52px';
 
       try {
-        // loadOrders always hits DB fresh — no equality guard in rider
+        // loadOrders always hits DB fresh — hash guard skips render if unchanged
         await loadOrders();
-        // Reset background poll timer so it doesn't fire right after PTR
+        updateFilterSummary();
+        _updateLastSearchBar();
+        // PTR is a manual refresh — reset poll stub timer compat
         startPolling();
       } catch (_) {}
 
@@ -3613,8 +3742,8 @@ if ('serviceWorker' in navigator) {
   function setOffline() { bar.classList.add('show'); }
   function setOnline()  {
     bar.classList.remove('show');
-    // Reload orders silently when reconnected
-    loadOrders().catch(() => {});
+    // Reload orders silently when reconnected — update timestamp bar too
+    loadOrders().then(() => _updateLastSearchBar()).catch(() => {});
   }
   window.addEventListener('offline', setOffline);
   window.addEventListener('online',  setOnline);
