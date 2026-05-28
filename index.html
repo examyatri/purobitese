@@ -3997,34 +3997,32 @@ async function _suSavePinLocation() {
   _suLockMap();
 }
 
-/* ── Open Location Code (Plus Code) encoder ─────────────────────────────
-   Minimal implementation — no external library needed.                    */
-(function(G){
-  const ALPHABET='23456789CFGHJMPQRVWX',BASE=20,PAIR_LENGTH=10,GRID_COLS=4,GRID_ROWS=5;
-  function _encode(lat,lng,codeLength){
-    if(codeLength===undefined)codeLength=10;
-    lat=Math.min(90,Math.max(-90,lat));
-    lng=((lng+180)%360+360)%360-180;
-    let adjustedLat=lat+90,adjustedLng=lng+180;
-    let code='';
-    for(let digit=0;digit<Math.ceil(codeLength/2);digit++){
-      let placeValue=BASE**(4-digit);
-      let digitVal=Math.floor(adjustedLat/placeValue);
-      code+=ALPHABET[digitVal];
-      adjustedLat-=digitVal*placeValue;
-      digitVal=Math.floor(adjustedLng/placeValue);
-      code+=ALPHABET[digitVal];
-      adjustedLng-=digitVal*placeValue;
-      if(digit===3&&codeLength>8)code+='+';
-    }
-    return code.substring(0,codeLength+(codeLength>8?1:0));
+/* ── Plus Code lookup via plus.codes/api (free, no key, officially correct) ──
+   Returns a Promise<string> — resolves to the plus code or '' on failure.
+   Uses a small in-memory cache so repeated calls (e.g. room/area watchers)
+   don't fire duplicate network requests.                                    */
+const _plusCodeCache = new Map();
+async function _getPlusCode(lat, lng) {
+  const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+  if (_plusCodeCache.has(key)) return _plusCodeCache.get(key);
+  try {
+    // plus.codes free API — no key required
+    const url = `https://plus.codes/api?address=${encodeURIComponent(key)}`;
+    const res = await Promise.race([
+      fetch(url, { mode: 'cors' }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+    ]);
+    if (!res.ok) throw new Error('api error');
+    const data = await res.json();
+    // API returns { plus_code: { global_code: "XXXX+XX", ... } }
+    const code = data?.plus_code?.global_code || '';
+    _plusCodeCache.set(key, code);
+    return code;
+  } catch (e) {
+    // Silently fall back — coordinates are still saved, plus code is optional
+    _plusCodeCache.set(key, '');
+    return '';
   }
-  G._encodePlusCode=_encode;
-})(window);
-
-/* Compute Google-style Plus Code from lat/lng */
-function _getPlusCode(lat, lng) {
-  try { return window._encodePlusCode(lat, lng, 10); } catch(e) { return ''; }
 }
 
 
@@ -4148,57 +4146,69 @@ function _suManualAddrWatcher() {}
 /* Update the su-addr textarea from current pin position */
 
 async function _updateAddressFromPin(lat, lng) {
-  // v84: No Nominatim — signup stores coordinates + plus code only.
-  // Area is selected manually by the user.
+  // v78: Show coordinates IMMEDIATELY, then update plus code once API returns.
 
-  // Build minimal address: coords + plus code (area appended at submit)
-  const plusCode = _getPlusCode(lat, lng);
-  const addrBox  = document.getElementById('su-addr');
-  if (addrBox) {
-    addrBox.removeAttribute('readonly');
-    addrBox.value = _buildSignupAddress(lat, lng, '');
-  }
+  const latStr = lat.toFixed(6);
+  const lngStr = lng.toFixed(6);
 
-  // Show chip: just confirm GPS pinned
+  // ── Step 1: Show coords instantly (no waiting) ──────────────────────────
   const chip     = document.getElementById('su-addr-chip');
   const chipText = document.getElementById('su-addr-chip-text');
   if (chip && chipText) {
-    chipText.innerHTML = `✅ GPS pinned — ${lat.toFixed(5)}, ${lng.toFixed(5)}${plusCode ? ` · ${plusCode}` : ''}`;
+    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr} <span style="color:#94a3b8;font-size:11px">· fetching Plus Code…</span>`;
     chip.style.display = 'block';
   }
-
   const hint = document.getElementById('su-geocode-hint');
   if (hint) {
     hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-      <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)}${plusCode ? ` · Plus Code: ${plusCode}` : ''}</span>`;
+      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr} · <i>fetching Plus Code…</i></span>`;
+  }
+  const addrBox = document.getElementById('su-addr');
+  if (addrBox) {
+    addrBox.removeAttribute('readonly');
+    addrBox.value = _buildSignupAddress(lat, lng, '', '');
   }
 
-  // Auto-confirm the pin silently
+  // ── Step 2: Auto-confirm pin (zone check) — doesn't need plus code ──────
   await _autoConfirmSignupPin(lat, lng);
 
+  // ── Step 3: Fetch plus code, then update UI ──────────────────────────────
+  const plusCode = await _getPlusCode(lat, lng);
+
+  if (chip && chipText) {
+    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}${plusCode ? ` · <b>${plusCode}</b>` : ''}`;
+  }
+  if (hint) {
+    hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
+      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr}${plusCode ? ` · Plus Code: <b>${plusCode}</b>` : ''}</span>`;
+  }
+  if (addrBox) {
+    addrBox.value = _buildSignupAddress(lat, lng, '', plusCode);
+  }
 }
 
 /* Build the minimal signup address string: Coordinates + Plus Code only.
    Area is appended at submit time from the user's dropdown selection. */
-function _buildSignupAddress(lat, lng, area) {
+/* plusCode param is optional — pass the already-awaited value from async callers.
+   If omitted, plus code line is skipped (avoids fire-and-forget async in watchers). */
+function _buildSignupAddress(lat, lng, area, plusCode) {
   const parts = [];
   if (lat !== null && lng !== null) {
     parts.push(`Coordinates: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
-    const pc = _getPlusCode(parseFloat(lat), parseFloat(lng));
-    if (pc) parts.push(`Plus Code: ${pc}`);
+    if (plusCode) parts.push(`Plus Code: ${plusCode}`);
   }
   if (area && area.trim()) parts.push(`Area: ${area.trim()}`);
   return parts.join('\n');
 }
 
-/* Build the settings address string: Room No (optional) + Coordinates + Plus Code + Area. */
-function _buildSettingsAddress(room, lat, lng, area) {
+/* Build the settings address string: Room No (optional) + Coordinates + Plus Code + Area.
+   plusCode param is optional — pass the already-awaited value from async callers. */
+function _buildSettingsAddress(room, lat, lng, area, plusCode) {
   const parts = [];
   if (room && room.trim()) parts.push(`Room No: ${room.trim()}`);
   if (lat !== null && lng !== null) {
     parts.push(`Coordinates: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
-    const pc = _getPlusCode(parseFloat(lat), parseFloat(lng));
-    if (pc) parts.push(`Plus Code: ${pc}`);
+    if (plusCode) parts.push(`Plus Code: ${plusCode}`);
   }
   if (area && area.trim()) parts.push(`Area: ${area.trim()}`);
   return parts.join('\n');
@@ -4303,7 +4313,12 @@ function _showMapPin(lat, lng) {
       setTimeout(() => _leafletMap.invalidateSize(), 100);
     }
 
-    // Trigger initial geocode, then lock pin
+    // Show coordinates immediately in hint, then fetch plus code async
+    const _initHint = document.getElementById('su-geocode-hint');
+    if (_initHint) {
+      _initHint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
+        <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)} · <i>fetching Plus Code…</i></span>`;
+    }
     _updateAddressFromPin(lat, lng);
     _suLockMap();
   }
@@ -4670,7 +4685,11 @@ async function doSignup() {
   const phone        = rawPhone.replace(/\D/g, '');
   const email        = '';
   const selectedArea = (document.getElementById('su-area')?.value || '').trim();
-  const address      = _buildSignupAddress(_pendingLat, _pendingLng, selectedArea);
+  // Use cached plus code (already fetched when pin was placed)
+  const _suPc = (_pendingLat !== null && _pendingLng !== null)
+    ? (_plusCodeCache.get(`${_pendingLat.toFixed(6)},${_pendingLng.toFixed(6)}`) || '')
+    : '';
+  const address      = _buildSignupAddress(_pendingLat, _pendingLng, selectedArea, _suPc);
   const pw           = document.getElementById('su-pw')?.value || '';
   const su_lat       = document.getElementById('su-lat')?.value || '';
   const locBtnTxt    = document.getElementById('su-loc-btn-txt')?.textContent || '';
@@ -6917,7 +6936,7 @@ function toggleAddrUpdateForm() {
       const chip     = document.getElementById('acct-addr-chip');
       const chipText = document.getElementById('acct-addr-chip-text');
       if (chip && chipText) {
-        chipText.innerHTML = `✅ Using saved GPS — ${lat.toFixed(5)}, ${lng.toFixed(5)} &nbsp;<span style="font-size:10px;color:#64748b">(Re-detect to update pin)</span>`;
+        chipText.innerHTML = `✅ Using saved GPS — ${lat.toFixed(6)}, ${lng.toFixed(6)} &nbsp;<span style="font-size:10px;color:#64748b">(Re-detect to update pin)</span>`;
         chip.style.display = 'block';
       }
       // Show the map area so rider is clear about the current pin
@@ -7027,35 +7046,48 @@ function _acctRecenter() {
 }
 
 async function _acctUpdateAddress(lat, lng) {
-  // v84: No Nominatim — address stored = Room + Coordinates + Plus Code + Area only.
-  const plusCode = _getPlusCode(lat, lng);
+  // v78: Show coordinates IMMEDIATELY, update plus code once API returns.
+
+  const latStr = lat.toFixed(6);
+  const lngStr = lng.toFixed(6);
 
   const room         = document.getElementById('acct-room')?.value.trim() || '';
   const selectedArea = document.getElementById('acct-area')?.value.trim() || '';
-  const addr = _buildSettingsAddress(room, lat, lng, selectedArea);
 
-  const box = document.getElementById('acct-addr-box');
-  if (box) { box.removeAttribute('readonly'); box.value = addr; }
-
-  // Show compact chip
+  // ── Step 1: Show coords instantly ───────────────────────────────────────
   const chip     = document.getElementById('acct-addr-chip');
   const chipText = document.getElementById('acct-addr-chip-text');
   if (chip && chipText) {
-    chipText.innerHTML = `✅ GPS pinned — ${lat.toFixed(5)}, ${lng.toFixed(5)}${plusCode ? ` · ${plusCode}` : ''}`;
+    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr} <span style="color:#94a3b8;font-size:11px">· fetching Plus Code…</span>`;
     chip.style.display = 'block';
   }
-
   const hint = document.getElementById('acct-geocode-hint');
   if (hint) {
     hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-      <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)}${plusCode ? ` · Plus Code: ${plusCode}` : ''}</span>`;
+      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr} · <i>fetching Plus Code…</i></span>`;
   }
+  const box = document.getElementById('acct-addr-box');
+  if (box) { box.removeAttribute('readonly'); box.value = _buildSettingsAddress(room, lat, lng, selectedArea, ''); }
 
-  // Auto-confirm pin
+  // ── Step 2: Confirm pin (no plus code needed) ────────────────────────────
   document.getElementById('acct-lat').value = lat;
   document.getElementById('acct-lng').value = lng;
   document.getElementById('acct-loc-ok').value = '1';
   _acctPinConfirmed = true;
+
+  // ── Step 3: Fetch plus code, then update UI ──────────────────────────────
+  const plusCode = await _getPlusCode(lat, lng);
+
+  if (chip && chipText) {
+    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}${plusCode ? ` · <b>${plusCode}</b>` : ''}`;
+  }
+  if (hint) {
+    hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
+      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr}${plusCode ? ` · Plus Code: <b>${plusCode}</b>` : ''}</span>`;
+  }
+  if (box) {
+    box.value = _buildSettingsAddress(room, lat, lng, selectedArea, plusCode);
+  }
 }
 
 function _acctRoomWatcher() {
@@ -7064,7 +7096,7 @@ function _acctRoomWatcher() {
   const selectedArea = document.getElementById('acct-area')?.value.trim() || '';
   const box  = document.getElementById('acct-addr-box');
   if (!box) return;
-  box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea);
+  box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea, (_acctPendingLat !== null ? (_plusCodeCache.get(`${_acctPendingLat.toFixed(6)},${_acctPendingLng.toFixed(6)}`) || '') : ''));
 }
 
 function _acctManualAddrWatcher() {} // no-op — removed in v83
@@ -7120,7 +7152,7 @@ function _acctAreaSelect(val) {
   if (_acctPendingLat !== null) {
     const room = document.getElementById('acct-room')?.value.trim() || '';
     const box  = document.getElementById('acct-addr-box');
-    if (box) box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, val);
+    if (box) box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, val, (_acctPendingLat !== null ? (_plusCodeCache.get(`${_acctPendingLat.toFixed(6)},${_acctPendingLng.toFixed(6)}`) || '') : ''));
   }
 }
 function _acctAreaRetry() {
@@ -7140,7 +7172,7 @@ async function _confirmAcctPin() {
   const selectedArea = document.getElementById('acct-area')?.value.trim() || '';
   const box  = document.getElementById('acct-addr-box');
   if (box) {
-    box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea);
+    box.value = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea, (_acctPendingLat !== null ? (_plusCodeCache.get(`${_acctPendingLat.toFixed(6)},${_acctPendingLng.toFixed(6)}`) || '') : ''));
   }
   document.getElementById('acct-lat').value = _acctPendingLat;
   document.getElementById('acct-lng').value = _acctPendingLng;
@@ -7164,7 +7196,8 @@ async function saveAddress() {
   }
 
   // Build address: Room No (optional) + Coordinates + Plus Code + Area
-  const addr = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea);
+  const _settingsPc = (_acctPendingLat !== null ? (_plusCodeCache.get(`${_acctPendingLat.toFixed(6)},${_acctPendingLng.toFixed(6)}`) || '') : '');
+  const addr = _buildSettingsAddress(room, _acctPendingLat, _acctPendingLng, selectedArea, _settingsPc);
 
   if (!addr) { toast('Address is empty — please detect your location.'); return; }
 
