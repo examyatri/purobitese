@@ -1,15 +1,22 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v75                                      ║
-     ║  Updated : 2026-05-28                               ║
-     ║  CHANGE  : Map pin lock/unlock workflow added.      ║
-     ║            On "Detect My Location", pin auto-locks  ║
-     ║            preventing accidental scroll movement.   ║
-     ║            "Recenter" unlocks + shows blinking      ║
-     ║            "Save Location" btn. Save re-locks pin.  ║
-     ║            Applied to both Signup + Settings maps.  ║
-     ║            SW cache bumped: tiffo-v39.              ║
+     ║  Version : v81                                      ║
+     ║  Updated : 2026-05-29                               ║
+     ║  CHANGE  : Fix 1: Server validates store open/closed║
+     ║            at createOrder time — returns clear error ║
+     ║            if order placed outside schedule window.  ║
+     ║            Fix 2: Auto-tiffin pause no longer blocks ║
+     ║            manual orders. Pause = admin bulk only.   ║
+     ║            Fix 3: openOrderPayModal works after      ║
+     ║            reload — rebuilds WA msg from DB orders.  ║
+     ║            sessionStorage persists active pay page   ║
+     ║            so accidental refresh restores QR screen. ║
+     ║            Fix 4: Smart category chip preservation   ║
+     ║            on slot transition — keeps selection if   ║
+     ║            category exists in new slot, resets with  ║
+     ║            toast if not. Slot-open toast on home tab.║
+     ║            SW cache bumped: tiffo-v40.              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -2207,8 +2214,8 @@ input[type=number]{-moz-appearance:textfield}
 
       <!-- Nav -->
       <div style="display:flex;gap:10px;padding-bottom:4px">
-        <button class="btn-outline" onclick="nav('pg-home')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">← Menu</button>
-        <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">My Orders</button>
+        <button class="btn-outline" onclick="_clearPaySession();nav('pg-home')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">← Menu</button>
+        <button class="btn-primary" onclick="_clearPaySession();nav('pg-orders')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">My Orders</button>
       </div>
 
     </div><!-- /cards -->
@@ -2299,8 +2306,8 @@ input[type=number]{-moz-appearance:textfield}
 
       <!-- Nav -->
       <div style="display:flex;gap:10px;padding-bottom:4px">
-        <button class="btn-outline" onclick="nav('pg-home')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">← Menu</button>
-        <button class="btn-primary" onclick="nav('pg-orders')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">My Orders</button>
+        <button class="btn-outline" onclick="_clearPaySession();nav('pg-home')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">← Menu</button>
+        <button class="btn-primary" onclick="_clearPaySession();nav('pg-orders')" style="flex:1;border-radius:14px;padding:14px;font-size:14px">My Orders</button>
       </div>
 
     </div><!-- /cards -->
@@ -3153,7 +3160,8 @@ const Cart = {
         qty: 1, stock_grams: item.stock_grams,
         stock_unit: item.stock_unit || 'gram',
         stock_unit_label: item.stock_unit_label || null,
-        meal_session: item.meal_session || 'both' });
+        meal_session: item.meal_session || 'both',
+        slot_at_add: (item.meal_session && item.meal_session !== 'both') ? _visibleSession() : null });
     }
     Cart.save(cart);
     updateCartBadge();
@@ -3434,46 +3442,104 @@ function sendOrderWA(orderId) {
   openWA(entry.phone, entry.msg);
 }
 
-/* ─── Re-open success/payment page from Orders tab "Send Screenshot" button ──
-   Navigates to the exact same pg-success or pg-success-insuf page the user
-   saw right after placing the order — same QR (regenerated with same values),
-   same WA button, same layout. Nothing new, nothing different.
+/* ─── PAYMENT PAGE PERSISTENCE ────────────────────────────────────────────────
+   Problem: _orderWAMap is in-memory — empty after page reload. User lands on
+   Orders tab, taps "Send Screenshot", crashes because map is empty.
+   Solution:
+     1. openOrderPayModal first checks _orderWAMap (hot path: just placed order).
+     2. If cold (after reload), fetches order data from _lastOrders or re-loads
+        orders from DB, then reconstructs the WA message — same format as renderOrderList.
+     3. sessionStorage persists the active payment context (orderId + amt + isInsuf)
+        so if user accidentally navigates away while on pg-success, back() restores it.
 ─────────────────────────────────────────────────────────────────────────── */
+const _PAY_SESSION_KEY = 'tf_active_pay';
+
+function _savePaySession(orderId, amt, isInsuf) {
+  try { sessionStorage.setItem(_PAY_SESSION_KEY, JSON.stringify({ orderId, amt, isInsuf, ts: Date.now() })); } catch(_) {}
+}
+function _clearPaySession() {
+  try { sessionStorage.removeItem(_PAY_SESSION_KEY); } catch(_) {}
+}
+function _getPaySession() {
+  try { const v = sessionStorage.getItem(_PAY_SESSION_KEY); return v ? JSON.parse(v) : null; } catch(_) { return null; } 
+}
+
+/* Build WA message from a raw order row (same format as renderOrderList) */
+function _buildOrderWAMsg(o, isInsuf) {
+  const _u = Auth.get();
+  const items = o.items ? (typeof o.items === 'string' ? JSON.parse(o.items) : o.items) : [];
+  const orderId = o.order_id || o.id;
+  const ordAmt  = o.final_amount || o.total_amount || 0;
+  const _ordItemLines  = items.map(i => `  • ${i.name} ×${i.qty || 1} — ₹${(i.price||0)*(i.qty||1)}`).join('\n');
+  const _ordCouponLine = o.coupon_code ? `\n   Coupon:    ${o.coupon_code} (−₹${o.discount || 0})` : '';
+  const _ordDiscLine   = o.discount > 0 ? `\n  🎟️ Discount (${o.coupon_code || 'applied'}): −₹${o.discount}` : '';
+  const _ordDelLine    = o.delivery_charge > 0 ? `\n  🚴 Delivery Charge: +₹${o.delivery_charge}` : '\n  🚴 Delivery: Free';
+  const _ordSlotLabel  = o.slot === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : o.slot === 'evening' ? '🌙 Evening (6 PM – 9 PM)' : '—';
+  return isInsuf
+    ? `🍱 *Tiffo — New Order (Wallet + UPI)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${orderId}\n   Customer:  ${_u?.name || 'Customer'}\n   Phone:     ${_u?.phone || ''}\n   Slot:      ${_ordSlotLabel}\n   Address:   ${_waAddr(_u?.address)}${_ordCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${ordAmt}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    Wallet balance used + UPI for remaining amount\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${ordAmt}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`
+    : `🍱 *Tiffo — New Order (UPI Payment)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${orderId}\n   Customer:  ${_u?.name || 'Customer'}\n   Phone:     ${_u?.phone || ''}\n   Slot:      ${_ordSlotLabel}\n   Address:   ${_waAddr(_u?.address)}${_ordCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${ordAmt}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    UPI\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${ordAmt}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`;
+}
+
+/* Core: open payment page for an order. Works hot (from _orderWAMap) or cold (after reload). */
 function openOrderPayModal(orderId) {
   const entry = _orderWAMap[orderId];
-  if (!entry) { toast('Payment info not available. Reload orders.'); return; }
+  if (entry) {
+    _openPayPage(orderId, entry.amt, entry.isInsuf, entry.msg);
+    return;
+  }
 
-  const amt     = entry.amt || 0;
-  const isInsuf = !!entry.isInsuf;
+  // Cold path: map is empty (page reload). Try to find the order in cached/in-memory orders.
+  const _findAndOpen = (orders) => {
+    if (!orders) return false;
+    const o = orders.find(x => (x.order_id || x.id) === orderId);
+    if (!o) return false;
+    const payMode = (o.payment_mode || '').toLowerCase();
+    const isInsuf = payMode === 'upi_insuf';
+    const amt     = o.final_amount || o.total_amount || 0;
+    const msg     = _buildOrderWAMsg(o, isInsuf);
+    // Warm the map so subsequent taps are instant
+    _orderWAMap[orderId] = { phone: CFG.TIFFIN, amt, isInsuf, msg };
+    _openPayPage(orderId, amt, isInsuf, msg);
+    return true;
+  };
 
+  // Try in-memory _lastOrders first (fastest, no network)
+  if (_lastOrders && _findAndOpen(JSON.parse(_lastOrders))) return;
+
+  // Fallback: load orders from DB then open
+  toast('Loading order details…');
+  loadOrders(true, true).then(() => {
+    if (_lastOrders && _findAndOpen(JSON.parse(_lastOrders))) return;
+    toast('Order not found. Pull to refresh orders and try again.');
+  }).catch(() => toast('Could not load order. Check connection.'));
+}
+
+/* Shared presenter — called after we have all the data */
+function _openPayPage(orderId, amt, isInsuf, msg) {
+  _savePaySession(orderId, amt, isInsuf); // persist across accidental navigation
+  const _u = Auth.get();
   if (isInsuf) {
-    // ── pg-success-insuf (subscriber, wallet insufficient) ──
     document.getElementById('si-order-id').textContent = orderId;
     document.getElementById('si-amount').textContent   = '₹' + amt;
     const _siInfo = document.getElementById('si-amount-info');
     if (_siInfo) _siInfo.textContent = '₹' + amt;
     setDeliveryTime('si-delivery-time');
-    // Wire the WA button
     const siWaBtn = document.getElementById('si-wa-btn');
-    if (siWaBtn) siWaBtn.onclick = () => openWA(entry.phone, entry.msg);
+    if (siWaBtn) siWaBtn.onclick = () => openWA(CFG.TIFFIN, msg);
     nav('pg-success-insuf');
-    // Regenerate QR with same amount + orderId
-    setTimeout(() => { const _u = Auth.get(); _generateQR('si-qr-box', amt, orderId, _u?.name, _u?.phone); }, 100);
+    setTimeout(() => _generateQR('si-qr-box', amt, orderId, _u?.name, _u?.phone), 100);
   } else {
-    // ── pg-success (normal UPI order) ──
     document.getElementById('s-order-id').textContent = orderId;
     document.getElementById('s-amount').textContent   = '₹' + amt;
     const _sInfo = document.getElementById('s-amount-info');
     if (_sInfo) _sInfo.textContent = '₹' + amt;
     setDeliveryTime('s-delivery-time');
-    // Show the WA button arrow section and wire it
     const waBtn   = document.getElementById('s-wa-btn');
     const waArrow = document.getElementById('s-wa-arrow');
     if (waArrow) waArrow.style.display = 'flex';
-    if (waBtn)   waBtn.onclick = () => openWA(entry.phone, entry.msg);
+    if (waBtn)   waBtn.onclick = () => openWA(CFG.TIFFIN, msg);
     nav('pg-success');
-    // Regenerate QR with same amount + orderId
-    setTimeout(() => { const _u = Auth.get(); _generateQR('s-qr-box', amt, orderId, _u?.name, _u?.phone); }, 100);
+    setTimeout(() => _generateQR('s-qr-box', amt, orderId, _u?.name, _u?.phone), 100);
   }
 }
 
@@ -5121,7 +5187,24 @@ async function _loadHomeDataFromSW() {
 }
 
 function buildCategoryChips() {
-  const cats = ['All', ...new Set(_fullMenu.map(i => i.category).filter(Boolean))];
+  // Collect categories visible in the current slot only (not the whole _fullMenu)
+  const sess = _visibleSession();
+  const slotItems = _fullMenu.filter(i => { const ms = i.meal_session || 'both'; return ms === 'both' || ms === sess; });
+  const cats = ['All', ...new Set(slotItems.map(i => i.category).filter(Boolean))];
+
+  // Smart category preservation: keep current selection if it still exists in this slot.
+  // If it disappeared (morning-only category while evening is now active), reset to 'All'
+  // and show a friendly slot-change toast so user knows why their filter was cleared.
+  if (_activeCategory !== 'All' && !cats.includes(_activeCategory)) {
+    const prevCat = _activeCategory;
+    _activeCategory = 'All';
+    // Only toast if this is a slot transition (not first load where _fullMenu just arrived)
+    if (_menuFreshTs > 0 && slotItems.length > 0) {
+      const slotLabel = sess === 'morning' ? '☀️ Morning menu is now live' : '🌙 Evening menu is now live';
+      toast(`${slotLabel} — "${prevCat}" not available, showing all items`);
+    }
+  }
+
   const scroll = document.getElementById('cat-scroll');
   scroll.innerHTML = cats.map(c =>
     `<button class="cat-chip${c === _activeCategory ? ' active' : ''}" onclick="selectCategory('${c}')">${c}</button>`
@@ -5220,19 +5303,35 @@ function _visibleSession() {
 function _wipeStaleCartItems() {
   const cart = Cart.get();
   if (!cart.length) return;
-  // Safety: if schedule not loaded yet, we can't know the correct slot — skip wipe.
-  // This prevents incorrectly removing evening items when _visibleSession falls back to 'morning'.
-  if (!_lastSchedule && !_lastCutoff) return;
-  const sess = _visibleSession(); // 'morning' | 'evening'
+
+  // _visibleSession() derives slot from _lastSchedule (weekly schedule) → _lastCutoff
+  // (legacy cutoff) → 'morning' fallback. It uses NO hardcoded times — slot boundaries
+  // come entirely from the admin's weekly schedule stored in _lastSchedule.
+  // _lastSchedule is populated from 3 sources in priority order:
+  //   1. localStorage cache (tf_menu_cache.schedule) — available on cold-boot
+  //   2. SW cache — available offline
+  //   3. Fresh DB fetch — always runs in background
+  // So _visibleSession() is reliable even before the first network call completes.
+  const sess = _visibleSession(); // 'morning' | 'evening' — schedule-driven, no hardcoded time
+
   const liveMap = new Map(_fullMenu.map(i => [String(i.item_id), i]));
   const removed = [];
   const kept = cart.filter(ci => {
+    // ── Check 1: slot_at_add mismatch (schedule-independent, works on cold-boot) ──
+    // slot_at_add is stored at Cart.add() time using _visibleSession() (schedule-derived).
+    // On cold-boot _fullMenu may still be empty, but slot_at_add lets us catch the
+    // morning→evening (or vice-versa) case immediately without needing live menu data.
+    if (ci.slot_at_add && ci.slot_at_add !== sess) {
+      removed.push(ci.name); return false;
+    }
+    // ── Checks 2–4 require live menu — skip if not loaded yet ──
+    if (!_fullMenu.length) return true;
     const liveItem = liveMap.get(String(ci.item_id));
-    // Check 1: item removed from menu by admin
+    // Check 2: item removed from menu by admin
     if (!liveItem) { removed.push(ci.name); return false; }
-    // Check 2: item went out of stock since it was added to cart
+    // Check 3: item went out of stock since it was added to cart
     if (isOutOfStock(liveItem)) { removed.push(ci.name); return false; }
-    // Check 3: slot mismatch — always use live menu's meal_session as source of truth
+    // Check 4: meal_session changed by admin after item was added — live menu is source of truth
     const itemSess = liveItem.meal_session || 'both';
     if (itemSess !== 'both' && itemSess !== sess) { removed.push(ci.name); return false; }
     return true;
@@ -5730,12 +5829,10 @@ async function placeOrder() {
   const hour = currentISTHour();
   const stateObj = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, hour, _lastCutoff) : null;
   if (stateObj?.closed) { showClosedPopup(stateObj.reason); return; }
-  if (stateObj && _pauseMode !== 'none') {
-    const session = stateObj.session;
-    if (_pauseMode === 'both' || _pauseMode === session) {
-      toast(`You paused ${session} deliveries. Resume in Account.`); return;
-    }
-  }
+  // NOTE: _pauseMode intentionally NOT checked here.
+  // Pause only controls auto-tiffin (admin bulk generation).
+  // A subscriber who paused morning auto-tiffin can still manually place an order —
+  // these are two separate concepts. Server validates open/closed independently.
 
   // ── Cart item validation: last-moment check before server call ───────────────
   // Guards against: stale session item (morning Dal in evening order), admin-removed
@@ -5813,6 +5910,7 @@ async function placeOrder() {
       document.getElementById('s-amount').textContent = '₹' + total;
       const _saInfo = document.getElementById('s-amount-info'); if (_saInfo) _saInfo.textContent = '₹' + total;
       setDeliveryTime('s-delivery-time');
+      _savePaySession(res.orderId, total, false); // persist so boot-restore works after accidental reload
       nav('pg-success');
       // Generate UPI QR with pre-filled amount
       setTimeout(() => _generateQR('s-qr-box', total, res.orderId, user.name, user.phone), 100);
@@ -5833,7 +5931,12 @@ async function placeOrder() {
     _startCooldownBanner();
     _prefetchAfterOrder();
   } catch(e) {
-    toast(e.message || 'Order failed. Try again.');
+    // Server STORE_CLOSED → show proper popup, not a generic toast
+    if (e.message && (e.message.includes('Store') || e.message.includes('opens') || e.message.includes('closed'))) {
+      showClosedPopup(e.message);
+    } else {
+      toast(e.message || 'Order failed. Try again.');
+    }
   } finally {
     _placingOrder = false;
     Store.remove('pb_order_processing');
@@ -6491,6 +6594,7 @@ async function confirmInsufOrder() {
     document.getElementById('si-amount').textContent = '₹' + total;
     const _siInfo = document.getElementById('si-amount-info'); if (_siInfo) _siInfo.textContent = '₹' + total;
     setDeliveryTime('si-delivery-time');
+    _savePaySession(res.orderId, total, true); // persist so boot-restore works after accidental reload
     nav('pg-success-insuf');
     launchConfetti();
     // Generate UPI QR with pre-filled amount for insuf path
@@ -7843,7 +7947,7 @@ function scheduleSlotTransitions() {
       // Full silent refresh at slot boundary (lunch-start/end, dinner-start/end).
       // Runs regardless of which tab is visible so data is always ready.
       // Does NOT touch PTR spinners or any visible loading state.
-      if (!_session) return; // user logged out — nothing to refresh
+      if (!_session && !_isGuestMode) return; // logged out — nothing to refresh
       try {
         await Promise.all([
           loadMenu(true, true).catch(() => {}),                   // silent bypass — no skeleton on auto slot-change
@@ -7851,10 +7955,17 @@ function scheduleSlotTransitions() {
           //   refreshPauseStatus + refreshWalletBalance) — server fetches subscribers +
           //   khata_summary + pause_delivery in one round-trip instead of three.
           //   forceSubCheck=true detects admin-triggered subscription changes at slot boundary.
-          refreshSubscriberStatusMerged(true).catch(() => {})
+          _session ? refreshSubscriberStatusMerged(true).catch(() => {}) : Promise.resolve()
         ]);
         // _wipeStaleCartItems() is called inside _fetchFreshMenu (via loadMenu above).
         // No explicit call needed here — bypassCache=true guarantees DB path was taken.
+        // Notify user on home tab that the slot changed — only for open transitions
+        if (label === 'Lunch Start' || label === 'Dinner Start') {
+          const newSess = _visibleSession();
+          const slotMsg = newSess === 'morning' ? '☀️ Morning menu is now open!' : '🌙 Evening menu is now open!';
+          const cur = document.querySelector('.pg.here')?.id;
+          if (cur === 'pg-home') toast(slotMsg, 3500);
+        }
       } catch {}
       // Re-arm for the next day (in case user keeps app open overnight)
       setTimeout(() => scheduleSlotTransitions(), 2000);
@@ -8084,6 +8195,8 @@ document.addEventListener('visibilitychange', () => {
 
     // Re-run slot filter immediately — time may have crossed morning/evening boundary
     if ((_session || _isGuestMode) && _fullMenu.length) filterAndRenderMenu();
+    // Wipe stale cart items on resume — slot_at_add check works even before menu loads
+    if (_session || _isGuestMode) _wipeStaleCartItems();
 
     if (_session || _isGuestMode) {
       // ── IMMEDIATE VERSION CHECK ───────────────────────────────────────────────
@@ -8325,6 +8438,17 @@ async function bootApp() {
     applyPauseState(_pauseMode);
     applyKhataVisibility();
     _transitionToHome();
+
+    // ── Restore active payment page if user was on QR/pay screen before reload ──
+    // Fires after a brief delay so the home page renders first (menu, nav, etc.)
+    // then smoothly navigates back to the payment page. User sees no blank flash.
+    setTimeout(() => {
+      const _ps = _getPaySession();
+      if (_ps && _ps.orderId && (Date.now() - _ps.ts < 30 * 60 * 1000)) {
+        // Session is <30 min old — restore the payment page
+        openOrderPayModal(_ps.orderId);
+      }
+    }, 600);
 
     const _initMenuP = loadMenu(true, true); // bypassCache=true, silent=true — fresh DB hit, no skeleton flash on revisit
     startPolling();
