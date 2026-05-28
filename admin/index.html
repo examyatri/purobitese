@@ -1,19 +1,16 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v21.2                                    ║
-     ║  Updated : 2026-05-27                               ║
-     ║  Changes : Earnings 6-bug fix —                     ║
-     ║   1. earnQuick fires correct loader per active tab  ║
-     ║   2. Yesterday button sets from=to=yesterday (was   ║
-     ║      showing 2-day range)                           ║
-     ║   3. Recharge tab auto-loads on switchEarnTab       ║
-     ║   4. Orders summary: wallet tile labelled as        ║
-     ║      "pre-collected" with note, not headline cash   ║
-     ║   5. New "Cash Collected Today from Orders" band    ║
-     ║      = UPI + UPI(Insuf) only                       ║
-     ║   6. New "Total Bank Income" combined banner        ║
-     ║      = Recharges + UPI + UPI(Insuf) across tabs    ║
+     ║  Version : v21.4                                    ║
+     ║  Updated : 2026-05-29                               ║
+     ║  Changes : v80 — Earning logic final cleanup        ║
+     ║   1. Earning = Wallet recharges (all) +             ║
+     ║      UPI/UPI_insuf/Udhar (only admin-marked paid)  ║
+     ║   2. Wallet orders excluded from earnings           ║
+     ║      (cash already counted at recharge time)        ║
+     ║   3. Renamed _earnExportCSV → _earnExportPDF        ║
+     ║      (was already PDF, name was misleading)         ║
+     ║   4. Export PDF opens printable HTML in new tab     ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -4985,7 +4982,7 @@ async function deleteSubUserCompletely(phone, name) {
   confirmAction(`⚠️ Permanently delete user <b>${name}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all data. Cannot be undone.</small>`, async function() {
     try {
       await api('removeSubscriber', { phone });
-      try { await api('adminDeleteUser', { phone }); } catch(_){}
+      await api('adminDeleteUser', { phone });
       loadSubscribers(); aToast('User deleted permanently');
     } catch(e) { aToast(e.message); }
   });
@@ -5598,6 +5595,8 @@ function renderKhataTable() {
         <div style="display:flex;gap:6px;justify-content:center">
           <button class="btn btn-g" style="padding:5px 11px;font-size:12px;white-space:nowrap" onclick="openRechargeModal('${k.phone}','${safeName}')"><i class="fa fa-plus"></i> Recharge</button>
           <button class="btn btn-outline" style="padding:5px 11px;font-size:12px;white-space:nowrap" onclick="openKhataDetail('${k.phone}','${safeName}')"><i class="fa fa-clock-rotate-left"></i> History</button>
+          <a href="tel:${k.phone}" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:12px;white-space:nowrap;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;font-weight:600;text-decoration:none" title="Call ${safeName}"><i class="fa fa-phone"></i> Call</a>
+          <a href="https://wa.me/91${k.phone}?text=${encodeURIComponent('Hi '+safeName+', Tiffo se baat kar rahe hain.')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:12px;white-space:nowrap;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:8px;font-weight:600;text-decoration:none" title="WhatsApp ${safeName}"><i class="fa-brands fa-whatsapp"></i> WA</a>
         </div>
       </td>
     </tr>`;
@@ -8682,20 +8681,19 @@ function _renderComboCalc(res) {
   const panel = document.getElementById('earn-combo-panel');
   if (!panel) return;
 
-  // Compute per-mode totals across the full report
+  // Compute per-mode PAID totals for combo calc (v79: only admin-marked-paid orders)
   const modeTotals = {}, modeCounts = {};
   for (const mode of ['upi','upi_insuf','unpaid']) {
     let tot = 0, cnt = 0;
     for (const day of res.report)
       for (const sl of day.slots) {
-        tot += sl.modes[mode]?.total || 0;
-        cnt += sl.modes[mode]?.count || 0;
+        tot += sl.modes[mode]?.paidTotal || 0;  // only paid orders
+        cnt += sl.modes[mode]?.paidCount || 0;
       }
     modeTotals[mode] = tot;
     modeCounts[mode]  = cnt;
   }
-  // Wallet = actual recharges (admin/staff credited to user wallet — any mode: cash/upi/online)
-  // NOT wallet orders. Recharge tab fetch hone par _earnLastRechargeCash set hota hai.
+  // Wallet = actual recharges (all — collected by admin via any method)
   modeTotals['wallet'] = _earnLastRechargeCash || 0;
   modeCounts['wallet'] = 0; // recharge count orders tab se nahi aata — amount hi relevant hai
 
@@ -8769,11 +8767,14 @@ function _renderTrendChart(res) {
   if (res.report.length < 2) { panel.style.display='none'; return; }
 
   // Build per-date mode totals (chronological order)
+  // v79: UPI/UPI_insuf/Udhar use paidTotal (admin-confirmed only); wallet uses total (all recharges)
   const dates = [...res.report].reverse().map(d => d.date);
   const modeData = {};
   for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
     modeData[mode] = [...res.report].reverse().map(day =>
-      day.slots.reduce((s, sl) => s + (sl.modes[mode]?.total || 0), 0)
+      day.slots.reduce((s, sl) => s + (mode === 'wallet'
+        ? (sl.modes[mode]?.total     || 0)
+        : (sl.modes[mode]?.paidTotal || 0)), 0)
     );
   }
 
@@ -8833,18 +8834,21 @@ function _renderUdharPanel(res) {
   const panel = document.getElementById('earn-udhar-panel');
   if (!panel) return;
 
-  // Collect all udhar orders from the report
+  // Collect ONLY unpaid udhar orders (not yet marked paid by admin)
+  // v79: orders where admin marked payment_status='paid' are already collected — exclude them
   const udharOrders = [];
   for (const day of res.report) {
     for (const sl of day.slots) {
       const uOrds = sl.modes['unpaid']?.orders || [];
-      for (const o of uOrds) udharOrders.push({ ...o, date: day.date, slot: sl.slot });
+      for (const o of uOrds) {
+        if (o.payment_status !== 'paid') udharOrders.push({ ...o, date: day.date, slot: sl.slot });
+      }
     }
   }
 
   if (!udharOrders.length) { panel.style.display='none'; return; }
 
-  // Group by phone → sum pending udhar per customer
+  // Group by phone → sum still-pending udhar per customer
   const byPhone = {};
   for (const o of udharOrders) {
     if (!byPhone[o.phone]) byPhone[o.phone] = { name: o.name, phone: o.phone, total: 0, orders: 0 };
@@ -8904,30 +8908,116 @@ function _renderUdharPanel(res) {
   panel.style.display = 'block';
 }
 
-// ── CSV Export ─────────────────────────────────────────────────────────────
-function _earnExportCSV(res) {
-  const rows = [['Date','Slot','Payment Mode','Customer','Phone','Items','Time','Amount','Status','Source']];
-  for (const day of res.report) {
-    for (const sl of day.slots) {
-      for (const mode of ['wallet','upi','upi_insuf','unpaid']) {
-        for (const o of (sl.modes[mode]?.orders || [])) {
-          const items = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} x${i.qty||1}`).join('; ');
-          rows.push([day.date, sl.slot, _EARN_MODE_LABEL[mode], o.name||'', o.phone||'', items, o.time||'', o.final_amount||0, o.order_status||'', o.source||'user']);
-        }
-      }
-    }
+// ── PDF Export ─────────────────────────────────────────────────────────────
+function _earnExportPDF(res) {
+  // Paid-only per-mode totals for summary
+  const grandTrueCash     = res.grandTrueCash     || 0;
+  const grandRechargeCash = res.grandRechargeCash  || 0;
+  const paidTot = {}, paidCnt = {};
+  for (const mode of ['upi','upi_insuf','unpaid']) {
+    let t = 0, c = 0;
+    for (const day of res.report)
+      for (const sl of day.slots) { t += sl.modes[mode]?.paidTotal||0; c += sl.modes[mode]?.paidCount||0; }
+    paidTot[mode] = t; paidCnt[mode] = c;
   }
-  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
+  const modeLabels = { wallet:'Wallet', upi:'UPI', upi_insuf:'UPI Insuf', unpaid:'Udhar' };
+  const modeColors = { wallet:'#059669', upi:'#2563eb', upi_insuf:'#d97706', unpaid:'#dc2626' };
+
+  // Build day-by-day HTML
+  let dayRowsHtml = '';
+  for (const day of res.report) {
+    let dayOrders = [];
+    for (const sl of day.slots)
+      for (const mode of ['wallet','upi','upi_insuf','unpaid'])
+        for (const o of (sl.modes[mode]?.orders || []))
+          dayOrders.push({ ...o, slot: sl.slot, mode });
+    if (!dayOrders.length && !day.dayRechargeCash) continue;
+
+    dayRowsHtml += `<div class="day-block">
+      <div class="day-header">
+        <span>${_fmtEarnDate(day.date)}</span>
+        <span>Earned: ${_earnFmt(day.dayTrueCash)}</span>
+      </div>`;
+    if (day.dayRechargeCash > 0)
+      dayRowsHtml += `<div class="recharge-row">Wallet Recharges (collected): <strong>${_earnFmt(day.dayRechargeCash)}</strong></div>`;
+    if (dayOrders.length) {
+      dayRowsHtml += `<table><thead><tr>
+        <th>Customer</th><th>Phone</th><th>Slot</th><th>Mode</th>
+        <th>Items</th><th style="text-align:right">Amount</th><th>Payment</th><th>In Earnings</th>
+      </tr></thead><tbody>`;
+      for (const o of dayOrders) {
+        const items = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} x${i.qty||1}`).join(', ');
+        const isPaid = o.mode === 'wallet' || o.payment_status === 'paid';
+        const earnColor = isPaid ? '#059669' : '#dc2626';
+        dayRowsHtml += `<tr>
+          <td><strong>${o.name||'—'}</strong></td>
+          <td style="font-family:monospace;font-size:10px">${o.phone||'—'}</td>
+          <td>${o.slot||'—'}</td>
+          <td style="color:${modeColors[o.mode]||'#334155'};font-weight:600">${modeLabels[o.mode]||o.mode}</td>
+          <td style="font-size:10px">${items||'—'}</td>
+          <td style="text-align:right;font-weight:700">Rs.${o.final_amount||0}</td>
+          <td style="font-size:10px;color:${o.payment_status==='paid'?'#059669':'#d97706'}">${o.payment_status||'—'}</td>
+          <td style="text-align:center;font-weight:700;color:${earnColor}">${isPaid?'YES':'Pending'}</td>
+        </tr>`;
+      }
+      dayRowsHtml += `</tbody></table>`;
+    }
+    dayRowsHtml += `</div>`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>Tiffo Earnings ${res.fromDate} to ${res.toDate}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1e293b;background:#fff;padding:20px}
+.header{background:#0f172a;color:#fff;border-radius:10px;padding:18px 22px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:18px;font-weight:800}
+.header .sub{font-size:11px;color:#94a3b8;margin-top:3px}
+.header .earned{font-size:26px;font-weight:900;color:#10b981}
+.summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.sc{border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 14px;flex:1;min-width:130px}
+.sc .lbl{font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.sc .val{font-size:16px;font-weight:800}
+.sc .sub{font-size:9px;color:#94a3b8;margin-top:2px}
+.day-block{margin-bottom:14px;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden}
+.day-header{background:#1e293b;color:#fff;padding:9px 13px;font-weight:700;font-size:12px;display:flex;justify-content:space-between}
+.recharge-row{background:#f0fdf4;padding:7px 13px;font-size:11px;color:#059669;border-bottom:1px solid #e2e8f0}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{background:#f8fafc;padding:6px 7px;text-align:left;font-size:9px;font-weight:700;color:#64748b;border-bottom:2px solid #e2e8f0}
+td{padding:6px 7px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.footer{margin-top:18px;text-align:center;font-size:9px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+.print-btn{text-align:center;margin-top:16px}
+@media print{body{padding:8px}.print-btn{display:none}.day-block{page-break-inside:avoid}}
+</style></head><body>
+<div class="header">
+  <div>
+    <div class="sub">Tiffo — Earnings Report</div>
+    <h1>${res.fromDate === res.toDate ? res.fromDate : res.fromDate + ' to ' + res.toDate}</h1>
+    <div class="sub">${res.totalOrders} orders total</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">TOTAL EARNED</div>
+    <div class="earned">Rs.${Math.round(grandTrueCash).toLocaleString('en-IN')}</div>
+    <div style="font-size:9px;color:#94a3b8;margin-top:3px">Paid + Recharges only</div>
+  </div>
+</div>
+<div class="summary">
+  <div class="sc"><div class="lbl">Wallet Recharges</div><div class="val" style="color:#059669">Rs.${Math.round(grandRechargeCash).toLocaleString('en-IN')}</div><div class="sub">All collected</div></div>
+  <div class="sc"><div class="lbl">UPI + UPI Insuf</div><div class="val" style="color:#2563eb">Rs.${Math.round((paidTot['upi']||0)+(paidTot['upi_insuf']||0)).toLocaleString('en-IN')}</div><div class="sub">${(paidCnt['upi']||0)+(paidCnt['upi_insuf']||0)} paid orders</div></div>
+  <div class="sc"><div class="lbl">Udhar Collected</div><div class="val" style="color:#dc2626">Rs.${Math.round(paidTot['unpaid']||0).toLocaleString('en-IN')}</div><div class="sub">${paidCnt['unpaid']||0} paid orders</div></div>
+</div>
+${dayRowsHtml}
+<div class="footer">Tiffo Admin · ${new Date().toLocaleString('en-IN')} · Only admin-marked-paid orders counted in earnings</div>
+<div class="print-btn"><button onclick="window.print()" style="padding:10px 28px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Save as PDF / Print</button></div>
+</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
   const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `tiffo-earnings-${res.fromDate}-to-${res.toDate}.csv`;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-  aToast('CSV downloaded!');
+  const win  = window.open(url, '_blank');
+  if (!win) aToast('Popup blocked karein allow — try again');
+  else { win.onload = () => URL.revokeObjectURL(url); aToast('PDF ready — "Save as PDF" click karein'); }
 }
 
 function _renderEarnings(res) {
@@ -8979,59 +9069,91 @@ function _renderEarnings(res) {
     modeTotals[mode] = filteredRes.report.reduce((s,d)=>s+d.slots.reduce((ss,sl)=>ss+(sl.modes[mode]?.total||0),0),0);
   }
 
-  // ── True Cash Earned this period ──────────────────────────────────────────
-  // = Recharges collected + UPI + UPI_insuf + Unpaid(udhar)
+  // ── True Cash Earned this period (v79: only admin-marked-paid orders) ─────
+  // = Recharges (all) + UPI paid + UPI_insuf paid + Udhar paid
   // Wallet orders excluded — cash was already counted when subscriber recharged.
   const grandTrueCash     = filteredRes.grandTrueCash     || 0;
   const grandRechargeCash = filteredRes.grandRechargeCash || 0;
-  const trueCashUpi       = (modeTotals['upi']      || 0) + (modeTotals['upi_insuf'] || 0);
-  const trueCashUdhar     = modeTotals['unpaid']    || 0;
-  const trueCashUpiCount  = (gc['upi'] || 0) + (gc['upi_insuf'] || 0);
 
-  // Store for cross-tab Total Bank Income banner (recharges already fetched via server now)
-  _earnLastOrderCash = trueCashUpi;     // UPI portion (for banner compatibility)
-  _earnLastRechargeCash = grandRechargeCash; // recharge portion from orders tab
+  // Paid-only per-mode totals (admin confirmed payment_status='paid')
+  const paidModeTotals = {}, paidModeCounts = {};
+  for (const mode of ['upi','upi_insuf','unpaid']) {
+    let tot = 0, cnt = 0;
+    for (const day of filteredRes.report)
+      for (const sl of day.slots) {
+        tot += sl.modes[mode]?.paidTotal || 0;
+        cnt += sl.modes[mode]?.paidCount || 0;
+      }
+    paidModeTotals[mode] = tot;
+    paidModeCounts[mode] = cnt;
+  }
+  const trueCashUpi       = (paidModeTotals['upi'] || 0) + (paidModeTotals['upi_insuf'] || 0);
+  const trueCashUdhar     = paidModeTotals['unpaid'] || 0;
+  const trueCashUpiCount  = (paidModeCounts['upi'] || 0) + (paidModeCounts['upi_insuf'] || 0);
+  const trueCashUdharCount = paidModeCounts['unpaid'] || 0;
 
-  // Breakdown rows under True Cash hero
+  // Pending (not yet marked paid by admin) — informational only, not in earnings
+  const pendingUpiAmt   = (modeTotals['upi'] || 0) + (modeTotals['upi_insuf'] || 0) - trueCashUpi;
+  const pendingUdharAmt = (modeTotals['unpaid'] || 0) - trueCashUdhar;
+  const pendingUpiCount   = (gc['upi'] || 0) + (gc['upi_insuf'] || 0) - trueCashUpiCount;
+  const pendingUdharCount = (gc['unpaid'] || 0) - trueCashUdharCount;
+
+  // Store for cross-tab Total Bank Income banner
+  _earnLastOrderCash    = trueCashUpi;
+  _earnLastRechargeCash = grandRechargeCash;
+
+  // Breakdown rows inside the TRUE CASH hero card
   const breakdownRows = [
-    grandRechargeCash > 0  ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #e2e8f0">
-      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#059669;font-weight:600"><i class="fa fa-wallet" style="font-size:11px"></i>Wallet Recharges <span style="font-size:10px;color:#94a3b8;font-weight:400">(cash received)</span></span>
-      <span style="font-size:13px;font-weight:800;color:#059669">${_earnFmt(grandRechargeCash)}</span>
+    grandRechargeCash > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #334155">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#34d399;font-weight:600"><i class="fa fa-wallet" style="font-size:11px"></i>Wallet Recharges <span style="font-size:10px;color:#94a3b8;font-weight:400">(all collected)</span></span>
+      <span style="font-size:13px;font-weight:800;color:#34d399">${_earnFmt(grandRechargeCash)}</span>
     </div>` : '',
-    trueCashUpi > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #e2e8f0">
-      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#3b82f6;font-weight:600"><i class="fa fa-mobile-screen" style="font-size:11px"></i>UPI + UPI Insuf <span style="font-size:10px;color:#94a3b8;font-weight:400">(${trueCashUpiCount} orders)</span></span>
-      <span style="font-size:13px;font-weight:800;color:#3b82f6">${_earnFmt(trueCashUpi)}</span>
+    trueCashUpi > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #334155">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#60a5fa;font-weight:600"><i class="fa fa-mobile-screen" style="font-size:11px"></i>UPI + UPI Insuf <span style="font-size:10px;color:#94a3b8;font-weight:400">(${trueCashUpiCount} paid ✓)</span></span>
+      <span style="font-size:13px;font-weight:800;color:#60a5fa">${_earnFmt(trueCashUpi)}</span>
     </div>` : '',
-    trueCashUdhar > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">
-      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#ef4444;font-weight:600"><i class="fa fa-arrow-trend-down" style="font-size:11px"></i>Udhar (Unpaid) <span style="font-size:10px;color:#94a3b8;font-weight:400">(${gc['unpaid']||0} orders, owed)</span></span>
-      <span style="font-size:13px;font-weight:800;color:#ef4444">${_earnFmt(trueCashUdhar)}</span>
+    trueCashUdhar > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;${(pendingUpiAmt>0||pendingUdharAmt>0)?'border-bottom:1px solid #334155':''}">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#f87171;font-weight:600"><i class="fa fa-arrow-trend-down" style="font-size:11px"></i>Udhar Collected <span style="font-size:10px;color:#94a3b8;font-weight:400">(${trueCashUdharCount} paid ✓)</span></span>
+      <span style="font-size:13px;font-weight:800;color:#f87171">${_earnFmt(trueCashUdhar)}</span>
+    </div>` : '',
+    (pendingUpiAmt > 0 || pendingUdharAmt > 0) ? `<div style="padding:6px 0;margin-top:2px">
+      <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Pending (not yet marked paid)</div>
+      ${pendingUpiAmt > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;padding:2px 0"><span>UPI + UPI Insuf (${pendingUpiCount} orders)</span><span>${_earnFmt(pendingUpiAmt)}</span></div>` : ''}
+      ${pendingUdharAmt > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;padding:2px 0"><span>Udhar (${pendingUdharCount} orders)</span><span>${_earnFmt(pendingUdharAmt)}</span></div>` : ''}
     </div>` : '',
   ].filter(Boolean).join('');
 
-  // Wallet info tile (informational only — not in day total)
+  // Wallet info tile (informational only — not in earnings)
   const walletInfoHtml = gc['wallet'] ? `
     <div style="margin-top:12px;background:#f1f5f9;border:1.5px solid #cbd5e133;border-radius:10px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <div>
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px"><i class="fa fa-wallet" style="margin-right:5px;color:#10b981"></i>Wallet Orders <span style="font-weight:500;text-transform:none;letter-spacing:0">(not counted in day total)</span></div>
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px"><i class="fa fa-wallet" style="margin-right:5px;color:#10b981"></i>Wallet Orders <span style="font-weight:500;text-transform:none;letter-spacing:0">(not counted in earnings)</span></div>
         <div style="font-size:11px;color:#94a3b8;margin-top:2px">${gc['wallet']} orders · Cash was collected at recharge time</div>
       </div>
       <div style="font-size:18px;font-weight:800;color:#94a3b8;font-family:var(--ff)">${_earnFmt(modeTotals['wallet']||0)}</div>
     </div>` : '';
 
+  // Per-mode tiles — show paid (earned) + pending indicator
   const tiles = ['upi','upi_insuf','unpaid'].map(m => {
     if (!gc[m]) return '';
-    const pct = grandTrueCash > 0 ? ((modeTotals[m]/grandTrueCash)*100).toFixed(1) : '0';
-    const noteMap = { upi: '', upi_insuf: '', unpaid: `<div style="font-size:10px;color:#ef4444;margin-top:3px;font-weight:500">Food served, cash owed</div>` };
+    const paidAmt = paidModeTotals[m] || 0;
+    const paidCnt = paidModeCounts[m] || 0;
+    const pendAmt = (modeTotals[m] || 0) - paidAmt;
+    const pendCnt = (gc[m] || 0) - paidCnt;
+    const pct = grandTrueCash > 0 ? ((paidAmt / grandTrueCash) * 100).toFixed(1) : '0';
+    const pendNote = pendAmt > 0
+      ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">${pendCnt} pending · ${_earnFmt(pendAmt)}</div>`
+      : `<div style="font-size:10px;color:#10b981;margin-top:2px;font-weight:600">All collected ✓</div>`;
     return `<div style="background:${_EARN_MODE_BG[m]};border:1.5px solid ${_EARN_MODE_COLOR[m]}33;border-radius:12px;padding:12px 14px;min-width:110px;flex:1">
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">
         <i class="fa ${_EARN_MODE_ICON[m]}" style="font-size:11px;color:${_EARN_MODE_COLOR[m]}"></i>
         <span style="font-size:10px;font-weight:700;color:${_EARN_MODE_COLOR[m]};letter-spacing:.5px;text-transform:uppercase">${_EARN_MODE_LABEL[m]}</span>
       </div>
-      <div style="font-size:18px;font-weight:800;color:#0f172a">${_earnFmt(modeTotals[m])}</div>
+      <div style="font-size:18px;font-weight:800;color:#0f172a">${_earnFmt(paidAmt)}</div>
       <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
-        <span style="font-size:11px;color:#64748b">${gc[m]} order${gc[m]!==1?'s':''}</span>
+        <span style="font-size:11px;color:#64748b">${paidCnt} paid</span>
         <span style="font-size:10px;font-weight:700;color:${_EARN_MODE_COLOR[m]};background:${_EARN_MODE_COLOR[m]}18;padding:1px 5px;border-radius:20px">${pct}%</span>
-      </div>${noteMap[m]}
+      </div>${pendNote}
     </div>`;
   }).join('');
 
@@ -9039,8 +9161,8 @@ function _renderEarnings(res) {
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
         <div style="font-size:13px;font-weight:700;color:#64748b">${filteredRes.fromDate === filteredRes.toDate ? filteredRes.fromDate : filteredRes.fromDate + ' → ' + filteredRes.toDate} · ${filteredRes.totalOrders} orders${sessBadge}</div>
-        <button onclick="if(_earnLastRes)_earnExportCSV(_earnLastRes);else aToast('No data to export');" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
-          <i class="fa fa-download" style="color:#6366f1"></i> Export CSV
+        <button onclick="if(_earnLastRes)_earnExportPDF(_earnLastRes);else aToast('No data to export');" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
+          <i class="fa fa-file-pdf" style="color:#ef4444"></i> Export PDF
         </button>
       </div>
 
@@ -9049,7 +9171,7 @@ function _renderEarnings(res) {
         <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">
           <i class="fa fa-indian-rupee-sign" style="margin-right:5px;color:#10b981"></i>Total Day Earnings
         </div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:8px">${_earnSession==='all'?'Recharges + UPI + UPI Insuf + Udhar':(_earnSession==='morning'?'☀️ Morning — UPI + UPI Insuf + Udhar':'🌙 Evening — UPI + UPI Insuf + Udhar')}</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:8px">${_earnSession==='all'?'Recharges + Paid UPI + Paid Udhar':(_earnSession==='morning'?'☀️ Morning — Paid UPI + Paid Udhar':'🌙 Evening — Paid UPI + Paid Udhar')}<span style="font-size:10px;color:#4ade80;margin-left:6px;font-weight:600">(admin marked paid only)</span></div>
         <div style="font-size:34px;font-weight:900;color:#10b981;font-family:var(--ff);line-height:1">${_earnFmt(grandTrueCash)}</div>
         ${breakdownRows.length ? `<div style="margin-top:14px;border-top:1px solid #334155;padding-top:12px">${breakdownRows}</div>` : ''}
       </div>
@@ -9088,12 +9210,16 @@ function _renderEarnings(res) {
         const orderRows = mdata.orders.map(o => {
           const itemSummary = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} ×${i.qty||1}`).join(', ');
           const statusColor = o.order_status==='delivered'?'#10b981':o.order_status==='pending'?'#f59e0b':'#64748b';
+          const isPaid = o.payment_status === 'paid';
+          const payColor = isPaid ? '#10b981' : '#f59e0b';
+          const payLabel = isPaid ? '✓ Paid' : (o.payment_status || 'pending');
           return `<tr style="border-top:1px solid #f1f5f9">
             <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a">${o.name||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#64748b;font-family:monospace">${o.phone||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#334155">${itemSummary||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#64748b">${o.time||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;font-weight:700;color:${_EARN_MODE_COLOR[mode]};text-align:right">${_earnFmt(o.final_amount)}</td>
+            <td style="padding:8px 10px;font-size:11px;text-align:center"><span style="padding:2px 8px;border-radius:20px;background:${payColor}22;color:${payColor};font-weight:700">${payLabel}</span></td>
             <td style="padding:8px 10px;font-size:11px;text-align:center"><span style="padding:2px 8px;border-radius:20px;background:${statusColor}22;color:${statusColor};font-weight:700">${o.order_status}</span></td>
             <td style="padding:8px 10px;font-size:11px;color:#94a3b8;text-align:center">${o.source==='admin_bulk'?'Bulk':o.source==='admin'?'Admin':'User'}</td>
           </tr>`;
@@ -9117,6 +9243,7 @@ function _renderEarnings(res) {
                   <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Items</th>
                   <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:left">Time</th>
                   <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:right">Amount</th>
+                  <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Payment</th>
                   <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Status</th>
                   <th style="padding:7px 10px;font-size:11px;font-weight:700;color:#64748b;text-align:center">Source</th>
                 </tr></thead>
@@ -9124,7 +9251,7 @@ function _renderEarnings(res) {
                 <tfoot><tr style="background:#f8fafc;border-top:2px solid #e2e8f0">
                   <td colspan="4" style="padding:8px 10px;font-size:12px;font-weight:700;color:#64748b">Total — ${mdata.count} orders</td>
                   <td style="padding:8px 10px;font-size:14px;font-weight:800;color:${_EARN_MODE_COLOR[mode]};text-align:right">${_earnFmt(mdata.total)}</td>
-                  <td colspan="2"></td>
+                  <td colspan="3"></td>
                 </tr></tfoot>
               </table>
             </div>
@@ -9157,7 +9284,7 @@ function _renderEarnings(res) {
             </div>
             <div style="text-align:right">
               <div style="font-size:16px;font-weight:800;color:#0f172a">${_earnFmt(sl.slotTrueCash)}</div>
-              ${sl.slotTrueCash !== sl.slotTotal ? `<div style="font-size:10px;color:#94a3b8">incl. wallet: ${_earnFmt(sl.slotTotal)}</div>` : ''}
+              ${sl.slotTrueCash !== sl.slotTotal ? `<div style="font-size:10px;color:#94a3b8">all orders: ${_earnFmt(sl.slotTotal)} · paid only shown</div>` : ''}
             </div>
           </div>
           <div id="${slId}" style="padding:10px 12px">
@@ -9169,11 +9296,13 @@ function _renderEarnings(res) {
 
     // Day-level badge breakdown (compact)
     const dayCashBreakdown = (() => {
+      // v79: show paid-only amounts in the day header badge
       const parts = [];
       if (day.dayRechargeCash > 0) parts.push(`<span style="color:#059669;font-weight:600">Rchg ${_earnFmt(day.dayRechargeCash)}</span>`);
-      if (day.dayUpiCombinedTotal > 0) parts.push(`<span style="color:#3b82f6;font-weight:600">UPI ${_earnFmt(day.dayUpiCombinedTotal)}</span>`);
-      const udharAmt = day.slots.reduce((s,sl)=>s+(sl.modes['unpaid']?.total||0),0);
-      if (udharAmt > 0) parts.push(`<span style="color:#ef4444;font-weight:600">Udhar ${_earnFmt(udharAmt)}</span>`);
+      const paidUpiAmt = day.slots.reduce((s,sl)=>s+(sl.modes['upi']?.paidTotal||0)+(sl.modes['upi_insuf']?.paidTotal||0),0);
+      if (paidUpiAmt > 0) parts.push(`<span style="color:#3b82f6;font-weight:600">UPI ${_earnFmt(paidUpiAmt)} ✓</span>`);
+      const paidUdharAmt = day.slots.reduce((s,sl)=>s+(sl.modes['unpaid']?.paidTotal||0),0);
+      if (paidUdharAmt > 0) parts.push(`<span style="color:#ef4444;font-weight:600">Udhar ${_earnFmt(paidUdharAmt)} ✓</span>`);
       return parts.join('<span style="color:#475569;font-size:10px"> + </span>');
     })();
     const walletAmt = day.slots.reduce((s,sl)=>s+(sl.modes['wallet']?.total||0),0);
