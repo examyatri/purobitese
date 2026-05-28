@@ -1,18 +1,14 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v60.4                                    ║
-// ║  Updated : 2026-05-27                               ║
-// ║  Changes : Security & logic fixes —                 ║
-// ║            adminDeleteUser moved to _ADMIN_ONLY     ║
-// ║            rechargeWallet/manualRefund amount guard ║
-// ║            deleteNotificationRange server validation║
-// ║            forceUdharOrder dead ref removed         ║
-// ║            getSubscribersForBulk: slot=both removed ║
-// ║              orderFor=all removed                   ║
-// ║            checkSubscriber added to _USER_SENSITIVE ║
-// ║            updateSubscriber: plan_end support added ║
-// ║            adminGetUsers: fixed order count bug     ║
+// ║  Version : v81                                      ║
+// ║  Updated : 2026-05-29                               ║
+// ║  Changes : Fix 1 — createOrder now validates store  ║
+// ║            open/closed from weekly_schedule at      ║
+// ║            order time. Outside window → clear error.║
+// ║            Staff-placed orders bypass check.        ║
+// ║            Prior: slot was detected but never       ║
+// ║            validated — orders went through anytime. ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -1459,21 +1455,66 @@ app.post('/api', async (req, res) => {
           }
         }
 
-        // ── Auto-detect slot — use weekly_schedule already fetched in parallel ──
+        // ── Auto-detect slot AND validate store is open — same weekly_schedule fetch ──
+        // Strategy: parse full day config, check if current IST time falls within a
+        // lunch or dinner window. If outside ALL windows → reject with clear reason.
+        // Staff-placed orders (source='admin') bypass the open/closed check.
         let autoSlot = 'morning';
+        let _storeOpen = true;
+        let _storeClosedReason = '';
         try {
           const sch = JSON.parse(schVal || '[]');
           const dayIdx = ist.getUTCDay();
           const d = Array.isArray(sch) && sch.length === 7 ? sch[dayIdx] : null;
           const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
           if (d && d.open) {
-            const dsH = parseInt(d.dinnerStart || '18') || 18;
-            const dsM = parseInt(d.dinnerStartMin || '0') || 0;
-            if (nowMins >= dsH * 60 + dsM) autoSlot = 'evening';
+            // Parse all four window edges from schedule
+            const lsH = parseInt(d.lunchStart    || '10') || 10;
+            const lsM = parseInt(d.lunchStartMin ||  '0') ||  0;
+            const leH = parseInt(d.lunchEnd      || '13') || 13;
+            const leM = parseInt(d.lunchEndMin   ||  '0') ||  0;
+            const dsH = parseInt(d.dinnerStart   || '18') || 18;
+            const dsM = parseInt(d.dinnerStartMin||  '0') ||  0;
+            const deH = parseInt(d.dinnerEnd     || '21') || 21;
+            const deM = parseInt(d.dinnerEndMin  ||  '0') ||  0;
+            const lsTotal = lsH * 60 + lsM;
+            const leTotal = leH * 60 + leM;
+            const dsTotal = dsH * 60 + dsM;
+            const deTotal = deH * 60 + deM;
+            if (nowMins >= lsTotal && nowMins <= leTotal) {
+              autoSlot = 'morning'; _storeOpen = true;
+            } else if (nowMins >= dsTotal && nowMins <= deTotal) {
+              autoSlot = 'evening'; _storeOpen = true;
+            } else if (nowMins < lsTotal) {
+              _storeOpen = false;
+              const h12 = lsH % 12 || 12, ap = lsH >= 12 ? 'PM' : 'AM';
+              _storeClosedReason = `Store opens for morning orders at ${h12}:${String(lsM).padStart(2,'0')} ${ap}`;
+            } else if (nowMins > leTotal && nowMins < dsTotal) {
+              _storeOpen = false;
+              const h12 = dsH % 12 || 12, ap = dsH >= 12 ? 'PM' : 'AM';
+              _storeClosedReason = `Morning orders closed. Evening orders open at ${h12}:${String(dsM).padStart(2,'0')} ${ap}`;
+            } else {
+              _storeOpen = false;
+              _storeClosedReason = 'Store is closed for today. See you tomorrow!';
+            }
+          } else if (d && !d.open) {
+            // Day explicitly marked closed in schedule
+            _storeOpen = false;
+            _storeClosedReason = 'Store is closed today';
           } else {
+            // No schedule data — fall back to simple 17:00 heuristic (always allow)
             autoSlot = nowMins >= 17 * 60 ? 'evening' : 'morning';
+            _storeOpen = true;
           }
-        } catch { autoSlot = (ist.getUTCHours() * 60 + ist.getUTCMinutes()) >= 17 * 60 ? 'evening' : 'morning'; }
+        } catch {
+          autoSlot = (ist.getUTCHours() * 60 + ist.getUTCMinutes()) >= 17 * 60 ? 'evening' : 'morning';
+          _storeOpen = true;
+        }
+
+        // Staff/admin bypass: they can always place orders regardless of time
+        if (!_storeOpen && !_isStaff) {
+          return res.json({ success: false, error: _storeClosedReason, errorCode: 'STORE_CLOSED' });
+        }
 
         // NOTE: Multiple orders per slot are now allowed (users may order 2nd/3rd tiffin).
         // The idempotency guard (30s window above) still prevents accidental double-click duplicates.
@@ -3469,11 +3510,19 @@ app.post('/api', async (req, res) => {
               const orders = slotData[mode];
               if (!orders.length) continue;
               const modeTotal = orders.reduce((s, o) => s + o.final_amount, 0);
-              slotEntry.modes[mode] = { orders, total: modeTotal, count: orders.length };
+              // paidTotal: only orders where admin marked payment_status = 'paid'
+              // wallet: all recharges count (collected by admin via any method)
+              const paidTotal = mode === 'wallet'
+                ? modeTotal
+                : orders.reduce((s, o) => s + (o.payment_status === 'paid' ? o.final_amount : 0), 0);
+              const paidCount = mode === 'wallet'
+                ? orders.length
+                : orders.filter(o => o.payment_status === 'paid').length;
+              slotEntry.modes[mode] = { orders, total: modeTotal, count: orders.length, paidTotal, paidCount };
               slotEntry.slotTotal  += modeTotal;
               slotEntry.slotCounts[mode] = orders.length;
-              // slotTrueCash excludes wallet — wallet cash was collected at recharge time
-              if (mode !== 'wallet') slotEntry.slotTrueCash += modeTotal;
+              // slotTrueCash: wallet excluded (cash collected at recharge), others only if admin marked paid
+              if (mode !== 'wallet') slotEntry.slotTrueCash += paidTotal;
             }
 
             // Combined UPI (upi + upi_insuf) for easy bank reconciliation
@@ -3494,18 +3543,27 @@ app.post('/api', async (req, res) => {
           dayEntry.dayUpiCombinedTotal = dayEntry.slots.reduce((s, sl) => s + sl.upiCombinedTotal, 0);
           dayEntry.dayUpiCombinedCount = dayEntry.slots.reduce((s, sl) => s + sl.upiCombinedCount, 0);
 
-          // ── True Cash for the day ────────────────────────────────────────
-          // dayTrueCash = recharges collected that day          ← bank cash (subscription fee)
-          //             + UPI paid at order time                ← bank cash (daily user / upi_insuf)
-          //             + UPI_insuf paid at order time          ← bank cash (sub paid via UPI)
-          //             + unpaid/udhar (food served, cash owed) ← accrued, will collect later
+          // ── True Cash / Earnings for the day ────────────────────────────
+          // NEW LOGIC (v79): Only orders where admin explicitly marked payment_status='paid'
+          // are counted in earnings. This gives a real-money-in-hand picture.
+          //
+          // dayTrueCash = recharges collected that day          ← all recharges (admin credits wallet)
+          //             + UPI orders   (payment_status='paid')  ← admin confirmed payment received
+          //             + UPI_insuf    (payment_status='paid')  ← admin confirmed payment received
+          //             + Udhar/unpaid (payment_status='paid')  ← admin confirmed cash collected
           // wallet orders EXCLUDED — cash was already counted when subscriber recharged
-          // bulk wallet orders EXCLUDED — same reason (internal wallet deduction only)
-          const dayUpiTotal    = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi']?.total       || 0), 0);
-          const dayInsufTotal  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi_insuf']?.total  || 0), 0);
-          const dayUdharTotal  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.total     || 0), 0);
+          const dayUpiPaid    = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi']?.paidTotal       || 0), 0);
+          const dayInsufPaid  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi_insuf']?.paidTotal  || 0), 0);
+          const dayUdharPaid  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.paidTotal     || 0), 0);
+          // Keep old totals for display reference (all orders, not just paid)
+          const dayUpiTotal   = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi']?.total       || 0), 0);
+          const dayInsufTotal = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi_insuf']?.total  || 0), 0);
+          const dayUdharTotal = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.total     || 0), 0);
           dayEntry.dayRechargeCash = rechargeDateMap[date] || 0;
-          dayEntry.dayTrueCash     = dayEntry.dayRechargeCash + dayUpiTotal + dayInsufTotal + dayUdharTotal;
+          dayEntry.dayUpiPaid      = dayUpiPaid;
+          dayEntry.dayInsufPaid    = dayInsufPaid;
+          dayEntry.dayUdharPaid    = dayUdharPaid;
+          dayEntry.dayTrueCash     = dayEntry.dayRechargeCash + dayUpiPaid + dayInsufPaid + dayUdharPaid;
 
           report.push(dayEntry);
         }
@@ -3523,6 +3581,10 @@ app.post('/api', async (req, res) => {
         // grandRechargeCash = ALL recharges in range (including recharge-only days, now included)
         const grandRechargeCash = report.reduce((s, d) => s + d.dayRechargeCash, 0);
         const grandTrueCash     = report.reduce((s, d) => s + d.dayTrueCash,     0);
+        // Paid-only breakdowns (admin-confirmed payments only)
+        const grandUpiPaid    = report.reduce((s, d) => s + d.dayUpiPaid,    0);
+        const grandInsufPaid  = report.reduce((s, d) => s + d.dayInsufPaid,  0);
+        const grandUdharPaid  = report.reduce((s, d) => s + d.dayUdharPaid,  0);
 
         return res.json({
           success: true,
@@ -3534,6 +3596,9 @@ app.post('/api', async (req, res) => {
           grandUpiCombinedCount,
           grandRechargeCash,
           grandTrueCash,
+          grandUpiPaid,
+          grandInsufPaid,
+          grandUdharPaid,
           totalOrders: (rows || []).length
         });
       }
