@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v81                                      ║
+// ║  Version : v84                                      ║
 // ║  Updated : 2026-05-29                               ║
 // ║  Changes : Fix 1 — createOrder now validates store  ║
 // ║            open/closed from weekly_schedule at      ║
