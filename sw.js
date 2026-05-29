@@ -3,14 +3,11 @@
    Version : v36.0  |  Updated : 2026-05-29
 
    CHANGES v36.0:
-   - Cache bumped to tiffo-v42 for v84 deploy.
-   - Map pin lock/unlock workflow in index.html:
-     pin auto-locks after detect, Recenter unlocks,
-     Save Location re-locks. Prevents accidental scroll
-     from shifting pin during signup/settings form fill.
+   - Cache bumped to tiffo-v42 for v82 deploy.
+   - help.html footer buttons fixed for PWA standalone mode.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v42'; // bumped for v84 deploy
+const CACHE      = 'tiffo-v42'; // bumped for v82 — help.html PWA footer fix
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
