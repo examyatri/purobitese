@@ -1,17 +1,27 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v36.0  |  Updated : 2026-05-29
+   Version : v37.0  |  Updated : 2026-05-29
+
+   CHANGES v37.0:
+   - help.html removed from PRECACHE — it is not a core app
+     shell and was causing stale cached versions to be served
+     in PWA standalone mode (buttons missing bug).
+   - help.html now uses network-first strategy (falls back to
+     cache only when offline). Always fresh on every visit.
+   - Cache bumped to tiffo-v43.
 
    CHANGES v36.0:
    - Cache bumped to tiffo-v42 for v82 deploy.
    - help.html footer buttons fixed for PWA standalone mode.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v42'; // bumped for v82 — help.html PWA footer fix
+const CACHE      = 'tiffo-v43'; // bumped v37 — help.html network-first fix
 const FONT_CACHE = 'tiffo-fonts-v1';
 
-/* Core app shell — cached on install. */
-const PRECACHE = ['./', './index.html', './help.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
+/* Core app shell — cached on install.
+   NOTE: help.html intentionally excluded — it uses network-first strategy
+   so it is always served fresh (avoids stale cached version in PWA). */
+const PRECACHE = ['./', './index.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
@@ -133,7 +143,35 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  /* Strategy 3 — HTML navigation: cache-first with network timeout fallback.
+  /* Strategy 3a — help.html: network-first, cache fallback.
+   * help.html is NOT a core app shell — it changes frequently (TiffoTube
+   * content, footer buttons, etc.). Serving it cache-first caused the PWA
+   * to show a stale version with missing/broken footer buttons.
+   * Network-first ensures the user always gets the latest version.
+   * Cache is used only when offline. */
+  if (request.mode === 'navigate' && url.pathname.endsWith('/help.html')) {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const res = await fetch(request, { cache: 'no-cache' });
+        if (res && res.status === 200) {
+          cache.put(request, res.clone()); // keep cache fresh for offline fallback
+          return res;
+        }
+        return res;
+      } catch {
+        // Offline — serve cached version if available, else offline page
+        const cached = await cache.match(request);
+        return cached || new Response(OFFLINE_HTML, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        });
+      }
+    })());
+    return;
+  }
+
+  /* Strategy 3 — All other HTML navigation (index.html etc.): cache-first with
+   * network timeout fallback.
    *
    * WHY THIS CHANGE (v30.0):
    * The old network-first strategy forced a 356KB download of index.html on
