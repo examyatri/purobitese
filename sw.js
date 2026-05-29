@@ -1,16 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v35.0  |  Updated : 2026-05-28
+   Version : v36.0  |  Updated : 2026-05-29
 
-   CHANGES v35.0:
-   - Cache bumped to tiffo-v41 for v81 deploy.
+   CHANGES v36.0:
+   - Cache bumped to tiffo-v42 for v84 deploy.
    - Map pin lock/unlock workflow in index.html:
      pin auto-locks after detect, Recenter unlocks,
      Save Location re-locks. Prevents accidental scroll
      from shifting pin during signup/settings form fill.
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v41'; // bumped for v76 — signup/settings pin flow async fixes
+const CACHE      = 'tiffo-v42'; // bumped for v84 deploy
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

@@ -383,17 +383,47 @@ body{height:100dvh;display:flex;flex-direction:column;background:#fff;color:var(
   width:40px;height:4px;background:#3f3f3f;border-radius:2px;
 }
 
-/* 16:9 video area */
+/* Video area — aspect ratio set dynamically via JS */
 #player-iframe-wrap {
   position:relative;
   width:100%;
-  padding-top:56.25%;
+  padding-top:56.25%; /* default 16:9, overridden by JS */
   background:#000;
   flex-shrink:0;
+  transition:padding-top .25s ease;
 }
 #player-iframe{
   position:absolute;inset:0;width:100%;height:100%;border:none;
   display:block;
+}
+/* Portrait mode sheet — narrower so portrait video isn't stretched */
+#player-sheet.portrait-mode {
+  max-width:380px;
+}
+/* Inline player — replaces thumbnail in card */
+.vcard-inline-player {
+  position:relative;
+  width:100%;
+  background:#000;
+  overflow:hidden;
+  flex-shrink:0;
+}
+.vcard-inline-player iframe {
+  display:block;
+  width:100%;
+  height:100%;
+  border:none;
+  position:absolute;inset:0;
+}
+.vcard-inline-close {
+  position:absolute;top:8px;right:8px;
+  width:30px;height:30px;
+  background:rgba(0,0,0,.65);
+  border:none;border-radius:50%;
+  color:#fff;font-size:13px;cursor:pointer;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
 }
 
 /* Close button on video */
@@ -763,6 +793,77 @@ function ytEmbed(url) {
   return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1` : '';
 }
 
+/* ── Smart Aspect Ratio Detection ─────────────────────────────────
+   Strategy (in order):
+   1. If URL contains /shorts/ → always 9:16 portrait
+   2. Check memory cache (no repeat network calls)
+   3. Fetch YouTube oEmbed API (free, no auth, returns real w×h)
+   4. Fallback to 16:9 on any error
+   ─────────────────────────────────────────────────────────────── */
+const _ratioCache = {}; // videoId → { ratio, isPortrait }
+
+function _isShort(url) {
+  return /youtube\.com\/shorts\//i.test(url || '');
+}
+
+/* ratio = height/width as % (for padding-top trick) */
+function _ratioFromDims(w, h) {
+  if (!w || !h) return { pct: 56.25, isPortrait: false };
+  const pct = (h / w) * 100;
+  return { pct, isPortrait: h > w };
+}
+
+async function _detectRatio(url) {
+  const id = ytId(url);
+  if (!id) return { pct: 56.25, isPortrait: false };
+
+  /* 1. Shorts — always 9:16 */
+  if (_isShort(url)) {
+    _ratioCache[id] = { pct: 177.78, isPortrait: true };
+    return _ratioCache[id];
+  }
+
+  /* 2. Memory cache */
+  if (_ratioCache[id]) return _ratioCache[id];
+
+  /* 3. oEmbed API — YouTube returns actual video dimensions */
+  try {
+    const oUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`;
+    const r = await fetch(oUrl);
+    if (r.ok) {
+      const j = await r.json();
+      const result = _ratioFromDims(j.width, j.height);
+      _ratioCache[id] = result;
+      return result;
+    }
+  } catch(_) {}
+
+  /* 4. Fallback */
+  const fallback = { pct: 56.25, isPortrait: false };
+  _ratioCache[id] = fallback;
+  return fallback;
+}
+
+/* Apply ratio to player iframe-wrap */
+function _applyRatioToPlayer(ratioInfo) {
+  const wrap  = document.getElementById('player-iframe-wrap');
+  const sheet = document.getElementById('player-sheet');
+  if (!wrap) return;
+  /* For portrait: cap padding so it doesn't exceed ~80% of viewport height.
+     On a 700px screen, 177% of width would be ~112vw tall — too much.
+     We cap at a sane max so the info panel is still visible. */
+  let pct = ratioInfo.pct;
+  if (ratioInfo.isPortrait) {
+    /* Max padding-top = 80dvh / sheet-width — clamp to 140% */
+    const maxPct = Math.min(pct, 140);
+    pct = maxPct;
+    sheet.classList.add('portrait-mode');
+  } else {
+    sheet.classList.remove('portrait-mode');
+  }
+  wrap.style.paddingTop = pct.toFixed(2) + '%';
+}
+
 /* ── Escape HTML ── */
 function esc(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -787,6 +888,9 @@ function buildCard(v, wide) {
   const thumb    = ytThumb(v.youtube_url);
   const catCfg   = CAT[v.category] || CAT.general;
   const wideClass = wide ? ' vcard-wide' : '';
+  /* Shorts: show 9:16 thumbnail on the card itself */
+  const isShort  = _isShort(v.youtube_url);
+  const thumbPt  = isShort ? '177.78%' : '56.25%';
 
   const thumbContent = thumb
     ? `<img src="${esc(thumb)}" alt="${esc(v.title)}" loading="lazy"
@@ -796,14 +900,15 @@ function buildCard(v, wide) {
        </div>`;
 
   return `
-    <div class="vcard${wideClass}" data-cat="${esc(v.category)}" onclick="openPlayer(${v.id})" role="button" tabindex="0"
-      onkeydown="if(event.key==='Enter')openPlayer(${v.id})">
-      <div class="vcard-thumb">
+    <div class="vcard${wideClass}" id="vcard-${v.id}" data-cat="${esc(v.category)}" data-url="${esc(v.youtube_url)}"
+      onclick="handleCardClick(${v.id})" role="button" tabindex="0"
+      onkeydown="if(event.key==='Enter')handleCardClick(${v.id})">
+      <div class="vcard-thumb" style="padding-top:${thumbPt}">
         ${thumbContent}
         <div class="vcard-thumb-overlay"></div>
         <div class="vcard-play"><div class="vcard-play-circle"><i class="fa fa-play" style="margin-left:3px"></i></div></div>
         <div class="vcard-cat-dot" style="background:${esc(catCfg.bg)};color:${esc(catCfg.color)}">${esc(catCfg.label)}</div>
-        <div class="vcard-badge"><i class="fa fa-play" style="font-size:8px"></i> Watch</div>
+        <div class="vcard-badge">${isShort ? '<i class="fa fa-mobile-screen" style="font-size:8px"></i> Short' : '<i class="fa fa-play" style="font-size:8px"></i> Watch'}</div>
       </div>
       <div class="vcard-body">
         <div class="vcard-avatar"><i class="fa-brands fa-youtube"></i></div>
@@ -820,6 +925,125 @@ function buildCard(v, wide) {
         <div class="vcard-more"><i class="fa fa-ellipsis-vertical"></i></div>
       </div>
     </div>`;
+}
+
+/* ── Smart card click: portrait = inline, landscape = sheet ────────
+   1. Detect ratio via oEmbed (cached after first call per video)
+   2. Portrait (h > w): replace thumbnail with iframe in-card
+   3. Landscape: open bottom sheet with correct dynamic ratio
+   ─────────────────────────────────────────────────────────────── */
+let _inlineActiveId = null;
+
+async function handleCardClick(id) {
+  const v = _videos.find(x => x.id === id);
+  if (!v) return;
+  _closeInlinePlayer();
+  const ratioInfo = await _detectRatio(v.youtube_url);
+  if (ratioInfo.isPortrait) {
+    _playInline(v, ratioInfo);
+  } else {
+    openPlayer(id, ratioInfo);
+  }
+}
+
+function _playInline(v, ratioInfo) {
+  const card = document.getElementById('vcard-' + v.id);
+  if (!card) return;
+  const embedUrl = ytEmbed(v.youtube_url);
+  if (!embedUrl) return;
+  _inlineActiveId = v.id;
+  const pct = Math.min(ratioInfo.pct, 140).toFixed(2);
+  const inlineEl = document.createElement('div');
+  inlineEl.className = 'vcard-inline-player';
+  inlineEl.style.paddingTop = pct + '%';
+  inlineEl.innerHTML = `
+    <iframe src="${embedUrl}" title="${(v.title||'').replace(/"/g,'&quot;')}"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen></iframe>
+    <button class="vcard-inline-close" onclick="event.stopPropagation();_closeInlinePlayer()" aria-label="Close">
+      <i class="fa fa-xmark"></i>
+    </button>`;
+  const thumb = card.querySelector('.vcard-thumb');
+  if (thumb) { thumb.style.display = 'none'; card.insertBefore(inlineEl, thumb); }
+  setTimeout(() => card.scrollIntoView({ behavior:'smooth', block:'start' }), 50);
+}
+
+function _closeInlinePlayer() {
+  if (_inlineActiveId === null) return;
+  const card = document.getElementById('vcard-' + _inlineActiveId);
+  if (card) {
+    const inline = card.querySelector('.vcard-inline-player');
+    if (inline) inline.remove();
+    const thumb = card.querySelector('.vcard-thumb');
+    if (thumb) thumb.style.display = '';
+  }
+  _inlineActiveId = null;
+}
+
+/* ── Open player (YouTube-style bottom sheet) ── */
+function openPlayer(id, ratioInfo) {
+  const v = _videos.find(x => x.id === id);
+  if (!v) return;
+  const embedUrl = ytEmbed(v.youtube_url);
+  if (!embedUrl) { showToast('Invalid video link'); return; }
+
+  const catCfg = CAT[v.category] || CAT.general;
+  const vid    = ytId(v.youtube_url);
+
+  /* Apply aspect ratio to player frame (default 16:9 until ratioInfo available) */
+  if (ratioInfo) {
+    _applyRatioToPlayer(ratioInfo);
+  } else {
+    /* Async detect + apply — frame starts at 16:9 then smoothly transitions */
+    _applyRatioToPlayer({ pct: 56.25, isPortrait: false });
+    _detectRatio(v.youtube_url).then(ri => _applyRatioToPlayer(ri));
+  }
+
+  /* Set iframe */
+  document.getElementById('player-iframe').src = embedUrl;
+
+  /* Title + YT link */
+  document.getElementById('player-title').textContent = v.title;
+  const ytLink = document.getElementById('player-yt-link');
+  if (ytLink) ytLink.href = `https://www.youtube.com/watch?v=${vid}`;
+
+  /* Category pill */
+  const pill = document.getElementById('player-cat-pill');
+  pill.textContent = catCfg.label;
+  pill.style.background = catCfg.bg;
+  pill.style.color       = catCfg.color;
+
+  /* Related videos */
+  const related = _videos.filter(x => x.id !== id && (x.category === v.category || !v.category)).slice(0, 4);
+  const relHd   = document.getElementById('player-related-hd');
+  const relList = document.getElementById('player-related');
+  if (related.length) {
+    relHd.style.display = 'flex';
+    relList.innerHTML = related.map(r => {
+      const t  = ytThumb(r.youtube_url);
+      const rc = CAT[r.category] || CAT.general;
+      return `
+        <div class="pr-item" onclick="handleCardClick(${r.id});closePlayer()" role="button" tabindex="0">
+          <div class="pr-thumb">
+            ${t ? `<img src="${esc(t)}" alt="" loading="lazy">` : `<div class="pr-thumb-placeholder"><i class="fa-brands fa-youtube" style="color:#c4b5fd;font-size:16px"></i></div>`}
+            <div class="pr-play-icon"><i class="fa fa-play" style="color:#fff;font-size:10px;margin-left:1px"></i></div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="pr-title">${esc(r.title)}</div>
+            <div class="pr-meta" style="color:${esc(rc.color)}">${esc(rc.label)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } else {
+    relHd.style.display = 'none';
+    relList.innerHTML = '';
+  }
+
+  /* Open */
+  const overlay = document.getElementById('player-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  document.body.style.overflow = 'hidden';
 }
 
 /* ── Render ── */
@@ -867,63 +1091,6 @@ function render() {
   }
 }
 
-/* ── Open player (YouTube-style) ── */
-function openPlayer(id) {
-  const v = _videos.find(x => x.id === id);
-  if (!v) return;
-  const embedUrl = ytEmbed(v.youtube_url);
-  if (!embedUrl) { showToast('Invalid video link'); return; }
-
-  const catCfg = CAT[v.category] || CAT.general;
-  const vid    = ytId(v.youtube_url);
-
-  /* Set iframe */
-  document.getElementById('player-iframe').src = embedUrl;
-
-  /* Title + YT link */
-  document.getElementById('player-title').textContent = v.title;
-  const ytLink = document.getElementById('player-yt-link');
-  if (ytLink) ytLink.href = `https://www.youtube.com/watch?v=${vid}`;
-
-  /* Category pill */
-  const pill = document.getElementById('player-cat-pill');
-  pill.textContent = catCfg.label;
-  pill.style.background = catCfg.bg;
-  pill.style.color       = catCfg.color;
-
-  /* Related videos */
-  const related = _videos.filter(x => x.id !== id && (x.category === v.category || !v.category)).slice(0, 4);
-  const relHd   = document.getElementById('player-related-hd');
-  const relList = document.getElementById('player-related');
-  if (related.length) {
-    relHd.style.display = 'flex';
-    relList.innerHTML = related.map(r => {
-      const t  = ytThumb(r.youtube_url);
-      const rc = CAT[r.category] || CAT.general;
-      return `
-        <div class="pr-item" onclick="openPlayer(${r.id})" role="button" tabindex="0">
-          <div class="pr-thumb">
-            ${t ? `<img src="${esc(t)}" alt="" loading="lazy">` : `<div class="pr-thumb-placeholder"><i class="fa-brands fa-youtube" style="color:#c4b5fd;font-size:16px"></i></div>`}
-            <div class="pr-play-icon"><i class="fa fa-play" style="color:#fff;font-size:10px;margin-left:1px"></i></div>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div class="pr-title">${esc(r.title)}</div>
-            <div class="pr-meta" style="color:${esc(rc.color)}">${esc(rc.label)}</div>
-          </div>
-        </div>`;
-    }).join('');
-  } else {
-    relHd.style.display = 'none';
-    relList.innerHTML = '';
-  }
-
-  /* Open */
-  const overlay = document.getElementById('player-overlay');
-  overlay.style.display = 'flex';
-  requestAnimationFrame(() => overlay.classList.add('open'));
-  document.body.style.overflow = 'hidden';
-}
-
 function closePlayer() {
   const overlay = document.getElementById('player-overlay');
   overlay.classList.remove('open');
@@ -931,6 +1098,8 @@ function closePlayer() {
     overlay.style.display = 'none';
     document.getElementById('player-iframe').src = '';
     document.body.style.overflow = '';
+    document.getElementById('player-sheet').classList.remove('portrait-mode');
+    document.getElementById('player-iframe-wrap').style.paddingTop = '56.25%';
   }, 380);
 }
 
@@ -1083,10 +1252,10 @@ function _helpDoExit() {
 // Push initial state so first back press fires popstate
 history.pushState({ helpPg: 'root' }, '', location.href);
 
-// Patch openPlayer to also push a history state
-const _origOpenPlayer = openPlayer;
-openPlayer = function(id) {
-  _origOpenPlayer(id);
+// Patch handleCardClick to also push a history state when opening player/inline
+const _origHandleCardClick = handleCardClick;
+handleCardClick = async function(id) {
+  await _origHandleCardClick(id);
   history.pushState({ helpPg: 'player' }, '', location.href);
 };
 
@@ -1108,7 +1277,14 @@ window.addEventListener('popstate', () => {
     return;
   }
 
-  // If player is open — close it
+  // If inline player is open — close it
+  if (_inlineActiveId !== null) {
+    _closeInlinePlayer();
+    history.pushState({ helpPg: 'root' }, '', location.href);
+    return;
+  }
+
+  // If player sheet is open — close it
   const overlay = document.getElementById('player-overlay');
   if (overlay && overlay.classList.contains('open')) {
     _origClosePlayer();

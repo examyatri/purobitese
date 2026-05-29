@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v81                                      ║
+     ║  Version : v84                                      ║
      ║  Updated : 2026-05-29                               ║
      ║  CHANGE  : Fix 1: Server validates store open/closed║
      ║            at createOrder time — returns clear error ║
@@ -3474,7 +3474,7 @@ function _buildOrderWAMsg(o, isInsuf) {
   const _ordCouponLine = o.coupon_code ? `\n   Coupon:    ${o.coupon_code} (−₹${o.discount || 0})` : '';
   const _ordDiscLine   = o.discount > 0 ? `\n  🎟️ Discount (${o.coupon_code || 'applied'}): −₹${o.discount}` : '';
   const _ordDelLine    = o.delivery_charge > 0 ? `\n  🚴 Delivery Charge: +₹${o.delivery_charge}` : '\n  🚴 Delivery: Free';
-  const _ordSlotLabel  = o.slot === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : o.slot === 'evening' ? '🌙 Evening (6 PM – 9 PM)' : '—';
+  const _ordSlotLabel  = _slotLabel(o.slot);
   return isInsuf
     ? `🍱 *Tiffo — New Order (Wallet + UPI)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${orderId}\n   Customer:  ${_u?.name || 'Customer'}\n   Phone:     ${_u?.phone || ''}\n   Slot:      ${_ordSlotLabel}\n   Address:   ${_waAddr(_u?.address)}${_ordCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${ordAmt}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    Wallet balance used + UPI for remaining amount\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${ordAmt}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`
     : `🍱 *Tiffo — New Order (UPI Payment)*\n${'━'.repeat(32)}\n📋 *ORDER DETAILS*\n   Order ID:  #${orderId}\n   Customer:  ${_u?.name || 'Customer'}\n   Phone:     ${_u?.phone || ''}\n   Slot:      ${_ordSlotLabel}\n   Address:   ${_waAddr(_u?.address)}${_ordCouponLine}\n${'━'.repeat(32)}\n🛒 *ITEMS ORDERED*\n${_ordItemLines}${_ordDiscLine}${_ordDelLine}\n   ─────────────────────────\n   💰 Total Paid: ₹${ordAmt}\n${'━'.repeat(32)}\n💳 *PAYMENT INFO*\n   Method:    UPI\n   UPI ID:    ${_UPI_VPA}\n   Amount:    ₹${ordAmt}\n   Status:    ✅ Payment Done\n${'━'.repeat(32)}\n📸 *Payment screenshot is attached.*\nKindly confirm once received. Thank you! 🙏`;
@@ -3617,17 +3617,35 @@ function applyKhataVisibility() {
   if (kpg) kpg.style.display = show ? 'flex' : 'none';
 }
 
+// ── Helper: compute the display mode to pass to applyPauseState ──────────────
+// Combines the server's effective-today pauseMode with a pendingTomorrow value.
+// The only case not covered by simple string-append is "dinner+lunch-tomorrow":
+// evening is OFF today AND morning is set OFF from tomorrow (both-split result).
+// All other combinations fall through to the existing -tomorrow suffix logic.
+function _computeDisplayMode(pauseMode, pendingTomorrow) {
+  const today    = pauseMode    || 'none';
+  const tomorrow = pendingTomorrow || null;
+  // Both-split result: evening paused today + morning pending tomorrow
+  if (today === 'dinner' && tomorrow === 'lunch') return 'dinner+lunch-tomorrow';
+  // Standard cases: no active pause today but something pending tomorrow
+  if (today === 'none' && tomorrow) return tomorrow + '-tomorrow';
+  // Active pause today, nothing extra from tomorrow
+  return today;
+}
+
 function applyPauseState(mode) {
   // pause_delivery drives bulk order slot eligibility:
-  // 'none'          → both sessions active
-  // 'lunch'         → morning OFF today
-  // 'dinner'        → evening OFF today
-  // 'both'          → all sessions OFF today
-  // 'lunch-tomorrow'   → morning OFF from tomorrow (today still active)
-  // 'dinner-tomorrow'  → evening OFF from tomorrow (today still active)
-  // 'both-tomorrow'    → both OFF from tomorrow (today still active)
+  // 'none'                  → both sessions active
+  // 'lunch'                 → morning OFF today
+  // 'dinner'                → evening OFF today
+  // 'both'                  → all sessions OFF today
+  // 'lunch-tomorrow'        → morning OFF from tomorrow (today still active)
+  // 'dinner-tomorrow'       → evening OFF from tomorrow (today still active)
+  // 'both-tomorrow'         → both OFF from tomorrow (today still active)
+  // 'dinner+lunch-tomorrow' → evening OFF today + morning OFF from tomorrow (both-split)
   _pauseMode = mode || 'none';
   const isTomorrow = _pauseMode.endsWith('-tomorrow');
+  const isSplit    = _pauseMode === 'dinner+lunch-tomorrow';
   const isPaused   = _pauseMode !== 'none';
   const toggle   = document.getElementById('pause-toggle');
   const sub      = document.getElementById('pause-subtitle');
@@ -3635,29 +3653,32 @@ function applyPauseState(mode) {
   const badge    = document.getElementById('pause-status-badge');
   if (toggle) {
     toggle.checked = true;
-    toggle.className = 'toggle-sw ' + (isTomorrow ? 'tomorrow' : isPaused ? 'paused' : 'active');
+    // Split state is "paused today + tomorrow" — use paused colour (red) not yellow
+    toggle.className = 'toggle-sw ' + (isSplit ? 'paused' : isTomorrow ? 'tomorrow' : isPaused ? 'paused' : 'active');
   }
   if (row) row.classList.toggle('paused', isPaused);
   if (badge) {
-    badge.className = 'pause-status-badge ' + (isTomorrow ? 'tomorrow' : isPaused ? 'paused' : 'active');
+    badge.className = 'pause-status-badge ' + (isSplit ? 'paused' : isTomorrow ? 'tomorrow' : isPaused ? 'paused' : 'active');
     badge.textContent =
-      _pauseMode === 'none'            ? '● All Active' :
-      _pauseMode === 'lunch'           ? '● Morning Off' :
-      _pauseMode === 'dinner'          ? '● Evening Off' :
-      _pauseMode === 'both'            ? '● Both Off' :
-      _pauseMode === 'lunch-tomorrow'  ? '● Morning Off (Tomorrow)' :
-      _pauseMode === 'dinner-tomorrow' ? '● Evening Off (Tomorrow)' :
-      _pauseMode === 'both-tomorrow'   ? '● Both Off (Tomorrow)' : '● All Active';
+      _pauseMode === 'none'                  ? '● All Active' :
+      _pauseMode === 'lunch'                 ? '● Morning Off' :
+      _pauseMode === 'dinner'                ? '● Evening Off' :
+      _pauseMode === 'both'                  ? '● Both Off' :
+      _pauseMode === 'lunch-tomorrow'        ? '● Morning Off (Tomorrow)' :
+      _pauseMode === 'dinner-tomorrow'       ? '● Evening Off (Tomorrow)' :
+      _pauseMode === 'both-tomorrow'         ? '● Both Off (Tomorrow)' :
+      _pauseMode === 'dinner+lunch-tomorrow' ? '● Eve Off + Morn Off (Tomorrow)' : '● All Active';
   }
   if (sub) sub.textContent =
-    _pauseMode === 'none'            ? 'Tap to manage tiffin sessions' :
-    _pauseMode === 'lunch'           ? 'Morning auto tiffin is off — tap to resume' :
-    _pauseMode === 'dinner'          ? 'Evening auto tiffin is off — tap to resume' :
-    _pauseMode === 'both'            ? 'All auto tiffins off — tap to resume' :
-    _pauseMode === 'lunch-tomorrow'  ? 'Morning tiffin off from tomorrow — tap to cancel' :
-    _pauseMode === 'dinner-tomorrow' ? 'Evening tiffin off from tomorrow — tap to cancel' :
-    _pauseMode === 'both-tomorrow'   ? 'Both tiffins off from tomorrow — tap to cancel' :
-                                       'Tap to manage tiffin sessions';
+    _pauseMode === 'none'                  ? 'Tap to manage tiffin sessions' :
+    _pauseMode === 'lunch'                 ? 'Morning auto tiffin is off — tap to resume' :
+    _pauseMode === 'dinner'                ? 'Evening auto tiffin is off — tap to resume' :
+    _pauseMode === 'both'                  ? 'All auto tiffins off — tap to resume' :
+    _pauseMode === 'lunch-tomorrow'        ? 'Morning tiffin off from tomorrow — tap to cancel' :
+    _pauseMode === 'dinner-tomorrow'       ? 'Evening tiffin off from tomorrow — tap to cancel' :
+    _pauseMode === 'both-tomorrow'         ? 'Both tiffins off from tomorrow — tap to cancel' :
+    _pauseMode === 'dinner+lunch-tomorrow' ? 'Evening off today + Morning off tomorrow — tap to cancel' :
+                                             'Tap to manage tiffin sessions';
   const resumeLink = document.getElementById('resume-all-link');
   if (resumeLink) resumeLink.style.display = isPaused ? 'block' : 'none';
 }
@@ -5292,6 +5313,25 @@ function _visibleSession() {
   return 'morning';
 }
 
+/* _slotLabel — returns human-readable slot label with REAL open/close times
+   sourced from _lastSchedule (weekly schedule loaded at page start, zero extra
+   server/DB calls). Falls back gracefully if schedule not yet loaded.
+   Examples: '☀️ Morning (02:00 AM–11:30 AM)'  '🌙 Evening (06:00 PM–08:00 PM)'
+*/
+function _slotLabel(slot) {
+  const d = _getDaySchedule(_lastSchedule, _lastCutoff);
+  if (d && !d.closed) {
+    if (slot === 'morning') {
+      return '☀️ Morning (' + _fmtH(d.lunchStart, d.lunchStartMin) + '–' + _fmtH(d.lunchEnd, d.lunchEndMin) + ')';
+    }
+    if (slot === 'evening') {
+      return '🌙 Evening (' + _fmtH(d.dinnerStart, d.dinnerStartMin) + '–' + _fmtH(d.dinnerEnd, d.dinnerEndMin) + ')';
+    }
+  }
+  // Fallback: schedule not loaded yet (should never happen mid-order) — no hardcoded times
+  return slot === 'morning' ? '☀️ Morning' : slot === 'evening' ? '🌙 Evening' : '—';
+}
+
 /* ── _wipeStaleCartItems ──────────────────────────────────────────────────
    Removes cart items that are invalid for the current slot. Called after
    every DB menu fetch (login, PTR, slot-boundary auto-refresh).
@@ -5886,7 +5926,7 @@ async function placeOrder() {
     // ── Snapshot everything BEFORE clearing cart/coupon ──────────────────
     const _snapCoupon    = _appliedCoupon;   // capture coupon ref before null
     const _snapCart      = cart.slice();     // cart is already local but keep explicit copy
-    const _snapSlot      = _visibleSession() === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : '🌙 Evening (6 PM – 9 PM)';
+    const _snapSlot      = _slotLabel(_visibleSession());
     const _snapItemLines = _snapCart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
     const _snapCouponLine = _snapCoupon ? `\n   Coupon:    ${_snapCoupon.code} (−₹${discount})` : '';
     const _snapDiscLine  = discount > 0 ? `\n  🎟️ Discount (${_snapCoupon ? _snapCoupon.code : 'applied'}): −₹${discount}` : '';
@@ -6554,6 +6594,43 @@ async function confirmInsufOrder() {
   const user = Auth.get();
   if (!cart.length || !user) return;
 
+  // ── Same guards as placeOrder() — insuf path must be equally safe ──────────
+
+  // Guard 1: store open/closed check
+  const hour = currentISTHour();
+  const stateObj = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, hour, _lastCutoff) : null;
+  if (stateObj?.closed) { showClosedPopup(stateObj.reason); return; }
+
+  // Guard 2: stale menu check — refresh and re-show popup if data is old
+  const _MENU_STALE_MS = 15 * 60 * 1000;
+  const menuAge = _menuFreshTs > 0 ? Date.now() - _menuFreshTs : Infinity;
+  if (menuAge > _MENU_STALE_MS) {
+    toast('Refreshing menu… please try again in a moment.');
+    loadMenu(true, true).catch(() => toast('Menu refresh failed. Please try again.'));
+    return;
+  }
+
+  // Guard 3: cart slot validation — catches morning items placed in evening
+  {
+    const sess = _visibleSession();
+    const liveMap = new Map(_fullMenu.map(i => [String(i.item_id), i]));
+    const badItems = cart.filter(ci => {
+      const liveItem = liveMap.get(String(ci.item_id));
+      if (!liveItem) return true;
+      if (isOutOfStock(liveItem)) return true;
+      const itemSess = liveItem.meal_session || 'both';
+      if (itemSess !== 'both' && itemSess !== sess) return true;
+      return false;
+    });
+    if (badItems.length) {
+      _wipeStaleCartItems();
+      toast('Some items are out of stock or unavailable. Cart updated — please review and retry.');
+      return;
+    }
+  }
+
+  // ── Guards passed — proceed ─────────────────────────────────────────────────
+
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = calcCouponDiscount(_appliedCoupon, subtotal);
   // upi_insuf orders always carry delivery charge (no wallet deduction on server)
@@ -6573,7 +6650,7 @@ async function confirmInsufOrder() {
     // ── Snapshot everything BEFORE clearing cart/coupon ──────────────────
     const _u             = Auth.get();
     const _snapCouponI   = _appliedCoupon;   // capture before null
-    const _snapSlotI     = _visibleSession() === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : '🌙 Evening (6 PM – 9 PM)';
+    const _snapSlotI     = _slotLabel(_visibleSession());
     const _snapItemLinesI = cart.map(i => `  • ${i.name} ×${i.qty} — ₹${i.price * i.qty}`).join('\n');
     const _snapCouponLineI = _snapCouponI ? `\n   Coupon:    ${_snapCouponI.code} (−₹${discount})` : '';
     const _snapDiscLineI = discount > 0 ? `\n  🎟️ Discount (${_snapCouponI ? _snapCouponI.code : 'applied'}): −₹${discount}` : '';
@@ -6605,7 +6682,12 @@ async function confirmInsufOrder() {
     _startCooldownBanner();
     _prefetchAfterOrder();
   } catch(e) {
-    toast(e.message || 'Order failed. Try again.');
+    // Server STORE_CLOSED → show proper popup, not a generic toast
+    if (e.message && (e.message.includes('Store') || e.message.includes('opens') || e.message.includes('closed'))) {
+      showClosedPopup(e.message);
+    } else {
+      toast(e.message || 'Order failed. Try again.');
+    }
   } finally {
     _placingOrder = false;
     Store.remove('pb_order_processing');
@@ -6801,7 +6883,7 @@ function renderOrderList(orders) {
     const _ordCouponLine = o.coupon_code ? `\n   Coupon:    ${o.coupon_code} (−₹${o.discount || 0})` : '';
     const _ordDiscLine   = o.discount > 0 ? `\n  🎟️ Discount (${o.coupon_code || 'applied'}): −₹${o.discount}` : '';
     const _ordDelLine    = o.delivery_charge > 0 ? `\n  🚴 Delivery Charge: +₹${o.delivery_charge}` : '\n  🚴 Delivery: Free';
-    const _ordSlotLabel  = o.slot === 'morning' ? '☀️ Morning (8 AM – 1 PM)' : o.slot === 'evening' ? '🌙 Evening (6 PM – 9 PM)' : '—';
+    const _ordSlotLabel  = _slotLabel(o.slot);
     // WA messages built per-case below
 
     if (!isWallet) {
@@ -7802,12 +7884,19 @@ async function confirmPause() {
       eveningForToday
     });
 
-    // Compute what's effectively paused TODAY for UI badge
+    // Compute display mode for immediate UI update.
+    // Mirror exactly what the server will return on the next getSubscriberPauseStatus call:
+    //   effectiveToday  = what is paused RIGHT NOW (only sessions whose _from ≤ today)
+    //   pendingTomorrow = sessions that start tomorrow (morningForToday/eveningForToday = false)
     const pm_eff = (pauseModeForServer === 'lunch' || pauseModeForServer === 'both') && morningForToday;
     const pe_eff = (pauseModeForServer === 'dinner' || pauseModeForServer === 'both') && eveningForToday;
-    const effectiveToday = pm_eff && pe_eff ? 'both' : pm_eff ? 'lunch' : pe_eff ? 'dinner' : 'none';
-    applyPauseState(effectiveToday);
-    _lastPauseMode = effectiveToday;
+    const pm_tmrw = (pauseModeForServer === 'lunch' || pauseModeForServer === 'both') && !morningForToday;
+    const pe_tmrw = (pauseModeForServer === 'dinner' || pauseModeForServer === 'both') && !eveningForToday;
+    const effectiveToday  = pm_eff && pe_eff ? 'both' : pm_eff ? 'lunch' : pe_eff ? 'dinner' : 'none';
+    const pendingTmrw     = pm_tmrw && pe_tmrw ? 'both' : pm_tmrw ? 'lunch' : pe_tmrw ? 'dinner' : null;
+    const displayMode = _computeDisplayMode(effectiveToday, pendingTmrw);
+    applyPauseState(displayMode);
+    _lastPauseMode = displayMode;
     closePauseSheet();
 
     const toastMsg =
@@ -7834,11 +7923,7 @@ async function loadPauseState() {
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
     if (res.plan) Auth.patch({ plan: res.plan });
-    // If no active pause today but a pause is pending for tomorrow, show tomorrow state
-    let displayMode = res.pauseMode;
-    if (res.pendingTomorrow && res.pauseMode === 'none') {
-      displayMode = res.pendingTomorrow + '-tomorrow';
-    }
+    const displayMode = _computeDisplayMode(res.pauseMode, res.pendingTomorrow);
     applyPauseState(displayMode);
     _lastPauseMode = displayMode;
     _pauseFreshTs  = Date.now();
@@ -8083,10 +8168,7 @@ async function refreshPauseStatus(force = false) {
   if (!_session?.is_subscriber) return;
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
-    let displayMode = res.pauseMode;
-    if (res.pendingTomorrow && res.pauseMode === 'none') {
-      displayMode = res.pendingTomorrow + '-tomorrow';
-    }
+    const displayMode = _computeDisplayMode(res.pauseMode, res.pendingTomorrow);
     if (force || displayMode !== _lastPauseMode) {
       _lastPauseMode = displayMode;
       applyPauseState(displayMode);
@@ -8136,9 +8218,7 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
         _lastBalance   = _walletBal;
         _walletFreshTs = Date.now();
         if (_khataEnabled) updateWalletUI(_walletBal);
-        const promoMode = (res.pendingTomorrow && (res.pauseMode || 'none') === 'none')
-          ? res.pendingTomorrow + '-tomorrow'
-          : (res.pauseMode || 'none');
+        const promoMode = _computeDisplayMode(res.pauseMode, res.pendingTomorrow);
         _pauseMode     = res.pauseMode || 'none';
         _lastPauseMode = promoMode;
         _pauseFreshTs  = Date.now();
@@ -8164,10 +8244,7 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
       updateWalletUI(res.balance);
     }
     // Pause mode update — account for tomorrow-pending pauses so toggle shows correctly
-    let mergedDisplayMode = res.pauseMode;
-    if (res.pendingTomorrow && res.pauseMode === 'none') {
-      mergedDisplayMode = res.pendingTomorrow + '-tomorrow';
-    }
+    const mergedDisplayMode = _computeDisplayMode(res.pauseMode, res.pendingTomorrow);
     if (mergedDisplayMode !== _lastPauseMode) {
       _lastPauseMode = mergedDisplayMode;
       applyPauseState(mergedDisplayMode);
