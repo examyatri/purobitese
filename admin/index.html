@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v21.4                                    ║
+     ║  Version : v21.5                                    ║
      ║  Updated : 2026-05-29                               ║
-     ║  Changes : v80 — Earning logic final cleanup        ║
+     ║  Changes : v84 — Version bump        ║
      ║   1. Earning = Wallet recharges (all) +             ║
      ║      UPI/UPI_insuf/Udhar (only admin-marked paid)  ║
      ║   2. Wallet orders excluded from earnings           ║
@@ -4159,7 +4159,12 @@ function renderMenuTable() {
         </div>
       </td>
       <td><input type="number" value="${m.sort_order??99}" style="width:55px;padding:4px 7px;border:1px solid #e5e7eb;border-radius:6px;font-size:12px" onblur="updateSortOrder('${m.item_id}',this.value)"></td>
-      <td><label class="toggle-sw oos-toggle" title="Out of Stock — hides ADD button for customers"><input type="checkbox" ${m.is_available===false?'checked':''} onchange="toggleMenuOOS('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label></td>
+      <td>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <label class="toggle-sw oos-toggle" title="Out of Stock — hides ADD button for customers"><input type="checkbox" ${m.is_available===false?'checked':''} onchange="toggleMenuOOS('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label>
+          ${(m.stock_grams!=null&&m.stock_grams<=0&&m.is_available!==false)?'<span style="font-size:9px;font-weight:700;color:#dc2626;background:#fff1f2;border:1px solid #fca5a5;border-radius:4px;padding:1px 4px;white-space:nowrap">STOCK 0</span>':''}
+        </div>
+      </td>
       <td><label class="toggle-sw"><input type="checkbox" ${m.is_active?'checked':''} onchange="toggleMenuActive('${m.item_id}',this.checked)"><span class="toggle-sl"></span></label></td>
       <td>
         <div style="display:flex;gap:6px">
@@ -4186,12 +4191,21 @@ function _stockUnitShort(unit, customLabel) {
 
 async function updateStock(id, val) {
   const newStock = val === '' ? null : parseFloat(val);
+  // Auto-clear OOS when restocking: positive or unlimited stock → is_available=true
+  // so user panel OOS clears immediately without admin needing to manually toggle off.
+  const shouldClearOOS = newStock === null || newStock > 0;
   try {
-    await api('updateMenuItem', { item_id: id, stock_grams: newStock });
+    const payload = { item_id: id, stock_grams: newStock };
+    if (shouldClearOOS) payload.is_available = true;
+    await api('updateMenuItem', payload);
     // Reflect in local cache immediately
     const item = _menuItems.find(m => m.item_id === id);
-    if (item) item.stock_grams = newStock;
-    aToast(newStock === null ? 'Stock cleared (unlimited)' : newStock <= 0 ? '🚫 Stock set to 0 — item will show Out of Stock' : 'Stock updated');
+    if (item) {
+      item.stock_grams = newStock;
+      if (shouldClearOOS) item.is_available = true;
+    }
+    renderMenuTable(); // re-render so STOCK 0 pill and OOS toggle both update visually
+    aToast(newStock === null ? 'Stock cleared (unlimited)' : newStock <= 0 ? '\u{1F6AB} Stock set to 0 — item will show Out of Stock' : '\u2705 Stock updated — Out of Stock cleared');
   } catch(e) { aToast(e.message); }
 }
 
