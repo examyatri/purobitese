@@ -1,13 +1,22 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v82                                      ║
+     ║  Version : v81                                      ║
      ║  Updated : 2026-05-29                               ║
-     ║  CHANGE  : Fix help.html footer buttons in PWA:     ║
-     ║            Offer btn changed to <a href> tag.       ║
-     ║            WhatsApp btn window.open(_blank) →       ║
-     ║            window.location.href (PWA blocks _blank).║
-     ║            SW cache bumped: tiffo-v42.              ║
+     ║  CHANGE  : Fix 1: Server validates store open/closed║
+     ║            at createOrder time — returns clear error ║
+     ║            if order placed outside schedule window.  ║
+     ║            Fix 2: Auto-tiffin pause no longer blocks ║
+     ║            manual orders. Pause = admin bulk only.   ║
+     ║            Fix 3: openOrderPayModal works after      ║
+     ║            reload — rebuilds WA msg from DB orders.  ║
+     ║            sessionStorage persists active pay page   ║
+     ║            so accidental refresh restores QR screen. ║
+     ║            Fix 4: Smart category chip preservation   ║
+     ║            on slot transition — keeps selection if   ║
+     ║            category exists in new slot, resets with  ║
+     ║            toast if not. Slot-open toast on home tab.║
+     ║            SW cache bumped: tiffo-v40.              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
