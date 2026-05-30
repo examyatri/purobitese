@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TiffoTube help.html v5.0 -->
+<!-- TiffoTube help.html v5.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -554,40 +554,65 @@ body{
 <script src="https://purobitese-api.onrender.com/config.js" async></script>
 <script>
 /* ═══════════════════════════════════════════════════
-   TiffoTube — help.html v5.0
+   TiffoTube — help.html v5.1
+   Reliable data loading: Stale-While-Revalidate +
+   Self-Healing + Retry-with-Backoff + Tab-Visibility
    ═══════════════════════════════════════════════════ */
 
 const API_BASE = 'https://purobitese-api.onrender.com';
 
-let _videos     = [];
-let _activeChip = 'all';
-let _searchQ    = '';
+let _videos      = [];
+let _activeChip  = 'all';
+let _searchQ     = '';
 let _searchTimer = null;
-let _loadError  = false;
+let _loadError   = false;
+let _fetching    = false;   // prevent duplicate in-flight requests
 
 let CAT = {
   all:     { label:'All',     color:'#e63946', bg:'#fde8ea' },
   general: { label:'General', color:'#475569', bg:'#f1f5f9' },
 };
 
-/* ── Cache ── */
-const _CACHE_KEY = 'tt_helpdata_v2';
-const _TTL = 60 * 60 * 1000;
+/* ══════════════════════════════════════════════════
+   CACHE  (stale-while-revalidate, 6-hour TTL)
+   • _cacheGet()  — validates integrity before returning.
+                    Corrupt/empty/expired → null → fresh fetch.
+   • _cacheSet()  — only writes if data is a valid array.
+   ══════════════════════════════════════════════════ */
+const _CACHE_KEY = 'tt_helpdata_v3';
+const _TTL       = 6 * 60 * 60 * 1000;   // 6 hours (data rarely changes)
 
 function _cacheGet() {
   try {
     const raw = localStorage.getItem(_CACHE_KEY);
     if (!raw) return null;
-    const { ts, cats, videos } = JSON.parse(raw);
-    if (Date.now() - ts > _TTL) return null;
-    return { cats, videos };
+    const obj = JSON.parse(raw);
+    // Integrity check: must have ts, cats array, non-empty videos array
+    if (!obj || typeof obj.ts !== 'number') return null;
+    if (!Array.isArray(obj.cats))   return null;
+    if (!Array.isArray(obj.videos) || obj.videos.length === 0) return null;
+    if (Date.now() - obj.ts > _TTL) return null;   // expired
+    return { cats: obj.cats, videos: obj.videos };
   } catch { return null; }
 }
+
 function _cacheSet(cats, videos) {
-  try { localStorage.setItem(_CACHE_KEY, JSON.stringify({ ts: Date.now(), cats, videos })); } catch {}
+  // Only cache if we actually got real data
+  if (!Array.isArray(videos) || videos.length === 0) return;
+  try {
+    localStorage.setItem(_CACHE_KEY, JSON.stringify({ ts: Date.now(), cats, videos }));
+  } catch {
+    // localStorage full or unavailable — silent, not a crash
+  }
 }
 
-/* ── API key ── */
+function _cacheClear() {
+  try { localStorage.removeItem(_CACHE_KEY); } catch {}
+}
+
+/* ══════════════════════════════════════════════════
+   API KEY
+   ══════════════════════════════════════════════════ */
 function _getKey() {
   return window.__TIFFO_API_KEY__ || localStorage.getItem('tf_api_key') || '';
 }
@@ -606,17 +631,18 @@ function _ensureKey() {
   return _ensureKeyPromise;
 }
 
-/* ── Apply categories ── */
+/* ══════════════════════════════════════════════════
+   CATEGORIES
+   ══════════════════════════════════════════════════ */
 function _applyCategories(cats) {
   CAT = { all: { label:'All', color:'#e63946', bg:'#fde8ea' } };
-  cats.forEach(c => { CAT[c.slug] = { label: c.label, color: c.color, bg: c.bg_color }; });
+  (cats || []).forEach(c => { CAT[c.slug] = { label: c.label, color: c.color, bg: c.bg_color }; });
   const chipsEl = document.getElementById('tt-chips');
   if (!chipsEl) return;
-  // Keep "All" chip, rebuild rest
   const allChip = chipsEl.querySelector('.chip');
   chipsEl.innerHTML = '';
   if (allChip) chipsEl.appendChild(allChip);
-  cats.forEach(c => {
+  (cats || []).forEach(c => {
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.role = 'tab';
@@ -627,36 +653,132 @@ function _applyCategories(cats) {
   });
 }
 
-/* ── Load ── */
-async function loadVideos() {
+/* ══════════════════════════════════════════════════
+   CORE FETCH  (one DB hit, returns parsed data or throws)
+   ══════════════════════════════════════════════════ */
+async function _fetchFromServer() {
+  await _ensureKey();
+  const res = await fetch(API_BASE + '/api', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'getHelpData', data: {}, apiKey: _getKey() })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  const cats   = data.categories || [];
+  const videos = (data.videos || []).sort((a,b) => (a.order_index||0) - (b.order_index||0));
+  return { cats, videos };
+}
+
+/* ══════════════════════════════════════════════════
+   RETRY WITH BACKOFF
+   3 attempts: immediate → 2s → 8s
+   Accepts ANY successful response (even 0 videos —
+   admin may have no videos yet; that is valid state).
+   Returns null only on network/parse error.
+   ══════════════════════════════════════════════════ */
+async function _fetchWithRetry(attempts = 3) {
+  const delays = [0, 2000, 8000];
+  for (let i = 0; i < attempts; i++) {
+    if (delays[i]) await new Promise(r => setTimeout(r, delays[i]));
+    try {
+      const result = await _fetchFromServer();
+      return result;   // success — even if 0 videos, that's a valid DB state
+    } catch { /* network/parse error — try next */ }
+  }
+  return null;   // all attempts failed (network down / server error)
+}
+
+/* ══════════════════════════════════════════════════
+   LOAD VIDEOS — Stale-While-Revalidate strategy
+   ──────────────────────────────────────────────────
+   FAST PATH  (cache valid):
+     1. Show cached data immediately — zero wait
+     2. Fetch fresh in background, update cache
+     3. Re-render only if content actually changed
+   COLD PATH  (no cache / force):
+     1. Show skeleton
+     2. Fetch with up to 3 retries (0s → 2s → 8s)
+     3. Render result (or error state)
+   ══════════════════════════════════════════════════ */
+async function loadVideos(force) {
+  if (_fetching) return;
+  _fetching  = true;
   _loadError = false;
-  const cached = _cacheGet();
+
+  const skelEl = document.getElementById('tt-skeleton');
+  const cached = force ? null : _cacheGet();
+
   if (cached) {
+    /* ── FAST PATH ── */
     _applyCategories(cached.cats);
     _videos = cached.videos;
-    document.getElementById('tt-skeleton').style.display = 'none';
+    skelEl.style.display = 'none';
     render();
-    return;
+
+    /* ── BACKGROUND REFRESH (fire-and-forget) ── */
+    _fetchWithRetry(2)
+      .then(fresh => {
+        if (!fresh) return;   // network failed — keep existing cache & data
+        _cacheSet(fresh.cats, fresh.videos);
+        // Re-render only if something changed (avoid unnecessary DOM churn)
+        const changed =
+          fresh.videos.length !== _videos.length ||
+          fresh.videos.some((v, i) => {
+            const old = _videos[i];
+            return !old || v.id !== old.id || v.youtube_url !== old.youtube_url || v.title !== old.title;
+          });
+        if (changed) {
+          _applyCategories(fresh.cats);
+          _videos = fresh.videos;
+          render();
+        }
+      })
+      .catch(() => {})          // safety net — never crash the page
+      .finally(() => { _fetching = false; });
+    return;                     // _fetching released by .finally above
   }
+
+  /* ── COLD PATH ── */
   try {
-    await _ensureKey();
-    const res = await fetch(API_BASE + '/api', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'getHelpData', data:{}, apiKey:_getKey() })
-    });
-    const data = await res.json();
-    const cats   = data.categories || [];
-    const videos = (data.videos || []).sort((a,b) => (a.order_index||0) - (b.order_index||0));
-    _cacheSet(cats, videos);
-    _applyCategories(cats);
-    _videos = videos;
+    const fresh = await _fetchWithRetry(3);
+    if (fresh !== null) {
+      _cacheSet(fresh.cats, fresh.videos);
+      _applyCategories(fresh.cats);
+      _videos    = fresh.videos;
+      _loadError = false;
+    } else {
+      // All retries failed (network/server down)
+      _videos    = [];
+      _loadError = true;
+    }
   } catch {
-    _videos = [];
+    _videos    = [];
     _loadError = true;
   }
-  document.getElementById('tt-skeleton').style.display = 'none';
+  skelEl.style.display = 'none';
   render();
+  _fetching = false;
 }
+
+/* ══════════════════════════════════════════════════
+   SELF-HEALING: page visibility + periodic check
+   • When user comes back to the tab AND _videos is
+     empty → trigger a fresh fetch immediately.
+   • Periodic 5-min heartbeat: if _videos is empty
+     (e.g. fetch failed on load), try again quietly.
+   ══════════════════════════════════════════════════ */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _videos.length === 0) {
+    loadVideos(true);
+  }
+});
+
+setInterval(() => {
+  if (_videos.length === 0 && !_fetching) {
+    loadVideos(true);
+  }
+}, 5 * 60 * 1000);
 
 /* ── YouTube helpers ── */
 function ytId(url) {
@@ -761,10 +883,10 @@ function render() {
     empty.style.display = 'block';
     const isError = _loadError && !_searchQ && _activeChip === 'all';
     document.getElementById('tt-empty-title').textContent = isError ? 'Could not load videos' : 'No videos found';
-    document.getElementById('tt-empty-sub').textContent = isError
-      ? 'Check your connection and try again.'
+    document.getElementById('tt-empty-sub').innerHTML = isError
+      ? 'Check your connection and try again.<br><button onclick="_retryLoad()" style="margin-top:14px;padding:9px 22px;border-radius:20px;border:none;background:var(--grad);color:#fff;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;">↺ Retry</button>'
       : _searchQ
-        ? `No results for "${_searchQ}" — try different keywords`
+        ? `No results for "${esc(_searchQ)}" — try different keywords`
         : 'No videos in this category yet. Check back soon!';
     return;
   }
@@ -997,6 +1119,16 @@ window.addEventListener('popstate', () => {
     showToast('Press back again to exit', 2000);
   }
 });
+
+/* ── Manual retry (shown in error state) ── */
+function _retryLoad() {
+  _cacheClear();
+  _loadError = false;
+  document.getElementById('tt-skeleton').style.display = 'flex';
+  document.getElementById('tt-empty').style.display    = 'none';
+  document.getElementById('tt-content').innerHTML      = '';
+  loadVideos(true);
+}
 
 /* ── Boot ── */
 loadVideos();
