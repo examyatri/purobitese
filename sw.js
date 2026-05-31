@@ -3,10 +3,10 @@
    Version : v36.0  |  Updated : 2026-05-30
 
    CHANGES v36.0:
-   - Cache bumped to tiffo-v43 for v85 deploy — help.html v5.1
+   - Cache bumped to tiffo-v44 for v95 deploy — geocode zone fix
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v43'; // bumped for v85 — help.html v5.1
+const CACHE      = 'tiffo-v44'; // bumped for v95 — geocode zone fix
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

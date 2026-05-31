@@ -16,7 +16,7 @@
      ║            on slot transition — keeps selection if   ║
      ║            category exists in new slot, resets with  ║
      ║            toast if not. Slot-open toast on home tab.║
-     ║            SW cache bumped: tiffo-v40.              ║
+     ║            SW cache bumped: tiffo-v46.              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -679,6 +679,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" async></script>
 <!-- qr-creator — lightweight, sharp, correct QR codes -->
 <script src="https://cdn.jsdelivr.net/npm/qr-creator@1.0.0/dist/qr-creator.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/open-location-code/openlocationcode.js"></script>
 <style>
 html{background:#fff}
 :root{
@@ -835,6 +836,60 @@ textarea{resize:vertical;min-height:80px}
 .loc-map-wrap{margin-top:12px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
 .loc-map-hdr{background:#0f172a;color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;font-family:var(--ff);display:flex;align-items:center;gap:6px}
 .loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
+/* ── Retry countdown bar ── */
+.loc-retry-bar{margin-top:10px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:10px;padding:11px 13px;font-family:var(--fb);font-size:12.5px;color:#92400e;display:none;line-height:1.5;font-weight:500}
+.loc-retry-bar .retry-count{font-weight:700;color:#78350f}
+/* ── Manual address card ── */
+.loc-manual-card{margin-top:12px;background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;overflow:hidden;display:none}
+.loc-manual-hdr{background:#1e293b;color:#fff;padding:11px 14px;font-family:var(--ff);font-size:12px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.3px}
+.loc-manual-body{padding:14px}
+.loc-manual-hint{font-family:var(--fb);font-size:11.5px;color:#64748b;margin-bottom:10px;line-height:1.6;background:#f8fafc;border-radius:8px;padding:8px 10px}
+.loc-manual-hint b{color:#334155}
+#su-manual-addr{width:100%;min-height:90px;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:vertical;outline:none;box-sizing:border-box;line-height:1.55;transition:border-color 200ms}
+#su-manual-addr:focus{border-color:#6366f1}
+#su-manual-addr.input-invalid{border-color:#ef4444;background:#fff5f5}
+.loc-geocode-status{margin-top:8px;font-family:var(--fb);font-size:11.5px;line-height:1.5;min-height:18px;color:#64748b}
+.loc-geocode-status.ok{color:#166534;font-weight:600}
+.loc-geocode-status.err{color:#b45309}
+/* ── Background GPS found chip (overlaid on manual card) ── */
+.loc-bg-gps-chip{margin-top:8px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:9px 12px;font-family:var(--fb);font-size:12px;color:#15803d;display:none;animation:fadeIn 300ms ease;font-weight:600}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* ── Permission Denied Banner ── */
+#su-perm-banner{display:none;margin-top:10px;background:#fefce8;border:1.5px solid #fde047;border-radius:12px;padding:12px 13px;font-family:var(--fb);font-size:12.5px;color:#713f12;line-height:1.6}
+#su-perm-banner .pb-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#78350f;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+#su-perm-banner .pb-steps{margin:6px 0 8px 0;padding-left:16px}
+#su-perm-banner .pb-steps li{margin-bottom:3px}
+.pb-btn-row{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.pb-retry-btn{background:#1e293b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+.pb-manual-link{background:none;border:none;color:#0369a1;font-family:var(--fb);font-size:12px;font-weight:600;cursor:pointer;padding:8px 4px;text-decoration:underline}
+/* ── Structured Manual Address Fields ── */
+.su-field-label{display:block;font-family:var(--ff);font-size:11.5px;font-weight:600;color:#475569;margin-bottom:4px;margin-top:10px}
+.su-field-label .su-req{color:#ef4444;margin-left:2px}
+.su-field-input{width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--fb);font-size:13px;color:#1e293b;outline:none;transition:border-color 200ms;box-sizing:border-box;background:#fff}
+.su-field-input:focus{border-color:#6366f1}
+.su-field-input.input-invalid{border-color:#ef4444;background:#fff5f5}
+.su-field-input[readonly]{background:#f8fafc;color:#64748b;cursor:default}
+.su-field-input[readonly]:focus{border-color:#e2e8f0}
+/* ── Zone check status row ── */
+#su-zone-status-row{margin-top:10px;font-family:var(--fb);font-size:12px;min-height:20px;transition:all 200ms;display:none}
+#su-zone-status-row.zs-checking{display:flex;align-items:center;gap:6px;color:#92400e;background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:6px 10px}
+#su-zone-status-row.zs-ok{display:flex;align-items:center;gap:6px;color:#166534;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:6px 10px;font-weight:600}
+#su-zone-status-row.zs-err{display:flex;align-items:center;gap:6px;color:#9a3412;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:6px 10px}
+#su-zone-status-row.zs-warn{display:flex;align-items:center;gap:6px;color:#92400e;background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:6px 10px}
+/* ── Outside Zone Popup ── */
+#su-oz-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:flex-end;justify-content:center}
+#su-oz-overlay.oz-open{display:flex}
+#su-oz-sheet{background:#fff;border-radius:20px 20px 0 0;padding:0 0 calc(16px + env(safe-area-inset-bottom,0px)) 0;width:100%;max-width:480px;animation:ozSlideUp 280ms cubic-bezier(0.34,1.15,0.64,1)}
+@keyframes ozSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.oz-handle{width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:12px auto 14px}
+.oz-icon{text-align:center;font-size:38px;margin-bottom:6px}
+.oz-title{text-align:center;font-family:var(--ff);font-weight:800;font-size:17px;color:#1e293b;margin-bottom:4px}
+.oz-sub{text-align:center;font-family:var(--fb);font-size:13px;color:#64748b;margin-bottom:4px;line-height:1.5;padding:0 20px}
+.oz-dist-row{text-align:center;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;padding:9px 14px;font-family:var(--fb);font-size:12.5px;color:#9a3412;margin:10px 18px;font-weight:600}
+.oz-actions{padding:6px 18px 0}
+.oz-wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:#25D366;color:#fff;border:none;border-radius:13px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;margin-bottom:9px}
+.oz-call-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;background:#1e293b;color:#fff;border:none;border-radius:13px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;margin-bottom:9px}
+.oz-back-link{display:block;text-align:center;font-family:var(--fb);font-size:12.5px;color:#6366f1;cursor:pointer;padding:4px;text-decoration:underline}
 /* (loc-finetune styles removed — replaced by Leaflet interactive map) */
 /* ── Structured Address Card ── */
 .addr-card{background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1.5px solid #86efac;border-radius:16px;padding:14px 15px;margin-top:10px;margin-bottom:6px;box-shadow:0 2px 8px rgba(22,163,74,.07)}
@@ -932,6 +987,18 @@ textarea{resize:vertical;min-height:80px}
 /* cutoff-banner defined below */
 /* Sub plan banner */
 /* Monthly plan card */
+/* ── Guest location banner ── */
+.guest-loc-banner{background:#fff;border:1.5px solid #e2e8f0;border-radius:18px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 12px rgba(0,0,0,.06);animation:fadeInDown 350ms ease}
+.guest-loc-banner-icon{width:42px;height:42px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.guest-loc-banner-body{flex:1;min-width:0}
+.guest-loc-banner-title{font-family:var(--ff);font-weight:700;font-size:14px;color:#111827;margin-bottom:2px}
+.guest-loc-banner-sub{font-family:var(--fb);font-size:12px;color:#64748b;line-height:1.4}
+.guest-loc-banner-actions{display:flex;gap:8px;margin-top:10px;align-items:center}
+.guest-loc-btn-allow{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:20px;padding:8px 18px;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 4px 14px rgba(34,197,94,.4);transition:transform 120ms,box-shadow 120ms;white-space:nowrap}
+.guest-loc-btn-allow:active{transform:scale(.96);box-shadow:0 2px 8px rgba(34,197,94,.3)}
+.guest-loc-btn-later{background:none;border:none;color:#94a3b8;font-family:var(--fb);font-size:12px;cursor:pointer;padding:8px 4px;white-space:nowrap}
+.guest-loc-btn-later:active{color:#64748b}
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 .monthly-plan-card{background:linear-gradient(135deg,#ff8c42 0%,#e76f51 50%,#c1440e 100%);border-radius:18px;padding:16px 18px;color:#fff;display:flex;align-items:center;gap:14px;margin-bottom:12px;cursor:pointer;box-shadow:0 8px 24px rgba(231,111,81,.45);position:relative;overflow:hidden;transition:transform 150ms,box-shadow 150ms}
 .monthly-plan-card:active{transform:scale(.98)}
 .monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
@@ -1570,6 +1637,16 @@ textarea{resize:vertical;min-height:80px}
 .closed-emoji{font-size:48px;margin-bottom:12px}
 /* Insufficient balance UPI popup */
 .insuf-card{background:#fff;border-radius:20px;padding:28px 22px;text-align:center;max-width:320px;width:92%;box-shadow:var(--shl)}
+/* ── Guest location popup ── */
+.loc-popup-card{background:#fff;border-radius:24px;padding:28px 22px 22px;text-align:center;max-width:300px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.18);animation:locPopIn 280ms cubic-bezier(.34,1.56,.64,1)}
+@keyframes locPopIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.loc-popup-icon{width:64px;height:64px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 14px}
+.loc-popup-title{font-family:var(--ff);font-weight:800;font-size:18px;color:#111827;margin-bottom:6px}
+.loc-popup-sub{font-family:var(--fb);font-size:13px;color:#64748b;line-height:1.55;margin-bottom:20px}
+.loc-popup-allow{width:100%;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 20px rgba(34,197,94,.38);transition:transform 120ms,box-shadow 120ms;margin-bottom:10px}
+.loc-popup-allow:active{transform:scale(.97);box-shadow:0 3px 10px rgba(34,197,94,.28)}
+.loc-popup-later{background:none;border:none;color:#94a3b8;font-family:var(--fb);font-size:13px;cursor:pointer;padding:6px 16px;border-radius:10px;transition:color 150ms}
+.loc-popup-later:active{color:#64748b}
 .insuf-card .insuf-emoji{font-size:44px;margin-bottom:10px}
 .insuf-card .insuf-title{font-family:var(--ff);font-weight:700;font-size:17px;margin-bottom:8px;color:#1a1a1a}
 .insuf-card .insuf-bal-row{font-family:var(--fb);font-size:13px;color:var(--gr);margin-bottom:12px;line-height:1.6}
@@ -1884,11 +1961,36 @@ input[type=number]{-moz-appearance:textfield}
         <div class="field-error" id="su-phone-err"></div>
       </div>
 
+      <div class="form-group" style="margin-top:16px">
+        <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
+        <div class="pw-wrap">
+          <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password">
+          <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
+        </div>
+        <div class="field-error" id="su-pw-err"></div>
+      </div>
+
+      <!-- ── Delivery Area Selector with search ── -->
+      <div class="form-group" style="margin-top:14px" id="su-area-wrap">
+        <label>Delivery Area <span style="color:#dc2626;font-size:11px">*</span></label>
+        <div id="su-area-search-wrap" style="position:relative">
+          <input type="text" id="su-area-search" placeholder="Search area…" autocomplete="off"
+            style="width:100%;padding:12px 40px 12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:14px;color:#1e293b;background:#fff;outline:none;box-sizing:border-box;transition:border-color 200ms"
+            onfocus="this.classList.remove('input-invalid');this.style.borderColor='';_suAreaSearchOpen()"
+            oninput="_suAreaSearchFilter(this.value)"
+            onblur="setTimeout(()=>_suAreaSearchClose(),200)">
+          <span style="position:absolute;right:13px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:13px">▾</span>
+          <div id="su-area-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:999;max-height:200px;overflow-y:auto;font-family:var(--fb);font-size:13px"></div>
+        </div>
+        <input type="hidden" id="su-area" value="">
+        <div class="field-error" id="su-area-err"></div>
+      </div>
+
       <!-- ── Location Pin Card ── -->
       <div class="loc-section">
         <div class="loc-section-title">
           <i class="fa fa-location-dot" style="color:#e63946"></i>
-          Click "Detect My Location" to pin your delivery spot
+          Pin your delivery location
         </div>
 
         <!-- Detect button -->
@@ -1897,8 +1999,39 @@ input[type=number]{-moz-appearance:textfield}
           <span id="su-loc-btn-txt">Detect My Location</span>
         </button>
 
-        <!-- Status bar (zone check result) -->
+        <!-- Status bar (zone check result / error) -->
         <div id="su-loc-status" class="loc-status"></div>
+
+        <!-- Permission Denied Banner — shown when user blocks location -->
+        <div id="su-perm-banner">
+          <div class="pb-title">🔒 Location Permission Blocked</div>
+          <div style="margin-bottom:4px">Allow location access so we can verify your delivery zone:</div>
+          <ul class="pb-steps" id="pb-steps-android" style="display:none">
+            <li>Tap the <b>🔒 lock icon</b> in your browser address bar</li>
+            <li>Select <b>Site Settings</b> → <b>Location</b> → <b>Allow</b></li>
+            <li>Reload the page and try again</li>
+          </ul>
+          <ul class="pb-steps" id="pb-steps-ios" style="display:none">
+            <li>Go to <b>Settings → Safari → Location</b></li>
+            <li>Set to <b>"Ask"</b> or <b>"Allow"</b></li>
+            <li>Return here and try again</li>
+          </ul>
+          <ul class="pb-steps" id="pb-steps-generic" style="display:none">
+            <li>Open your browser <b>Settings → Site Permissions → Location</b></li>
+            <li>Allow location for this site</li>
+            <li>Reload and try again</li>
+          </ul>
+          <div class="pb-btn-row">
+            <button class="pb-retry-btn" onclick="_suRetryLocation()"><i class="fa fa-rotate"></i> Retry Location</button>
+            <button class="pb-manual-link" onclick="_suScrollToManual()">Enter manually →</button>
+          </div>
+        </div>
+
+        <!-- Retry countdown bar — shown between GPS attempts and before manual card -->
+        <div id="su-retry-bar" class="loc-retry-bar">
+          <i class="fa fa-rotate" style="margin-right:5px"></i>
+          <span id="su-retry-label">Retrying automatically in</span> <span id="su-retry-count" class="retry-count">10</span>s…
+        </div>
 
         <!-- Interactive Leaflet map (shown after GPS fires) -->
         <div id="su-map-pin-area" style="display:none">
@@ -1921,45 +2054,90 @@ input[type=number]{-moz-appearance:textfield}
               </div>
             </div>
           </div>
-
-          <!-- Location detection success indicator (no raw geo details shown to user) -->
           <div id="su-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
             <span id="su-addr-chip-text">✅ Location detected — your address will be saved with GPS coordinates.</span>
+          </div>
+        </div>
+
+        <!-- ── Structured Manual Address Card — shown after GPS fails / perm denied ── -->
+        <div id="su-manual-card" class="loc-manual-card">
+          <div class="loc-manual-hdr">
+            <i class="fa fa-map-marker-alt"></i> Enter Your Delivery Address
+          </div>
+          <div class="loc-manual-body">
+            <div class="loc-manual-hint">
+              Fill in your address so the rider can find you easily. Fields marked <b style="color:#ef4444">*</b> are required.
+            </div>
+
+            <!-- Field 1: Building / Hostel Name -->
+            <label class="su-field-label" for="su-mf-building">Building / Hostel Name <span class="su-req">*</span></label>
+            <input type="text" id="su-mf-building" class="su-field-input"
+              placeholder="e.g. Viswanath Hostel, Kashi Apartment…"
+              oninput="_suStructuredInput()"
+              onfocus="this.classList.remove('input-invalid')" />
+
+            <!-- Field 2: Room / Flat No. & Landmark -->
+            <label class="su-field-label" for="su-mf-room">Room / Flat No. &amp; Landmark <span class="su-req">*</span></label>
+            <input type="text" id="su-mf-room" class="su-field-input"
+              placeholder="e.g. Room 12, near main gate…"
+              oninput="_suStructuredInput()"
+              onfocus="this.classList.remove('input-invalid')" />
+
+            <!-- Field 3: Area — auto-synced from area dropdown (readonly) -->
+            <label class="su-field-label" for="su-mf-area">Area</label>
+            <input type="text" id="su-mf-area" class="su-field-input" readonly
+              placeholder="Auto-filled from area selection above" />
+
+            <!-- Field 4: District — prefilled readonly -->
+            <label class="su-field-label" for="su-mf-district">District</label>
+            <input type="text" id="su-mf-district" class="su-field-input" readonly value="Varanasi" />
+
+            <!-- Field 5: State — prefilled readonly -->
+            <label class="su-field-label" for="su-mf-state">State</label>
+            <input type="text" id="su-mf-state" class="su-field-input" readonly value="Uttar Pradesh" />
+
+            <!-- Zone check status row -->
+            <div id="su-zone-status-row"></div>
+
+            <!-- Geocode status (kept for compat, hidden) -->
+            <div id="su-geocode-status" class="loc-geocode-status" style="display:none"></div>
+
+            <!-- Shown when background GPS succeeds while user types -->
+            <div id="su-bg-gps-chip" class="loc-bg-gps-chip">
+              <i class="fa fa-check-circle"></i> ✅ GPS confirmed! Exact coordinates captured automatically.
+            </div>
+          </div>
+        </div>
+
+        <!-- Outside Zone Bottom-Sheet Popup -->
+        <div id="su-oz-overlay">
+          <div id="su-oz-sheet">
+            <div class="oz-handle"></div>
+            <div class="oz-icon">🚫</div>
+            <div class="oz-title">Outside Delivery Zone</div>
+            <div class="oz-sub" id="su-oz-sub">Sorry, we don't deliver to your area yet.</div>
+            <div class="oz-dist-row" id="su-oz-dist-row"></div>
+            <div class="oz-actions">
+              <button class="oz-wa-btn" onclick="_suOzWhatsApp()">
+                <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> WhatsApp Us to Check
+              </button>
+              <button class="oz-call-btn" onclick="window.location.href='tel:+919889760350'">
+                <i class="fa fa-phone"></i> Call Us
+              </button>
+              <span class="oz-back-link" onclick="_suCloseOzPopup()">← Go back &amp; edit address</span>
+            </div>
           </div>
         </div>
 
         <input type="hidden" id="su-lat" value="">
         <input type="hidden" id="su-lng" value="">
         <input type="hidden" id="su-loc-ok" value="0">
-        <!-- Hidden textarea stores final combined address for submission -->
+        <!-- Hidden: '1' = GPS coords, '2' = manual address (geocoded or text), '0' = nothing -->
+        <input type="hidden" id="su-loc-mode" value="0">
         <textarea id="su-addr" style="display:none" readonly></textarea>
       </div>
 
       <div class="field-error" id="su-loc-err" style="margin-top:-10px;margin-bottom:10px"></div>
-      <!-- ── Delivery Area Selector with search ── -->
-      <div class="form-group" style="margin-top:14px" id="su-area-wrap">
-        <label>Delivery Area <span style="color:#dc2626;font-size:11px">*</span></label>
-        <div id="su-area-search-wrap" style="position:relative">
-          <input type="text" id="su-area-search" placeholder="Search area…" autocomplete="off"
-            style="width:100%;padding:12px 40px 12px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-family:var(--fb);font-size:14px;color:#1e293b;background:#fff;outline:none;box-sizing:border-box;transition:border-color 200ms"
-            onfocus="this.classList.remove('input-invalid');this.style.borderColor='';_suAreaSearchOpen()"
-            oninput="_suAreaSearchFilter(this.value)"
-            onblur="setTimeout(()=>_suAreaSearchClose(),200)">
-          <span style="position:absolute;right:13px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:13px">▾</span>
-          <div id="su-area-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:999;max-height:200px;overflow-y:auto;font-family:var(--fb);font-size:13px"></div>
-        </div>
-        <input type="hidden" id="su-area" value="">
-        <div class="field-error" id="su-area-err"></div>
-      </div>
-
-      <div class="form-group" style="margin-top:16px">
-        <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
-        <div class="pw-wrap">
-          <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password">
-          <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
-        </div>
-        <div class="field-error" id="su-pw-err"></div>
-      </div>
 
       <div style="margin-top:12px;padding-bottom:16px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
@@ -2740,6 +2918,21 @@ input[type=number]{-moz-appearance:textfield}
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════
+     GUEST LOCATION PERMISSION POPUP
+══════════════════════════════════════════════ -->
+<div id="guest-loc-popup" class="modal-overlay" style="display:none" onclick="if(event.target===this)_guestLocDismiss()">
+  <div class="loc-popup-card">
+    <div class="loc-popup-icon">📍</div>
+    <div class="loc-popup-sub">Allow location access to check delivery availability in your area.</div>
+    <button class="loc-popup-allow" onclick="_guestLocAllow()">
+      <i class="fa fa-location-dot"></i> Use My Location
+    </button>
+    <button class="loc-popup-later" onclick="_guestLocDismiss()">Maybe Later</button>
+  </div>
+</div>
+
 
 <!-- ══════════════════════════════════════════════
      WALLET RECHARGE QR MODAL
@@ -3823,6 +4016,34 @@ function switchTab(tab) {
     btnLogin.classList.remove('active');
     // Load areas from server (non-blocking)
     if (!_suAreaList.length) _loadSignupAreas();
+    // Invalidate any in-flight GPS callbacks from a previous session
+    _suAbortToken++;
+    _suGpsAttempt = 0;
+    _clearRetryCountdown();
+    // GPS prewarm: begin acquiring position while user fills in form.
+    // Permission prompt is acceptable here — user explicitly opened signup tab.
+    // Guard: skip if a prewarm call is already in-flight (_suWarmPending) or already resolved.
+    if (navigator.geolocation && !_suWarmPos && !_suWarmPending) {
+      _suWarmPending = true;
+      const myWarmToken = _suWarmToken; // capture — callback discards itself if token changed
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          _suWarmPending = false;
+          if (_suWarmToken !== myWarmToken) return; // consumed while in-flight — discard (BUG 1 fix)
+          _suWarmPos = pos;
+          _saveCoordsToStorage(pos); // persist for cross-session restore (BUG 3 fix)
+        },
+        () => { _suWarmPending = false; },
+        { enableHighAccuracy: true, timeout: 25000, maximumAge: 30000 }
+      );
+    }
+    // Zone: refresh cache if older than 5 min so detect is instant
+    const _ZONE_TTL = 5 * 60 * 1000;
+    if (!_deliveryZone || (Date.now() - _zoneLoadedAt) > _ZONE_TTL) {
+      _deliveryZone = null;
+      _settingsFetchP = null;
+      _loadDeliveryZone().catch(() => {});
+    }
   }
 }
 
@@ -3947,7 +4168,8 @@ async function doLogin() {
    Zone config is fetched live from admin_settings.
    No hardcoded coords — all managed via Admin → Settings → Delivery Zone.
 ═══════════════════════════════════════════ */
-let _deliveryZone = null; // { lat, lng, radiusKm } — loaded on demand
+let _deliveryZone  = null; // { lat, lng, radiusKm } — loaded on demand
+let _zoneLoadedAt  = 0;    // ms timestamp of last successful zone fetch
 
 function _haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -3979,6 +4201,7 @@ async function _loadDeliveryZone() {
   try {
     const r = await _fetchSettings();
     _deliveryZone = r.settings?.deliveryZone || null;
+    _zoneLoadedAt = Date.now();
   } catch(e) { _deliveryZone = null; }
   return _deliveryZone;
 }
@@ -4026,9 +4249,26 @@ function _evaluateLocation(lat, lng) {
     document.getElementById('su-loc-ok').value = '0';
     btnTxt.textContent = '❌ Outside Delivery Area';
     btn.classList.add('rejected');
-    showStatus(`❌ You're ${distStr} km away. We only deliver within ${zone.radiusKm} km. Sorry, we can't serve your area.`, false, false);
+    showStatus(`❌ You're ${distStr} km away. Outside our ${zone.radiusKm} km delivery area.`, false, false);
+    // Hard block: show OZ popup
+    setTimeout(() => _suShowOzPopup(dist, zone.radiusKm, '', ''), 300);
   }
   _showMapPin(lat, lng);
+}
+
+/* ── Silent zone check — used when GPS succeeds while manual card is open ────
+   Checks if coordinates are inside delivery zone and sets su-loc-ok accordingly.
+   Zero UI: no status text, no button changes, no map pin, no messages at all.
+   The coordinates are already written to hidden inputs by the calling code.     */
+function _evaluateLocationSilent(lat, lng) {
+  const zone = _deliveryZone;
+  if (!zone || !zone.lat || !zone.lng || !zone.radiusKm) {
+    // Zone not configured — treat as in-zone (admin hasn't set up yet)
+    document.getElementById('su-loc-ok').value = '1';
+    return;
+  }
+  const dist = _haversineKm(zone.lat, zone.lng, lat, lng);
+  document.getElementById('su-loc-ok').value = dist <= zone.radiusKm ? '1' : '0';
 }
 
 /* ── Leaflet map state ── */
@@ -4037,6 +4277,9 @@ let _leafletMarker = null;
 let _pendingLat    = null;
 let _pendingLng    = null;
 let _suMapLocked   = true;
+let _suWarmPos     = null; // cached prewarm GPS position — consumed once on detect
+let _suWarmPending = false; // true while a prewarm getCurrentPosition is in-flight
+let _suWarmToken   = 0;    // bumped when prewarm is consumed — orphans in-flight callbacks
 
 /* ── Signup map lock helpers ── */
 function _suLockMap() {
@@ -4084,31 +4327,23 @@ async function _suSavePinLocation() {
   _suLockMap();
 }
 
-/* ── Plus Code lookup via plus.codes/api (free, no key, officially correct) ──
-   Returns a Promise<string> — resolves to the plus code or '' on failure.
-   Uses a small in-memory cache so repeated calls (e.g. room/area watchers)
-   don't fire duplicate network requests.                                    */
+/* ── Plus Code — computed locally via Google's open-location-code JS library.
+   Zero network calls. Instant. Works offline. Same algorithm as plus.codes/api.
+   Returns Promise<string> so all existing await callers are unchanged.
+   CDN failure gracefully degrades: returns '' and coordinates remain primary. */
 const _plusCodeCache = new Map();
-async function _getPlusCode(lat, lng) {
+function _getPlusCode(lat, lng) {
   const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-  if (_plusCodeCache.has(key)) return _plusCodeCache.get(key);
+  if (_plusCodeCache.has(key)) return Promise.resolve(_plusCodeCache.get(key));
   try {
-    // plus.codes free API — no key required
-    const url = `https://plus.codes/api?address=${encodeURIComponent(key)}`;
-    const res = await Promise.race([
-      fetch(url, { mode: 'cors' }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
-    ]);
-    if (!res.ok) throw new Error('api error');
-    const data = await res.json();
-    // API returns { plus_code: { global_code: "XXXX+XX", ... } }
-    const code = data?.plus_code?.global_code || '';
+    const code = (typeof OpenLocationCode !== 'undefined')
+      ? OpenLocationCode.encode(lat, lng, 10)
+      : '';
     _plusCodeCache.set(key, code);
-    return code;
-  } catch (e) {
-    // Silently fall back — coordinates are still saved, plus code is optional
+    return Promise.resolve(code);
+  } catch(e) {
     _plusCodeCache.set(key, '');
-    return '';
+    return Promise.resolve('');
   }
 }
 
@@ -4242,13 +4477,13 @@ async function _updateAddressFromPin(lat, lng) {
   const chip     = document.getElementById('su-addr-chip');
   const chipText = document.getElementById('su-addr-chip-text');
   if (chip && chipText) {
-    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr} <span style="color:#94a3b8;font-size:11px">· fetching Plus Code…</span>`;
+    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}`;
     chip.style.display = 'block';
   }
   const hint = document.getElementById('su-geocode-hint');
   if (hint) {
     hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr} · <i>fetching Plus Code…</i></span>`;
+      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr}</span>`;
   }
   const addrBox = document.getElementById('su-addr');
   if (addrBox) {
@@ -4307,10 +4542,13 @@ function _buildSettingsAddress(room, lat, lng, area, plusCode) {
 function _waAddr(addr) {
   if (!addr) return 'Address not set';
   const lines = addr.split('\n').map(l => l.trim()).filter(Boolean);
-  const room  = (lines.find(l => /^Room No:/i.test(l)) || '').replace(/^Room No:\s*/i, '').trim();
-  const pc    = (lines.find(l => /^Plus Code:/i.test(l)) || '').replace(/^Plus Code:\s*/i, '').trim();
-  const area  = (lines.find(l => /^Area:/i.test(l)) || '').replace(/^Area:\s*/i, '').trim();
-  const parts = [room, pc, area].filter(Boolean);
+  const room  = (lines.find(l => /^Room No:/i.test(l))     || '').replace(/^Room No:\s*/i,     '').trim();
+  const pc    = (lines.find(l => /^Plus Code:/i.test(l))   || '').replace(/^Plus Code:\s*/i,   '').trim();
+  const area  = (lines.find(l => /^Area:/i.test(l))        || '').replace(/^Area:\s*/i,        '').trim();
+  const coord = (lines.find(l => /^Coordinates:/i.test(l)) || '').replace(/^Coordinates:\s*/i, '').trim();
+  // Coordinates are primary nav anchor. Plus Code shown when available; coord fallback when not.
+  const locPart = pc || (coord ? `📍 ${coord}` : '');
+  const parts = [room, locPart, area].filter(Boolean);
   // Legacy fallback: if nothing matched (old pre-v84 address), return first non-meta line
   if (!parts.length) {
     const fallback = lines.find(l => !/^Coordinates:/i.test(l) && !/India$/i.test(l));
@@ -4400,11 +4638,11 @@ function _showMapPin(lat, lng) {
       setTimeout(() => _leafletMap.invalidateSize(), 100);
     }
 
-    // Show coordinates immediately in hint, then fetch plus code async
+    // Coordinates shown immediately; plus code updates silently via _updateAddressFromPin
     const _initHint = document.getElementById('su-geocode-hint');
     if (_initHint) {
       _initHint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-        <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)} · <i>fetching Plus Code…</i></span>`;
+        <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
     }
     _updateAddressFromPin(lat, lng);
     _suLockMap();
@@ -4431,7 +4669,7 @@ function _recenterToGPS() {
       }
     },
     () => toast('Could not get GPS. Try again.'),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
   );
 }
 
@@ -4638,6 +4876,24 @@ function _suAreaSelect(val) {
   if (hidden) hidden.value = val;
   if (errEl)  { errEl.classList.remove('show'); errEl.textContent = ''; }
   _suAreaSearchClose();
+  // ── Area Sync: update readonly area field in manual card ──
+  _suSyncAreaToManualField();
+  // ── Re-trigger geocode if manual card is open and has content (800ms debounce) ──
+  const manualCard = document.getElementById('su-manual-card');
+  if (manualCard && manualCard.style.display !== 'none') {
+    if (document.getElementById('su-loc-mode')?.value !== '1') {
+      const building = (document.getElementById('su-mf-building')?.value || '').trim();
+      const room     = (document.getElementById('su-mf-room')?.value     || '').trim();
+      if (building.length > 2 || room.length > 2) {
+        if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+        _suSetZoneStatus('checking', '🟡 Checking delivery availability…');
+        _suManualGeocodeTimer = setTimeout(async () => {
+          if (document.getElementById('su-loc-mode')?.value === '1') return;
+          await _suForwardGeocode(_suBuildStructuredAddr());
+        }, 800);
+      }
+    }
+  }
 }
 
 function _suAreaRetry() {
@@ -4655,44 +4911,499 @@ function _suAreaSetValue(val, fromGPS) {
   }
 }
 
-async function detectSignupLocation() {
+/* ── Location detection state ────────────────────────────────────────────────
+   _suGpsAttempt    : 0 = not started, 1 = first live try, 2 = second, 3+ = extra
+   _suAbortToken    : incremented on each new detect session — stale callbacks
+                      check this before touching DOM so tab-reopen / double-tap
+                      never applies a result from a superseded call
+   _suRetryTimer    : interval handle for visible countdown bar
+   _suManualGeocodeTimer : debounce handle for Nominatim forward geocode        */
+let _suGpsAttempt       = 0;
+let _suAbortToken       = 0;   // stale-callback guard
+let _suRetryTimer       = null;
+let _suManualGeocodeTimer = null;
+
+/* Legacy bg-GPS stubs — kept so post-signup _suStopBgGps() call at line ~5263
+   doesn't throw; the foreground retry loop now handles all visible retries.   */
+let _suBgGpsActive = false;
+let _suBgGpsTimer  = null;
+function _suStartBgGps() {}   // no-op — foreground loop replaced this
+function _suStopBgGps()  { _suBgGpsActive = false; if (_suBgGpsTimer) { clearTimeout(_suBgGpsTimer); _suBgGpsTimer = null; } }
+
+function _suShowLocStatus(msg, ok, warn) {
+  const status = document.getElementById('su-loc-status');
+  if (!status) return;
+  status.style.display = 'block';
+  status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
+  status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
+  status.textContent = msg;
+}
+
+/* ── GPS attempt timeouts ────────────────────────────────────────────────────
+   Attempt 1 (first manual tap, prewarm miss): 20s — cold chip needs max time
+   Attempt 2 (immediate — NO countdown gap):   15s — chip already warm after 20s,
+             fire right away; fresh fix still possible without extra wait.
+   Attempt 3–5 (background, manual card shown): 10s each, 10s gaps between.
+   maximumAge=0 on attempt 2+ forces a fresh fix (no stale cached position).
+   Max attempts = 5 → worst-case ~75s total before giving up gracefully.      */
+const _SU_GPS_T1       = 20000; // attempt 1 timeout
+const _SU_GPS_T2       = 15000; // attempt 2 timeout (fires immediately after attempt 1)
+const _SU_GPS_T3       = 10000; // attempt 3–5 timeout
+const _SU_COUNTDOWN_2  = 0;     // NO gap: attempt 2 fires immediately — chip already warm
+const _SU_COUNTDOWN_M  = 10;    // gap (s) between attempt 3+ fail → next (background)
+const _SU_MAX_ATTEMPTS = 5;     // give up after 5 attempts
+
+/* ── Main detect function — called on button tap AND by auto-retry callbacks ─
+   thisToken: abort guard passed down so stale async callbacks self-cancel.    */
+function detectSignupLocation(thisToken) {
   const btn    = document.getElementById('su-loc-btn');
   const btnTxt = document.getElementById('su-loc-btn-txt');
-  const status = document.getElementById('su-loc-status');
-  const showStatus = (msg, ok, warn) => {
-    status.style.display = 'block';
-    status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
-    status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
-    status.textContent = msg;
-  };
+
   if (!navigator.geolocation) {
-    showStatus('❌ GPS not supported on this device. Please use a modern browser.', false, false);
+    // GPS not supported — open manual card silently, no status message
+    _suShowManualCard();
+    _clearRetryCountdown();
+    setTimeout(() => {
+      const card = document.getElementById('su-manual-card');
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
+    }, 200);
     return;
   }
-  // Reset state
-  btn.classList.remove('verified','rejected');
-  btnTxt.textContent = 'Detecting location…';
-  btn.disabled = true;
 
-  // Pre-load zone in parallel while GPS warms up
-  await _loadDeliveryZone();
+  // On a manual tap: start a new session (abort any in-flight stale call)
+  const isManualTap = (thisToken === undefined);
+  if (isManualTap) {
+    _suAbortToken++;           // invalidates all callbacks from previous sessions
+    _suGpsAttempt = 0;         // reset counter so tap always restarts from attempt 1
+    _clearRetryCountdown();
+  }
+  const myToken = _suAbortToken; // captured — this callback will check it on return
+
+  // Pre-load zone in parallel (idempotent)
+  _loadDeliveryZone();
+
+  // ── Prewarm shortcut ──────────────────────────────────────────────────────
+  // If background acquisition already succeeded while user filled the form,
+  // consume the cached position instantly — no live GPS call needed.
+  if (_suWarmPos && isManualTap) {
+    const { latitude: lat, longitude: lng } = _suWarmPos.coords;
+    _suWarmPos = null;
+    _suWarmToken++;    // orphan any in-flight prewarm callback — prevents ghost re-write (BUG 1 fix)
+    _suGpsAttempt = 1; // counts as attempt 1 for state tracking
+    btn.disabled = false;
+    btn.classList.remove('verified', 'rejected');
+    btnTxt.textContent = 'Detect My Location';
+    document.getElementById('su-loc-status').style.display = 'none';
+    document.getElementById('su-retry-bar').style.display  = 'none';
+    _evaluateLocation(lat, lng);
+    return;
+  }
+
+  // ── Reset UI for live attempt ─────────────────────────────────────────────
+  if (isManualTap) {
+    // User tapped — disable button and hide any previous status
+    btn.classList.remove('verified', 'rejected');
+    btn.disabled = true;
+    document.getElementById('su-loc-status').style.display = 'none';
+    document.getElementById('su-retry-bar').style.display  = 'none';
+  }
+  // Attempt 2+: button stays enabled (restored in Fix 3 above).
+  // Do NOT disable for background retries — user must be free to tap again.
+
+  // ── Increment attempt and choose timeout ──────────────────────────────────
+  _suGpsAttempt++;
+  const attempt    = _suGpsAttempt; // snapshot — closures below use this, never the live var
+  const isAttempt1 = attempt === 1;
+  const isAttempt2 = attempt === 2;
+  const gpsTimeout = isAttempt1 ? _SU_GPS_T1 : isAttempt2 ? _SU_GPS_T2 : _SU_GPS_T3;
+  // maximumAge=0 on retry: force fresh fix — never use a stale cached position
+  const maxAge     = isAttempt1 ? 30000 : 0;
+
+  // Only show detecting text on attempt 1 (visible to user).
+  // Attempts 2+ are background — restore button to normal immediately so user
+  // doesn't see a "Retrying" label while they type their address.
+  if (isAttempt1) {
+    btnTxt.textContent = 'Detecting… (up to 20s)';
+  } else {
+    btnTxt.textContent = 'Detect My Location';
+    btn.disabled = false; // re-enable during background attempts — user may tap again
+  }
 
   navigator.geolocation.getCurrentPosition(
     pos => {
+      // Stale-callback guard: abort if a newer session started
+      if (_suAbortToken !== myToken) return;
+
       btn.disabled = false;
-      _evaluateLocation(pos.coords.latitude, pos.coords.longitude);
+      btnTxt.textContent = 'Detect My Location';
+      _clearRetryCountdown();
+
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      // ── GPS success — manual card may be open ─────────────────────────
+      const manualCard = document.getElementById('su-manual-card');
+      const manualCardOpen = manualCard && manualCard.style.display !== 'none';
+      if (manualCardOpen) {
+        const modeEl = document.getElementById('su-loc-mode');
+        const okEl   = document.getElementById('su-loc-ok');
+        if (modeEl) modeEl.value = '1';
+        if (okEl)   okEl.value   = '1';
+        // Clear error highlights
+        document.querySelector('.loc-section')?.classList.remove('loc-err');
+        document.getElementById('su-loc-btn')?.classList.remove('loc-btn-required');
+        const locErrEl = document.getElementById('su-loc-err');
+        if (locErrEl) { locErrEl.classList.remove('show'); locErrEl.textContent = ''; }
+        // Store coords
+        document.getElementById('su-lat').value = lat;
+        document.getElementById('su-lng').value = lng;
+        _pendingLat = lat; _pendingLng = lng;
+        try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
+        // Run zone check silently (sets su-loc-ok correctly)
+        _evaluateLocationSilent(lat, lng);
+        // ── Smart Update: show GPS chip + update zone row + hide perm banner ──
+        _suHidePermBanner();
+        // Cancel any pending geocode (GPS is more accurate)
+        if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+        // Show GPS chip prominently
+        const chip = document.getElementById('su-bg-gps-chip');
+        if (chip) { chip.style.display = 'block'; }
+        // Update zone-status row with GPS result
+        const zone = _deliveryZone;
+        if (zone && zone.lat && zone.lng && zone.radiusKm) {
+          const dist = _haversineKm(zone.lat, zone.lng, lat, lng);
+          if (dist <= zone.radiusKm) {
+            _suSetZoneStatus('ok', `✅ GPS confirmed! ${dist.toFixed(1)} km away — within delivery zone.`);
+          } else {
+            // GPS confirmed outside — hard block with OZ popup
+            document.getElementById('su-loc-ok').value = '0';
+            _suSetZoneStatus('err', `❌ GPS: ${dist.toFixed(1)} km away — outside our ${zone.radiusKm} km zone`);
+            const building = (document.getElementById('su-mf-building')?.value || '').trim();
+            const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
+            setTimeout(() => _suShowOzPopup(dist, zone.radiusKm, building, area), 400);
+          }
+        } else {
+          _suSetZoneStatus('ok', `✅ GPS confirmed! Exact location captured.`);
+        }
+      } else {
+        // Manual card not open — normal GPS success flow with full UI
+        _evaluateLocation(lat, lng);
+        try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
+      }
     },
     err => {
+      // Stale-callback guard
+      if (_suAbortToken !== myToken) return;
+
       btn.disabled = false;
-      btn.classList.remove('verified','rejected');
       btnTxt.textContent = 'Detect My Location';
-      const msg = err.code === 1 ? '📵 Location permission denied. Please allow location access in your browser settings and try again.'
-                : err.code === 2 ? '📡 Location unavailable. Please try in an open area.'
-                : '⏱️ Location timed out. Please try again.';
-      showStatus(msg, false, false);
+
+      // Permission denied — show yellow banner with browser instructions
+      if (err.code === 1) {
+        _suShowPermBanner();
+        _suShowManualCard();
+        _clearRetryCountdown();
+        setTimeout(() => {
+          const card = document.getElementById('su-manual-card');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => {
+            const f = document.getElementById('su-mf-building');
+            if (f && !f.value) f.focus();
+          }, 450);
+        }, 200);
+        return;
+      }
+
+      // ── Schedule next attempt — all retries are 100% silent ────────────────
+      if (isAttempt1) {
+        // Chip ran 20s — fire attempt 2 immediately (chip already warm, no gap needed).
+        // No status message, no bar, no UI change at all.
+        _clearRetryCountdown();
+        setTimeout(() => detectSignupLocation(myToken), 300); // tiny yield for UI paint
+
+      } else if (isAttempt2) {
+        // Attempt 2 failed → open manual card quietly for typing.
+        // No status message shown — page stays clean.
+        _suShowManualCard();
+        _clearRetryCountdown();
+
+        // Scroll so the manual card header is fully visible at top, then open keyboard.
+        setTimeout(() => {
+          const card = document.getElementById('su-manual-card');
+          const f = document.getElementById('su-mf-building');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => { if (f && !f.value) f.focus(); }, 450);
+        }, 300);
+
+        // Continue silently in background — no UI at all
+        setTimeout(() => detectSignupLocation(myToken), _SU_COUNTDOWN_M * 1000);
+
+      } else if (attempt < _SU_MAX_ATTEMPTS) {
+        // Attempt 3–4 — 100% silent background retry. No status, no bar, nothing.
+        _clearRetryCountdown();
+        setTimeout(() => detectSignupLocation(myToken), _SU_COUNTDOWN_M * 1000);
+
+      } else {
+        // Final attempt exhausted — silent. Manual card already showing.
+        // User's typed address or text-mode address will be used at signup.
+        _clearRetryCountdown();
+        btn.disabled = false;
+        btnTxt.textContent = 'Detect My Location';
+      }
     },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: gpsTimeout, maximumAge: maxAge }
   );
+}
+
+/* ── Generic countdown: counts from `secs` to 0, then calls `onDone` ── */
+function _suStartRetryCountdown(secs, onDone) {
+  const bar = document.getElementById('su-retry-bar');
+  const cnt = document.getElementById('su-retry-count');
+  if (!bar || !cnt) { onDone(); return; }
+  _clearRetryCountdown();
+  bar.style.display = 'block';
+  let remaining = secs;
+  cnt.textContent = remaining;
+  _suRetryTimer = setInterval(() => {
+    remaining--;
+    cnt.textContent = remaining;
+    if (remaining <= 0) {
+      _clearRetryCountdown();
+      onDone();
+    }
+  }, 1000);
+}
+
+function _clearRetryCountdown() {
+  if (_suRetryTimer) { clearInterval(_suRetryTimer); _suRetryTimer = null; }
+  const bar = document.getElementById('su-retry-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+/* ── Show manual address card ── */
+function _suShowManualCard() {
+  const card = document.getElementById('su-manual-card');
+  if (card) card.style.display = 'block';
+  // Sync area field from hidden input
+  _suSyncAreaToManualField();
+  // Set loc-mode to '2' (manual) so doSignup knows what to validate
+  const modeEl = document.getElementById('su-loc-mode');
+  if (modeEl && modeEl.value === '0') modeEl.value = '2';
+}
+
+/* ── Show permission denied banner with platform-specific instructions ── */
+function _suShowPermBanner() {
+  const banner = document.getElementById('su-perm-banner');
+  if (!banner) return;
+  banner.style.display = 'block';
+  // Detect platform
+  const ua = navigator.userAgent || '';
+  const isIOS = /iP(hone|ad|od)/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  document.getElementById('pb-steps-ios').style.display = isIOS ? 'block' : 'none';
+  document.getElementById('pb-steps-android').style.display = (!isIOS && isAndroid) ? 'block' : 'none';
+  document.getElementById('pb-steps-generic').style.display = (!isIOS && !isAndroid) ? 'block' : 'none';
+}
+
+/* ── Hide permission denied banner ── */
+function _suHidePermBanner() {
+  const banner = document.getElementById('su-perm-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+/* ── Retry location from banner button ── */
+function _suRetryLocation() {
+  _suHidePermBanner();
+  detectSignupLocation();
+}
+
+/* ── Scroll to manual card ── */
+function _suScrollToManual() {
+  _suShowManualCard();
+  setTimeout(() => {
+    const card = document.getElementById('su-manual-card');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 400);
+  }, 100);
+}
+
+/* ── Sync area dropdown value → manual card area field ── */
+function _suSyncAreaToManualField() {
+  const areaVal = (document.getElementById('su-area')?.value || '').trim();
+  const mfArea = document.getElementById('su-mf-area');
+  if (mfArea) mfArea.value = areaVal;
+}
+
+/* ── Build combined address string from structured fields ── */
+function _suBuildStructuredAddr() {
+  const building = (document.getElementById('su-mf-building')?.value || '').trim();
+  const room     = (document.getElementById('su-mf-room')?.value     || '').trim();
+  const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
+  const district = (document.getElementById('su-mf-district')?.value || 'Varanasi').trim();
+  const state    = (document.getElementById('su-mf-state')?.value    || 'Uttar Pradesh').trim();
+  const parts = [];
+  if (room)     parts.push(room);
+  if (building) parts.push(building);
+  if (area)     parts.push(area);
+  parts.push(district);
+  parts.push(state);
+  return parts.join(', ');
+}
+
+/* ── Zone status row helper ── */
+function _suSetZoneStatus(cls, msg, html) {
+  const row = document.getElementById('su-zone-status-row');
+  if (!row) return;
+  row.className = 'zs-' + cls;
+  if (html) { row.innerHTML = html; } else { row.textContent = msg; }
+}
+function _suClearZoneStatus() {
+  const row = document.getElementById('su-zone-status-row');
+  if (row) { row.className = ''; row.innerHTML = ''; }
+}
+
+/* ── Outside Zone Popup ── */
+function _suShowOzPopup(distKm, radiusKm, building, area) {
+  const overlay = document.getElementById('su-oz-overlay');
+  const sub     = document.getElementById('su-oz-sub');
+  const distRow = document.getElementById('su-oz-dist-row');
+  if (!overlay) return;
+
+  const distStr = distKm ? distKm.toFixed(1) + ' km' : '—';
+  const radStr  = radiusKm ? radiusKm + ' km' : '5 km';
+  if (sub) sub.textContent = `Your address is outside our current ${radStr} delivery zone. Please contact us to check if we can serve you.`;
+  if (distRow) distRow.textContent = `📍 Distance: ${distStr}  ·  Zone radius: ${radStr}`;
+
+  // Pre-fill WA data attrs for the button
+  overlay.dataset.building = building || '';
+  overlay.dataset.area     = area || '';
+  overlay.classList.add('oz-open');
+}
+function _suCloseOzPopup() {
+  const overlay = document.getElementById('su-oz-overlay');
+  if (overlay) overlay.classList.remove('oz-open');
+}
+function _suOzWhatsApp() {
+  const overlay = document.getElementById('su-oz-overlay');
+  const building = overlay?.dataset.building || '';
+  const area     = overlay?.dataset.area     || '';
+  const msg = `नमस्ते Tiffo! मेरा पता: ${building}${area ? ', ' + area : ''}, Varanasi है। क्या आप मेरे एरिया में डिलीवरी कर सकते हैं? कृपया बताएं। 🙏`;
+  window.open('https://wa.me/919889760350?text=' + encodeURIComponent(msg), '_blank');
+}
+
+/* ── Manual structured input handler — debounced geocode ── */
+let _suGeocodeState = 'idle'; // 'idle' | 'pending' | 'done_ok' | 'done_err' | 'done_outside'
+
+function _suStructuredInput() {
+  // If GPS already won, don't interfere
+  if (document.getElementById('su-loc-mode')?.value === '1') return;
+
+  const building = (document.getElementById('su-mf-building')?.value || '').trim();
+  const room     = (document.getElementById('su-mf-room')?.value     || '').trim();
+
+  if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+
+  const combined = [building, room].filter(Boolean).join(' ');
+  if (combined.length < 6) {
+    _suClearZoneStatus();
+    document.getElementById('su-loc-ok').value = '0';
+    return;
+  }
+
+  // Show "Checking…" immediately
+  _suSetZoneStatus('checking', '🟡 Checking delivery availability…');
+  _suGeocodeState = 'pending';
+  document.getElementById('su-loc-ok').value = '0';
+
+  _suManualGeocodeTimer = setTimeout(async () => {
+    if (document.getElementById('su-loc-mode')?.value === '1') return;
+    await _suForwardGeocode(_suBuildStructuredAddr());
+  }, 1400);
+}
+
+/* ── _suManualAddrInput kept as no-op alias for any legacy callers ── */
+function _suManualAddrInput() { _suStructuredInput(); }
+
+/* ── Nominatim forward geocode — strict zone enforcement ─────────────────────
+   OK  in-zone  → allow, green status
+   OK  outside  → OZ popup hard block
+   Fail/unknown → OZ popup (contact owner)
+   Pending      → "please wait" inline error                                  */
+async function _suForwardGeocode(text) {
+  // Skip if GPS already won while debounce was pending
+  if (document.getElementById('su-loc-mode')?.value === '1') return;
+
+  const zone = _deliveryZone;
+  const query = /varanasi|banaras|bhu|kashi/i.test(text) ? text : text + ', Varanasi';
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=in`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-Customer/1.0' } }
+    );
+    const data = await resp.json();
+    if (!data || !data.length) throw new Error('no result');
+
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+    if (isNaN(lat) || isNaN(lng)) throw new Error('bad coords');
+
+    // GPS may have won during async wait
+    if (document.getElementById('su-loc-mode')?.value === '1') return;
+
+    // Zone check
+    if (zone && zone.lat && zone.lng && zone.radiusKm) {
+      const dist = _haversineKm(zone.lat, zone.lng, lat, lng);
+      const distStr = dist.toFixed(1);
+
+      if (dist <= zone.radiusKm) {
+        // In zone ✅
+        _pendingLat = lat; _pendingLng = lng;
+        document.getElementById('su-lat').value      = lat;
+        document.getElementById('su-lng').value      = lng;
+        document.getElementById('su-loc-mode').value = '2';
+        document.getElementById('su-loc-ok').value   = '1';
+        _suGeocodeState = 'done_ok';
+        _suSetZoneStatus('ok', `✅ Within delivery zone (${distStr} km away) — you're covered!`);
+      } else {
+        // Outside zone ❌ hard block
+        _pendingLat = lat; _pendingLng = lng;
+        document.getElementById('su-lat').value      = lat;
+        document.getElementById('su-lng').value      = lng;
+        document.getElementById('su-loc-mode').value = '2';
+        document.getElementById('su-loc-ok').value   = '0';
+        _suGeocodeState = 'done_outside';
+        _suSetZoneStatus('err', `❌ Outside our ${zone.radiusKm} km delivery zone (${distStr} km away)`);
+        const building = (document.getElementById('su-mf-building')?.value || '').trim();
+        const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
+        setTimeout(() => _suShowOzPopup(dist, zone.radiusKm, building, area), 400);
+      }
+    } else {
+      // Zone not configured — coords saved, allow
+      _pendingLat = lat; _pendingLng = lng;
+      document.getElementById('su-lat').value      = lat;
+      document.getElementById('su-lng').value      = lng;
+      document.getElementById('su-loc-mode').value = '2';
+      document.getElementById('su-loc-ok').value   = '1';
+      _suGeocodeState = 'done_ok';
+      _suClearZoneStatus();
+    }
+  } catch(e) {
+    if (document.getElementById('su-loc-mode')?.value === '1') return;
+    // Geocode failed — Nominatim may not have BHU building data (common for campus).
+    // Allow signup with text address; rider will look it up manually.
+    // Do NOT show OZ popup — we can't confirm they're outside.
+    _suGeocodeState = 'done_err';
+    document.getElementById('su-loc-ok').value = '0'; // block — zone unverified
+    _suSetZoneStatus('warn', null,
+      '⚠️ Address not found on map — delivery zone unverified. ' +
+      '<button onclick="detectSignupLocation()" style="' +
+        'margin-left:6px;padding:2px 10px;border-radius:6px;border:1.5px solid #92400e;' +
+        'background:#fff;color:#92400e;font-family:var(--fb);font-size:11.5px;' +
+        'font-weight:700;cursor:pointer;white-space:nowrap' +
+      '">📍 Use GPS instead</button>'
+    );
+  }
 }
 
 /* ── Signup helpers ─────────────────────────────────────────────────────── */
@@ -4772,15 +5483,42 @@ async function doSignup() {
   const phone        = rawPhone.replace(/\D/g, '');
   const email        = '';
   const selectedArea = (document.getElementById('su-area')?.value || '').trim();
-  // Use cached plus code (already fetched when pin was placed)
-  const _suPc = (_pendingLat !== null && _pendingLng !== null)
-    ? (_plusCodeCache.get(`${_pendingLat.toFixed(6)},${_pendingLng.toFixed(6)}`) || '')
-    : '';
-  const address      = _buildSignupAddress(_pendingLat, _pendingLng, selectedArea, _suPc);
   const pw           = document.getElementById('su-pw')?.value || '';
   const su_lat       = document.getElementById('su-lat')?.value || '';
-  const locBtnTxt    = document.getElementById('su-loc-btn-txt')?.textContent || '';
-  const isOutside    = su_lat && locBtnTxt.includes('Outside');
+  const su_lng       = document.getElementById('su-lng')?.value || '';
+  const locMode      = document.getElementById('su-loc-mode')?.value || '0'; // '0'=none,'1'=GPS,'2'=manual
+  const locOk        = document.getElementById('su-loc-ok')?.value || '0';
+  const isOutside    = locOk === '0' && locMode !== '0' && !!su_lat; // only if coords captured + confirmed outside
+
+  // Structured manual fields
+  const mfBuilding = (document.getElementById('su-mf-building')?.value || '').trim();
+  const mfRoom     = (document.getElementById('su-mf-room')?.value     || '').trim();
+  const manualText = [mfRoom, mfBuilding, selectedArea].filter(Boolean).join(', ');
+
+  // Build address depending on mode
+  let address = '';
+  if (locMode === '1' || (locMode === '2' && su_lat)) {
+    // GPS or geocoded manual — coords available
+    const lat = parseFloat(su_lat), lng = parseFloat(su_lng);
+    const _suPc = (lat && lng)
+      ? (_plusCodeCache.get(`${lat.toFixed(6)},${lng.toFixed(6)}`) || '')
+      : '';
+    address = _buildSignupAddress(lat || null, lng || null, selectedArea, _suPc);
+    // Always prepend building+room using the standard "Room No:" prefix so
+    // rider PDF, admin panel, _waAddr(), and _renderSavedAddrDisplay() all parse it correctly
+    if (mfBuilding || mfRoom) {
+      const roomLine = [mfRoom, mfBuilding].filter(Boolean).join(', ');
+      address = `Room No: ${roomLine}\n` + address;
+    }
+  } else if (locMode === '2' && manualText) {
+    // Manual text only — no coords captured. Use standard v84 multiline format.
+    const roomLine = [mfRoom, mfBuilding].filter(Boolean).join(', ');
+    const parts = [];
+    if (roomLine) parts.push(`Room No: ${roomLine}`);
+    if (selectedArea) parts.push(`Area: ${selectedArea}`);
+    parts.push('Varanasi, Uttar Pradesh, India');
+    address = parts.join('\n');
+  }
 
   // ── 2. Clear all previous errors ───────────────────────────────────────
   ['su-name-err','su-phone-err','su-loc-err','su-area-err','su-pw-err'].forEach(id => {
@@ -4814,13 +5552,36 @@ async function doSignup() {
     errors.push({ errId: 'su-phone-err', msg: 'Enter a valid Indian mobile number', inputId: 'su-phone', scrollTo: 'su-phone' });
   }
 
-  // Location — not detected at all
-  if (!su_lat) {
-    errors.push({ errId: 'su-loc-err', msg: '📍 Please tap "Detect My Location" above to pin your delivery address. This helps us deliver to you accurately.', inputId: null, scrollTo: 'su-loc-btn' });
-  }
-  // Location — outside delivery zone (hard block)
-  else if (isOutside) {
-    errors.push({ errId: 'su-loc-err', msg: '🚫 Your location is outside our delivery area. We currently serve selected areas only.', inputId: null, scrollTo: 'su-loc-btn' });
+  // Location validation — strict zone enforcement
+  if (locMode === '0') {
+    // Nothing detected, nothing typed
+    errors.push({ errId: 'su-loc-err', msg: '📍 Please tap "Detect My Location" to pin your spot, or fill in your address below.', inputId: null, scrollTo: 'su-loc-btn' });
+  } else if (locMode === '2' && !mfBuilding && !mfRoom) {
+    // Manual card shown but required fields empty
+    errors.push({ errId: 'su-loc-err', msg: '✏️ Please fill in your Building/Hostel Name and Room/Flat No.', inputId: 'su-mf-building', scrollTo: 'su-mf-building' });
+  } else if (locMode === '2' && !mfBuilding) {
+    errors.push({ errId: 'su-loc-err', msg: '🏠 Building / Hostel Name is required.', inputId: 'su-mf-building', scrollTo: 'su-mf-building' });
+  } else if (locMode === '2' && !mfRoom) {
+    errors.push({ errId: 'su-loc-err', msg: '🚪 Room / Flat No. & Landmark is required.', inputId: 'su-mf-room', scrollTo: 'su-mf-room' });
+  } else if (_suGeocodeState === 'pending' || (_suManualGeocodeTimer !== null)) {
+    // Debounce still in flight — ask user to wait
+    errors.push({ errId: 'su-loc-err', msg: '⏳ Please wait — checking delivery availability for your address…', inputId: null, scrollTo: 'su-zone-status-row' });
+    // Also trigger geocode immediately
+    if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+    _suForwardGeocode(_suBuildStructuredAddr());
+  } else if (_suGeocodeState === 'done_err') {
+    // Nominatim failed — zone unverified, block signup
+    errors.push({ errId: 'su-loc-err', msg: '📍 Address could not be verified on map. Please tap “Use GPS instead” in the status bar above, or try “Detect My Location”.', inputId: null, scrollTo: 'su-zone-status-row' });
+  } else if (isOutside) {
+    // GPS confirmed outside OR geocode confirmed outside — hard block
+    // (geocode fail case is handled above)
+    const building = mfBuilding;
+    const area     = selectedArea;
+    const dist     = (su_lat && su_lng && _deliveryZone?.lat)
+      ? _haversineKm(_deliveryZone.lat, _deliveryZone.lng, parseFloat(su_lat), parseFloat(su_lng))
+      : null;
+    errors.push({ errId: 'su-loc-err', msg: '🚫 Your location is outside our delivery area. Please contact us via WhatsApp.', inputId: null, scrollTo: 'su-loc-btn' });
+    setTimeout(() => _suShowOzPopup(dist, _deliveryZone?.radiusKm || 5, building, area), 200);
   }
 
   // Area
@@ -4913,6 +5674,25 @@ async function doSignup() {
     _doPostLoginRefresh(_initMenuP4, true);
     // ✅ Premium success toast
     toast('Account created! Welcome to Tiffo 🎉', 4000);
+    // Stop any active foreground GPS session — signup is done, no more UI retries needed
+    _suStopBgGps();
+    _clearRetryCountdown();
+    // Also orphan any in-flight foreground retry loop (bump token so stale callbacks self-cancel)
+    _suAbortToken++;
+
+    // ── Post-signup background GPS PATCH ─────────────────────────────────────
+    // If GPS coords were NOT captured before signup (user typed address manually), start
+    // a silent background GPS retry that will PATCH the DB as soon as coords arrive.
+    // This runs completely in background — does NOT affect or re-trigger any UI.
+    // Check both the hidden su-lat input (GPS pre-signup) and _pendingLat (from Leaflet pin).
+    const _suLatVal = document.getElementById('su-lat')?.value;
+    const _hasCoords = !!_suLatVal || (_pendingLat !== null && _pendingLat !== undefined);
+    if (!_hasCoords) {
+      // No coords yet — start background retry (instant first attempt, then 15s gaps, ~2.5 min)
+      _startBgGpsRetry(phone, pw, selectedArea, manualText);
+    }
+    // Clear guest location popup — user is now registered, no need to ask
+    if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
     // btn stays disabled — user is being navigated away
 
   } catch(e) {
@@ -4999,6 +5779,8 @@ async function _checkMenuVersion() {
       // Admin updated menu/settings — reset settings promise cache so pause sheet
       // gets fresh auto_tiffin_cutoff on next open, then fetch fresh home data.
       _resetSettingsCache();
+      _deliveryZone = null;   // force fresh zone fetch after admin settings change
+      _zoneLoadedAt = 0;
       _menuLoading = false; // unlock in case stale lock
       await loadMenu(true, true).catch(() => {});
       // If a logged-in user exists, also refresh their subscriber status.
@@ -6969,6 +7751,25 @@ function populateAccountPage() {
   document.getElementById('acct-phone').textContent = u.phone || '—';
   document.getElementById('acct-email').value = u.email || '';
 
+  // Auto-collapse update form on every page visit to prevent stale state
+  const _updateForm = document.getElementById('acct-addr-update-form');
+  if (_updateForm && _updateForm.style.display !== 'none') {
+    _updateForm.style.display = 'none';
+    const _toggleBtn = document.getElementById('acct-addr-toggle-btn');
+    if (_toggleBtn) _toggleBtn.textContent = '📍 Update Address with Map';
+    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false;
+    const _chip3 = document.getElementById('acct-addr-chip');
+    if (_chip3) _chip3.style.display = 'none';
+    const _locOk3 = document.getElementById('acct-loc-ok');
+    if (_locOk3) _locOk3.value = '0';
+    const _mapArea3 = document.getElementById('acct-map-pin-area');
+    if (_mapArea3) _mapArea3.style.display = 'none';
+    const _locSt3 = document.getElementById('acct-loc-status');
+    if (_locSt3) { _locSt3.style.display = 'none'; _locSt3.textContent = ''; }
+    const _btnTxt3 = document.getElementById('acct-loc-btn-txt');
+    if (_btnTxt3) _btnTxt3.textContent = 'Detect My Location';
+  }
+
   // Show current address in read-only display div
   const addrDisplay = document.getElementById('acct-addr-display');
   if (addrDisplay) {
@@ -7084,6 +7885,23 @@ function toggleAddrUpdateForm() {
   const showing = form.style.display !== 'none';
   form.style.display = showing ? 'none' : 'block';
   btn.textContent = showing ? '📍 Update Address with Map' : '✕ Cancel Update';
+  if (showing) {
+    // ── CLOSE path: reset all transient UI state ──────────────────────────
+    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false;
+    const _chip2 = document.getElementById('acct-addr-chip');
+    if (_chip2) _chip2.style.display = 'none';
+    const _locOkEl = document.getElementById('acct-loc-ok');
+    if (_locOkEl) _locOkEl.value = '0';
+    const _mapArea = document.getElementById('acct-map-pin-area');
+    if (_mapArea) _mapArea.style.display = 'none';
+    const _locSt = document.getElementById('acct-loc-status');
+    if (_locSt) { _locSt.style.display = 'none'; _locSt.textContent = ''; }
+    const _btnTxtEl = document.getElementById('acct-loc-btn-txt');
+    if (_btnTxtEl) _btnTxtEl.textContent = 'Detect My Location';
+    const _locBtn = document.getElementById('acct-loc-btn');
+    if (_locBtn) _locBtn.disabled = false;
+    return;
+  }
   if (!showing) {
     // Load areas for the dropdown
     if (!_suAreaList.length) _loadSignupAreas().then(() => _acctAreaRenderDropdown(''));
@@ -7142,10 +7960,10 @@ async function detectAcctLocation() {
   const btn    = document.getElementById('acct-loc-btn');
   const btnTxt = document.getElementById('acct-loc-btn-txt');
   const status = document.getElementById('acct-loc-status');
-  const showSt = (msg, ok) => {
+  const showSt = (msg, ok, isWarn) => {
     status.style.display = 'block';
-    status.style.background = ok ? '#dcfce7' : '#fef9c3';
-    status.style.color      = ok ? '#166534' : '#854d0e';
+    status.style.background = ok ? '#dcfce7' : isWarn ? '#fef9c3' : '#fee2e2';
+    status.style.color      = ok ? '#166534' : isWarn ? '#854d0e' : '#991b1b';
     status.textContent = msg;
   };
   if (!navigator.geolocation) { showSt('❌ GPS not supported on this device.', false); return; }
@@ -7166,11 +7984,12 @@ async function detectAcctLocation() {
       btn.disabled = false;
       btnTxt.textContent = 'Detect My Location';
       const msg = err.code === 1 ? '📵 Location permission denied. Allow location in browser settings.'
-                : err.code === 2 ? '📡 Location unavailable. Try in open area.'
+                : err.code === 2 ? '📡 Location unavailable. Move to open area and try again.'
                 : '⏱️ Timed out. Please try again.';
-      showSt(msg, false);
+      // code 1 = denied (yellow/warn — may be intentional); code 2/3 = red — must retry
+      showSt(msg, false, err.code === 1);
     },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
   );
 }
 
@@ -7180,8 +7999,16 @@ function _acctShowMap(lat, lng) {
   _acctPendingLat = lat; _acctPendingLng = lng;
   _acctPinConfirmed = false;
 
+  let _acctLeafletRetries = 0;
   function _initAcctLeaflet() {
-    if (typeof L === 'undefined') { setTimeout(_initAcctLeaflet, 150); return; }
+    if (typeof L === 'undefined') {
+      if (++_acctLeafletRetries > 33) { // ~5s at 150ms — same limit as signup map
+        const hint = document.getElementById('acct-geocode-hint');
+        if (hint) hint.innerHTML = '⚠️ Map failed to load. Your GPS coordinates are saved — you can still save without the map.';
+        return;
+      }
+      setTimeout(_initAcctLeaflet, 150); return;
+    }
     if (!_acctMap) {
       _acctMap = L.map('acct-leaflet-map', { center:[lat,lng], zoom:17, zoomControl:true, attributionControl:false });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(_acctMap);
@@ -7228,7 +8055,7 @@ function _acctRecenter() {
       _acctUnlockMap();
       if (hint) hint.innerHTML = '📌 Pin unlocked — drag pin or tap map to adjust. Tap <b>Save Location</b> when done.';
     }
-  }, () => toast('Could not get GPS. Try again.'), { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
+  }, () => toast('Could not get GPS. Try again.'), { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
 }
 
 async function _acctUpdateAddress(lat, lng) {
@@ -7244,13 +8071,13 @@ async function _acctUpdateAddress(lat, lng) {
   const chip     = document.getElementById('acct-addr-chip');
   const chipText = document.getElementById('acct-addr-chip-text');
   if (chip && chipText) {
-    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr} <span style="color:#94a3b8;font-size:11px">· fetching Plus Code…</span>`;
+    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}`;
     chip.style.display = 'block';
   }
   const hint = document.getElementById('acct-geocode-hint');
   if (hint) {
     hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr} · <i>fetching Plus Code…</i></span>`;
+      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr}</span>`;
   }
   const box = document.getElementById('acct-addr-box');
   if (box) { box.removeAttribute('readonly'); box.value = _buildSettingsAddress(room, lat, lng, selectedArea, ''); }
@@ -7410,6 +8237,15 @@ async function saveAddress() {
     if (btnTxtEl2) btnTxtEl2.textContent = 'Detect My Location';
     const mapArea2 = document.getElementById('acct-map-pin-area');
     if (mapArea2) mapArea2.style.display = 'none';
+    // Clear form inputs so next open is fully blank
+    const roomEl4 = document.getElementById('acct-room');
+    if (roomEl4) roomEl4.value = '';
+    const areaSearchEl4 = document.getElementById('acct-area-search');
+    if (areaSearchEl4) { areaSearchEl4.value = ''; areaSearchEl4.style.borderColor = ''; }
+    const areaHiddenEl4 = document.getElementById('acct-area');
+    if (areaHiddenEl4) areaHiddenEl4.value = '';
+    const locStEl4 = document.getElementById('acct-loc-status');
+    if (locStEl4) { locStEl4.style.display = 'none'; locStEl4.textContent = ''; }
     toast('✅ Address saved!');
   } catch(e) { toast(e.message || 'Save failed'); }
 }
@@ -8659,6 +9495,10 @@ async function bootApp() {
 
 function _transitionToHome() {
   _isGuestMode = false; // now logged in — clear guest flag
+  // Clear location popup timer — user is now logged in, no need to ask
+  if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
+  const popup = document.getElementById('guest-loc-popup');
+  if (popup) popup.style.display = 'none';
   document.body.classList.remove('auth-mode');
   document.getElementById('app-loader').style.display = 'none';
   document.querySelectorAll('.pg').forEach(p => { p.classList.remove('here'); p.style.transform = ''; });
@@ -8731,6 +9571,230 @@ function _transitionToGuestHome() {
   // within 60s — same as logged-in users. _checkMenuVersion no longer guards
   // on _session so this works correctly for guests.
   startVersionPolling();
+  // Preload delivery zone so first signup detect is instant (non-blocking)
+  _fetchSettings().catch(() => {});
+  // Load any warm coords cached from a previous session (instant, no GPS call)
+  _loadWarmCoordsFromStorage();
+  // Schedule location permission popup (15s delay) + handles already-granted silent warm
+  _scheduleGuestLocPopup();
+}
+
+
+
+/* ── Guest Location Popup ────────────────────────────────────────────────────
+   Shows a "Use My Location" popup to guest users after 15s on site.
+   - If browser permission already granted: skip popup, silently warm GPS.
+   - Allow: browser permission prompt → GPS → _suWarmPos set → signup instant.
+   - Dismiss: re-ask after 30s (max 2 re-asks per session, then stop).
+   - After signup: if _suBgRetryActive, background GPS keeps retrying every 30s
+     and PATCHes address in DB once coords found. ──────────────────────────── */
+
+let _guestLocPopupShown   = false;  // shown at least once this session
+let _guestLocDismissCount = 0;      // how many times user dismissed (max 2 re-asks)
+let _guestLocTimer        = null;   // setTimeout handle
+let _suBgRetryActive      = false;  // background GPS retry running after signup
+let _suBgRetryCount       = 0;      // how many background retries attempted
+let _suBgRetryToken       = 0;      // bumped to orphan stale bg-retry chains on new session
+const _SU_BG_MAX_RETRIES  = 10;     // give up after ~2.5 min (10 retries × 15s gap)
+
+/* Called from _transitionToGuestHome — schedules the popup */
+function _scheduleGuestLocPopup() {
+  if (_guestLocTimer) return; // already scheduled
+
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' }).then(r => {
+
+      if (r.state === 'granted') {
+        // ── CASE 1: Already allowed ──────────────────────────────────────
+        // High-accuracy warm — no prompt, chip starts immediately
+        // Guard: _suWarmPending prevents duplicate if signup tab prewarm already in-flight (BUG 2 fix)
+        if (!_suWarmPos && !_suWarmPending && navigator.geolocation) {
+          _suWarmPending = true;
+          const myWarmToken = _suWarmToken;
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              _suWarmPending = false;
+              if (_suWarmToken !== myWarmToken) return;
+              _suWarmPos = pos;
+              _saveCoordsToStorage(pos);
+            },
+            () => { _suWarmPending = false; },
+            { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+          );
+        }
+        return;
+      }
+
+      if (r.state === 'denied') {
+        // ── CASE 2: Hard denied ──────────────────────────────────────────
+        // Nothing we can do — area dropdown is fallback at signup
+        return;
+      }
+
+      // ── CASE 3: 'prompt' state — permission not yet asked ────────────
+      // Step A: Fire low-accuracy call silently RIGHT NOW.
+      //   - enableHighAccuracy:false + short timeout = no browser prompt on Chrome/Android
+      //   - Side effect: GPS chip starts warming up immediately
+      //   - If it resolves → great, _suWarmPos set, chip warm, popup may not even be needed
+      //   - If it fails / prompts → we catch silently, popup will handle it
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            // Low-accuracy resolved without prompt — chip is warm, save it
+            if (!_suWarmPos) {
+              _suWarmPos = pos;
+              _saveCoordsToStorage(pos);
+            }
+          },
+          () => {
+            // Failed or prompted — that's fine, popup will ask properly
+          },
+          { enableHighAccuracy: false, timeout: 3000, maximumAge: 120000 }
+        );
+      }
+      // Step B: Show popup after 15s to get explicit permission
+      //   (by then chip has had 15s to warm regardless of low-acc result)
+      _guestLocTimer = setTimeout(_showGuestLocPopup, 15000);
+
+    }).catch(() => {
+      // permissions API not supported (older browsers) — just schedule popup
+      _guestLocTimer = setTimeout(_showGuestLocPopup, 15000);
+    });
+  } else {
+    // No permissions API — schedule popup after 15s
+    _guestLocTimer = setTimeout(_showGuestLocPopup, 15000);
+  }
+}
+
+/* Save coords to localStorage — shared helper used by popup allow + low-acc warm */
+function _saveCoordsToStorage(pos) {
+  try {
+    localStorage.setItem('tiffo_warm_coords', JSON.stringify({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      ts: Date.now()
+    }));
+  } catch(e) {}
+}
+
+function _showGuestLocPopup() {
+  // Don't show if user has already logged in / signed up
+  if (!_isGuestMode) return;
+  _guestLocPopupShown = true;
+  const popup = document.getElementById('guest-loc-popup');
+  if (popup) popup.style.display = 'flex';
+}
+
+function _guestLocAllow() {
+  const popup = document.getElementById('guest-loc-popup');
+  if (popup) popup.style.display = 'none';
+  if (!navigator.geolocation) return;
+  // User explicitly allowed — fire high-accuracy GPS, chip already warm from low-acc call
+  // Guard: skip if a prewarm is already in-flight (e.g. signup tab prewarm racing this) (BUG 2 fix)
+  if (!_suWarmPos && !_suWarmPending) {
+    _suWarmPending = true;
+    const myWarmToken = _suWarmToken;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _suWarmPending = false;
+        if (_suWarmToken !== myWarmToken) return;
+        _suWarmPos = pos;
+        _saveCoordsToStorage(pos);
+      },
+      () => { _suWarmPending = false; },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    );
+  }
+}
+
+function _guestLocDismiss() {
+  const popup = document.getElementById('guest-loc-popup');
+  if (popup) popup.style.display = 'none';
+  _guestLocDismissCount++;
+  // Re-ask max 2 times (after 30s each), then stop permanently for this session
+  if (_guestLocDismissCount < 3 && _isGuestMode) {
+    _guestLocTimer = setTimeout(_showGuestLocPopup, 30000);
+  }
+}
+
+/* Load warm coords from localStorage (from a previous session / tab) */
+function _loadWarmCoordsFromStorage() {
+  try {
+    const raw = localStorage.getItem('tiffo_warm_coords');
+    if (!raw) return;
+    const { lat, lng, ts } = JSON.parse(raw);
+    // Only use if less than 10 minutes old
+    if (Date.now() - ts < 10 * 60 * 1000 && lat && lng) {
+      if (!_suWarmPos) {
+        // Construct a mock position object matching GeolocationPosition shape
+        _suWarmPos = { coords: { latitude: lat, longitude: lng, accuracy: 50 } };
+      }
+    }
+  } catch(e) {}
+}
+
+/* ── Background GPS retry after signup (when coords not captured at signup) ──
+   Called from doSignup() success handler when coords were not captured before signup.
+   Strategy: attempt → if fail, wait 15s → attempt → wait 15s → … up to ~2.5 min total.
+   Each attempt uses a 15s GPS timeout (chip already warm from earlier attempts).
+   Does NOT interfere with account creation — runs fully in background, no UI changes.
+   On success: silently PATCHes address in DB and updates local Auth cache.
+   Orphaned by _suBgRetryToken if a new session starts.                          */
+function _startBgGpsRetry(phone, password, area, manualText) {
+  // Bump token — orphans any previous chain (e.g. user re-triggered detect)
+  _suBgRetryToken++;
+  const myBgToken  = _suBgRetryToken;
+  _suBgRetryActive = true;
+  _suBgRetryCount  = 0;
+
+  /* ── Single retry attempt ── */
+  function attempt() {
+    // Abort if: new session started, max retries hit, or geolocation unavailable
+    if (myBgToken !== _suBgRetryToken || !_suBgRetryActive || _suBgRetryCount >= _SU_BG_MAX_RETRIES) {
+      if (myBgToken === _suBgRetryToken) _suBgRetryActive = false;
+      return;
+    }
+    _suBgRetryCount++;
+    if (!navigator.geolocation) { _suBgRetryActive = false; return; }
+
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        // Guard: another session may have started while this was in-flight
+        if (myBgToken !== _suBgRetryToken) return;
+        _suBgRetryActive = false;
+
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        let plusCode = '';
+        try {
+          if (typeof OpenLocationCode !== 'undefined')
+            plusCode = OpenLocationCode.encode(lat, lng, 10);
+        } catch(e) {}
+        let addr = _buildSignupAddress(lat, lng, area, plusCode);
+        if (manualText) addr = `Room No: ${manualText}\n` + addr;
+
+        // ── PATCH address in DB silently — no UI disruption ──
+        try {
+          await api('updateProfile', { phone, address: addr, area, password });
+          // Update local session cache so next page load / profile view shows correct address
+          const u = Auth.get();
+          if (u) { u.address = addr; Auth.set(u); }
+          try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
+        } catch(e) {
+          // API fail — still succeeded at getting coords; next app open will have correct data from localStorage
+        }
+      },
+      () => {
+        // GPS failed this attempt — guard then schedule next attempt in 15s
+        if (myBgToken !== _suBgRetryToken) return;
+        setTimeout(attempt, 15000); // 15s gap: chip warm, no need for longer wait
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } // maximumAge=0: force fresh fix
+    );
+  }
+
+  // Fire first attempt immediately — user may have just walked outside
+  setTimeout(attempt, 0);
 }
 
 function _showGuestAuthSheet(context) {
