@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v37.0  |  Updated : 2026-05-31
+   Version : v38.0  |  Updated : 2026-05-31
 
-   CHANGES v36.0:
-   - Cache bumped to tiffo-v44 for v95 deploy — geocode zone fix
+   CHANGES v38.0:
+   - Cache bumped to tiffo-v46 for v99 deploy — UPI ID updated
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v45'; // bumped for v95 — geocode zone fix
+const CACHE      = 'tiffo-v46'; // bumped for v99 — UPI ID updated
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
