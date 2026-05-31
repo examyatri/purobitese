@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v81                                      ║
+     ║  Version : v99                                      ║
      ║  Updated : 2026-05-30                               ║
      ║  CHANGE  : Fix 1: Server validates store open/closed║
      ║            at createOrder time — returns clear error ║
@@ -4014,12 +4014,21 @@ function switchTab(tab) {
     signupTab.style.display = 'block';
     btnSignup.classList.add('active');
     btnLogin.classList.remove('active');
+    // Kill the guest-loc popup timer — signup has its own GPS flow.
+    // Without this, the 15s popup fires while signup prewarm is in-flight,
+    // causing two simultaneous geolocation requests and a double-dialog conflict.
+    if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
+    const glp = document.getElementById('guest-loc-popup');
+    if (glp) glp.style.display = 'none';
     // Load areas from server (non-blocking)
     if (!_suAreaList.length) _loadSignupAreas();
     // Invalidate any in-flight GPS callbacks from a previous session
     _suAbortToken++;
     _suGpsAttempt = 0;
     _clearRetryCountdown();
+    // Reset geocode state — prevents stale 'done_err' from a previous signup
+    // tab visit blocking doSignup when user reopens the tab.
+    _suGeocodeState = 'idle';
     // GPS prewarm: begin acquiring position while user fills in form.
     // Permission prompt is acceptable here — user explicitly opened signup tab.
     // Guard: skip if a prewarm call is already in-flight (_suWarmPending) or already resolved.
@@ -4219,8 +4228,9 @@ function _evaluateLocation(lat, lng) {
     status.textContent = msg;
   };
 
-  document.getElementById('su-lat').value = lat;
-  document.getElementById('su-lng').value = lng;
+  document.getElementById('su-lat').value      = lat;
+  document.getElementById('su-lng').value      = lng;
+  document.getElementById('su-loc-mode').value = '1'; // GPS — must be set here; doSignup reads this to skip the 'please detect' error
 
   // Reset btn classes + clear any validation highlights
   btn.classList.remove('verified','rejected','loc-btn-required');
@@ -4685,8 +4695,9 @@ async function _autoConfirmSignupPin(lat, lng) {
   const btnTxt    = document.getElementById('su-loc-btn-txt');
   const detectBtn = document.getElementById('su-loc-btn');
 
-  document.getElementById('su-lat').value = lat;
-  document.getElementById('su-lng').value = lng;
+  document.getElementById('su-lat').value      = lat;
+  document.getElementById('su-lng').value      = lng;
+  document.getElementById('su-loc-mode').value = '1'; // GPS — set here so drag→save path also passes doSignup validation
   if (detectBtn) detectBtn.classList.remove('verified','rejected');
 
   const showStatus = (msg, ok, warn) => {
@@ -4922,6 +4933,7 @@ let _suGpsAttempt       = 0;
 let _suAbortToken       = 0;   // stale-callback guard
 let _suRetryTimer       = null;
 let _suManualGeocodeTimer = null;
+let _suPendingAutoSubmit = false; // user tapped Create Account while GPS still running — auto-submit on resolve
 
 /* Legacy bg-GPS stubs — kept so post-signup _suStopBgGps() call at line ~5263
    doesn't throw; the foreground retry loop now handles all visible retries.   */
@@ -4940,11 +4952,13 @@ function _suShowLocStatus(msg, ok, warn) {
 }
 
 /* ── GPS attempt timeouts ────────────────────────────────────────────────────
-   Attempt 1 (first manual tap, prewarm miss): 20s — cold chip needs max time
-   Attempt 2 (immediate — NO countdown gap):   15s — chip already warm after 20s,
-             fire right away; fresh fix still possible without extra wait.
+   Attempt 1 (first manual tap, prewarm miss): 20s — cold chip needs max time.
+             maximumAge=30s: grab any OS-cached pos from last 30s (fresh enough).
+   Attempt 2 (immediate — NO countdown gap):   15s — chip already warm after 20s.
+             maximumAge=120s: attempt 1 already tried 30s cache and failed; during
+             the 20s wait OS may have got a pos from Maps/WhatsApp (45–90s old).
+             2-min-old coords = perfectly accurate for hostel delivery address.
    Attempt 3–5 (background, manual card shown): 10s each, 10s gaps between.
-   maximumAge=0 on attempt 2+ forces a fresh fix (no stale cached position).
    Max attempts = 5 → worst-case ~75s total before giving up gracefully.      */
 const _SU_GPS_T1       = 20000; // attempt 1 timeout
 const _SU_GPS_T2       = 15000; // attempt 2 timeout (fires immediately after attempt 1)
@@ -4975,8 +4989,38 @@ function detectSignupLocation(thisToken) {
   const isManualTap = (thisToken === undefined);
   if (isManualTap) {
     _suAbortToken++;           // invalidates all callbacks from previous sessions
+    _suWarmToken++;            // orphan any in-flight prewarm callback — prevents ghost
+                               // write into _suWarmPos while live GPS runs. Without this,
+                               // a slow prewarm can resolve AFTER the user taps Detect
+                               // (shortcut was skipped because warmPos was null), silently
+                               // writing stale coords that get consumed on the next re-tap.
     _suGpsAttempt = 0;         // reset counter so tap always restarts from attempt 1
+    _suPendingAutoSubmit = false; // clear any pending auto-submit from previous attempt
     _clearRetryCountdown();
+
+    // ── Reset stale geocode state on every fresh detect tap ──────────────────
+    // BUG FIX: if previous geocode was 'done_err', it stays stuck and blocks doSignup
+    // even when user taps Detect again and GPS also fails. Reset to 'idle' so the
+    // outcome of THIS attempt (GPS or re-geocode) is the only thing that matters.
+    if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+    _suGeocodeState = 'idle';
+
+    // ── Clear stale coords from previous geocode on fresh detect tap ─────────
+    // BUG FIX: if a previous geocode placed outside-zone coords in su-lat/su-lng
+    // and locMode='2', the isOutside check in doSignup would fire with stale coords
+    // even if GPS is actively running this session and hasn't resolved yet.
+    // Only clear if coords came from geocode (mode='2'), not from a confirmed GPS (mode='1').
+    const prevMode = document.getElementById('su-loc-mode')?.value || '0';
+    if (prevMode !== '1') {
+      const latEl = document.getElementById('su-lat');
+      const lngEl = document.getElementById('su-lng');
+      const okEl  = document.getElementById('su-loc-ok');
+      if (latEl) latEl.value = '';
+      if (lngEl) lngEl.value = '';
+      if (okEl)  okEl.value  = '0';
+      _pendingLat = null; _pendingLng = null;
+      _suClearZoneStatus();
+    }
   }
   const myToken = _suAbortToken; // captured — this callback will check it on return
 
@@ -4989,13 +5033,16 @@ function detectSignupLocation(thisToken) {
   if (_suWarmPos && isManualTap) {
     const { latitude: lat, longitude: lng } = _suWarmPos.coords;
     _suWarmPos = null;
-    _suWarmToken++;    // orphan any in-flight prewarm callback — prevents ghost re-write (BUG 1 fix)
+    // _suWarmToken already bumped above — prewarm already orphaned
     _suGpsAttempt = 1; // counts as attempt 1 for state tracking
     btn.disabled = false;
     btn.classList.remove('verified', 'rejected');
     btnTxt.textContent = 'Detect My Location';
     document.getElementById('su-loc-status').style.display = 'none';
     document.getElementById('su-retry-bar').style.display  = 'none';
+    // Reset stale geocode state so it can't block doSignup after GPS wins
+    if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+    _suGeocodeState = 'idle';
     _evaluateLocation(lat, lng);
     return;
   }
@@ -5017,8 +5064,12 @@ function detectSignupLocation(thisToken) {
   const isAttempt1 = attempt === 1;
   const isAttempt2 = attempt === 2;
   const gpsTimeout = isAttempt1 ? _SU_GPS_T1 : isAttempt2 ? _SU_GPS_T2 : _SU_GPS_T3;
-  // maximumAge=0 on retry: force fresh fix — never use a stale cached position
-  const maxAge     = isAttempt1 ? 30000 : 0;
+  // maximumAge=120000 on retry: accept OS-cached position up to 2 min old.
+  // Attempt 1 already tried 30s cache and failed — but during that 20s wait,
+  // OS may have received a position from Maps/WhatsApp (45–90s old). That falls
+  // outside the 30s window but inside 2 min. For a hostel delivery address,
+  // 2-min-old coords are accurate — the room doesn't move. Instant result.
+  const maxAge     = isAttempt1 ? 30000 : 120000;
 
   // Only show detecting text on attempt 1 (visible to user).
   // Attempts 2+ are background — restore button to normal immediately so user
@@ -5064,8 +5115,10 @@ function detectSignupLocation(thisToken) {
         _evaluateLocationSilent(lat, lng);
         // ── Smart Update: show GPS chip + update zone row + hide perm banner ──
         _suHidePermBanner();
-        // Cancel any pending geocode (GPS is more accurate)
+        // Cancel any pending geocode (GPS is more accurate) and reset state so
+        // doSignup's geocode-state checks don't fire falsely when locMode='1'.
         if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+        _suGeocodeState = 'idle';
         // Show GPS chip prominently
         const chip = document.getElementById('su-bg-gps-chip');
         if (chip) { chip.style.display = 'block'; }
@@ -5075,8 +5128,14 @@ function detectSignupLocation(thisToken) {
           const dist = _haversineKm(zone.lat, zone.lng, lat, lng);
           if (dist <= zone.radiusKm) {
             _suSetZoneStatus('ok', `✅ GPS confirmed! ${dist.toFixed(1)} km away — within delivery zone.`);
+            // Auto-submit if user tapped Create Account while GPS was in-flight
+            if (_suPendingAutoSubmit) {
+              _suPendingAutoSubmit = false;
+              setTimeout(() => doSignup(), 300);
+            }
           } else {
             // GPS confirmed outside — hard block with OZ popup
+            _suPendingAutoSubmit = false; // cancel pending submit — outside zone
             document.getElementById('su-loc-ok').value = '0';
             _suSetZoneStatus('err', `❌ GPS: ${dist.toFixed(1)} km away — outside our ${zone.radiusKm} km zone`);
             const building = (document.getElementById('su-mf-building')?.value || '').trim();
@@ -5085,11 +5144,25 @@ function detectSignupLocation(thisToken) {
           }
         } else {
           _suSetZoneStatus('ok', `✅ GPS confirmed! Exact location captured.`);
+          // Zone not configured — auto-submit if pending
+          if (_suPendingAutoSubmit) {
+            _suPendingAutoSubmit = false;
+            setTimeout(() => doSignup(), 300);
+          }
         }
       } else {
-        // Manual card not open — normal GPS success flow with full UI
+        // Manual card not open — normal GPS success flow with full UI.
+        // Reset geocode state first so stale 'pending'/'done_err' from a previous
+        // manual-card interaction can't block doSignup when locMode is now '1'.
+        if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+        _suGeocodeState = 'idle';
         _evaluateLocation(lat, lng);
         try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
+        // If user tapped Create Account while GPS was in-flight, auto-submit now
+        if (_suPendingAutoSubmit) {
+          _suPendingAutoSubmit = false;
+          setTimeout(() => doSignup(), 300); // brief delay so map renders first
+        }
       }
     },
     err => {
@@ -5101,6 +5174,7 @@ function detectSignupLocation(thisToken) {
 
       // Permission denied — show yellow banner with browser instructions
       if (err.code === 1) {
+        _suPendingAutoSubmit = false; // can't auto-submit without location permission
         _suShowPermBanner();
         _suShowManualCard();
         _clearRetryCountdown();
@@ -5147,6 +5221,7 @@ function detectSignupLocation(thisToken) {
       } else {
         // Final attempt exhausted — silent. Manual card already showing.
         // User's typed address or text-mode address will be used at signup.
+        _suPendingAutoSubmit = false; // GPS gave up — user must submit manually
         _clearRetryCountdown();
         btn.disabled = false;
         btnTxt.textContent = 'Detect My Location';
@@ -5488,7 +5563,7 @@ async function doSignup() {
   const su_lng       = document.getElementById('su-lng')?.value || '';
   const locMode      = document.getElementById('su-loc-mode')?.value || '0'; // '0'=none,'1'=GPS,'2'=manual
   const locOk        = document.getElementById('su-loc-ok')?.value || '0';
-  const isOutside    = locOk === '0' && locMode !== '0' && !!su_lat; // only if coords captured + confirmed outside
+  const isOutside    = locOk === '0' && locMode !== '0' && !!su_lat && _suMapLocked; // only if coords confirmed + zone check complete
 
   // Structured manual fields
   const mfBuilding = (document.getElementById('su-mf-building')?.value || '').trim();
@@ -5553,7 +5628,21 @@ async function doSignup() {
   }
 
   // Location validation — strict zone enforcement
-  if (locMode === '0') {
+  if (locMode === '0' && _suGpsAttempt > 0) {
+    // GPS is actively running — user tapped submit while detection in-flight.
+    // Don't error: set flag so GPS success auto-triggers submit, then show brief status.
+    _suPendingAutoSubmit = true;
+    const statusEl2 = document.getElementById('su-loc-status');
+    if (statusEl2) {
+      statusEl2.style.display = 'block';
+      statusEl2.style.background = '#fef9c3';
+      statusEl2.style.color = '#854d0e';
+      statusEl2.textContent = '📍 Getting your location… submitting automatically once confirmed.';
+    }
+    // Scroll to show the status
+    setTimeout(() => statusEl2?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    return;
+  } else if (locMode === '0') {
     // Nothing detected, nothing typed
     errors.push({ errId: 'su-loc-err', msg: '📍 Please tap "Detect My Location" to pin your spot, or fill in your address below.', inputId: null, scrollTo: 'su-loc-btn' });
   } else if (locMode === '2' && !mfBuilding && !mfRoom) {
@@ -5563,14 +5652,14 @@ async function doSignup() {
     errors.push({ errId: 'su-loc-err', msg: '🏠 Building / Hostel Name is required.', inputId: 'su-mf-building', scrollTo: 'su-mf-building' });
   } else if (locMode === '2' && !mfRoom) {
     errors.push({ errId: 'su-loc-err', msg: '🚪 Room / Flat No. & Landmark is required.', inputId: 'su-mf-room', scrollTo: 'su-mf-room' });
-  } else if (_suGeocodeState === 'pending' || (_suManualGeocodeTimer !== null)) {
-    // Debounce still in flight — ask user to wait
+  } else if ((_suGeocodeState === 'pending' || (_suManualGeocodeTimer !== null)) && locMode !== '1') {
+    // Debounce still in flight — ask user to wait (GPS already confirmed skips this)
     errors.push({ errId: 'su-loc-err', msg: '⏳ Please wait — checking delivery availability for your address…', inputId: null, scrollTo: 'su-zone-status-row' });
     // Also trigger geocode immediately
     if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
     _suForwardGeocode(_suBuildStructuredAddr());
-  } else if (_suGeocodeState === 'done_err') {
-    // Nominatim failed — zone unverified, block signup
+  } else if (_suGeocodeState === 'done_err' && locMode !== '1') {
+    // Nominatim failed — zone unverified, block signup (GPS confirmed skips this)
     errors.push({ errId: 'su-loc-err', msg: '📍 Address could not be verified on map. Please tap “Use GPS instead” in the status bar above, or try “Detect My Location”.', inputId: null, scrollTo: 'su-zone-status-row' });
   } else if (isOutside) {
     // GPS confirmed outside OR geocode confirmed outside — hard block
@@ -5680,17 +5769,11 @@ async function doSignup() {
     // Also orphan any in-flight foreground retry loop (bump token so stale callbacks self-cancel)
     _suAbortToken++;
 
-    // ── Post-signup background GPS PATCH ─────────────────────────────────────
-    // If GPS coords were NOT captured before signup (user typed address manually), start
-    // a silent background GPS retry that will PATCH the DB as soon as coords arrive.
-    // This runs completely in background — does NOT affect or re-trigger any UI.
-    // Check both the hidden su-lat input (GPS pre-signup) and _pendingLat (from Leaflet pin).
-    const _suLatVal = document.getElementById('su-lat')?.value;
-    const _hasCoords = !!_suLatVal || (_pendingLat !== null && _pendingLat !== undefined);
-    if (!_hasCoords) {
-      // No coords yet — start background retry (instant first attempt, then 15s gaps, ~2.5 min)
-      _startBgGpsRetry(phone, pw, selectedArea, manualText);
-    }
+    // ── Coordinate policy: set ONCE at signup, never auto-updated ────────────
+    // GPS coords captured during signup are permanent delivery coordinates.
+    // If user signed up with manual address (no GPS), that address is their delivery address.
+    // Coordinates can only be changed by the user manually via Settings → Update Address.
+    // No background GPS retry — intentionally removed to prevent silent DB overwrites.
     // Clear guest location popup — user is now registered, no need to ask
     if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
     // btn stays disabled — user is being navigated away
@@ -9135,6 +9218,29 @@ document.addEventListener('visibilitychange', () => {
     // Always restart background timers
     startPolling();
     startVersionPolling();
+
+    // ── SIGNUP GPS RE-ATTEMPT ON TAB RETURN ──────────────────────────────────
+    // If user left the tab while signup GPS was in-flight (e.g. checked hostel room
+    // number on WhatsApp), the GPS attempt may have timed out while they were away.
+    // On return: if pg-auth is the active page AND signup tab is open AND user had
+    // already tapped Detect (_suGpsAttempt > 0) AND GPS not yet confirmed,
+    // silently restart. Only for absences > 5s (ignores brief lock-screen taps).
+    // NOTE: _isGuestMode is always false on pg-auth, so we check pg-auth directly.
+    if (awayMs > 5000) {
+      setTimeout(() => {
+        const pgAuth     = document.getElementById('pg-auth');
+        const onAuthPage = pgAuth && pgAuth.classList.contains('here');
+        if (!onAuthPage) return;
+        const signupTab  = document.getElementById('signup-tab');
+        const signupOpen = signupTab && signupTab.style.display !== 'none';
+        if (!signupOpen) return;
+        const locMode = document.getElementById('su-loc-mode')?.value || '0';
+        if (locMode === '1') return; // GPS already confirmed, nothing to do
+        if (_suGpsAttempt > 0 && !_suWarmPos) {
+          detectSignupLocation(undefined); // restart as fresh manual tap
+        }
+      }, 500);
+    }
   }
 });
 
@@ -9586,16 +9692,13 @@ function _transitionToGuestHome() {
    - If browser permission already granted: skip popup, silently warm GPS.
    - Allow: browser permission prompt → GPS → _suWarmPos set → signup instant.
    - Dismiss: re-ask after 30s (max 2 re-asks per session, then stop).
-   - After signup: if _suBgRetryActive, background GPS keeps retrying every 30s
-     and PATCHes address in DB once coords found. ──────────────────────────── */
+   - Coords are set ONCE at signup. Address changes only via Settings → Update Address. */
 
 let _guestLocPopupShown   = false;  // shown at least once this session
 let _guestLocDismissCount = 0;      // how many times user dismissed (max 2 re-asks)
 let _guestLocTimer        = null;   // setTimeout handle
-let _suBgRetryActive      = false;  // background GPS retry running after signup
-let _suBgRetryCount       = 0;      // how many background retries attempted
-let _suBgRetryToken       = 0;      // bumped to orphan stale bg-retry chains on new session
-const _SU_BG_MAX_RETRIES  = 10;     // give up after ~2.5 min (10 retries × 15s gap)
+// Note: _startBgGpsRetry removed — coordinates are set ONCE at signup.
+// User changes address only via Settings → Update Address (manual, user-controlled).
 
 /* Called from _transitionToGuestHome — schedules the popup */
 function _scheduleGuestLocPopup() {
@@ -9680,6 +9783,9 @@ function _saveCoordsToStorage(pos) {
 function _showGuestLocPopup() {
   // Don't show if user has already logged in / signed up
   if (!_isGuestMode) return;
+  // Don't show if signup tab is active — signup manages its own GPS flow and
+  // showing this popup simultaneously causes a double permission dialog conflict.
+  if (document.getElementById('signup-tab')?.style.display !== 'none') return;
   _guestLocPopupShown = true;
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'flex';
@@ -9723,7 +9829,10 @@ function _loadWarmCoordsFromStorage() {
     const raw = localStorage.getItem('tiffo_warm_coords');
     if (!raw) return;
     const { lat, lng, ts } = JSON.parse(raw);
-    // Only use if less than 10 minutes old
+    // Use if less than 10 minutes old — warm coords are only useful for the
+    // signup prewarm shortcut (consumed once on first detect tap). A new visitor
+    // who filled the form and left rarely returns within the same session window;
+    // 10 min is the right TTL for this single-use optimization.
     if (Date.now() - ts < 10 * 60 * 1000 && lat && lng) {
       if (!_suWarmPos) {
         // Construct a mock position object matching GeolocationPosition shape
@@ -9731,70 +9840,6 @@ function _loadWarmCoordsFromStorage() {
       }
     }
   } catch(e) {}
-}
-
-/* ── Background GPS retry after signup (when coords not captured at signup) ──
-   Called from doSignup() success handler when coords were not captured before signup.
-   Strategy: attempt → if fail, wait 15s → attempt → wait 15s → … up to ~2.5 min total.
-   Each attempt uses a 15s GPS timeout (chip already warm from earlier attempts).
-   Does NOT interfere with account creation — runs fully in background, no UI changes.
-   On success: silently PATCHes address in DB and updates local Auth cache.
-   Orphaned by _suBgRetryToken if a new session starts.                          */
-function _startBgGpsRetry(phone, password, area, manualText) {
-  // Bump token — orphans any previous chain (e.g. user re-triggered detect)
-  _suBgRetryToken++;
-  const myBgToken  = _suBgRetryToken;
-  _suBgRetryActive = true;
-  _suBgRetryCount  = 0;
-
-  /* ── Single retry attempt ── */
-  function attempt() {
-    // Abort if: new session started, max retries hit, or geolocation unavailable
-    if (myBgToken !== _suBgRetryToken || !_suBgRetryActive || _suBgRetryCount >= _SU_BG_MAX_RETRIES) {
-      if (myBgToken === _suBgRetryToken) _suBgRetryActive = false;
-      return;
-    }
-    _suBgRetryCount++;
-    if (!navigator.geolocation) { _suBgRetryActive = false; return; }
-
-    navigator.geolocation.getCurrentPosition(
-      async pos => {
-        // Guard: another session may have started while this was in-flight
-        if (myBgToken !== _suBgRetryToken) return;
-        _suBgRetryActive = false;
-
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        let plusCode = '';
-        try {
-          if (typeof OpenLocationCode !== 'undefined')
-            plusCode = OpenLocationCode.encode(lat, lng, 10);
-        } catch(e) {}
-        let addr = _buildSignupAddress(lat, lng, area, plusCode);
-        if (manualText) addr = `Room No: ${manualText}\n` + addr;
-
-        // ── PATCH address in DB silently — no UI disruption ──
-        try {
-          await api('updateProfile', { phone, address: addr, area, password });
-          // Update local session cache so next page load / profile view shows correct address
-          const u = Auth.get();
-          if (u) { u.address = addr; Auth.set(u); }
-          try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
-        } catch(e) {
-          // API fail — still succeeded at getting coords; next app open will have correct data from localStorage
-        }
-      },
-      () => {
-        // GPS failed this attempt — guard then schedule next attempt in 15s
-        if (myBgToken !== _suBgRetryToken) return;
-        setTimeout(attempt, 15000); // 15s gap: chip warm, no need for longer wait
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 } // maximumAge=0: force fresh fix
-    );
-  }
-
-  // Fire first attempt immediately — user may have just walked outside
-  setTimeout(attempt, 0);
 }
 
 function _showGuestAuthSheet(context) {
@@ -9887,8 +9932,16 @@ async function _gasDoLogin() {
     Auth.set(res.user);
     _session.is_subscriber = !!res.subscriber;
     _walletBal = res.walletBalance || 0;
+    // Set _pauseMode from server response (same as doLogin does) so SessionCache.save
+    // below always persists the correct pause state — not the default 'none'.
+    // refreshPauseStatus in _doPostLoginRefresh will also run and correct display,
+    // but this ensures the cached value is right even if that request fails.
+    if (res.subscriber) {
+      _pauseMode = res.subscriber.pause_delivery || 'none';
+      Auth.patch({ plan: res.subscriber.plan || 'morning' });
+      applyPauseState(_pauseMode);
+    }
     updateWalletUI(_walletBal);
-    if (res.subscriber) { Auth.patch({ plan: res.subscriber.plan || 'morning' }); }
     showMenuSkeletons();
     _transitionToHome();
     // If user was going to cart → open it right away

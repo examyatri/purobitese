@@ -1,12 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v36.0  |  Updated : 2026-05-30
+   Version : v37.0  |  Updated : 2026-05-31
 
    CHANGES v36.0:
    - Cache bumped to tiffo-v44 for v95 deploy — geocode zone fix
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v44'; // bumped for v95 — geocode zone fix
+const CACHE      = 'tiffo-v45'; // bumped for v95 — geocode zone fix
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
