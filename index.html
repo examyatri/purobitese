@@ -1,17 +1,23 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v105                                     ║
+     ║  Version : v106                                     ║
      ║  Updated : 2026-06-01                               ║
-     ║  CHANGE  : UI Polish:                               ║
-     ║            Fix 1: First Tiffin FREE card — clean   ║
-     ║            layout: icon + text + CLAIM only.        ║
-     ║            Fix 2: Monthly Plan card — stripped to  ║
-     ║            title + SAVE₹1200 + Free Delivery only.  ║
-     ║            Fix 3: Auth page — sticky branding       ║
-     ║            header; logo always visible on signup.   ║
-     ║            Fix 4: Login page Create Account text   ║
-     ║            replaced with full green button.         ║
+     ║  CHANGE  : Android Back Navigation — 4 bug fixes:  ║
+     ║            Fix 1: _transitionToLogin — pushState   ║
+     ║            instead of replaceState so back returns ║
+     ║            to guest home instead of exiting app.   ║
+     ║            Fix 2: _transitionToHome /              ║
+     ║            _transitionToGuestHome — sentinel       ║
+     ║            pattern (replaceState+pushState) so     ║
+     ║            back on home fires popstate not exit.   ║
+     ║            Fix 3: back() re-establishes sentinel   ║
+     ║            when returning to pg-home so next back  ║
+     ║            still shows exit toast, not app exit.   ║
+     ║            Fix 4: _pgHashMap — added pg-recharge,  ║
+     ║            pg-success, pg-success-insuf,           ║
+     ║            pg-success-sub (were missing → empty    ║
+     ║            URL string on pushState).               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -3957,7 +3963,7 @@ function openWhatsAppPlan() {
 /* ═══════════════════════════════════════════
    ROUTING
 ═══════════════════════════════════════════ */
-const _pgHashMap = { 'pg-home':'', 'pg-cart':'cart', 'pg-orders':'orders', 'pg-account':'account', 'pg-khata':'wallet' };
+const _pgHashMap = { 'pg-home':'', 'pg-cart':'cart', 'pg-orders':'orders', 'pg-account':'account', 'pg-khata':'wallet', 'pg-recharge':'recharge', 'pg-success':'success', 'pg-success-insuf':'success', 'pg-success-sub':'success' };
 function _pgHash(id) {
   const h = _pgHashMap[id];
   return h !== undefined ? (h ? '#' + h : location.pathname + location.search) : '';
@@ -3985,8 +3991,6 @@ function nav(id) {
   // cart-fab removed; badge in bottom-nav handles cart count
 }
 
-let _backInProgress = false; // guard: back() calling history.back() should not re-trigger popstate logic
-
 function back() {
   if (_stack.length < 2) return;
   _stack.pop();
@@ -3997,8 +4001,16 @@ function back() {
   if (!target) return;
   target.classList.add('here');
   target.style.transform = '';
-  _backInProgress = true;
-  history.back(); // consume the pushState entry nav() added; popstate will fire but _backInProgress guard skips it
+  // FIX A: update URL hash when going back.
+  // When returning to pg-home, re-establish the sentinel pattern:
+  // replaceState a sentinel BEFORE home, then pushState home — so the next
+  // back press fires popstate (hits sentinel) instead of exiting the app.
+  if (prev === 'pg-home') {
+    history.replaceState({pg:'_sentinel',stackLen:0},'', _pgHash(prev));
+    history.pushState({pg:'pg-home',stackLen:1},'', _pgHash(prev));
+  } else {
+    history.replaceState({pg:prev,stackLen:_stack.length},'', _pgHash(prev));
+  }
   updateBottomNav(prev);
   onEnter(prev);
 }
@@ -9416,8 +9428,6 @@ function _wipeAndShowLogin() {
   if (_authBack) _authBack.style.display = 'none';
   // Go to login (signup tab = fresh start, no prefill)
   _transitionToLogin(false);
-  // Override stack: no pg-home base — back from forced-logout auth screen should exit app, not show home
-  _stack = ['pg-auth'];
 }
 
 async function bootApp() {
@@ -9706,7 +9716,14 @@ function _transitionToHome() {
   home.classList.add('here');
   home.style.transform = '';
   _stack = ['pg-home'];
-  history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
+  // FIX: Push a sentinel entry BEFORE the home state so Android back fires popstate
+  // instead of navigating the browser away entirely. Without this, the first back press
+  // on home exits the app with no chance to show the "press again to exit" toast.
+  // replaceState sets the sentinel (doesn't add visible entry), then pushState adds
+  // the real home entry on top — pressing back lands on the sentinel, popstate fires,
+  // and our handler can push again + show the toast/exit dialog.
+  history.replaceState({pg:'_sentinel',stackLen:0},'', location.pathname + location.search);
+  history.pushState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
   updateBottomNav('pg-home');
   updateCartBadge();
   _applySubscriberUI();
@@ -9724,8 +9741,14 @@ function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
   const auth = document.getElementById('pg-auth');
   auth.classList.add('here');
   auth.style.transform = '';
+  // FIX: Use pushState (not replaceState) so the browser has a real history entry
+  // to come back from. Without this, pressing back on Android exits the app entirely
+  // because there is no previous entry — popstate never fires.
+  // We replaceState the home base first (ensures home is the entry before auth),
+  // then pushState for pg-auth so back() can pop it correctly.
   _stack = ['pg-home', 'pg-auth']; // pg-home as base so back returns to guest home
-  history.replaceState({pg:'pg-auth',stackLen:2},'', location.pathname + location.search);
+  history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
+  history.pushState({pg:'pg-auth',stackLen:2},'', location.pathname + location.search);
   if (showLoginTab) {
     document.getElementById('tab-login').click();
     setTimeout(() => prefillLoginForm(wrongCreds), 100);
@@ -9749,7 +9772,9 @@ function _transitionToGuestHome() {
   home.classList.add('here');
   home.style.transform = '';
   _stack = ['pg-home'];
-  history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
+  // FIX: Same sentinel pattern as _transitionToHome — guarantees popstate fires on back
+  history.replaceState({pg:'_sentinel',stackLen:0},'', location.pathname + location.search);
+  history.pushState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
   updateBottomNav('pg-home');
   updateCartBadge();
   // Show guest avatar state
@@ -10219,62 +10244,45 @@ function _doExitApp() {
 }
 
 // Handle hardware back button (Android)
-// NOTE: When popstate fires, the browser has ALREADY moved back in its own history.
-// We must NOT call history.go() or history.back() — just sync the UI to match.
-// We use pushState to re-add an entry when we want to "cancel" the browser's back action.
-window.addEventListener('popstate', () => {
-  // ── 0. back() called history.back() to sync browser — UI already updated, skip
-  if (_backInProgress) {
-    _backInProgress = false;
-    return;
-  }
-
-  // ── 1. Exit dialog open → close it, re-push so we stay at root
+window.addEventListener('popstate', (e) => {
+  // If exit dialog is showing, close it (treat back as "Stay")
   if (_exitDialogOpen) {
-    const top = _stack[_stack.length - 1] || 'pg-home';
-    history.pushState({ pg: top, stackLen: _stack.length }, '', _pgHash(top));
+    history.pushState({ pg: 'pg-home', stackLen: 1 }, '', location.href);
     _hideExitConfirm();
     return;
   }
 
-  // ── 2. Sheet/modal open → close it, re-push so we stay at current page
+  // If any open sheet/modal is visible, close it first
   const sheet = document.querySelector('.sheet.open');
   if (sheet) {
-    const top = _stack[_stack.length - 1] || 'pg-home';
-    history.pushState({ pg: top, stackLen: _stack.length }, '', _pgHash(top));
+    history.pushState({ pg: 'pg-home', stackLen: 1 }, '', location.href);
+    // Close whichever sheet is open
     const backdrop = document.querySelector('.sheet-backdrop.show, #guest-auth-backdrop.show');
     if (backdrop) backdrop.click();
     return;
   }
 
-  // ── 3. Stack has pages to go back to → update UI only (browser already went back)
-  if (_stack.length >= 2) {
-    _stack.pop();
-    const prev = _stack[_stack.length - 1];
-    const cur = document.querySelector('.pg.here');
-    if (cur) { cur.classList.remove('here'); cur.style.transform = ''; }
-    const target = document.getElementById(prev);
-    if (target) { target.classList.add('here'); target.style.transform = ''; }
-    updateBottomNav(prev);
-    onEnter(prev);
-    return;
-  }
-
-  // ── 4. At root (stack 0 or 1) — re-push to prevent browser leaving the app
-  const top = _stack[_stack.length - 1] || 'pg-home';
-  history.pushState({ pg: top, stackLen: _stack.length }, '', _pgHash(top));
-
-  // If no page visible yet (boot race), do nothing
-  const activePg = document.querySelector('.pg.here');
-  if (!activePg) return;
-
-  // ── 5. Double-back to exit
-  const now = Date.now();
-  if (now - _exitBackTs < 2000) {
-    _showExitConfirm();
+  if (_stack.length < 2) {
+    // At root (home or auth) — push a new entry so browser doesn't navigate away.
+    // This fires when the sentinel entry is hit (transition back to _sentinel state).
+    history.pushState({ pg: 'pg-home', stackLen: 1 }, '', location.href);
+    const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || _session);
+    if (isLoggedIn || _isGuestMode) {
+      const now = Date.now();
+      if (now - _exitBackTs < 2000) {
+        // Second back within 2 s → show exit confirm
+        _showExitConfirm();
+      } else {
+        // First back → hint toast, start 2 s window
+        _exitBackTs = now;
+        toast('Press back again to exit', 2000);
+      }
+    }
+    // If not logged in and not guest (e.g. straight to login on first visit),
+    // just silently push back — exit is handled by the browser naturally after
+    // the user dismisses the app.
   } else {
-    _exitBackTs = now;
-    toast('Press back again to exit', 2000);
+    back();
   }
 });
 
