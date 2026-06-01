@@ -16,7 +16,7 @@
      ║            on slot transition — keeps selection if   ║
      ║            category exists in new slot, resets with  ║
      ║            toast if not. Slot-open toast on home tab.║
-     ║            SW cache bumped: tiffo-v46.              ║
+     ║            SW cache bumped: tiffo-v47.              ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1003,6 +1003,37 @@ textarea{resize:vertical;min-height:80px}
 .monthly-plan-card:active{transform:scale(.98)}
 .monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
 .monthly-plan-card::after{content:'';position:absolute;bottom:-30px;right:40px;width:70px;height:70px;background:rgba(255,255,255,.08);border-radius:50%}
+/* ── First Tiffin FREE banner (guest mode only) ──
+   Design: Light bordered card (not filled dark gradient) because:
+   - Cutoff banner below is already a dark filled gradient card
+   - Two dark gradient cards stacked = visually heavy, low hierarchy
+   - Light amber border on cream bg = stands out WITHOUT competing
+   - Amber (#92400e text, #fef3c7 bg) is already in the design system
+   - Glow pulse on the border box-shadow = attention without aggression
+   - Clean, professional, consistent with app's card language
+── */
+#first-tiffin-free-btn{
+  display:none;text-decoration:none;
+  align-items:center;gap:14px;
+  background:linear-gradient(135deg,#fffbeb,#fef3c7);
+  border:2px solid #f59e0b;
+  border-radius:18px;padding:14px 16px;margin-bottom:12px;
+  cursor:pointer;
+  box-shadow:0 4px 16px rgba(245,158,11,.20);
+  position:relative;overflow:hidden;
+  transition:transform 140ms ease;
+  animation:ftf-glow 2.8s ease-in-out infinite;
+  will-change:box-shadow;
+}
+#first-tiffin-free-btn:active{transform:scale(.97)}
+@keyframes ftf-glow{
+  0%,100%{box-shadow:0 4px 16px rgba(245,158,11,.20);border-color:#f59e0b}
+  50%{box-shadow:0 6px 24px rgba(245,158,11,.45),0 0 0 3px rgba(245,158,11,.12);border-color:#d97706}
+}
+@keyframes ftf-shimmer{
+  0%{transform:translateX(-130%) skewX(-12deg)}
+  100%{transform:translateX(240%) skewX(-12deg)}
+}
 /* Cutoff card */
 #cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;transition:all 300ms}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(42,157,143,.5)}70%{box-shadow:0 0 0 8px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
@@ -1686,7 +1717,7 @@ input[type=number]{-moz-appearance:textfield}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:none}
 .backdrop.show{display:block}
 /* ── Guest Auth Sheet ── */
-#guest-auth-sheet{z-index:1010;max-height:92vh;overflow-y:auto;overscroll-behavior:contain}
+#guest-auth-sheet{z-index:1010;max-height:92vh;overflow-y:auto;overscroll-behavior:contain;padding:0!important}
 #guest-auth-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1009;display:none}
 #guest-auth-backdrop.show{display:block}
 #guest-home-avatar{background:#f1f5f9;border:1.5px dashed #cbd5e1}
@@ -1854,24 +1885,25 @@ input[type=number]{-moz-appearance:textfield}
      Reuses existing pg-auth tab UI logic (switchTab / doLogin / doSignup)
      ══════════════════════════════════════════════ -->
 <div id="guest-auth-backdrop" onclick="_closeGuestAuthSheet()"></div>
-<div id="guest-auth-sheet" class="sheet" style="padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <div>
-      <div style="font-size:17px;font-weight:800;color:#0f172a;font-family:var(--ff)">Sign in to continue</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:2px;font-family:var(--ff)" id="gas-subtitle">Login or create your account</div>
-    </div>
-    <button onclick="_closeGuestAuthSheet()" style="border:none;background:#f1f5f9;border-radius:10px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#64748b">✕</button>
+<div id="guest-auth-sheet" class="sheet" style="padding:0;overflow:hidden">
+
+  <!-- ── Coloured header — brand gradient ── -->
+  <div style="background:var(--grad);padding:18px var(--pg-pad) 16px;position:relative;overflow:hidden">
+    <!-- decorative circles -->
+    <div style="position:absolute;top:-24px;right:-20px;width:90px;height:90px;background:rgba(255,255,255,.12);border-radius:50%;pointer-events:none"></div>
+    <div style="position:absolute;bottom:-18px;left:-14px;width:60px;height:60px;background:rgba(255,255,255,.08);border-radius:50%;pointer-events:none"></div>
+    <!-- close btn -->
+    <button onclick="_closeGuestAuthSheet()" style="position:absolute;top:14px;right:var(--pg-pad);border:none;background:rgba(255,255,255,.2);border-radius:10px;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;z-index:1">✕</button>
+    <!-- title -->
+    <div style="font-size:18px;font-weight:800;color:#fff;font-family:var(--ff);position:relative;z-index:1" id="gas-title">Sign in to continue</div>
+    <div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:3px;font-family:var(--ff);position:relative;z-index:1" id="gas-subtitle">🎁 First Tiffin FREE for new users!</div>
   </div>
 
-  <!-- Tab switcher -->
-  <div style="display:flex;background:#f1f5f9;border-radius:12px;padding:3px;margin-bottom:16px;gap:3px">
-    <button id="gas-tab-login" onclick="_gasTab('login')" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:700;cursor:pointer;transition:all 200ms;background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1)">Login</button>
-    <button id="gas-tab-signup" onclick="_gasGoFullSignup()" style="flex:1;border:none;padding:9px;border-radius:10px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;transition:all 200ms;background:transparent;color:#64748b">Sign Up</button>
-  </div>
+  <!-- ── Body ── -->
+  <div style="padding:18px var(--pg-pad) calc(18px + env(safe-area-inset-bottom,0px))">
 
-  <!-- Login panel -->
-  <div id="gas-login-panel">
-    <div style="margin-bottom:12px">
+    <!-- Login fields -->
+    <div style="margin-bottom:10px">
       <input id="gas-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="WhatsApp number (10 digits)"
         style="width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:var(--ff);box-sizing:border-box;outline:none"
         onkeydown="if(event.key==='Enter')document.getElementById('gas-pw').focus()">
@@ -1882,14 +1914,31 @@ input[type=number]{-moz-appearance:textfield}
         onkeydown="if(event.key==='Enter')_gasDoLogin()">
       <button onclick="togglePw('gas-pw',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:4px">👁</button>
     </div>
-    <div id="gas-login-status" style="font-size:13px;color:#dc2626;min-height:18px;margin-bottom:8px;padding-left:2px;font-family:var(--ff)"></div>
+    <div id="gas-login-status" style="font-size:13px;color:#dc2626;min-height:18px;margin-bottom:6px;padding-left:2px;font-family:var(--ff)"></div>
+
+    <!-- Login button -->
     <button id="gas-login-btn" onclick="_gasDoLogin()"
-      style="width:100%;padding:14px;background:var(--p);color:#fff;border:none;border-radius:13px;font-size:15px;font-weight:700;font-family:var(--ff);cursor:pointer">
+      style="width:100%;padding:14px;background:var(--grad);color:#fff;border:none;border-radius:13px;font-size:15px;font-weight:700;font-family:var(--ff);cursor:pointer;box-shadow:0 4px 14px rgba(230,57,70,.30)">
       Login &amp; Continue →
     </button>
-    <button onclick="forgotPw()" style="width:100%;border:none;background:none;color:var(--p);font-size:13px;font-family:var(--ff);font-weight:600;cursor:pointer;margin-top:10px;padding:4px">Forgot password?</button>
-  </div>
+    <button onclick="forgotPw()" style="width:100%;border:none;background:none;color:var(--p);font-size:12px;font-family:var(--ff);font-weight:600;cursor:pointer;margin-top:8px;padding:4px">Forgot password?</button>
 
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0">
+      <div style="flex:1;height:1px;background:#f0f0f0"></div>
+      <div style="font-family:var(--fb);font-size:11px;color:#94a3b8;white-space:nowrap">New to Tiffo?</div>
+      <div style="flex:1;height:1px;background:#f0f0f0"></div>
+    </div>
+
+    <!-- Create Account button — bright, unmissable -->
+    <button onclick="_gasGoFullSignup()"
+      style="width:100%;padding:14px;background:linear-gradient(135deg,#fffbeb,#fef3c7);color:#92400e;border:2px solid #f59e0b;border-radius:13px;font-size:15px;font-weight:800;font-family:var(--ff);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 16px rgba(245,158,11,.25)">
+      <span style="font-size:18px">🎁</span>
+      <span>Create Account — First Tiffin FREE!</span>
+    </button>
+    <div style="font-family:var(--fb);font-size:11px;color:#94a3b8;text-align:center;margin-top:8px">First Tiffin FREE · New users only</div>
+
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════
@@ -1917,6 +1966,11 @@ input[type=number]{-moz-appearance:textfield}
     <div class="auth-logo">🍱 Tiffo</div>
     <div class="auth-sub">Ghar Ka Tiffin 😍</div>
     <div class="auth-tagline">Fresh, homestyle meals delivered to your door</div>
+    <!-- First Tiffin FREE offer pill -->
+    <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.45);border-radius:20px;padding:5px 14px;margin-top:10px;position:relative;z-index:1">
+      <span style="font-size:14px">🎁</span>
+      <span style="font-family:var(--ff);font-size:12px;font-weight:700;color:#fff;letter-spacing:.1px">First Tiffin FREE — New Users!</span>
+    </div>
   </div>
   <div class="auth-card">
     <div class="tab-bar">
@@ -1942,6 +1996,14 @@ input[type=number]{-moz-appearance:textfield}
       <div id="login-status" class="auth-status" style="display:none"></div>
       <div class="mt16">
         <button class="btn-primary" id="login-btn" onclick="doLogin()">Login</button>
+      </div>
+      <!-- First Tiffin FREE — nudge new users to signup -->
+      <div style="margin-top:14px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #f59e0b;border-radius:13px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-family:var(--ff);font-size:13px;font-weight:800;color:#92400e">🎁 First Tiffin FREE!</div>
+          <div style="font-family:var(--fb);font-size:11.5px;color:#b45309;margin-top:2px">New user ho? Sign up karo aur claim karo</div>
+        </div>
+        <button onclick="switchTab('signup')" style="border:none;background:#f59e0b;color:#fff;border-radius:10px;padding:8px 14px;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Sign Up →</button>
       </div>
     </div>
 
@@ -2139,6 +2201,15 @@ input[type=number]{-moz-appearance:textfield}
 
       <div class="field-error" id="su-loc-err" style="margin-top:-10px;margin-bottom:10px"></div>
 
+      <!-- First Tiffin FREE reminder — right before submit -->
+      <div style="margin-top:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:13px;padding:11px 14px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px;flex-shrink:0">🎉</span>
+        <div>
+          <div style="font-family:var(--ff);font-size:13px;font-weight:800;color:#15803d">First Tiffin FREE milega!</div>
+          <div style="font-family:var(--fb);font-size:11.5px;color:#16a34a;margin-top:1px">Account banate hi claim kar sakte ho</div>
+        </div>
+      </div>
+
       <div style="margin-top:12px;padding-bottom:16px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
         <button class="btn-primary" id="su-btn" onclick="doSignup()" style="letter-spacing:0.3px;font-size:15px;position:relative;overflow:hidden">
@@ -2166,7 +2237,9 @@ input[type=number]{-moz-appearance:textfield}
       <!-- Logo (hidden when search is open) -->
       <div class="home-header-logo" id="hdr-logo">
         <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
-        <div class="home-logo-sub">Ghar Ka Tiffin 😍</div>
+        <div class="home-logo-sub" id="hdr-logo-sub">Ghar Ka Tiffin 😍</div>
+        <!-- shown in guest mode only via JS -->
+        <div id="hdr-free-tag" style="display:none;font-family:var(--ff);font-size:10px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #f59e0b;border-radius:20px;padding:2px 8px;margin-top:3px;width:fit-content">🎁 First Tiffin FREE</div>
       </div>
       <!-- Inline search input (shown when search icon tapped) -->
       <div class="home-header-search-wrap" id="hdr-search-wrap">
@@ -2219,10 +2292,34 @@ input[type=number]{-moz-appearance:textfield}
         <div style="width:44px;height:44px;background:rgba(255,255,255,.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">&#x1F371;</div>
         <div style="flex:1;position:relative;z-index:1">
           <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
-          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px"><span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;1200</span> Free Home Delivery</div>
+          <div style="font-family:var(--fb);font-size:12px;opacity:.9;margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <span style="background:rgba(255,255,255,.25);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700">SAVE &#x20B9;1200</span>
+            <span style="opacity:.85">Free Home Delivery</span>
+          </div>
+          <div style="font-family:var(--ff);font-size:13px;font-weight:700;margin-top:5px;opacity:.95">Starts @ <span style="font-size:16px">&#x20B9;55</span><span style="font-size:11px;font-weight:600;opacity:.8">/meal</span> &nbsp;·&nbsp; <span style="font-size:11px;font-weight:600">WhatsApp pe enquire करें →</span></div>
         </div>
         <div style="background:rgba(255,255,255,.25);border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px"></i></div>
       </div>
+
+      <!-- First Tiffin FREE — guest mode only, WhatsApp CTA -->
+      <a id="first-tiffin-free-btn"
+         href="https://wa.me/919889760350?text=%E0%A4%AA%E0%A4%B9%E0%A4%B2%E0%A4%BE%20Tiffin%20FREE%20%F0%9F%8E%89"
+         target="_blank" rel="noopener"
+         onclick="_ftfTappedAt=Date.now()">
+        <!-- shimmer — subtle warm sweep -->
+        <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);animation:ftf-shimmer 3.2s linear infinite;pointer-events:none;z-index:0"></span>
+        <!-- Gift icon box -->
+        <span style="width:44px;height:44px;background:#fde68a;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;position:relative;z-index:1">🎁</span>
+        <!-- Copy -->
+        <span style="flex:1;position:relative;z-index:1;min-width:0">
+          <span style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px;display:block;color:#92400e;line-height:1.2">First Tiffin FREE! 🎉</span>
+          <span style="font-family:var(--fb);font-size:12px;color:#b45309;margin-top:3px;display:flex;align-items:center;gap:5px;line-height:1.3">
+            <span style="background:#f59e0b;color:#fff;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff);white-space:nowrap">NEW USER</span>
+            WhatsApp करके claim करें
+          </span>
+        </span>
+        <span style="background:#fde68a;border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px;color:#92400e"></i></span>
+      </a>
 
       <!-- Cutoff banner -->
       <div id="cutoff-banner" style="display:none"></div>
@@ -3086,6 +3183,7 @@ let _pollTimer   = null;
 
 let _khataAllEntries = [];
 let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
+let _ftfTappedAt = 0; // timestamp when guest tapped "पहला Tiffin FREE" btn → show signup nudge on return
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
 // _POLL_ACTIVE_ORDERS removed — active orders now handled by the normal 360s _pollTimer
 const _REVISIT_THRESHOLD = 60_000; // 60s — matches version poll interval; return after >=1 min triggers silent menu refresh for both guest and logged-in
@@ -3517,8 +3615,8 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
   const d = state.day;
   const bothTimes = d
     ? '<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">'
-      + '<span style="background:rgba(0,0,0,.07);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--fb)">🌞 Lunch ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem) + '</span>'
-      + '<span style="background:rgba(0,0,0,.07);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--fb)">🌙 Dinner ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem) + '</span>'
+      + '<span style="background:rgba(255,255,255,.20);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--fb)">🌞 Lunch ' + _fmtH(d.ls, d.lsm) + '–' + _fmtH(d.le, d.lem) + '</span>'
+      + '<span style="background:rgba(255,255,255,.20);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;font-family:var(--fb)">🌙 Dinner ' + _fmtH(d.ds, d.dsm) + '–' + _fmtH(d.de, d.dem) + '</span>'
       + '</div>'
     : '';
 
@@ -3542,13 +3640,13 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
         closedSub = 'Visit tomorrow from ' + _fmtH(d.ls, d.lsm) + ' to order morning meals';
       }
     }
-    banner.innerHTML = '<div style="width:44px;height:44px;background:rgba(220,38,38,.12);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-regular fa-clock" style="font-size:20px;color:#dc2626"></i></div>'
-      + '<div style="flex:1"><div style="font-size:14px;font-weight:800;color:#b91c1c">' + closedMsg + '</div>'
-      + (closedSub ? '<div style="font-size:11px;color:#ef4444;margin-top:3px">' + closedSub + '</div>' : '')
+    banner.innerHTML = '<div style="width:44px;height:44px;background:rgba(255,255,255,.18);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-regular fa-clock" style="font-size:20px;color:#fff"></i></div>'
+      + '<div style="flex:1"><div style="font-size:14px;font-weight:800;color:#fff">' + closedMsg + '</div>'
+      + (closedSub ? '<div style="font-size:11px;color:rgba(255,255,255,.85);margin-top:3px">' + closedSub + '</div>' : '')
       + bothTimes + '</div>';
-    banner.style.background = 'linear-gradient(135deg,#fff5f5,#fee2e2)';
-    banner.style.color = '#b91c1c';
-    banner.style.boxShadow = '0 6px 20px rgba(220,38,38,.12)';
+    banner.style.background = 'linear-gradient(135deg,#991b1b,#dc2626)';
+    banner.style.color = '#fff';
+    banner.style.boxShadow = '0 6px 24px rgba(153,27,27,.40)';
     if (btn) btn.disabled = true;
     filterAndRenderMenu();
   } else {
@@ -9189,6 +9287,16 @@ document.addEventListener('visibilitychange', () => {
     const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
     _hiddenAt = 0;
 
+    // ── GUEST: WhatsApp FREE tiffin return nudge ──────────────────────────────
+    // If guest tapped the "पहला Tiffin FREE" btn, went to WhatsApp, and returned
+    // within 3 minutes → show a toast nudging them to sign up and claim it.
+    if (_isGuestMode && _ftfTappedAt > 0 && (Date.now() - _ftfTappedAt) < 3 * 60 * 1000) {
+      _ftfTappedAt = 0; // reset so it fires only once
+      setTimeout(() => {
+        toast('🎁 First Tiffin FREE! Signup karo aur claim karo →', 4500);
+      }, 800);
+    }
+
     // Re-run slot filter immediately — time may have crossed morning/evening boundary
     if ((_session || _isGuestMode) && _fullMenu.length) filterAndRenderMenu();
     // Wipe stale cart items on resume — slot_at_add check works even before menu loads
@@ -9260,11 +9368,15 @@ function _applySubscriberUI() {
   document.querySelectorAll('.sub-only').forEach(el => {
     el.style.display = u.is_subscriber ? '' : 'none';
   });
-  // Pause card vs monthly plan card
+  // Pause card vs monthly plan card vs guest free btn
   const _pauseRow = document.getElementById('pause-toggle-row');
   const _planCard = document.getElementById('monthly-plan-card');
+  const _freeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? 'flex' : 'none';
   if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
+  if (_freeBtn)  _freeBtn.style.display  = 'none';  // never shown to logged-in users
+  const _hdrFreeTag = document.getElementById('hdr-free-tag');
+  if (_hdrFreeTag) _hdrFreeTag.style.display = 'none';
   // Sub plan banner removed — Auto Tiffin card is single source of truth
 }
 /* ── _wipeAndShowLogin ────────────────────────────────────────────
@@ -9665,8 +9777,12 @@ function _transitionToGuestHome() {
   document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
   const _pauseRow = document.getElementById('pause-toggle-row');
   const _planCard = document.getElementById('monthly-plan-card');
+  const _freeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_pauseRow) _pauseRow.style.display = 'none';
-  if (_planCard) _planCard.style.display = 'flex';
+  if (_planCard) _planCard.style.display = 'none';   // hidden in guest — free btn takes its place
+  if (_freeBtn)  _freeBtn.style.display  = 'flex';
+  const _hdrFreeTagG = document.getElementById('hdr-free-tag');
+  if (_hdrFreeTagG) _hdrFreeTagG.style.display = 'block';
   // Load menu and schedule for guest (no auth required — getHomeData is public).
   // bypassCache=false: serve localStorage cache instantly if fresh (<10min), then
   // silently refresh from DB in the background. On first-ever visit the cache is
@@ -9844,14 +9960,14 @@ function _loadWarmCoordsFromStorage() {
 
 function _showGuestAuthSheet(context) {
   // context: 'cart' | 'orders'
+  const title    = document.getElementById('gas-title');
   const subtitle = document.getElementById('gas-subtitle');
-  if (subtitle) {
-    subtitle.textContent = context === 'cart'
-      ? 'Login to place your order'
-      : 'Login to view your orders';
+  if (title) {
+    title.textContent = context === 'cart' ? 'Login to place order' : 'Login to continue';
   }
-  // Default to login tab (most guests are returning users or just need quick login)
-  _gasTab('login');
+  if (subtitle) {
+    subtitle.textContent = '🎁 First Tiffin FREE for new users!';
+  }
   // Clear any previous status
   const statusEl = document.getElementById('gas-login-status');
   if (statusEl) statusEl.textContent = '';
@@ -9892,22 +10008,8 @@ function _gasGoFullSignup() {
 }
 
 function _gasTab(tab) {
-  // Only 'login' tab is used in the guest auth sheet now.
-  // Sign Up button directly calls _gasGoFullSignup() → full page instantly.
-  const loginTab  = document.getElementById('gas-login-panel');
-  const btnLogin  = document.getElementById('gas-tab-login');
-  const btnSignup = document.getElementById('gas-tab-signup');
-  if (tab === 'login') {
-    loginTab.style.display  = 'block';
-    btnLogin.style.background = '#fff';
-    btnLogin.style.color = '#0f172a';
-    btnLogin.style.fontWeight = '700';
-    btnLogin.style.boxShadow = '0 1px 3px rgba(0,0,0,.1)';
-    btnSignup.style.background = 'transparent';
-    btnSignup.style.color = '#64748b';
-    btnSignup.style.fontWeight = '600';
-    btnSignup.style.boxShadow = 'none';
-  }
+  // New sheet design has no tabs — login fields are always visible.
+  // This function is kept for any legacy callers; it's now a no-op.
 }
 
 async function _gasDoLogin() {
@@ -10040,6 +10142,7 @@ function doLogout() {
   _menuLoading     = false;
   _placingOrder    = false;
   _hiddenAt        = 0;
+  _ftfTappedAt     = 0;
   _stack           = [];
   _lastSchedule    = null;
   _lastCutoff      = null;
@@ -10070,8 +10173,12 @@ function doLogout() {
   document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
   const _logoutPauseRow = document.getElementById('pause-toggle-row');
   const _logoutPlanCard = document.getElementById('monthly-plan-card');
+  const _logoutFreeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_logoutPauseRow) _logoutPauseRow.style.display = 'none';
-  if (_logoutPlanCard) _logoutPlanCard.style.display = 'flex';
+  if (_logoutPlanCard) _logoutPlanCard.style.display = 'none';  // guest mode mein plan card nahi
+  if (_logoutFreeBtn)  _logoutFreeBtn.style.display  = 'flex';  // guest mein FREE btn dikhao
+  const _logoutHdrTag = document.getElementById('hdr-free-tag');
+  if (_logoutHdrTag) _logoutHdrTag.style.display = 'block';
 
   // Clear menu list so stale content isn't visible on re-login
   const menuList = document.getElementById('menu-list');
