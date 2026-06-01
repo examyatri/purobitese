@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v106                                     ║
+     ║  Version : v105                                     ║
      ║  Updated : 2026-06-01                               ║
-     ║  CHANGE  : Back-button navigation fix (guest mode): ║
-     ║            Fix 1: Guest→cart→login→back now returns ║
-     ║            to guest home (pushState for guest path).║
-     ║            Fix 2: onEnter(home) always removes      ║
-     ║            auth-mode class on back navigation.      ║
-     ║            Fix 3: Accidental back prevention on     ║
-     ║            login/signup page (double-back guard).   ║
+     ║  CHANGE  : UI Polish:                               ║
+     ║            Fix 1: First Tiffin FREE card — clean   ║
+     ║            layout: icon + text + CLAIM only.        ║
+     ║            Fix 2: Monthly Plan card — stripped to  ║
+     ║            title + SAVE₹1200 + Free Delivery only.  ║
+     ║            Fix 3: Auth page — sticky branding       ║
+     ║            header; logo always visible on signup.   ║
+     ║            Fix 4: Login page Create Account text   ║
+     ║            replaced with full green button.         ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -4003,10 +4005,9 @@ function back() {
 
 function onEnter(id) {
   if (id === 'pg-home') {
-    // Always remove auth-mode when returning to home (covers guest back AND hardware back
-    // from forced-logout path where _isGuestMode may be false).
-    document.body.classList.remove('auth-mode');
+    // If returning to home from pg-auth (guest pressed back), restore guest UI
     if (_isGuestMode) {
+      document.body.classList.remove('auth-mode');
       _pendingCartNav = false; // cancel pending nav since user chose not to login
     }
     // Check version on every home tab entry — lightweight ~80-byte ping.
@@ -9413,6 +9414,8 @@ function _wipeAndShowLogin() {
   if (_authBack) _authBack.style.display = 'none';
   // Go to login (signup tab = fresh start, no prefill)
   _transitionToLogin(false);
+  // Override stack: no pg-home base — back from forced-logout auth screen should exit app, not show home
+  _stack = ['pg-auth'];
 }
 
 async function bootApp() {
@@ -9720,16 +9723,7 @@ function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
   auth.classList.add('here');
   auth.style.transform = '';
   _stack = ['pg-home', 'pg-auth']; // pg-home as base so back returns to guest home
-  // Guest path (_isGuestMode=true): anchor pg-home then push pg-auth so hardware back
-  // fires popstate and returns to guest home (2 browser-history entries).
-  // Logout path (_isGuestMode=false): replaceState only (1 entry) so hardware back
-  // exits the app as intended — user must not back into an unauthed home screen.
-  if (_isGuestMode) {
-    history.replaceState({pg:'pg-home',stackLen:1},'', location.pathname + location.search);
-    history.pushState({pg:'pg-auth',stackLen:2},'', location.pathname + location.search);
-  } else {
-    history.replaceState({pg:'pg-auth',stackLen:2},'', location.pathname + location.search);
-  }
+  history.replaceState({pg:'pg-auth',stackLen:2},'', location.pathname + location.search);
   if (showLoginTab) {
     document.getElementById('tab-login').click();
     setTimeout(() => prefillLoginForm(wrongCreds), 100);
@@ -10188,7 +10182,6 @@ window.addEventListener('pageshow', e => { if (e.persisted) bootApp(); });
 ═══════════════════════════════════════════ */
 let _exitBackTs = 0;        // timestamp of last back-at-root press
 let _exitDialogOpen = false; // guard against double-open
-let _authBackTs = 0;        // timestamp of last back press while on pg-auth (accidental-back guard)
 
 function _showExitConfirm() {
   if (_exitDialogOpen) return;
@@ -10242,47 +10235,34 @@ window.addEventListener('popstate', () => {
     return;
   }
 
-  // ── ACCIDENTAL BACK PREVENTION on pg-auth ──
-  // If user is on the login/signup page and has typed something in any input field,
-  // require a double-back within 2 s to actually navigate away.
-  const curPage = _stack[_stack.length - 1];
-  if (curPage === 'pg-auth') {
-    const hasTyped = Array.from(document.querySelectorAll('#pg-auth input')).some(i => i.value.trim() !== '');
-    if (hasTyped) {
-      // Re-push pg-auth state so the next back still hits this handler
-      history.pushState({ pg: 'pg-auth', stackLen: _stack.length }, '', location.href);
-      const now = Date.now();
-      if (now - _authBackTs < 2000) {
-        // Second back within 2 s → allow navigation
-        _authBackTs = 0;
-        back();
-      } else {
-        _authBackTs = now;
-        toast('Press back again to go back', 2000);
-      }
-      return;
-    }
-    // No input typed — allow back immediately, reset guard
-    _authBackTs = 0;
+  if (_stack.length >= 2) {
+    // Deep in navigation — go back one page
+    back();
+    return;
   }
 
-  if (_stack.length < 2) {
-    // At root — push a dummy state so browser doesn't navigate away
-    history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
-    const isLoggedIn = !!(Store.get('tf_user_token') || Store.get('tf_session') || _session);
-    if (isLoggedIn || _isGuestMode || _stack[0] === 'pg-auth') {
-      const now = Date.now();
-      if (now - _exitBackTs < 2000) {
-        // Second back within 2 s → show exit confirm
-        _showExitConfirm();
-      } else {
-        // First back → hint toast, start 2 s window
-        _exitBackTs = now;
-        toast('Press back again to exit', 2000);
-      }
-    }
-  } else {
+  // At root (stack has 0 or 1 entry) — prevent browser from leaving the app
+  history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+
+  // If no page is visible yet (boot race), do nothing
+  const activePg = document.querySelector('.pg.here');
+  if (!activePg) return;
+
+  // On pg-auth with guest base: back should return to guest home instead of exit prompt
+  const currentPg = activePg.id;
+  if (currentPg === 'pg-auth' && _isGuestMode) {
+    // Guest pressed back from login → return to guest home browsing
     back();
+    return;
+  }
+
+  // Double-back to exit: first press shows toast, second press (within 2s) shows confirm
+  const now = Date.now();
+  if (now - _exitBackTs < 2000) {
+    _showExitConfirm();
+  } else {
+    _exitBackTs = now;
+    toast('Press back again to exit', 2000);
   }
 });
 

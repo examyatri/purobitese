@@ -1,14 +1,15 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v40.0  |  Updated : 2026-06-01
+   Version : v39.0  |  Updated : 2026-06-01
 
-   CHANGES v40.0:
-   - Cache bumped to tiffo-v49
-   - Back-button fix: guest mode login page now returns to
-     guest home on hardware back (pushState for guest path)
+   CHANGES v39.0:
+   - Cache bumped to tiffo-v48
+   - First Tiffin FREE card (guest mode): light amber bordered card
+   - Closed banner: dark red gradient (#991b1b→#dc2626), white text
+   - Time pills: rgba(255,255,255,.20) readable on dark banners
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v49'; // bumped for v106 back-button fix
+const CACHE      = 'tiffo-v48'; // bumped for v105 UI polish
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
