@@ -3985,6 +3985,8 @@ function nav(id) {
   // cart-fab removed; badge in bottom-nav handles cart count
 }
 
+let _backInProgress = false; // guard: back() calling history.back() should not re-trigger popstate logic
+
 function back() {
   if (_stack.length < 2) return;
   _stack.pop();
@@ -3995,8 +3997,8 @@ function back() {
   if (!target) return;
   target.classList.add('here');
   target.style.transform = '';
-  // FIX A: update URL hash when going back
-  history.replaceState({pg:prev,stackLen:_stack.length},'', _pgHash(prev));
+  _backInProgress = true;
+  history.back(); // consume the pushState entry nav() added; popstate will fire but _backInProgress guard skips it
   updateBottomNav(prev);
   onEnter(prev);
 }
@@ -10217,46 +10219,56 @@ function _doExitApp() {
 }
 
 // Handle hardware back button (Android)
+// NOTE: When popstate fires, the browser has ALREADY moved back in its own history.
+// We must NOT call history.go() or history.back() — just sync the UI to match.
+// We use pushState to re-add an entry when we want to "cancel" the browser's back action.
 window.addEventListener('popstate', () => {
-  // If exit dialog is showing, close it (treat back as "Stay")
+  // ── 0. back() called history.back() to sync browser — UI already updated, skip
+  if (_backInProgress) {
+    _backInProgress = false;
+    return;
+  }
+
+  // ── 1. Exit dialog open → close it, re-push so we stay at root
   if (_exitDialogOpen) {
-    history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+    const top = _stack[_stack.length - 1] || 'pg-home';
+    history.pushState({ pg: top, stackLen: _stack.length }, '', _pgHash(top));
     _hideExitConfirm();
     return;
   }
 
-  // If any open sheet/modal is visible, close it first
+  // ── 2. Sheet/modal open → close it, re-push so we stay at current page
   const sheet = document.querySelector('.sheet.open');
   if (sheet) {
-    history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
-    // Close whichever sheet is open
+    const top = _stack[_stack.length - 1] || 'pg-home';
+    history.pushState({ pg: top, stackLen: _stack.length }, '', _pgHash(top));
     const backdrop = document.querySelector('.sheet-backdrop.show, #guest-auth-backdrop.show');
     if (backdrop) backdrop.click();
     return;
   }
 
+  // ── 3. Stack has pages to go back to → update UI only (browser already went back)
   if (_stack.length >= 2) {
-    // Deep in navigation — go back one page
-    back();
+    _stack.pop();
+    const prev = _stack[_stack.length - 1];
+    const cur = document.querySelector('.pg.here');
+    if (cur) { cur.classList.remove('here'); cur.style.transform = ''; }
+    const target = document.getElementById(prev);
+    if (target) { target.classList.add('here'); target.style.transform = ''; }
+    updateBottomNav(prev);
+    onEnter(prev);
     return;
   }
 
-  // At root (stack has 0 or 1 entry) — prevent browser from leaving the app
-  history.pushState({ pg: _stack[0] || 'pg-home', stackLen: 1 }, '', location.href);
+  // ── 4. At root (stack 0 or 1) — re-push to prevent browser leaving the app
+  const top = _stack[_stack.length - 1] || 'pg-home';
+  history.pushState({ pg: top, stackLen: _stack.length }, '', _pgHash(top));
 
-  // If no page is visible yet (boot race), do nothing
+  // If no page visible yet (boot race), do nothing
   const activePg = document.querySelector('.pg.here');
   if (!activePg) return;
 
-  // On pg-auth with guest base: back should return to guest home instead of exit prompt
-  const currentPg = activePg.id;
-  if (currentPg === 'pg-auth' && _isGuestMode) {
-    // Guest pressed back from login → return to guest home browsing
-    back();
-    return;
-  }
-
-  // Double-back to exit: first press shows toast, second press (within 2s) shows confirm
+  // ── 5. Double-back to exit
   const now = Date.now();
   if (now - _exitBackTs < 2000) {
     _showExitConfirm();
