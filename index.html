@@ -1000,69 +1000,68 @@ textarea{resize:vertical;min-height:80px}
 .monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
 .monthly-plan-card::after{content:'';position:absolute;bottom:-30px;right:40px;width:70px;height:70px;background:rgba(255,255,255,.08);border-radius:50%}
 /* ── First Tiffin FREE banner (guest mode only) ──
-   Design v2: Deep Indigo — exclusive/gift psychology
-   - Completely absent from Tiffo palette = unmistakably unique card
-   - Indigo = premium, special, exclusive — "this is a gift for you"
-   - Maximum contrast from teal OPEN banner and red CLOSED banner
-   - 3-part animation: bounce-in (once) + idle shake every 5s + glow pulse
+   Design v4: Solid brand-red fill — confident, premium, Swiggy-style offer card
+   White text on red = maximum legibility + trust signal
+   Single entrance animation only — no continuous noise
 ── */
 #first-tiffin-free-btn{
   display:none;text-decoration:none;
-  align-items:center;gap:12px;
-  background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 60%,#ede9fe 100%);
-  border:2.5px solid #6366f1;
+  align-items:center;gap:14px;
+  background:var(--grad);
+  border:none;
   border-radius:18px;padding:14px 16px;margin-bottom:12px;
   cursor:pointer;
-  box-shadow:0 4px 20px rgba(99,102,241,.22);
+  box-shadow:0 4px 18px rgba(230,57,70,.32);
   position:relative;overflow:hidden;
   transition:transform 120ms ease,box-shadow 120ms ease;
   animation:ftf-bounce-in 500ms cubic-bezier(.34,1.56,.64,1) both,
             ftf-glow 3s ease-in-out 500ms infinite;
   will-change:transform,box-shadow;
 }
-#first-tiffin-free-btn:active{transform:scale(.96)!important;box-shadow:0 2px 8px rgba(99,102,241,.18)!important}
-/* Idle attention shake — fires every 5s via JS class toggle */
+#first-tiffin-free-btn:active{transform:scale(.97)!important;box-shadow:0 2px 8px rgba(230,57,70,.20)!important}
 #first-tiffin-free-btn.ftf-shake{animation:ftf-ring-shake 600ms cubic-bezier(.36,.07,.19,.97) both!important}
 @keyframes ftf-bounce-in{
-  0%{opacity:0;transform:translateY(-10px) scale(.94)}
+  0%{opacity:0;transform:translateY(-8px) scale(.96)}
   100%{opacity:1;transform:translateY(0) scale(1)}
 }
 @keyframes ftf-glow{
-  0%,100%{box-shadow:0 4px 20px rgba(99,102,241,.20);border-color:#6366f1}
-  50%{box-shadow:0 6px 28px rgba(99,102,241,.48),0 0 0 4px rgba(99,102,241,.10);border-color:#4f46e5}
+  0%,100%{box-shadow:0 4px 18px rgba(230,57,70,.32)}
+  50%{box-shadow:0 6px 28px rgba(230,57,70,.55),0 0 0 4px rgba(230,57,70,.12)}
 }
 @keyframes ftf-ring-shake{
-  0%{transform:scale(1)}
-  10%{transform:scale(1.03) rotate(-1.5deg)}
-  20%{transform:scale(1.03) rotate(1.5deg)}
-  30%{transform:scale(1.03) rotate(-1deg)}
-  40%{transform:scale(1.03) rotate(1deg)}
-  50%{transform:scale(1.02) rotate(-.5deg)}
-  60%{transform:scale(1.01) rotate(.5deg)}
-  100%{transform:scale(1) rotate(0)}
+  0%,100%{transform:scale(1) rotate(0)}
+  20%{transform:scale(1.02) rotate(-1.2deg)}
+  40%{transform:scale(1.02) rotate(1.2deg)}
+  60%{transform:scale(1.01) rotate(-.6deg)}
+  80%{transform:scale(1.01) rotate(.6deg)}
 }
 @keyframes ftf-shimmer{
   0%{transform:translateX(-130%) skewX(-12deg)}
   100%{transform:translateX(240%) skewX(-12deg)}
 }
-/* FREE badge stamp */
-.ftf-free-stamp{
-  font-family:var(--ff);font-weight:900;
-  font-size:22px;letter-spacing:-1px;
-  color:#3730a3;
-  line-height:1;
+/* Text */
+.ftf-title{
   display:block;
-  position:relative;
+  font-family:var(--ff);font-weight:600;
+  font-size:13px;letter-spacing:.1px;
+  color:rgba(255,255,255,.88);
+  line-height:1;margin-bottom:3px;
 }
-.ftf-free-stamp::after{display:none}
+.ftf-free-word{
+  display:block;
+  font-family:var(--ff);font-weight:800;
+  font-size:22px;letter-spacing:-.6px;
+  color:#fff;line-height:1;
+}
 /* Claim pill */
 .ftf-claim-pill{
-  background:linear-gradient(135deg,#4f46e5,#7c3aed);
+  background:rgba(255,255,255,.18);
+  border:1.5px solid rgba(255,255,255,.50);
   color:#fff;border-radius:20px;
-  padding:6px 14px;font-family:var(--ff);font-weight:700;font-size:12px;
+  padding:7px 14px;font-family:var(--ff);font-weight:700;font-size:12px;
   display:inline-flex;align-items:center;gap:5px;
-  box-shadow:0 2px 8px rgba(79,70,229,.35);
   flex-shrink:0;white-space:nowrap;
+  backdrop-filter:blur(4px);
 }
 /* Cutoff card */
 #cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;transition:all 300ms}
@@ -2258,17 +2257,18 @@ input[type=number]{-moz-appearance:textfield}
          href="https://wa.me/919889760350?text=Hi%2C%20I%27m%20interested%20in%20the%20First%20Tiffin%20FREE%20offer%21"
          target="_blank" rel="noopener"
          onclick="_ftfTappedAt=Date.now()">
-        <!-- shimmer sweep -->
-        <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.6) 50%,transparent 70%);animation:ftf-shimmer 3.5s linear 600ms infinite;pointer-events:none;z-index:0"></span>
-        <!-- Left: icon box -->
-        <span style="width:44px;height:44px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;position:relative;z-index:1;box-shadow:0 3px 10px rgba(79,70,229,.35)">🎁</span>
+        <!-- shimmer sweep — subtle white on red -->
+        <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.12) 50%,transparent 65%);animation:ftf-shimmer 4s linear 800ms infinite;pointer-events:none;z-index:0"></span>
+        <!-- Left: icon -->
+        <span style="font-size:28px;flex-shrink:0;position:relative;z-index:1;line-height:1">🎁</span>
         <!-- Center: copy -->
         <span style="flex:1;position:relative;z-index:1;min-width:0">
-          <span class="ftf-free-stamp">First Tiffin FREE</span>
+          <span class="ftf-title">First Tiffin</span>
+          <span class="ftf-free-word">FREE</span>
         </span>
         <!-- Right: claim pill -->
         <span class="ftf-claim-pill" style="position:relative;z-index:1">
-          CLAIM<i class="fa-solid fa-arrow-right" style="font-size:10px"></i>
+          CLAIM <i class="fa-solid fa-arrow-right" style="font-size:10px"></i>
         </span>
       </a>
 
@@ -3592,13 +3592,13 @@ function updateCutoffBanner(schedule, currentH, rawCutoff) {
         closedSub = 'Visit tomorrow from ' + _fmtH(d.ls, d.lsm) + ' to order morning meals';
       }
     }
-    banner.innerHTML = '<div style="width:44px;height:44px;background:rgba(255,255,255,.18);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-regular fa-clock" style="font-size:20px;color:#fff"></i></div>'
+    banner.innerHTML = '<div style="width:44px;height:44px;background:rgba(255,255,255,.22);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-regular fa-clock" style="font-size:20px;color:#fff"></i></div>'
       + '<div style="flex:1"><div style="font-size:14px;font-weight:800;color:#fff">' + closedMsg + '</div>'
-      + (closedSub ? '<div style="font-size:11px;color:rgba(255,255,255,.85);margin-top:3px">' + closedSub + '</div>' : '')
+      + (closedSub ? '<div style="font-size:11px;color:rgba(255,255,255,.88);margin-top:3px">' + closedSub + '</div>' : '')
       + bothTimes + '</div>';
-    banner.style.background = 'linear-gradient(135deg,#991b1b,#dc2626)';
+    banner.style.background = 'linear-gradient(135deg,#b45309,#d97706)';
     banner.style.color = '#fff';
-    banner.style.boxShadow = '0 6px 24px rgba(153,27,27,.40)';
+    banner.style.boxShadow = '0 6px 24px rgba(180,83,9,.38)';
     if (btn) btn.disabled = true;
     filterAndRenderMenu();
   } else {
