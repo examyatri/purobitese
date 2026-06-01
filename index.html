@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v99                                      ║
+     ║  Version : v104                                     ║
      ║  Updated : 2026-05-30                               ║
      ║  CHANGE  : Fix 1: Server validates store open/closed║
      ║            at createOrder time — returns clear error ║
@@ -791,14 +791,15 @@ textarea{resize:vertical;min-height:80px}
 .auth-mode #cart-pill,
 .auth-mode #cart-fab { display:none!important; }
 /* toast stays visible on auth page for error feedback */
-#pg-auth{background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;overscroll-behavior-y:contain}
-.auth-top{background:var(--grad);width:100%;padding:clamp(36px,8vw,56px) 24px clamp(28px,6vw,40px);text-align:center;position:relative;overflow:hidden}
-.auth-top::before{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:rgba(255,255,255,.1);border-radius:50%;pointer-events:none}
-.auth-top::after{content:'';position:absolute;bottom:-20px;left:-20px;width:80px;height:80px;background:rgba(255,255,255,.07);border-radius:50%;pointer-events:none}
-.auth-logo{font-family:var(--ff);font-weight:800;font-size:clamp(28px,7vw,36px);color:#fff;position:relative;z-index:1}
-.auth-sub{font-family:var(--fb);color:rgba(255,255,255,.85);font-size:clamp(13px,3.5vw,15px);margin-top:5px;position:relative;z-index:1}
-.auth-tagline{font-family:var(--fb);font-size:clamp(11px,3vw,13px);color:rgba(255,255,255,.65);margin-top:3px;position:relative;z-index:1}
-.auth-card{background:#fff;border-radius:24px 24px 0 0;width:100%;padding:20px var(--pg-pad) calc(40px + env(safe-area-inset-bottom,0px));margin-top:-16px;flex:1}
+#pg-auth{background:#f8f9fa;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;overscroll-behavior-y:contain}
+.auth-top{background:#fff;width:100%;padding:calc(clamp(20px,5vw,32px) + env(safe-area-inset-top,0px)) 24px 20px;text-align:center;position:relative;overflow:hidden;border-bottom:1px solid #f0f0f0}
+.auth-top::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);pointer-events:none}
+.auth-top::after{display:none}
+.auth-logo{font-family:var(--ff);font-weight:800;font-size:clamp(26px,7vw,32px);color:var(--dk);position:relative;z-index:1;letter-spacing:-0.5px;display:flex;align-items:center;justify-content:center;gap:2px}
+.auth-logo .r{color:var(--p)}.auth-logo .g{color:var(--g)}
+.auth-sub{font-family:var(--fb);color:var(--gr);font-size:clamp(12px,3.5vw,14px);margin-top:4px;position:relative;z-index:1}
+.auth-tagline{font-family:var(--fb);font-size:clamp(11px,3vw,12px);color:#94a3b8;margin-top:2px;position:relative;z-index:1}
+.auth-card{background:#fff;width:100%;padding:24px var(--pg-pad) calc(40px + env(safe-area-inset-bottom,0px));flex:1}
 /* Inline field error — shown under each field */
 .field-error{font-family:var(--fb);font-size:12px;color:#b91c1c;margin-top:6px;display:none;padding:8px 11px 8px 13px;background:linear-gradient(135deg,#fff5f5,#fef2f2);border-radius:10px;border-left:3px solid #ef4444;line-height:1.45;animation:feSlideIn 220ms cubic-bezier(.22,.61,.36,1) both;box-shadow:0 2px 8px rgba(239,68,68,.10)}
 .field-error.show{display:block}
@@ -846,7 +847,7 @@ textarea{resize:vertical;min-height:80px}
 .loc-manual-hint{font-family:var(--fb);font-size:11.5px;color:#64748b;margin-bottom:10px;line-height:1.6;background:#f8fafc;border-radius:8px;padding:8px 10px}
 .loc-manual-hint b{color:#334155}
 #su-manual-addr{width:100%;min-height:90px;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--fb);font-size:13px;color:#1e293b;resize:vertical;outline:none;box-sizing:border-box;line-height:1.55;transition:border-color 200ms}
-#su-manual-addr:focus{border-color:#6366f1}
+#su-manual-addr:focus{border-color:var(--g)}
 #su-manual-addr.input-invalid{border-color:#ef4444;background:#fff5f5}
 .loc-geocode-status{margin-top:8px;font-family:var(--fb);font-size:11.5px;line-height:1.5;min-height:18px;color:#64748b}
 .loc-geocode-status.ok{color:#166534;font-weight:600}
@@ -866,7 +867,7 @@ textarea{resize:vertical;min-height:80px}
 .su-field-label{display:block;font-family:var(--ff);font-size:11.5px;font-weight:600;color:#475569;margin-bottom:4px;margin-top:10px}
 .su-field-label .su-req{color:#ef4444;margin-left:2px}
 .su-field-input{width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--fb);font-size:13px;color:#1e293b;outline:none;transition:border-color 200ms;box-sizing:border-box;background:#fff}
-.su-field-input:focus{border-color:#6366f1}
+.su-field-input:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(42,157,143,.12)}
 .su-field-input.input-invalid{border-color:#ef4444;background:#fff5f5}
 .su-field-input[readonly]{background:#f8fafc;color:#64748b;cursor:default}
 .su-field-input[readonly]:focus{border-color:#e2e8f0}
@@ -889,7 +890,7 @@ textarea{resize:vertical;min-height:80px}
 .oz-actions{padding:6px 18px 0}
 .oz-wa-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:#25D366;color:#fff;border:none;border-radius:13px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;margin-bottom:9px}
 .oz-call-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;background:#1e293b;color:#fff;border:none;border-radius:13px;font-family:var(--ff);font-weight:700;font-size:14px;cursor:pointer;margin-bottom:9px}
-.oz-back-link{display:block;text-align:center;font-family:var(--fb);font-size:12.5px;color:#6366f1;cursor:pointer;padding:4px;text-decoration:underline}
+.oz-back-link{display:block;text-align:center;font-family:var(--fb);font-size:12.5px;color:var(--g);cursor:pointer;padding:4px;text-decoration:underline}
 /* (loc-finetune styles removed — replaced by Leaflet interactive map) */
 /* ── Structured Address Card ── */
 .addr-card{background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);border:1.5px solid #86efac;border-radius:16px;padding:14px 15px;margin-top:10px;margin-bottom:6px;box-shadow:0 2px 8px rgba(22,163,74,.07)}
@@ -924,22 +925,22 @@ textarea{resize:vertical;min-height:80px}
 .leaflet-container{font-family:var(--fb)!important}
 @keyframes pinSaveBlink{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.5)}50%{opacity:.82;box-shadow:0 0 0 5px rgba(34,197,94,0)}}
 #su-leaflet-map.map-locked,#acct-leaflet-map.map-locked{opacity:.88}
-.tab-bar{display:flex;background:#f5f5f5;border-radius:12px;padding:4px;margin-bottom:20px}
-.tab-btn{flex:1;border:none;background:none;padding:10px;font-family:var(--ff);font-weight:600;font-size:14px;border-radius:9px;cursor:pointer;color:var(--gr);transition:all 200ms}
-.tab-btn.active{background:#fff;color:var(--p);box-shadow:var(--sh)}
+.tab-bar{display:flex;background:#f0f0f0;border-radius:14px;padding:4px;margin-bottom:24px;gap:3px}
+.tab-btn{flex:1;border:none;background:none;padding:11px;font-family:var(--ff);font-weight:700;font-size:14px;border-radius:11px;cursor:pointer;color:var(--gr);transition:all 220ms;letter-spacing:.1px}
+.tab-btn.active{background:#fff;color:var(--dk);box-shadow:0 1px 6px rgba(0,0,0,.10);}
 .form-group{margin-bottom:14px;position:relative}
-.form-group label{display:block;font-family:var(--ff);font-size:12px;font-weight:600;color:var(--gr);margin-bottom:5px}
-.form-group input:focus,.form-group select:focus{border-color:#e63946!important;outline:none}
+.form-group label{display:block;font-family:var(--ff);font-size:12px;font-weight:600;color:#475569;margin-bottom:6px}
+.form-group input:focus,.form-group select:focus{border-color:var(--g)!important;outline:none;box-shadow:0 0 0 3px rgba(42,157,143,.12)}
 .err-msg{font-family:var(--fb);font-size:11px;color:var(--pd);margin-top:3px;display:none}
 .pw-wrap{position:relative}
 .pw-wrap input{padding-right:44px}
 .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--gr);cursor:pointer;font-size:16px}
 .creds-hint{background:var(--gl);color:var(--g);border-radius:8px;padding:8px 12px;font-family:var(--fb);font-size:12px;margin-bottom:12px}
 .auth-status{font-family:var(--fb);font-size:13px;text-align:center;padding:7px 12px;border-radius:8px;margin-bottom:10px;transition:opacity 0.2s}
-.auth-status.info{color:var(--p);background:none}
+.auth-status.info{color:var(--g);background:none}
 .auth-status.error{color:#b91c1c;background:linear-gradient(135deg,#fff5f5,#fef2f2);border:1.5px solid #fca5a5;box-shadow:0 2px 8px rgba(239,68,68,.09)}
 .auth-status.success{color:#15803d;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;box-shadow:0 2px 8px rgba(22,163,74,.09)}
-.forgot-link{font-family:var(--fb);font-size:13px;color:var(--p);text-align:right;background:none;border:none;cursor:pointer;width:100%;text-decoration:none;margin-top:6px}
+.forgot-link{font-family:var(--fb);font-size:13px;color:var(--g);text-align:right;background:none;border:none;cursor:pointer;width:100%;text-decoration:none;margin-top:6px}
 /* Home page header */
 .home-header{background:#fff;padding:calc(14px + env(safe-area-inset-top,0px)) var(--pg-pad) 12px;position:sticky;top:0;z-index:10;box-shadow:0 1px 0 #f0f0f0}
 .home-header-row{display:flex;align-items:center;gap:8px}
@@ -1004,35 +1005,73 @@ textarea{resize:vertical;min-height:80px}
 .monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
 .monthly-plan-card::after{content:'';position:absolute;bottom:-30px;right:40px;width:70px;height:70px;background:rgba(255,255,255,.08);border-radius:50%}
 /* ── First Tiffin FREE banner (guest mode only) ──
-   Design: Light bordered card (not filled dark gradient) because:
-   - Cutoff banner below is already a dark filled gradient card
-   - Two dark gradient cards stacked = visually heavy, low hierarchy
-   - Light amber border on cream bg = stands out WITHOUT competing
-   - Amber (#92400e text, #fef3c7 bg) is already in the design system
-   - Glow pulse on the border box-shadow = attention without aggression
-   - Clean, professional, consistent with app's card language
+   Design v2: Deep Indigo — exclusive/gift psychology
+   - Completely absent from Tiffo palette = unmistakably unique card
+   - Indigo = premium, special, exclusive — "this is a gift for you"
+   - Maximum contrast from teal OPEN banner and red CLOSED banner
+   - 3-part animation: bounce-in (once) + idle shake every 5s + glow pulse
 ── */
 #first-tiffin-free-btn{
   display:none;text-decoration:none;
-  align-items:center;gap:14px;
-  background:linear-gradient(135deg,#fffbeb,#fef3c7);
-  border:2px solid #f59e0b;
+  align-items:center;gap:12px;
+  background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 60%,#ede9fe 100%);
+  border:2.5px solid #6366f1;
   border-radius:18px;padding:14px 16px;margin-bottom:12px;
   cursor:pointer;
-  box-shadow:0 4px 16px rgba(245,158,11,.20);
+  box-shadow:0 4px 20px rgba(99,102,241,.22);
   position:relative;overflow:hidden;
-  transition:transform 140ms ease;
-  animation:ftf-glow 2.8s ease-in-out infinite;
-  will-change:box-shadow;
+  transition:transform 120ms ease,box-shadow 120ms ease;
+  animation:ftf-bounce-in 500ms cubic-bezier(.34,1.56,.64,1) both,
+            ftf-glow 3s ease-in-out 500ms infinite;
+  will-change:transform,box-shadow;
 }
-#first-tiffin-free-btn:active{transform:scale(.97)}
+#first-tiffin-free-btn:active{transform:scale(.96)!important;box-shadow:0 2px 8px rgba(99,102,241,.18)!important}
+/* Idle attention shake — fires every 5s via JS class toggle */
+#first-tiffin-free-btn.ftf-shake{animation:ftf-ring-shake 600ms cubic-bezier(.36,.07,.19,.97) both!important}
+@keyframes ftf-bounce-in{
+  0%{opacity:0;transform:translateY(-10px) scale(.94)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
 @keyframes ftf-glow{
-  0%,100%{box-shadow:0 4px 16px rgba(245,158,11,.20);border-color:#f59e0b}
-  50%{box-shadow:0 6px 24px rgba(245,158,11,.45),0 0 0 3px rgba(245,158,11,.12);border-color:#d97706}
+  0%,100%{box-shadow:0 4px 20px rgba(99,102,241,.20);border-color:#6366f1}
+  50%{box-shadow:0 6px 28px rgba(99,102,241,.48),0 0 0 4px rgba(99,102,241,.10);border-color:#4f46e5}
+}
+@keyframes ftf-ring-shake{
+  0%{transform:scale(1)}
+  10%{transform:scale(1.03) rotate(-1.5deg)}
+  20%{transform:scale(1.03) rotate(1.5deg)}
+  30%{transform:scale(1.03) rotate(-1deg)}
+  40%{transform:scale(1.03) rotate(1deg)}
+  50%{transform:scale(1.02) rotate(-.5deg)}
+  60%{transform:scale(1.01) rotate(.5deg)}
+  100%{transform:scale(1) rotate(0)}
 }
 @keyframes ftf-shimmer{
   0%{transform:translateX(-130%) skewX(-12deg)}
   100%{transform:translateX(240%) skewX(-12deg)}
+}
+/* FREE badge stamp */
+.ftf-free-stamp{
+  font-family:var(--ff);font-weight:900;
+  font-size:22px;letter-spacing:-1px;
+  color:#3730a3;
+  line-height:1;
+  display:block;
+  position:relative;
+}
+.ftf-free-stamp::after{
+  content:'';position:absolute;bottom:1px;left:0;right:0;
+  height:3px;background:linear-gradient(90deg,#6366f1,#a78bfa);
+  border-radius:2px;
+}
+/* Claim pill */
+.ftf-claim-pill{
+  background:linear-gradient(135deg,#4f46e5,#7c3aed);
+  color:#fff;border-radius:20px;
+  padding:6px 14px;font-family:var(--ff);font-weight:700;font-size:12px;
+  display:inline-flex;align-items:center;gap:5px;
+  box-shadow:0 2px 8px rgba(79,70,229,.35);
+  flex-shrink:0;white-space:nowrap;
 }
 /* Cutoff card */
 #cutoff-banner{border-radius:18px;padding:16px 18px;font-family:var(--ff);font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.08);position:relative;transition:all 300ms}
@@ -1717,9 +1756,7 @@ input[type=number]{-moz-appearance:textfield}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:none}
 .backdrop.show{display:block}
 /* ── Guest Auth Sheet ── */
-#guest-auth-sheet{z-index:1010;max-height:92vh;overflow-y:auto;overscroll-behavior:contain;padding:0!important}
-#guest-auth-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1009;display:none}
-#guest-auth-backdrop.show{display:block}
+#guest-auth-backdrop{display:none}/* kept for legacy JS refs — sheet removed */
 #guest-home-avatar{background:#f1f5f9;border:1.5px dashed #cbd5e1}
 #guest-home-avatar span{color:#94a3b8;font-size:15px;font-weight:600}
 /* Wallet nav — balance badge color transition */
@@ -1881,67 +1918,6 @@ input[type=number]{-moz-appearance:textfield}
 <div id="sheet-backdrop" class="backdrop" onclick="closeAllSheets()"></div>
 
 <!-- ══════════════════════════════════════════════
-     GUEST AUTH SHEET — shown when guest taps cart / orders / account
-     Reuses existing pg-auth tab UI logic (switchTab / doLogin / doSignup)
-     ══════════════════════════════════════════════ -->
-<div id="guest-auth-backdrop" onclick="_closeGuestAuthSheet()"></div>
-<div id="guest-auth-sheet" class="sheet" style="padding:0;overflow:hidden">
-
-  <!-- ── Coloured header — brand gradient ── -->
-  <div style="background:var(--grad);padding:18px var(--pg-pad) 16px;position:relative;overflow:hidden">
-    <!-- decorative circles -->
-    <div style="position:absolute;top:-24px;right:-20px;width:90px;height:90px;background:rgba(255,255,255,.12);border-radius:50%;pointer-events:none"></div>
-    <div style="position:absolute;bottom:-18px;left:-14px;width:60px;height:60px;background:rgba(255,255,255,.08);border-radius:50%;pointer-events:none"></div>
-    <!-- close btn -->
-    <button onclick="_closeGuestAuthSheet()" style="position:absolute;top:14px;right:var(--pg-pad);border:none;background:rgba(255,255,255,.2);border-radius:10px;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;z-index:1">✕</button>
-    <!-- title -->
-    <div style="font-size:18px;font-weight:800;color:#fff;font-family:var(--ff);position:relative;z-index:1" id="gas-title">Sign in to continue</div>
-    <div style="font-size:12px;color:rgba(255,255,255,.8);margin-top:3px;font-family:var(--ff);position:relative;z-index:1" id="gas-subtitle">🎁 First Tiffin FREE for new users!</div>
-  </div>
-
-  <!-- ── Body ── -->
-  <div style="padding:18px var(--pg-pad) calc(18px + env(safe-area-inset-bottom,0px))">
-
-    <!-- Login fields -->
-    <div style="margin-bottom:10px">
-      <input id="gas-phone" type="tel" inputmode="numeric" maxlength="10" placeholder="WhatsApp number (10 digits)"
-        style="width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:var(--ff);box-sizing:border-box;outline:none"
-        onkeydown="if(event.key==='Enter')document.getElementById('gas-pw').focus()">
-    </div>
-    <div style="margin-bottom:4px;position:relative">
-      <input id="gas-pw" type="password" placeholder="Password"
-        style="width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:12px;font-size:15px;font-family:var(--ff);box-sizing:border-box;outline:none;padding-right:46px"
-        onkeydown="if(event.key==='Enter')_gasDoLogin()">
-      <button onclick="togglePw('gas-pw',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;color:#94a3b8;font-size:16px;padding:4px">👁</button>
-    </div>
-    <div id="gas-login-status" style="font-size:13px;color:#dc2626;min-height:18px;margin-bottom:6px;padding-left:2px;font-family:var(--ff)"></div>
-
-    <!-- Login button -->
-    <button id="gas-login-btn" onclick="_gasDoLogin()"
-      style="width:100%;padding:14px;background:var(--grad);color:#fff;border:none;border-radius:13px;font-size:15px;font-weight:700;font-family:var(--ff);cursor:pointer;box-shadow:0 4px 14px rgba(230,57,70,.30)">
-      Login &amp; Continue →
-    </button>
-    <button onclick="forgotPw()" style="width:100%;border:none;background:none;color:var(--p);font-size:12px;font-family:var(--ff);font-weight:600;cursor:pointer;margin-top:8px;padding:4px">Forgot password?</button>
-
-    <!-- Divider -->
-    <div style="display:flex;align-items:center;gap:10px;margin:14px 0">
-      <div style="flex:1;height:1px;background:#f0f0f0"></div>
-      <div style="font-family:var(--fb);font-size:11px;color:#94a3b8;white-space:nowrap">New to Tiffo?</div>
-      <div style="flex:1;height:1px;background:#f0f0f0"></div>
-    </div>
-
-    <!-- Create Account button — bright, unmissable -->
-    <button onclick="_gasGoFullSignup()"
-      style="width:100%;padding:14px;background:linear-gradient(135deg,#fffbeb,#fef3c7);color:#92400e;border:2px solid #f59e0b;border-radius:13px;font-size:15px;font-weight:800;font-family:var(--ff);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 4px 16px rgba(245,158,11,.25)">
-      <span style="font-size:18px">🎁</span>
-      <span>Create Account — First Tiffin FREE!</span>
-    </button>
-    <div style="font-family:var(--fb);font-size:11px;color:#94a3b8;text-align:center;margin-top:8px">First Tiffin FREE · New users only</div>
-
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════
      EXIT CONFIRM DIALOG (pre-built, stable)
      Shown on second back-press at root screen.
      Controlled by _showExitConfirm / _hideExitConfirm.
@@ -1963,14 +1939,11 @@ input[type=number]{-moz-appearance:textfield}
 ══════════════════════════════════════════════ -->
 <div id="pg-auth" class="pg pg-scroll-full">
   <div class="auth-top">
-    <div class="auth-logo">🍱 Tiffo</div>
-    <div class="auth-sub">Ghar Ka Tiffin 😍</div>
-    <div class="auth-tagline">Fresh, homestyle meals delivered to your door</div>
-    <!-- First Tiffin FREE offer pill -->
-    <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.45);border-radius:20px;padding:5px 14px;margin-top:10px;position:relative;z-index:1">
-      <span style="font-size:14px">🎁</span>
-      <span style="font-family:var(--ff);font-size:12px;font-weight:700;color:#fff;letter-spacing:.1px">First Tiffin FREE — New Users!</span>
-    </div>
+    <!-- Back to browsing — only shown when guest navigated here from home -->
+    <button id="auth-back-btn" onclick="back()" style="display:none;position:absolute;top:14px;left:16px;border:none;background:#f5f5f5;border-radius:10px;width:34px;height:34px;cursor:pointer;align-items:center;justify-content:center;font-size:18px;color:var(--dk);z-index:2">‹</button>
+    <div class="auth-logo"><span class="r">Tif</span><span class="g">fo</span></div>
+    <div class="auth-sub">Ghar Ka Tiffin • Varanasi</div>
+    <div class="auth-tagline">Fresh homestyle meals delivered to your door</div>
   </div>
   <div class="auth-card">
     <div class="tab-bar">
@@ -1997,13 +1970,9 @@ input[type=number]{-moz-appearance:textfield}
       <div class="mt16">
         <button class="btn-primary" id="login-btn" onclick="doLogin()">Login</button>
       </div>
-      <!-- First Tiffin FREE — nudge new users to signup -->
-      <div style="margin-top:14px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #f59e0b;border-radius:13px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-        <div>
-          <div style="font-family:var(--ff);font-size:13px;font-weight:800;color:#92400e">🎁 First Tiffin FREE!</div>
-          <div style="font-family:var(--fb);font-size:11.5px;color:#b45309;margin-top:2px">New user ho? Sign up karo aur claim karo</div>
-        </div>
-        <button onclick="switchTab('signup')" style="border:none;background:#f59e0b;color:#fff;border-radius:10px;padding:8px 14px;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Sign Up →</button>
+      <!-- New to Tiffo nudge -->
+      <div style="margin-top:16px;text-align:center;font-family:var(--fb);font-size:13px;color:#94a3b8">
+        New to Tiffo? <button onclick="switchTab('signup')" style="border:none;background:none;color:var(--g);font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;padding:0">Create an account →</button>
       </div>
     </div>
 
@@ -2201,15 +2170,6 @@ input[type=number]{-moz-appearance:textfield}
 
       <div class="field-error" id="su-loc-err" style="margin-top:-10px;margin-bottom:10px"></div>
 
-      <!-- First Tiffin FREE reminder — right before submit -->
-      <div style="margin-top:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:13px;padding:11px 14px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px;flex-shrink:0">🎉</span>
-        <div>
-          <div style="font-family:var(--ff);font-size:13px;font-weight:800;color:#15803d">First Tiffin FREE milega!</div>
-          <div style="font-family:var(--fb);font-size:11.5px;color:#16a34a;margin-top:1px">Account banate hi claim kar sakte ho</div>
-        </div>
-      </div>
-
       <div style="margin-top:12px;padding-bottom:16px">
         <div id="signup-status" class="auth-status" style="display:none"></div>
         <button class="btn-primary" id="su-btn" onclick="doSignup()" style="letter-spacing:0.3px;font-size:15px;position:relative;overflow:hidden">
@@ -2239,7 +2199,7 @@ input[type=number]{-moz-appearance:textfield}
         <div class="home-logo"><span class="r">Tif</span><span class="g">fo</span></div>
         <div class="home-logo-sub" id="hdr-logo-sub">Ghar Ka Tiffin 😍</div>
         <!-- shown in guest mode only via JS -->
-        <div id="hdr-free-tag" style="display:none;font-family:var(--ff);font-size:10px;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #f59e0b;border-radius:20px;padding:2px 8px;margin-top:3px;width:fit-content">🎁 First Tiffin FREE</div>
+        <div id="hdr-free-tag" style="display:none"></div>
       </div>
       <!-- Inline search input (shown when search icon tapped) -->
       <div class="home-header-search-wrap" id="hdr-search-wrap">
@@ -2303,22 +2263,26 @@ input[type=number]{-moz-appearance:textfield}
 
       <!-- First Tiffin FREE — guest mode only, WhatsApp CTA -->
       <a id="first-tiffin-free-btn"
-         href="https://wa.me/919889760350?text=%E0%A4%AA%E0%A4%B9%E0%A4%B2%E0%A4%BE%20Tiffin%20FREE%20%F0%9F%8E%89"
+         href="https://wa.me/919889760350?text=Hi%2C%20I%27m%20interested%20in%20the%20First%20Tiffin%20FREE%20offer%21"
          target="_blank" rel="noopener"
          onclick="_ftfTappedAt=Date.now()">
-        <!-- shimmer — subtle warm sweep -->
-        <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);animation:ftf-shimmer 3.2s linear infinite;pointer-events:none;z-index:0"></span>
-        <!-- Gift icon box -->
-        <span style="width:44px;height:44px;background:#fde68a;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;position:relative;z-index:1">🎁</span>
-        <!-- Copy -->
+        <!-- shimmer sweep -->
+        <span aria-hidden="true" style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.6) 50%,transparent 70%);animation:ftf-shimmer 3.5s linear 600ms infinite;pointer-events:none;z-index:0"></span>
+        <!-- Left: icon box -->
+        <span style="width:48px;height:48px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;position:relative;z-index:1;box-shadow:0 3px 10px rgba(79,70,229,.35)">🎁</span>
+        <!-- Center: copy -->
         <span style="flex:1;position:relative;z-index:1;min-width:0">
-          <span style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px;display:block;color:#92400e;line-height:1.2">First Tiffin FREE! 🎉</span>
-          <span style="font-family:var(--fb);font-size:12px;color:#b45309;margin-top:3px;display:flex;align-items:center;gap:5px;line-height:1.3">
-            <span style="background:#f59e0b;color:#fff;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff);white-space:nowrap">NEW USER</span>
-            WhatsApp करके claim करें
+          <span style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <span style="background:#3730a3;color:#fff;border-radius:5px;padding:2px 7px;font-size:9.5px;font-weight:800;font-family:var(--ff);letter-spacing:.4px;white-space:nowrap">YOUR FIRST ORDER</span>
+            <span style="font-family:var(--fb);font-size:11px;color:#4338ca;font-weight:600">New customers only</span>
           </span>
+          <span class="ftf-free-stamp">First Tiffin FREE</span>
+          <span style="font-family:var(--fb);font-size:11.5px;color:#4338ca;margin-top:4px;display:block;font-weight:500">Tap to claim on WhatsApp →</span>
         </span>
-        <span style="background:#fde68a;border-radius:10px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:13px;color:#92400e"></i></span>
+        <!-- Right: claim pill -->
+        <span class="ftf-claim-pill" style="position:relative;z-index:1">
+          CLAIM<i class="fa-solid fa-arrow-right" style="font-size:10px"></i>
+        </span>
       </a>
 
       <!-- Cutoff banner -->
@@ -3022,6 +2986,7 @@ input[type=number]{-moz-appearance:textfield}
 <div id="guest-loc-popup" class="modal-overlay" style="display:none" onclick="if(event.target===this)_guestLocDismiss()">
   <div class="loc-popup-card">
     <div class="loc-popup-icon">📍</div>
+    <div class="loc-popup-title">Delivery Check</div>
     <div class="loc-popup-sub">Allow location access to check delivery availability in your area.</div>
     <button class="loc-popup-allow" onclick="_guestLocAllow()">
       <i class="fa fa-location-dot"></i> Use My Location
@@ -4053,6 +4018,11 @@ function back() {
 
 function onEnter(id) {
   if (id === 'pg-home') {
+    // If returning to home from pg-auth (guest pressed back), restore guest UI
+    if (_isGuestMode) {
+      document.body.classList.remove('auth-mode');
+      _pendingCartNav = false; // cancel pending nav since user chose not to login
+    }
     // Check version on every home tab entry — lightweight ~80-byte ping.
     // Only triggers a full DB fetch if admin actually changed something.
     // _menuFreshTs < 30s guard inside _checkMenuVersion prevents redundant calls
@@ -4112,10 +4082,16 @@ function switchTab(tab) {
     signupTab.style.display = 'block';
     btnSignup.classList.add('active');
     btnLogin.classList.remove('active');
-    // Kill the guest-loc popup timer — signup has its own GPS flow.
-    // Without this, the 15s popup fires while signup prewarm is in-flight,
+    // Kill the guest-loc popup timer + scroll trigger — signup has its own GPS flow.
+    // Without this, popup could fire while signup prewarm is in-flight,
     // causing two simultaneous geolocation requests and a double-dialog conflict.
     if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
+    if (_guestLocScrollHandler) {
+      const _glc = document.getElementById('home-scroll');
+      if (_glc) _glc.removeEventListener('scroll', _guestLocScrollHandler);
+      _guestLocScrollHandler = null;
+    }
+    _guestLocScrollBound = false;
     const glp = document.getElementById('guest-loc-popup');
     if (glp) glp.style.display = 'none';
     // Load areas from server (non-blocking)
@@ -5872,8 +5848,14 @@ async function doSignup() {
     // If user signed up with manual address (no GPS), that address is their delivery address.
     // Coordinates can only be changed by the user manually via Settings → Update Address.
     // No background GPS retry — intentionally removed to prevent silent DB overwrites.
-    // Clear guest location popup — user is now registered, no need to ask
+    // Clear guest location popup + scroll trigger — user is now registered
     if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
+    if (_guestLocScrollHandler) {
+      const _gsc = document.getElementById('home-scroll');
+      if (_gsc) _gsc.removeEventListener('scroll', _guestLocScrollHandler);
+      _guestLocScrollHandler = null;
+    }
+    _guestLocScrollBound = false;
     // btn stays disabled — user is being navigated away
 
   } catch(e) {
@@ -9293,7 +9275,7 @@ document.addEventListener('visibilitychange', () => {
     if (_isGuestMode && _ftfTappedAt > 0 && (Date.now() - _ftfTappedAt) < 3 * 60 * 1000) {
       _ftfTappedAt = 0; // reset so it fires only once
       setTimeout(() => {
-        toast('🎁 First Tiffin FREE! Signup karo aur claim karo →', 4500);
+        toast('🎁 First Tiffin FREE! Create an account to claim your offer →', 4500);
       }, 800);
     }
 
@@ -9440,6 +9422,9 @@ function _wipeAndShowLogin() {
   _isGuestMode = false;
   _pendingCartNav = false;
   _sessionExpiredHandled = false;
+  // Hide back btn — this is a forced logout, not guest navigation
+  const _authBack = document.getElementById('auth-back-btn');
+  if (_authBack) _authBack.style.display = 'none';
   // Go to login (signup tab = fresh start, no prefill)
   _transitionToLogin(false);
 }
@@ -9713,8 +9698,14 @@ async function bootApp() {
 
 function _transitionToHome() {
   _isGuestMode = false; // now logged in — clear guest flag
-  // Clear location popup timer — user is now logged in, no need to ask
+  // Clear location popup timer + scroll trigger — user is now logged in
   if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
+  if (_guestLocScrollHandler) {
+    const c = document.getElementById('home-scroll');
+    if (c) c.removeEventListener('scroll', _guestLocScrollHandler);
+    _guestLocScrollHandler = null;
+  }
+  _guestLocScrollBound = false;
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
   document.body.classList.remove('auth-mode');
@@ -9732,7 +9723,9 @@ function _transitionToHome() {
 }
 
 function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
-  _isGuestMode = false;
+  // Don't wipe _isGuestMode here — guest users who tap cart go to login
+  // but should be able to press back and return to guest browsing.
+  // _isGuestMode is cleared only on successful login/signup.
   document.body.classList.add('auth-mode');
   document.getElementById('app-loader').style.display = 'none';
   document.getElementById('retry-screen').style.display = 'none';
@@ -9740,8 +9733,8 @@ function _transitionToLogin(showLoginTab = false, wrongCreds = false) {
   const auth = document.getElementById('pg-auth');
   auth.classList.add('here');
   auth.style.transform = '';
-  _stack = ['pg-auth'];
-  history.replaceState({pg:'pg-auth',stackLen:1},'', location.pathname + location.search);
+  _stack = ['pg-home', 'pg-auth']; // pg-home as base so back returns to guest home
+  history.replaceState({pg:'pg-auth',stackLen:2},'', location.pathname + location.search);
   if (showLoginTab) {
     document.getElementById('tab-login').click();
     setTimeout(() => prefillLoginForm(wrongCreds), 100);
@@ -9780,7 +9773,27 @@ function _transitionToGuestHome() {
   const _freeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_pauseRow) _pauseRow.style.display = 'none';
   if (_planCard) _planCard.style.display = 'none';   // hidden in guest — free btn takes its place
-  if (_freeBtn)  _freeBtn.style.display  = 'flex';
+  if (_freeBtn)  {
+    _freeBtn.style.display  = 'flex';
+    // ── Idle ring-shake: fires at 3s then every 5s while card is visible ──
+    // Mimics a phone notification ring — subconscious tap trigger
+    let _ftfShakeTimer = null;
+    function _ftfDoShake() {
+      const btn = document.getElementById('first-tiffin-free-btn');
+      if (!btn || btn.style.display === 'none') { clearInterval(_ftfShakeTimer); return; }
+      btn.classList.remove('ftf-shake');
+      void btn.offsetWidth; // force reflow to restart animation
+      btn.classList.add('ftf-shake');
+      btn.addEventListener('animationend', function _rmShake(e) {
+        if (e.animationName === 'ftf-ring-shake') {
+          btn.classList.remove('ftf-shake');
+          btn.removeEventListener('animationend', _rmShake);
+        }
+      });
+    }
+    setTimeout(_ftfDoShake, 3000);          // first shake at 3s
+    _ftfShakeTimer = setInterval(_ftfDoShake, 5000); // then every 5s
+  }
   const _hdrFreeTagG = document.getElementById('hdr-free-tag');
   if (_hdrFreeTagG) _hdrFreeTagG.style.display = 'block';
   // Load menu and schedule for guest (no auth required — getHomeData is public).
@@ -9804,29 +9817,63 @@ function _transitionToGuestHome() {
 
 
 /* ── Guest Location Popup ────────────────────────────────────────────────────
-   Shows a "Use My Location" popup to guest users after 15s on site.
-   - If browser permission already granted: skip popup, silently warm GPS.
-   - Allow: browser permission prompt → GPS → _suWarmPos set → signup instant.
-   - Dismiss: re-ask after 30s (max 2 re-asks per session, then stop).
-   - Coords are set ONCE at signup. Address changes only via Settings → Update Address. */
+   Shows a "Use My Location" popup to guest users.
+
+   TRIGGER (two-signal, whichever fires first):
+     A) User scrolls home menu >150px  → engaged with content, good time to ask
+     B) Fallback timer 12s             → catches users who don't scroll much
+
+   PERMISSION CASES:
+     granted → skip popup entirely, silently warm GPS in background (no dialog)
+     denied  → skip popup, nothing we can do (area dropdown fallback at signup)
+     prompt  → show popup. User taps "Use My Location" → ONE browser dialog →
+               GPS warms while user fills signup form → detect tap is instant.
+
+   WHY no silent call before popup (old Step A removed):
+     Even low-accuracy getCurrentPosition triggers the browser system dialog
+     when state is 'prompt' on Android Chrome, Firefox, iOS Safari.
+     Old code fired it silently at t=0 → browser dialog immediately,
+     then our popup at t=15s → user saw TWO dialogs. Removed.
+
+   DISMISS: re-ask after 10s, max 2 re-asks per session then stop.
+   Coords set ONCE at signup. Change only via Settings → Update Address. */
 
 let _guestLocPopupShown   = false;  // shown at least once this session
 let _guestLocDismissCount = 0;      // how many times user dismissed (max 2 re-asks)
-let _guestLocTimer        = null;   // setTimeout handle
-// Note: _startBgGpsRetry removed — coordinates are set ONCE at signup.
-// User changes address only via Settings → Update Address (manual, user-controlled).
+let _guestLocTimer        = null;   // setTimeout handle for fallback timer
+let _guestLocScrollBound  = false;  // true once scroll listener is attached
+let _guestLocScrollHandler = null;  // module-level ref so we can removeEventListener on reset
 
-/* Called from _transitionToGuestHome — schedules the popup */
+/* Attach one-shot scroll listener on home-scroll container.
+   Fires popup when user scrolls >150px into the menu — they're engaged. */
+function _attachGuestLocScrollTrigger() {
+  if (_guestLocScrollBound) return;
+  const container = document.getElementById('home-scroll');
+  if (!container) return;
+  _guestLocScrollBound = true;
+  _guestLocScrollHandler = () => {
+    if (container.scrollTop > 150) {
+      container.removeEventListener('scroll', _guestLocScrollHandler);
+      _guestLocScrollHandler = null;
+      // Cancel the fallback timer — scroll beat it
+      if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
+      _showGuestLocPopup();
+    }
+  };
+  container.addEventListener('scroll', _guestLocScrollHandler, { passive: true });
+}
+
+/* Called from _transitionToGuestHome */
 function _scheduleGuestLocPopup() {
-  if (_guestLocTimer) return; // already scheduled
+  if (_guestLocTimer || _guestLocScrollBound) return; // already armed
 
   if (navigator.permissions) {
     navigator.permissions.query({ name: 'geolocation' }).then(r => {
 
       if (r.state === 'granted') {
         // ── CASE 1: Already allowed ──────────────────────────────────────
-        // High-accuracy warm — no prompt, chip starts immediately
-        // Guard: _suWarmPending prevents duplicate if signup tab prewarm already in-flight (BUG 2 fix)
+        // Silent high-accuracy warm — no dialog, chip starts immediately.
+        // Guard: skip if prewarm already in-flight or resolved.
         if (!_suWarmPos && !_suWarmPending && navigator.geolocation) {
           _suWarmPending = true;
           const myWarmToken = _suWarmToken;
@@ -9841,51 +9888,33 @@ function _scheduleGuestLocPopup() {
             { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
           );
         }
-        return;
+        return; // no popup needed
       }
 
       if (r.state === 'denied') {
         // ── CASE 2: Hard denied ──────────────────────────────────────────
-        // Nothing we can do — area dropdown is fallback at signup
-        return;
+        return; // area dropdown is fallback at signup
       }
 
-      // ── CASE 3: 'prompt' state — permission not yet asked ────────────
-      // Step A: Fire low-accuracy call silently RIGHT NOW.
-      //   - enableHighAccuracy:false + short timeout = no browser prompt on Chrome/Android
-      //   - Side effect: GPS chip starts warming up immediately
-      //   - If it resolves → great, _suWarmPos set, chip warm, popup may not even be needed
-      //   - If it fails / prompts → we catch silently, popup will handle it
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            // Low-accuracy resolved without prompt — chip is warm, save it
-            if (!_suWarmPos) {
-              _suWarmPos = pos;
-              _saveCoordsToStorage(pos);
-            }
-          },
-          () => {
-            // Failed or prompted — that's fine, popup will ask properly
-          },
-          { enableHighAccuracy: false, timeout: 3000, maximumAge: 120000 }
-        );
-      }
-      // Step B: Show popup after 15s to get explicit permission
-      //   (by then chip has had 15s to warm regardless of low-acc result)
-      _guestLocTimer = setTimeout(_showGuestLocPopup, 15000);
+      // ── CASE 3: 'prompt' — permission not yet asked ───────────────────
+      // Arm scroll trigger (primary) + fallback timer (secondary).
+      // No silent GPS call — that would immediately trigger browser dialog.
+      _attachGuestLocScrollTrigger();
+      _guestLocTimer = setTimeout(_showGuestLocPopup, 12000);
 
     }).catch(() => {
-      // permissions API not supported (older browsers) — just schedule popup
-      _guestLocTimer = setTimeout(_showGuestLocPopup, 15000);
+      // permissions API unsupported — arm both triggers directly
+      _attachGuestLocScrollTrigger();
+      _guestLocTimer = setTimeout(_showGuestLocPopup, 12000);
     });
   } else {
-    // No permissions API — schedule popup after 15s
-    _guestLocTimer = setTimeout(_showGuestLocPopup, 15000);
+    // No permissions API — arm both triggers directly
+    _attachGuestLocScrollTrigger();
+    _guestLocTimer = setTimeout(_showGuestLocPopup, 12000);
   }
 }
 
-/* Save coords to localStorage — shared helper used by popup allow + low-acc warm */
+/* Save coords to localStorage — shared by popup allow + Case 1 warm */
 function _saveCoordsToStorage(pos) {
   try {
     localStorage.setItem('tiffo_warm_coords', JSON.stringify({
@@ -9897,10 +9926,8 @@ function _saveCoordsToStorage(pos) {
 }
 
 function _showGuestLocPopup() {
-  // Don't show if user has already logged in / signed up
-  if (!_isGuestMode) return;
-  // Don't show if signup tab is active — signup manages its own GPS flow and
-  // showing this popup simultaneously causes a double permission dialog conflict.
+  if (!_isGuestMode) return; // already logged in / signed up
+  // Don't interrupt signup tab — it manages its own GPS flow
   if (document.getElementById('signup-tab')?.style.display !== 'none') return;
   _guestLocPopupShown = true;
   const popup = document.getElementById('guest-loc-popup');
@@ -9911,8 +9938,11 @@ function _guestLocAllow() {
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
   if (!navigator.geolocation) return;
-  // User explicitly allowed — fire high-accuracy GPS, chip already warm from low-acc call
-  // Guard: skip if a prewarm is already in-flight (e.g. signup tab prewarm racing this) (BUG 2 fix)
+  // User explicitly tapped "Use My Location" — fire ONE high-accuracy GPS call.
+  // This is the only place a browser permission dialog appears for 'prompt' state.
+  // GPS warms in background; by the time user opens signup and fills the form,
+  // _suWarmPos is set → "Detect My Location" tap is instant.
+  // Guard: skip if prewarm already in-flight or resolved (e.g. signup tab racing this).
   if (!_suWarmPos && !_suWarmPending) {
     _suWarmPending = true;
     const myWarmToken = _suWarmToken;
@@ -9933,9 +9963,9 @@ function _guestLocDismiss() {
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
   _guestLocDismissCount++;
-  // Re-ask max 2 times (after 30s each), then stop permanently for this session
+  // Re-ask after 10s, max 2 re-asks per session then stop
   if (_guestLocDismissCount < 3 && _isGuestMode) {
-    _guestLocTimer = setTimeout(_showGuestLocPopup, 30000);
+    _guestLocTimer = setTimeout(_showGuestLocPopup, 10000);
   }
 }
 
@@ -9959,122 +9989,18 @@ function _loadWarmCoordsFromStorage() {
 }
 
 function _showGuestAuthSheet(context) {
-  // context: 'cart' | 'orders'
-  const title    = document.getElementById('gas-title');
-  const subtitle = document.getElementById('gas-subtitle');
-  if (title) {
-    title.textContent = context === 'cart' ? 'Login to place order' : 'Login to continue';
-  }
-  if (subtitle) {
-    subtitle.textContent = '🎁 First Tiffin FREE for new users!';
-  }
-  // Clear any previous status
-  const statusEl = document.getElementById('gas-login-status');
-  if (statusEl) statusEl.textContent = '';
-  // Pre-fill phone if we have stale creds lying around (edge case: user cleared session)
-  const creds = Creds.get();
-  if (creds && creds.phone) {
-    const phoneEl = document.getElementById('gas-phone');
-    if (phoneEl) phoneEl.value = creds.phone;
-  }
-  document.getElementById('guest-auth-backdrop').classList.add('show');
-  const sheet = document.getElementById('guest-auth-sheet');
-  sheet.classList.add('open');
-  // Focus phone field after animation
-  setTimeout(() => {
-    const phoneEl = document.getElementById('gas-phone');
-    if (phoneEl && !phoneEl.value) phoneEl.focus();
-    else {
-      const pwEl = document.getElementById('gas-pw');
-      if (pwEl) pwEl.focus();
-    }
-  }, 360);
+  // Always use full-page login — avoids keyboard hiding Create Account button
+  // and gives a consistent, professional full-screen experience.
+  // _pendingCartNav is set before this call by the caller.
+  // Show back button so guest can return to browsing
+  const backBtn = document.getElementById('auth-back-btn');
+  if (backBtn) backBtn.style.display = 'flex';
+  _transitionToLogin(true, false); // true = show login tab
 }
 
-function _closeGuestAuthSheet(clearPending = true, goFullSignup = false) {
-  if (clearPending) _pendingCartNav = false;
-  document.getElementById('guest-auth-backdrop').classList.remove('show');
-  document.getElementById('guest-auth-sheet').classList.remove('open');
-  if (goFullSignup) {
-    // User wants full signup → go to auth page signup tab
-    _isGuestMode = false;
-    _transitionToLogin(false, false); // signup tab
-  }
-}
 
-function _gasGoFullSignup() {
-  // Close the sheet and immediately navigate to the full signup page — no intermediate step
-  _closeGuestAuthSheet(false, true);
-}
-
-function _gasTab(tab) {
-  // New sheet design has no tabs — login fields are always visible.
-  // This function is kept for any legacy callers; it's now a no-op.
-}
-
-async function _gasDoLogin() {
-  const phone = document.getElementById('gas-phone').value.replace(/\D/g, '');
-  const pw    = document.getElementById('gas-pw').value;
-  const statusEl = document.getElementById('gas-login-status');
-  const btn   = document.getElementById('gas-login-btn');
-
-  if (!phone || phone.length !== 10) { statusEl.textContent = '📱 Enter 10-digit WhatsApp number'; return; }
-  if (!pw) { statusEl.textContent = '🔒 Enter your password'; return; }
-
-  statusEl.textContent = 'Signing you in...';
-  statusEl.style.color = '#3b82f6';
-  btn.disabled = true;
-
-  try {
-    const res = await api('login', { phone, password: pw });
-    // ✅ Success
-    _closeGuestAuthSheet(false); // keep _pendingCartNav intact
-    _isGuestMode = false;
-    Creds.save(phone, pw);
-    Auth.set(res.user);
-    _session.is_subscriber = !!res.subscriber;
-    _walletBal = res.walletBalance || 0;
-    // Set _pauseMode from server response (same as doLogin does) so SessionCache.save
-    // below always persists the correct pause state — not the default 'none'.
-    // refreshPauseStatus in _doPostLoginRefresh will also run and correct display,
-    // but this ensures the cached value is right even if that request fails.
-    if (res.subscriber) {
-      _pauseMode = res.subscriber.pause_delivery || 'none';
-      Auth.patch({ plan: res.subscriber.plan || 'morning' });
-      applyPauseState(_pauseMode);
-    }
-    updateWalletUI(_walletBal);
-    showMenuSkeletons();
-    _transitionToHome();
-    // If user was going to cart → open it right away
-    if (_pendingCartNav) { _pendingCartNav = false; setTimeout(() => nav('pg-cart'), 120); }
-    const _p = loadMenu(true, false);
-    _p.then(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, userToken: res.userToken || '' });
-    }).catch(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
-    });
-    startPolling();
-    startVersionPolling();
-    _doPostLoginRefresh(_p); // refreshPauseStatus inside sets correct display including pendingTomorrow
-  } catch(e) {
-    btn.disabled = false;
-    const isAuthError = e.message?.includes('Session invalid') ||
-                        e.message?.includes('Unauthorized') ||
-                        e.message?.includes('not found') ||
-                        e.message?.includes('Invalid');
-    statusEl.style.color = '#dc2626';
-    if (isAuthError) {
-      statusEl.textContent = '⚠️ Incorrect details — please try again';
-      document.getElementById('gas-pw').value = '';
-      document.getElementById('gas-pw').focus();
-    } else {
-      statusEl.textContent = '⚠️ No internet. Check connection and retry.';
-    }
-  }
-}
+/* _closeGuestAuthSheet / _gasGoFullSignup / _gasTab / _gasDoLogin removed —
+   guest auth now uses full-page pg-auth via _showGuestAuthSheet → _transitionToLogin */
 
 function _onAvatarTap() {
   if (_isGuestMode || !_session) {
