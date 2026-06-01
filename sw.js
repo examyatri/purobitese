@@ -3,13 +3,13 @@
    Version : v39.0  |  Updated : 2026-06-01
 
    CHANGES v39.0:
-   - Cache bumped to tiffo-v47
+   - Cache bumped to tiffo-v48
    - First Tiffin FREE card (guest mode): light amber bordered card
    - Closed banner: dark red gradient (#991b1b→#dc2626), white text
    - Time pills: rgba(255,255,255,.20) readable on dark banners
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v47'; // bumped for FREE card + closed banner dark red
+const CACHE      = 'tiffo-v48'; // bumped for v105 UI polish
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
