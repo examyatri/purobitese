@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v21.5                                    ║
-     ║  Updated : 2026-05-29                               ║
-     ║  Changes : v84 — Version bump        ║
+     ║  Version : v100                                   ║
+     ║  Updated : 2026-06-02                               ║
+     ║  Changes : v80 — Earning logic final cleanup        ║
      ║   1. Earning = Wallet recharges (all) +             ║
      ║      UPI/UPI_insuf/Udhar (only admin-marked paid)  ║
      ║   2. Wallet orders excluded from earnings           ║
@@ -1451,6 +1451,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <option value="per_user_limit">Per User Limit</option>
             <option value="specific_phone">Specific Phone</option>
             <option value="new_users_only">New Users Only</option>
+            <option value="flash_window">⚡ Flash Window</option>
           </select>
           <select id="coupon-status-filter" onchange="renderCouponsTable()">
             <option value="">All Status</option>
@@ -4516,8 +4517,8 @@ function renderCouponsTable() {
     return new Date(a.expiry_date) - new Date(b.expiry_date);
   });
 
-  const rtypeLabel = { unlimited:'Unlimited', one_time_per_user:'1x/User', one_time_total:'1x Total', limited_total:'Limited', per_user_limit:'Per User', specific_phone:'Specific #', new_users_only:'New Users' };
-  const rtypeBadge = { unlimited:'#64748b', one_time_per_user:'#7c3aed', one_time_total:'#dc2626', limited_total:'#d97706', per_user_limit:'#0891b2', specific_phone:'#059669', new_users_only:'#db2777' };
+  const rtypeLabel = { unlimited:'Unlimited', one_time_per_user:'1x/User', one_time_total:'1x Total', limited_total:'Limited', per_user_limit:'Per User', specific_phone:'Specific #', new_users_only:'New Users', flash_window:'⚡ Flash' };
+  const rtypeBadge = { unlimited:'#64748b', one_time_per_user:'#7c3aed', one_time_total:'#dc2626', limited_total:'#d97706', per_user_limit:'#0891b2', specific_phone:'#059669', new_users_only:'#db2777', flash_window:'#ea580c' };
   tbody.innerHTML = coupons.length ? coupons.map(c => {
     const isPercCap = c.discount_type === 'percent_cap';
     const isPercent = c.discount_type === 'percent' || isPercCap;
@@ -4533,7 +4534,7 @@ function renderCouponsTable() {
       '<td>₹' + (c.min_order || 0) + '</td>' +
       '<td>' + limitStr + '</td>' +
       '<td>' + (c.used_count || 0) + '</td>' +
-      '<td style="font-size:12px">' + fmtDate(c.expiry_date) + '</td>' +
+      '<td style="font-size:12px">' + (c.restriction_type === 'flash_window' ? '⚡ ' + (c.flash_start ? c.flash_start.slice(0,5) : '') + '–' + (c.flash_end ? c.flash_end.slice(0,5) : '') : fmtDate(c.expiry_date)) + '</td>' +
       '<td><label class="toggle-sw"><input type="checkbox" ' + (c.is_active ? 'checked' : '') + ' onchange="toggleCoupon(' + c.id + ',this.checked)"><span class="toggle-sl"></span></label></td>' +
       '<td><div style="display:flex;gap:6px"><button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteCoupon(' + c.id + ')"><i class="fa fa-trash"></i></button></div></td>' +
       '</tr>';
@@ -4566,14 +4567,16 @@ function openCouponModal() {
           <option value="per_user_limit">🔁 Custom per-user limit</option>
           <option value="specific_phone">📱 Specific phone number(s) only</option>
           <option value="new_users_only">🆕 New users only (registered ≤30 days)</option>
+          <option value="flash_window">⚡ Flash Window (today only, time-limited, auto-deleted)</option>
         </select>
       </div>
       <div class="field" id="cf-maxuse-wrap"><label id="cf-maxuse-label">Total Usage Limit</label><input id="cf-maxuse" type="number" min="1" placeholder="e.g. 100"></div>
       <div class="field" id="cf-peruser-wrap" style="display:none"><label>Uses Per User</label><input id="cf-peruser" type="number" min="1" placeholder="e.g. 3"></div>
       <div class="field" id="cf-phones-wrap" style="grid-column:1/-1;display:none"><label>Allowed Phone Numbers (one per line or comma-separated)</label><textarea id="cf-phones" rows="3" placeholder="9876543210&#10;9123456789" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;font-family:monospace;resize:vertical"></textarea></div>
 
+      <div id="cf-flash-wrap" style="grid-column:1/-1;display:none;background:#fff7ed;border:1.5px solid #fb923c;border-radius:10px;padding:12px 14px;gap:12px" class="mo-grid-2"><div style="grid-column:1/-1;font-size:12px;font-weight:700;color:#ea580c">⚡ Flash Sale Window — valid today only between these times</div><div class="field"><label>Start Time</label><input id="cf-flash-start" type="time" oninput="updateCouponPreview()"></div><div class="field"><label>End Time</label><input id="cf-flash-end" type="time" oninput="updateCouponPreview()"></div></div>
       <div class="field"><label>Min Order Amount (₹)</label><input id="cf-min" type="number" value="0" min="0"></div>
-      <div class="field"><label>Expiry Date</label><input id="cf-expiry" type="date"></div>
+      <div class="field" id="cf-expiry-wrap"><label>Expiry Date</label><input id="cf-expiry" type="date"></div>
     </div>
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-top:4px;font-size:12px;color:#64748b" id="cf-preview">
       Preview will show here after filling fields…
@@ -4601,10 +4604,14 @@ function couponRtypeToggle() {
   const maxuseWrap  = document.getElementById('cf-maxuse-wrap');
   const peruserWrap = document.getElementById('cf-peruser-wrap');
   const phonesWrap  = document.getElementById('cf-phones-wrap');
+  const flashWrap   = document.getElementById('cf-flash-wrap');
+  const expiryWrap  = document.getElementById('cf-expiry-wrap');
   const maxuseLabel = document.getElementById('cf-maxuse-label');
   if (!maxuseWrap) return;
   // defaults
   maxuseWrap.style.display = ''; peruserWrap.style.display = 'none'; phonesWrap.style.display = 'none';
+  if (flashWrap)  flashWrap.style.display  = 'none';
+  if (expiryWrap) expiryWrap.style.display = '';
   if (r === 'unlimited')         { maxuseWrap.style.display='none'; }
   if (r === 'one_time_total')    { maxuseWrap.style.display='none'; }
   if (r === 'one_time_per_user') { maxuseWrap.style.display='none'; }
@@ -4612,6 +4619,7 @@ function couponRtypeToggle() {
   if (r === 'per_user_limit')    { peruserWrap.style.display=''; maxuseWrap.style.display=''; maxuseLabel.textContent='Total Usage Limit (optional)'; }
   if (r === 'specific_phone')    { phonesWrap.style.display=''; maxuseWrap.style.display='none'; }
   if (r === 'new_users_only')    { maxuseWrap.style.display='none'; }
+  if (r === 'flash_window')      { maxuseWrap.style.display='none'; if (flashWrap) flashWrap.style.display='grid'; if (expiryWrap) expiryWrap.style.display='none'; }
   updateCouponPreview();
 }
 
@@ -4625,8 +4633,14 @@ function updateCouponPreview() {
   const rtype = document.getElementById('cf-rtype')?.value || 'unlimited';
   const min   = document.getElementById('cf-min')?.value || '0';
   let discStr = type==='flat' ? `₹${val} off` : type==='percent_cap' ? `${val}% off upto ₹${cap||'?'}` : `${val}% off`;
-  const rtypeMap = { unlimited:'anyone, unlimited uses', one_time_per_user:'once per user', one_time_total:'once total', limited_total:'limited total uses', per_user_limit:'custom uses per user', specific_phone:'specific phone(s) only', new_users_only:'new users only' };
-  el.innerHTML = `<b>${code}</b>: ${discStr} · Min order ₹${min} · ${rtypeMap[rtype]||rtype}`;
+  const rtypeMap = { unlimited:'anyone, unlimited uses', one_time_per_user:'once per user', one_time_total:'once total', limited_total:'limited total uses', per_user_limit:'custom uses per user', specific_phone:'specific phone(s) only', new_users_only:'new users only', flash_window:'⚡ flash window' };
+  let previewExtra = '';
+  if (rtype === 'flash_window') {
+    const fs = document.getElementById('cf-flash-start')?.value || '?';
+    const fe = document.getElementById('cf-flash-end')?.value || '?';
+    previewExtra = ` · Today ${fs}–${fe} · auto-deleted after end`;
+  }
+  el.innerHTML = `<b>${code}</b>: ${discStr} · Min order ₹${min} · ${rtypeMap[rtype]||rtype}${previewExtra}`;
 }
 
 async function saveCoupon() {
@@ -4643,6 +4657,15 @@ async function saveCoupon() {
   }
   if (rtype === 'one_time_total') max_usage = 1;
   const dtype = document.getElementById('cf-type')?.value;
+  // Flash window validation
+  let flash_date = null, flash_start = null, flash_end = null;
+  if (rtype === 'flash_window') {
+    flash_start = document.getElementById('cf-flash-start')?.value || null;
+    flash_end   = document.getElementById('cf-flash-end')?.value   || null;
+    if (!flash_start || !flash_end) { aToast('Enter start and end time for flash window'); return; }
+    if (flash_start >= flash_end)   { aToast('End time must be after start time'); return; }
+    // flash_date is always set server-side to today IST — no need to send from client
+  }
   const data = {
     code:             document.getElementById('cf-code')?.value.trim().toUpperCase(),
     discount_type:    dtype,
@@ -4651,9 +4674,12 @@ async function saveCoupon() {
     min_order:        parseFloat(document.getElementById('cf-min')?.value)||0,
     max_usage,
     per_user_limit:   rtype==='per_user_limit' ? (parseInt(document.getElementById('cf-peruser')?.value)||1) : null,
-    expiry_date:      document.getElementById('cf-expiry')?.value || null,
+    expiry_date:      rtype==='flash_window' ? null : (document.getElementById('cf-expiry')?.value || null),
     restriction_type: rtype,
     allowed_phones,
+    // flash_date set server-side
+    flash_start,
+    flash_end,
     is_active:        true
   };
   if (!data.code) { aToast('Coupon code required'); return; }

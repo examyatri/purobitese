@@ -1,13 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v7.9  |  Updated : 2026-05-29
+   Version : v8.0  |  Updated : 2026-06-02
+
+   CHANGES v8.0:
+   - Cache bumped → tiffo-admin-v14 (flash window coupon type added)
 
    CHANGES v7.7:
    - Cache bumped → tiffo-admin-v10 (earnings: combo calc, trend chart,
      udhar tracker, CSV export, 7 bug fixes)
 
    CHANGES v7.5:
-   - Version bump for v84 clean release (2026-05-29)
+   - Version bump for v84 clean release (2026-05-21)
 
    CHANGES v7.4:
    - Version bump for v71 release
@@ -17,7 +20,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v13';
+const CACHE      = 'tiffo-admin-v14';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
