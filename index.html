@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v106                                     ║
-     ║  Updated : 2026-06-01                               ║
+     ║  Version : v107                                     ║
+     ║  Updated : 2026-06-02                               ║
      ║  CHANGE  : Android Back Navigation — 4 bug fixes:  ║
      ║            Fix 1: _transitionToLogin — pushState   ║
      ║            instead of replaceState so back returns ║
@@ -9430,6 +9430,25 @@ function _wipeAndShowLogin() {
   _transitionToLogin(false);
 }
 
+// ── SW UPDATE BANNER ──────────────────────────────────────────────────────────
+// Shown instead of a forced location.reload() when a new SW activates while the
+// user is mid-payment or mid-cart. Matches existing menu-update-banner style.
+function _showUpdateBanner() {
+  if (document.getElementById('sw-update-banner')) return;
+  const el = document.createElement('div');
+  el.id = 'sw-update-banner';
+  el.style.cssText = 'position:fixed;bottom:70px;left:50%;transform:translateX(-50%);'
+    + 'background:#1a1a2e;color:#fff;border-radius:14px;padding:11px 16px;'
+    + 'display:flex;align-items:center;gap:12px;z-index:9600;'
+    + 'box-shadow:0 6px 28px rgba(0,0,0,.35);white-space:nowrap;pointer-events:all;'
+    + 'font-family:var(--ff);font-size:13px;font-weight:600;';
+  el.innerHTML = '<span>App updated — refresh to get latest</span>'
+    + '<button onclick="window.location.reload()" style="background:#e63946;border:none;'
+    + 'color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;'
+    + 'cursor:pointer;font-family:var(--ff)">Refresh</button>';
+  document.body.appendChild(el);
+}
+
 async function bootApp() {
   // ── KEY GUARD: config.js is async — may execute before or after DOMContentLoaded.
   //    Fast path (PWA revisit): localStorage has a cached key → proceed instantly,
@@ -9493,7 +9512,16 @@ async function bootApp() {
       if (!window._swHadController) return; // first install — skip
       if (window._swReloading) return;      // already reloading
       window._swReloading = true;
-      window.location.reload();
+      // Don't force-reload mid-session — check if user is in a critical flow.
+      // If idle on a safe page: silent reload (user won't notice).
+      // If mid-payment or mid-cart: show update banner so user controls when to reload.
+      const busyPages = ['pg-cart','pg-recharge','pg-success','pg-success-sub','pg-success-insuf'];
+      const onBusyPage = busyPages.some(id => document.getElementById(id)?.classList.contains('here'));
+      if (onBusyPage) {
+        _showUpdateBanner();
+      } else {
+        window.location.reload();
+      }
     });
 
     // SW background HTML update notification (sw.js Strategy 3 revalidation).
@@ -10185,19 +10213,27 @@ function doLogout() {
 ═══════════════════════════════════════════ */
 // Absolute safety net — if nothing is showing after 8s, recover to guest home.
 // Covers any edge case: JS crash, render failure, unexpected state.
+// NOTE: intentionally does NOT clear Creds or SW caches — those are permanent
+// user data. We only reset in-memory auth state and recover the UI.
 setTimeout(() => {
   if (!document.querySelector('.pg.here')) {
-    // Always recover to home (not login) so user can always browse
     Auth.clear();
-    Creds.clear();
     SessionCache.clear();
-    if ('caches' in window) { caches.keys().then(ks => ks.forEach(k => caches.delete(k))).catch(() => {}); }
     _transitionToGuestHome();
   }
 }, 8000);
 
-// bfcache restore
-window.addEventListener('pageshow', e => { if (e.persisted) bootApp(); });
+// bfcache restore — page HTML/JS state is fully intact, no need to re-boot.
+// Re-running bootApp() would reset the user's current page back to home.
+// Just restart background activity that was stopped when the tab was hidden.
+window.addEventListener('pageshow', e => {
+  if (!e.persisted) return;
+  if (_session || _isGuestMode) {
+    _checkMenuVersion();
+    startPolling();
+    startVersionPolling();
+  }
+});
 
 // ─── ACCIDENTAL BACK PREVENTION (User) ───────────────────
 // Uses tf_user_token / tf_session presence to confirm exit at root

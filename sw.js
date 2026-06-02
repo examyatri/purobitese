@@ -1,15 +1,15 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v40.0  |  Updated : 2026-06-01
+   Version : v41.0  |  Updated : 2026-06-02
 
-   CHANGES v40.0:
-   - Cache bumped to tiffo-v49
-   - Android back navigation: 4-bug fix (sentinel pattern,
-     pushState on _transitionToLogin, back() sentinel
-     re-establishment, _pgHashMap missing pages)
+   CHANGES v41.0:
+   - Cache bumped to tiffo-v50
+   - SW update: smart reload (no forced mid-session crash)
+     - 8s safety timer: removed Creds.clear() + cache wipe
+     - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v49'; // bumped for v106 back nav fixes
+const CACHE      = 'tiffo-v50'; // bumped for v107 stability fixes
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
