@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v84                                      ║
+// ║  Version : v99                                      ║
 // ║  Updated : 2026-05-29                               ║
 // ║  Changes : Fix 1 — createOrder now validates store  ║
 // ║            open/closed from weekly_schedule at      ║
@@ -472,6 +472,16 @@ function istTimeStr(d) {
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${String(h).padStart(2, '0')}:${min} ${ampm}`;
+}
+
+// Format a TIME string (HH:MM or HH:MM:SS) to 12hr display e.g. "08:00" → "8:00 AM"
+function fmtFlashTime(t) {
+  if (!t) return '';
+  const [hh, mm] = t.split(':');
+  let h = parseInt(hh, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${mm} ${ampm}`;
 }
 
 // Returns true if a pause flag is active for a given IST date string (YYYY-MM-DD).
@@ -1441,8 +1451,16 @@ app.post('/api', async (req, res) => {
           const dbCoupon = couponResult.data;
           const today = istDateStr(ist);
           if (dbCoupon && dbCoupon.is_active && !(dbCoupon.expiry_date && dbCoupon.expiry_date < today)) {
+            // Flash window check at order time
+            let flashOk = true;
+            if (dbCoupon.restriction_type === 'flash_window') {
+              const nowTime2 = String(ist.getUTCHours()).padStart(2,'0') + ':' + String(ist.getUTCMinutes()).padStart(2,'0');
+              if (!dbCoupon.flash_date || dbCoupon.flash_date !== today) flashOk = false;
+              else if (dbCoupon.flash_start && nowTime2 < dbCoupon.flash_start.slice(0,5)) flashOk = false;
+              else if (dbCoupon.flash_end   && nowTime2 >= dbCoupon.flash_end.slice(0,5))  flashOk = false;
+            }
             const maxUse = dbCoupon.max_usage ?? dbCoupon.total_usage_limit ?? null;
-            if (maxUse == null || (dbCoupon.used_count || 0) < maxUse) {
+            if (flashOk && (maxUse == null || (dbCoupon.used_count || 0) < maxUse)) {
               const capAmt = dbCoupon.cap_amount ?? dbCoupon.max_cap ?? null;
               verifiedCoupon = {
                 code:           dbCoupon.code,
@@ -2089,6 +2107,16 @@ app.post('/api', async (req, res) => {
         if (!coupon || !coupon.is_active) return res.json({ success: false, error: 'Invalid coupon' });
         const today = istDateStr(ist);
         if (coupon.expiry_date && coupon.expiry_date < today) return res.json({ success: false, error: 'Coupon expired' });
+        // ── Flash window restriction check ───────────────────────────────
+        if (coupon.restriction_type === 'flash_window') {
+          if (!coupon.flash_date || coupon.flash_date !== today)
+            return res.json({ success: false, error: 'Flash sale not active today' });
+          const nowTime = String(ist.getUTCHours()).padStart(2,'0') + ':' + String(ist.getUTCMinutes()).padStart(2,'0');
+          if (coupon.flash_start && nowTime < coupon.flash_start.slice(0,5))
+            return res.json({ success: false, error: `Flash sale starts at ${fmtFlashTime(coupon.flash_start)}` });
+          if (coupon.flash_end && nowTime >= coupon.flash_end.slice(0,5))
+            return res.json({ success: false, error: 'Flash sale window has ended' });
+        }
         const maxUse = coupon.max_usage ?? coupon.total_usage_limit ?? null;
         if (maxUse != null && (coupon.used_count||0) >= maxUse) return res.json({ success: false, error: 'Coupon fully used' });
         let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
@@ -2135,17 +2163,41 @@ app.post('/api', async (req, res) => {
 
       // Auto-delete all expired coupons (called silently when admin opens coupon tab)
       case 'deleteExpiredCoupons': {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = istDateStr(ist);
+        // 1. Standard date-expired coupons
         const { data: expired, error: fetchErr } = await supabase
           .from('coupons')
           .select('id')
           .not('expiry_date', 'is', null)
           .lt('expiry_date', today);
         if (fetchErr) return res.json({ success: false, error: fetchErr.message });
-        const ids = (expired || []).map(r => r.id);
-        if (ids.length === 0) return res.json({ success: true, deleted: 0 });
-        await supabase.from('coupons').delete().in('id', ids);
-        return res.json({ success: true, deleted: ids.length });
+        // 2. Flash coupons from a previous day
+        const { data: flashOldDay } = await supabase
+          .from('coupons')
+          .select('id')
+          .eq('restriction_type', 'flash_window')
+          .not('flash_date', 'is', null)
+          .lt('flash_date', today);
+        // 3. Flash coupons for today whose end time has passed
+        const hh3 = String(ist.getUTCHours()).padStart(2,'0');
+        const mm3 = String(ist.getUTCMinutes()).padStart(2,'0');
+        const nowTimeStr = `${hh3}:${mm3}:00`;
+        const { data: flashTodayEnded } = await supabase
+          .from('coupons')
+          .select('id')
+          .eq('restriction_type', 'flash_window')
+          .eq('flash_date', today)
+          .not('flash_end', 'is', null)
+          .lte('flash_end', nowTimeStr);
+        const allIds = [
+          ...(expired       || []).map(r => r.id),
+          ...(flashOldDay   || []).map(r => r.id),
+          ...(flashTodayEnded || []).map(r => r.id)
+        ];
+        const uniqueIds = [...new Set(allIds)];
+        if (uniqueIds.length === 0) return res.json({ success: true, deleted: 0 });
+        await supabase.from('coupons').delete().in('id', uniqueIds);
+        return res.json({ success: true, deleted: uniqueIds.length });
       }
 
       // ── SUBSCRIBERS ──────────────────────────────────────────────────────
@@ -2878,6 +2930,9 @@ app.post('/api', async (req, res) => {
             restriction_type:  data.restriction_type || 'unlimited',
             allowed_phones:    JSON.stringify(data.allowed_phones || []),
             auto_delete:       autoDelete,
+            flash_date:        data.restriction_type === 'flash_window' ? istDateStr(ist) : null,
+            flash_start:       data.flash_start || null,
+            flash_end:         data.flash_end   || null,
             used_count:        0,
             usage_count:       0,
             used_by:           '[]',
@@ -2888,7 +2943,8 @@ app.post('/api', async (req, res) => {
       case 'updateCoupon': {
         const COUPON_EDITABLE = ['code','discount_type','discount_value','cap_amount','max_cap',
           'min_order','min_order_amount','max_usage','total_usage_limit','per_user_limit',
-          'max_per_user','expiry_date','is_active','restriction_type','allowed_phones','auto_delete'];
+          'max_per_user','expiry_date','is_active','restriction_type','allowed_phones','auto_delete',
+          'flash_date','flash_start','flash_end'];
         const updates = {};
         for (const k of COUPON_EDITABLE) { if (data[k] !== undefined) updates[k] = data[k]; }
         if (!Object.keys(updates).length) return res.json({ success: false, error: 'Nothing to update' });
