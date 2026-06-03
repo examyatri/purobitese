@@ -970,7 +970,7 @@ async function _geocodeAndPatchAsync(phone, address, area) {
   }
 }
 
-{ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
+async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
