@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v41.0  |  Updated : 2026-06-02
+   Version : v42.0  |  Updated : 2026-06-03
 
    CHANGES v41.0:
    - Cache bumped to tiffo-v50
@@ -9,7 +9,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v50'; // bumped for v107 stability fixes
+const CACHE      = 'tiffo-v51'; // bumped for v111
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

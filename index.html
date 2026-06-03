@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v107                                     ║
+     ║  Version : v111                                     ║
      ║  Updated : 2026-06-02                               ║
      ║  CHANGE  : Android Back Navigation — 4 bug fixes:  ║
      ║            Fix 1: _transitionToLogin — pushState   ║
@@ -3973,6 +3973,7 @@ function nav(id) {
   // ── GUEST GUARD: cart / orders / account require login ──
   if (_isGuestMode && (id === 'pg-cart' || id === 'pg-orders' || id === 'pg-account' || id === 'pg-khata')) {
     _pendingCartNav = (id === 'pg-cart');
+    _suTryPrewarmOnIntent(); // start GPS warm-up now — before auth page opens
     _showGuestAuthSheet(id === 'pg-cart' ? 'cart' : 'orders');
     return;
   }
@@ -4101,6 +4102,7 @@ function switchTab(tab) {
     _suAbortToken++;
     _suGpsAttempt = 0;
     _clearRetryCountdown();
+    _suStopPermissionPolling(); // clear any active poll from a previous denied attempt
     // Reset geocode state — prevents stale 'done_err' from a previous signup
     // tab visit blocking doSignup when user reopens the tab.
     _suGeocodeState = 'idle';
@@ -4118,7 +4120,10 @@ function switchTab(tab) {
           _saveCoordsToStorage(pos); // persist for cross-session restore (BUG 3 fix)
         },
         () => { _suWarmPending = false; },
-        { enableHighAccuracy: true, timeout: 25000, maximumAge: 30000 }
+        // maximumAge:300000 (5 min) — accept OS-cached GPS position up to 5 min old.
+        // GPS cache = hardware chip result only. WiFi/cell-IP positions are NOT stored
+        // in the OS GPS cache, so BHU free WiFi cannot pollute this. Safe.
+        { enableHighAccuracy: true, timeout: 25000, maximumAge: 300000 }
       );
     }
     // Zone: refresh cache if older than 5 min so detect is instant
@@ -5261,6 +5266,11 @@ function detectSignupLocation(thisToken) {
             if (f && !f.value) f.focus();
           }, 450);
         }, 200);
+        // ── Poll every 3s: auto-retry GPS the moment user re-enables in browser settings ──
+        // iOS Safari doesn't support navigator.permissions — polling is no-op there.
+        // On Android Chrome/Firefox this catches the settings change without user
+        // having to find and tap the "Retry Location" button.
+        _suStartPermissionPolling();
         return;
       }
 
@@ -5364,8 +5374,33 @@ function _suHidePermBanner() {
 
 /* ── Retry location from banner button ── */
 function _suRetryLocation() {
+  _suStopPermissionPolling(); // cancel poll — user is manually retrying
   _suHidePermBanner();
   detectSignupLocation();
+}
+
+/* ── Permission polling — called after err.code===1 on Android Chrome/Firefox ──
+   Polls navigator.permissions every 3s. When state changes to 'granted'
+   (user re-enabled location in browser settings), auto-retries GPS silently
+   and hides the permission banner. No-op on iOS Safari (no permissions API). */
+let _suPermPollTimer = null;
+function _suStartPermissionPolling() {
+  if (_suPermPollTimer || !navigator.permissions) return;
+  _suPermPollTimer = setInterval(async () => {
+    try {
+      const result = await navigator.permissions.query({ name: 'geolocation' });
+      if (result.state === 'granted') {
+        _suStopPermissionPolling();
+        _suHidePermBanner();
+        detectSignupLocation(); // auto-retry — will likely hit cache or warm chip
+      }
+      // 'denied' → keep polling (user may change their mind)
+      // 'prompt'  → browser reset the permission — retry will show dialog, which is fine
+    } catch(e) { _suStopPermissionPolling(); }
+  }, 3000);
+}
+function _suStopPermissionPolling() {
+  if (_suPermPollTimer) { clearInterval(_suPermPollTimer); _suPermPollTimer = null; }
 }
 
 /* ── Scroll to manual card ── */
@@ -5734,8 +5769,17 @@ async function doSignup() {
     if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
     _suForwardGeocode(_suBuildStructuredAddr());
   } else if (_suGeocodeState === 'done_err' && locMode !== '1') {
-    // Nominatim failed — zone unverified, block signup (GPS confirmed skips this)
-    errors.push({ errId: 'su-loc-err', msg: '📍 Address could not be verified on map. Please tap “Use GPS instead” in the status bar above, or try “Detect My Location”.', inputId: null, scrollTo: 'su-zone-status-row' });
+    // Nominatim couldn't find address on map (common for BHU hostel names not in OSM).
+    // Fallback: use selected delivery area as zone verification.
+    // If area is in the configured delivery areas list — allow signup.
+    // Backend will attempt a richer server-side geocode async to get coordinates.
+    const areaIsValid = selectedArea && _suAreaList.length
+      ? _suAreaList.some(a => a.toLowerCase() === selectedArea.toLowerCase())
+      : !!selectedArea; // if area list not loaded, trust dropdown value
+    if (!areaIsValid || !selectedArea) {
+      errors.push({ errId: 'su-loc-err', msg: '📍 Address not found on map. Please select your delivery area above, or tap “Detect My Location”.', inputId: null, scrollTo: 'su-zone-status-row' });
+    }
+    // else: area selected + in delivery list — proceed, server geocodes coordinates async
   } else if (isOutside) {
     // GPS confirmed outside OR geocode confirmed outside — hard block
     // (geocode fail case is handled above)
@@ -5816,7 +5860,9 @@ async function doSignup() {
   _suSetBtnLoading(true);
 
   try {
-    const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw });
+    // needs_geocode=true when Nominatim failed client-side — backend will try a richer query
+    const needsGeocode = _suGeocodeState === 'done_err' && locMode === '2';
+    const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw, needs_geocode: needsGeocode });
 
     // ── 6. Success ────────────────────────────────────────────────────────
     Creds.save(phone, pw);
@@ -5841,6 +5887,7 @@ async function doSignup() {
     // Stop any active foreground GPS session — signup is done, no more UI retries needed
     _suStopBgGps();
     _clearRetryCountdown();
+    _suStopPermissionPolling(); // stop polling — no longer needed after signup
     // Also orphan any in-flight foreground retry loop (bump token so stale callbacks self-cancel)
     _suAbortToken++;
 
@@ -9927,6 +9974,7 @@ function _scheduleGuestLocPopup() {
               if (_suWarmToken !== myWarmToken) return;
               _suWarmPos = pos;
               _saveCoordsToStorage(pos);
+              try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
             },
             () => { _suWarmPending = false; },
             { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
@@ -9944,17 +9992,17 @@ function _scheduleGuestLocPopup() {
       // Arm scroll trigger (primary) + fallback timer (secondary).
       // No silent GPS call — that would immediately trigger browser dialog.
       _attachGuestLocScrollTrigger();
-      _guestLocTimer = setTimeout(_showGuestLocPopup, 12000);
+      _guestLocTimer = setTimeout(_showGuestLocPopup, 45000);
 
     }).catch(() => {
-      // permissions API unsupported — arm both triggers directly
-      _attachGuestLocScrollTrigger();
-      _guestLocTimer = setTimeout(_showGuestLocPopup, 12000);
+      // permissions API unsupported (iOS Safari, old Android) — use localStorage
+      // flag 'tiffo_loc_perm' to know real state without firing any GPS probe.
+      // Flag is written by _guestLocAllow (on GPS success → 'granted', on code 1 → 'denied').
+      _scheduleByLocFlag();
     });
   } else {
-    // No permissions API — arm both triggers directly
-    _attachGuestLocScrollTrigger();
-    _guestLocTimer = setTimeout(_showGuestLocPopup, 12000);
+    // No permissions API — same localStorage flag check
+    _scheduleByLocFlag();
   }
 }
 
@@ -9969,10 +10017,50 @@ function _saveCoordsToStorage(pos) {
   } catch(e) {}
 }
 
+/* Called when navigator.permissions is unavailable (iOS Safari, old Android).
+   Reads 'tiffo_loc_perm' flag written by _guestLocAllow on prior visits.
+   No GPS probe fired — zero risk of unexpected browser dialog.
+   'granted' → silently warm GPS (permission already confirmed by user in past).
+   'denied'  → stop entirely (user said no, respect it).
+   absent    → first ever visit, arm scroll trigger + 12s timer as normal.          */
+function _scheduleByLocFlag() {
+  let flag = null;
+  try { flag = localStorage.getItem('tiffo_loc_perm'); } catch(e) {}
+
+  if (flag === 'granted') {
+    // User already allowed on a previous visit — warm silently, skip popup.
+    if (!_suWarmPos && !_suWarmPending && navigator.geolocation) {
+      _suWarmPending = true;
+      const myWarmToken = _suWarmToken;
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          _suWarmPending = false;
+          if (_suWarmToken !== myWarmToken) return;
+          _suWarmPos = pos;
+          _saveCoordsToStorage(pos);
+        },
+        () => { _suWarmPending = false; },
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+      );
+    }
+    return; // no popup
+  }
+
+  if (flag === 'denied') {
+    return; // user denied before — don't ask again
+  }
+
+  // No flag — first ever visit on this browser. Arm popup normally.
+  _attachGuestLocScrollTrigger();
+  _guestLocTimer = setTimeout(_showGuestLocPopup, 45000);
+}
+
 function _showGuestLocPopup() {
   if (!_isGuestMode) return; // already logged in / signed up
   // Don't interrupt signup tab — it manages its own GPS flow
   if (document.getElementById('signup-tab')?.style.display !== 'none') return;
+  // Don't overlay the auth page (pg-auth has no z-index, modal z-index:1001 wins)
+  if (document.body.classList.contains('auth-mode')) return;
   _guestLocPopupShown = true;
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'flex';
@@ -9996,8 +10084,19 @@ function _guestLocAllow() {
         if (_suWarmToken !== myWarmToken) return;
         _suWarmPos = pos;
         _saveCoordsToStorage(pos);
+        // Persist grant so _scheduleByLocFlag skips popup on future visits
+        // (for browsers where navigator.permissions API is unavailable, e.g. iOS Safari).
+        try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
       },
-      () => { _suWarmPending = false; },
+      err => {
+        _suWarmPending = false;
+        if (err.code === 1) {
+          // Browser dialog denied — persist so future visits don't ask again,
+          // and stop any re-ask timer this session.
+          try { localStorage.setItem('tiffo_loc_perm', 'denied'); } catch(e) {}
+          _guestLocDismissCount = 99;
+        }
+      },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
     );
   }
@@ -10019,17 +10118,52 @@ function _loadWarmCoordsFromStorage() {
     const raw = localStorage.getItem('tiffo_warm_coords');
     if (!raw) return;
     const { lat, lng, ts } = JSON.parse(raw);
-    // Use if less than 10 minutes old — warm coords are only useful for the
-    // signup prewarm shortcut (consumed once on first detect tap). A new visitor
-    // who filled the form and left rarely returns within the same session window;
-    // 10 min is the right TTL for this single-use optimization.
-    if (Date.now() - ts < 10 * 60 * 1000 && lat && lng) {
+    // Use if less than 4 hours old. BHU hostel students order from the same room
+    // all day — location doesn't change in 4 hours. 10 min was too short to be
+    // useful across page reloads or revisits within the same day.
+    if (Date.now() - ts < 4 * 60 * 60 * 1000 && lat && lng) {
       if (!_suWarmPos) {
         // Construct a mock position object matching GeolocationPosition shape
         _suWarmPos = { coords: { latitude: lat, longitude: lng, accuracy: 50 } };
       }
     }
   } catch(e) {}
+}
+
+/* ── Prewarm GPS silently when guest shows intent (taps cart/orders/account/avatar).
+   Fires ONLY if permission already 'granted' — never triggers browser dialog.
+   By the time user opens signup tab and taps Detect, GPS chip is already warm
+   → detect resolves instantly instead of waiting 20s cold.
+   Idempotent: safe to call multiple times (guards via _suWarmPos/_suWarmPending). ── */
+function _suTryPrewarmOnIntent() {
+  if (_suWarmPos || _suWarmPending || !navigator.geolocation) return;
+
+  function _doWarm() {
+    if (_suWarmPos || _suWarmPending) return; // double-guard
+    _suWarmPending = true;
+    const myToken = _suWarmToken;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _suWarmPending = false;
+        if (_suWarmToken !== myToken) return;
+        _suWarmPos = pos;
+        _saveCoordsToStorage(pos);
+      },
+      () => { _suWarmPending = false; },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    );
+  }
+
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' })
+      .then(r => { if (r.state === 'granted') _doWarm(); })
+      .catch(() => _doWarm()); // permissions API error → just try
+  } else {
+    // iOS Safari — no permissions API, check localStorage flag from prior session
+    try {
+      if (localStorage.getItem('tiffo_loc_perm') === 'granted') _doWarm();
+    } catch(e) {}
+  }
 }
 
 function _showGuestAuthSheet(context) {
@@ -10050,6 +10184,7 @@ function _onAvatarTap() {
   if (_isGuestMode || !_session) {
     // Guest → show auth sheet with login (treated like account access)
     _pendingCartNav = false; // avatar tap → just login, no cart redirect
+    _suTryPrewarmOnIntent(); // start GPS warm-up now — before auth page opens
     _showGuestAuthSheet('orders');
   } else {
     openAccountPanel();
