@@ -1,7 +1,7 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v99                                      ║
+// ║  Version : v111                                      ║
 // ║  Updated : 2026-05-29                               ║
 // ║  Changes : Fix 1 — createOrder now validates store  ║
 // ║            open/closed from weekly_schedule at      ║
@@ -913,7 +913,64 @@ function _titleCase(str) {
   return (str || '').replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
+/* ── Server-side geocode safety net ─────────────────────────────────────────
+   Called after signup when client Nominatim failed (needs_geocode=true).
+   Builds a richer query using room + area + campus context that OSM knows.
+   Patches the user's address field with discovered coordinates in v84 format.
+   Fire-and-forget — never called awaited, never blocks the signup response.
+
+   Nominatim rate limit: 1 req/s. At Tiffo's scale (handful of signups/day)
+   this is never an issue. User-Agent is required by Nominatim policy.         */
+async function _geocodeAndPatchAsync(phone, address, area) {
+  try {
+    // Parse structured fields from v84 address
+    const lines = (address || '').split('\n').map(l => l.trim()).filter(Boolean);
+    const room  = (lines.find(l => /^Room No:/i.test(l))  || '').replace(/^Room No:\s*/i,  '').trim();
+    const areaTag = (lines.find(l => /^Area:/i.test(l))   || '').replace(/^Area:\s*/i,      '').trim();
+    const resolvedArea = areaTag || area || '';
+
+    // Already has coordinates — nothing to do (e.g. GPS resolved after initial save)
+    if (/Coordinates\s*:/i.test(address)) return;
+
+    // Build enriched query: room + area + BHU campus anchor + city
+    // BHU anchor dramatically improves OSM hit rate for campus hostels
+    const queryParts = [];
+    if (room)          queryParts.push(room);
+    if (resolvedArea)  queryParts.push(resolvedArea);
+    queryParts.push('BHU', 'Varanasi', 'Uttar Pradesh', 'India');
+    const query = queryParts.join(', ');
+
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=in`,
+      {
+        headers: {
+          'User-Agent': 'Tiffo-Server/1.0 (tiffo.online)',
+          'Accept-Language': 'en'
+        }
+      }
+    );
+    if (!resp.ok) return;
+    const results = await resp.json();
+    if (!results?.length) return;
+
+    const lat = parseFloat(results[0].lat);
+    const lng = parseFloat(results[0].lon);
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    // Sanity check: must be within reasonable distance of Varanasi centre
+    // (25.3176, 82.9739) — reject wild geocode guesses
+    const dlat = lat - 25.3176, dlng = lng - 82.9739;
+    if (Math.sqrt(dlat*dlat + dlng*dlng) > 0.5) return; // >~55km off → reject
+
+    // Patch address: append Coordinates line in v84 format
+    const newAddress = address.trimEnd() + `\nCoordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    await supabase.from('users').update({ address: newAddress }).eq('phone', phone);
+  } catch(e) {
+    // Silent fail — user already has their account, coords just won't be in DB
+  }
+}
+
+{ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -1146,6 +1203,14 @@ app.post('/api', async (req, res) => {
           created_at:    createdAt
         });
         if (insertErr) return res.json({ success: false, error: 'Registration failed. Please try again.' });
+        // ── Server-side geocode safety net ─────────────────────────────────────
+        // Fires when client Nominatim failed (e.g. BHU hostel names not in OSM).
+        // Uses a richer query with city/campus context. Fire-and-forget — does NOT
+        // delay the signup response. User gets their account immediately; coords
+        // are patched into the address field in the background within ~2–5s.
+        if (data.needs_geocode && data.address) {
+          _geocodeAndPatchAsync(phone, data.address, data.area || '').catch(() => {});
+        }
         // ── Fire new-user notification so admin can send welcome coupon ──
         try {
           // Build a compact 1-line address summary for notification body (v84 multiline → readable)
