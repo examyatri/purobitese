@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v111                                     ║
-     ║  Updated : 2026-06-02                               ║
+     ║  Version : v114                                     ║
+     ║  Updated : 2026-06-03                               ║
      ║  CHANGE  : Android Back Navigation — 4 bug fixes:  ║
      ║            Fix 1: _transitionToLogin — pushState   ║
      ║            instead of replaceState so back returns ║
@@ -2024,7 +2024,7 @@ input[type=number]{-moz-appearance:textfield}
         </div>
 
         <!-- Detect button -->
-        <button type="button" id="su-loc-btn" class="loc-btn" onclick="detectSignupLocation()">
+        <button type="button" id="su-loc-btn" class="loc-btn" onclick="_onDetectBtnTap()">
           <i class="fa fa-location-crosshairs"></i>
           <span id="su-loc-btn-txt">Detect My Location</span>
         </button>
@@ -2979,12 +2979,12 @@ input[type=number]{-moz-appearance:textfield}
 <div id="guest-loc-popup" class="modal-overlay" style="display:none" onclick="if(event.target===this)_guestLocDismiss()">
   <div class="loc-popup-card">
     <div class="loc-popup-icon">📍</div>
-    <div class="loc-popup-title">Delivery Check</div>
-    <div class="loc-popup-sub">Allow location access to check delivery availability in your area.</div>
+    <div class="loc-popup-title">Pin Your Delivery Spot</div>
+    <div class="loc-popup-sub">Allow location access so we can confirm your delivery area and set your address automatically.</div>
     <button class="loc-popup-allow" onclick="_guestLocAllow()">
-      <i class="fa fa-location-dot"></i> Use My Location
+      <i class="fa fa-location-dot"></i> Allow Location
     </button>
-    <button class="loc-popup-later" onclick="_guestLocDismiss()">Maybe Later</button>
+    <button class="loc-popup-later" onclick="_guestLocDismiss()">Remind Me Later</button>
   </div>
 </div>
 
@@ -4078,24 +4078,18 @@ function switchTab(tab) {
     signupTab.style.display = 'none';
     btnLogin.classList.add('active');
     btnSignup.classList.remove('active');
+    // Cancel pending signup popup timer if user switched back to login
+    if (_suLocPopupTimer) { clearTimeout(_suLocPopupTimer); _suLocPopupTimer = null; }
+    _suLocPopupArmed = false;
+    // Close popup if it was open
+    const glpL = document.getElementById('guest-loc-popup');
+    if (glpL) glpL.style.display = 'none';
     prefillLoginForm();
   } else {
     loginTab.style.display  = 'none';
     signupTab.style.display = 'block';
     btnSignup.classList.add('active');
     btnLogin.classList.remove('active');
-    // Kill the guest-loc popup timer + scroll trigger — signup has its own GPS flow.
-    // Without this, popup could fire while signup prewarm is in-flight,
-    // causing two simultaneous geolocation requests and a double-dialog conflict.
-    if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
-    if (_guestLocScrollHandler) {
-      const _glc = document.getElementById('home-scroll');
-      if (_glc) _glc.removeEventListener('scroll', _guestLocScrollHandler);
-      _guestLocScrollHandler = null;
-    }
-    _guestLocScrollBound = false;
-    const glp = document.getElementById('guest-loc-popup');
-    if (glp) glp.style.display = 'none';
     // Load areas from server (non-blocking)
     if (!_suAreaList.length) _loadSignupAreas();
     // Invalidate any in-flight GPS callbacks from a previous session
@@ -4106,25 +4100,12 @@ function switchTab(tab) {
     // Reset geocode state — prevents stale 'done_err' from a previous signup
     // tab visit blocking doSignup when user reopens the tab.
     _suGeocodeState = 'idle';
-    // GPS prewarm: begin acquiring position while user fills in form.
-    // Permission prompt is acceptable here — user explicitly opened signup tab.
-    // Guard: skip if a prewarm call is already in-flight (_suWarmPending) or already resolved.
-    if (navigator.geolocation && !_suWarmPos && !_suWarmPending) {
-      _suWarmPending = true;
-      const myWarmToken = _suWarmToken; // capture — callback discards itself if token changed
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          _suWarmPending = false;
-          if (_suWarmToken !== myWarmToken) return; // consumed while in-flight — discard (BUG 1 fix)
-          _suWarmPos = pos;
-          _saveCoordsToStorage(pos); // persist for cross-session restore (BUG 3 fix)
-        },
-        () => { _suWarmPending = false; },
-        // maximumAge:300000 (5 min) — accept OS-cached GPS position up to 5 min old.
-        // GPS cache = hardware chip result only. WiFi/cell-IP positions are NOT stored
-        // in the OS GPS cache, so BHU free WiFi cannot pollute this. Safe.
-        { enableHighAccuracy: true, timeout: 25000, maximumAge: 300000 }
-      );
+    // Location popup: show after a short delay so user sees the form first.
+    // Only for guest users — logged-in users manage address via Settings.
+    // Only fires once per signup tab open (guard: _suLocPopupArmed).
+    if (_isGuestMode && !_suLocPopupArmed) {
+      _suLocPopupArmed = true;
+      _suLocPopupTimer = setTimeout(_showSignupLocPopup, 2500);
     }
     // Zone: refresh cache if older than 5 min so detect is instant
     const _ZONE_TTL = 5 * 60 * 1000;
@@ -4370,6 +4351,8 @@ let _suMapLocked   = true;
 let _suWarmPos     = null; // cached prewarm GPS position — consumed once on detect
 let _suWarmPending = false; // true while a prewarm getCurrentPosition is in-flight
 let _suWarmToken   = 0;    // bumped when prewarm is consumed — orphans in-flight callbacks
+let _suLocPopupArmed = false; // true once signup popup timer is set for current tab open
+let _suLocPopupTimer = null;  // setTimeout handle for the delayed signup popup
 
 /* ── Signup map lock helpers ── */
 function _suLockMap() {
@@ -5047,7 +5030,44 @@ const _SU_COUNTDOWN_2  = 0;     // NO gap: attempt 2 fires immediately — chip 
 const _SU_COUNTDOWN_M  = 10;    // gap (s) between attempt 3+ fail → next (background)
 const _SU_MAX_ATTEMPTS = 5;     // give up after 5 attempts
 
-/* ── Main detect function — called on button tap AND by auto-retry callbacks ─
+/* ── Consent gate — called by the "Detect My Location" button and inline GPS buttons ─
+   Checks if we already have consent (GPS resolved, or permission=granted in storage).
+   If not: shows the signup location popup (which asks "Allow Location / Remind Me Later").
+   If yes: proceeds directly to detectSignupLocation().
+   Internal retries (_suRetryLocation, permission poll, visibility-change) call
+   detectSignupLocation() directly — they already know permission was granted.        */
+function _onDetectBtnTap() {
+  // If GPS already resolved — go straight to detect (prewarm shortcut will fire)
+  if (_suWarmPos) { detectSignupLocation(); return; }
+
+  // Check permission state — prefer live API, fall back to localStorage flag
+  function _proceed() { detectSignupLocation(); }
+  function _showPopup() { _showSignupLocPopup(); }
+
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: 'geolocation' }).then(r => {
+      if (r.state === 'granted') _proceed();
+      else if (r.state === 'denied') _proceed(); // let detectSignupLocation show the deny banner
+      else _showPopup(); // 'prompt' → show consent popup first
+    }).catch(() => {
+      // permissions API error — check localStorage flag
+      try {
+        const flag = localStorage.getItem('tiffo_loc_perm');
+        if (flag === 'granted' || flag === 'denied') _proceed(); // proceed — detect handles both
+        else _showPopup();
+      } catch(e) { _showPopup(); }
+    });
+  } else {
+    // No permissions API (iOS Safari) — check localStorage flag from prior allow
+    try {
+      const flag = localStorage.getItem('tiffo_loc_perm');
+      if (flag === 'granted' || flag === 'denied') _proceed(); // detect handles both
+      else _showPopup();
+    } catch(e) { _showPopup(); }
+  }
+}
+
+/* ── Main detect function — called by _onDetectBtnTap (after consent) AND by auto-retry callbacks ─
    thisToken: abort guard passed down so stale async callbacks self-cancel.    */
 function detectSignupLocation(thisToken) {
   const btn    = document.getElementById('su-loc-btn');
@@ -5582,7 +5602,7 @@ async function _suForwardGeocode(text) {
     document.getElementById('su-loc-ok').value = '0'; // block — zone unverified
     _suSetZoneStatus('warn', null,
       '⚠️ Address not found on map — delivery zone unverified. ' +
-      '<button onclick="detectSignupLocation()" style="' +
+      '<button onclick="_onDetectBtnTap()" style="' +
         'margin-left:6px;padding:2px 10px;border-radius:6px;border:1.5px solid #92400e;' +
         'background:#fff;color:#92400e;font-family:var(--fb);font-size:11.5px;' +
         'font-weight:700;cursor:pointer;white-space:nowrap' +
@@ -5754,7 +5774,7 @@ async function doSignup() {
     return;
   } else if (locMode === '0') {
     // Nothing detected, nothing typed
-    errors.push({ errId: 'su-loc-err', msg: '📍 Please tap "Detect My Location" to pin your spot, or fill in your address below.', inputId: null, scrollTo: 'su-loc-btn' });
+    errors.push({ errId: 'su-loc-err', msg: '📍 Please click "Detect My Location" and allow location access to continue.', inputId: null, scrollTo: 'su-loc-btn' });
   } else if (locMode === '2' && !mfBuilding && !mfRoom) {
     // Manual card shown but required fields empty
     errors.push({ errId: 'su-loc-err', msg: '✏️ Please fill in your Building/Hostel Name and Room/Flat No.', inputId: 'su-mf-building', scrollTo: 'su-mf-building' });
@@ -5896,14 +5916,11 @@ async function doSignup() {
     // If user signed up with manual address (no GPS), that address is their delivery address.
     // Coordinates can only be changed by the user manually via Settings → Update Address.
     // No background GPS retry — intentionally removed to prevent silent DB overwrites.
-    // Clear guest location popup + scroll trigger — user is now registered
-    if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
-    if (_guestLocScrollHandler) {
-      const _gsc = document.getElementById('home-scroll');
-      if (_gsc) _gsc.removeEventListener('scroll', _guestLocScrollHandler);
-      _guestLocScrollHandler = null;
-    }
-    _guestLocScrollBound = false;
+    // Clear signup location popup timer — user is now registered
+    if (_suLocPopupTimer) { clearTimeout(_suLocPopupTimer); _suLocPopupTimer = null; }
+    _suLocPopupArmed = false;
+    const _glpDone = document.getElementById('guest-loc-popup');
+    if (_glpDone) _glpDone.style.display = 'none';
     // btn stays disabled — user is being navigated away
 
   } catch(e) {
@@ -9774,14 +9791,9 @@ async function bootApp() {
 
 function _transitionToHome() {
   _isGuestMode = false; // now logged in — clear guest flag
-  // Clear location popup timer + scroll trigger — user is now logged in
-  if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
-  if (_guestLocScrollHandler) {
-    const c = document.getElementById('home-scroll');
-    if (c) c.removeEventListener('scroll', _guestLocScrollHandler);
-    _guestLocScrollHandler = null;
-  }
-  _guestLocScrollBound = false;
+  // Cancel any pending signup location popup timer
+  if (_suLocPopupTimer) { clearTimeout(_suLocPopupTimer); _suLocPopupTimer = null; }
+  _suLocPopupArmed = false;
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
   document.body.classList.remove('auth-mode');
@@ -9901,112 +9913,46 @@ function _transitionToGuestHome() {
   _fetchSettings().catch(() => {});
   // Load any warm coords cached from a previous session (instant, no GPS call)
   _loadWarmCoordsFromStorage();
-  // Schedule location permission popup (15s delay) + handles already-granted silent warm
-  _scheduleGuestLocPopup();
+  // NOTE: Location permission popup is NOT shown on home page.
+  // It is shown only when guest opens the Signup tab (consent-first flow).
 }
 
 
 
-/* ── Guest Location Popup ────────────────────────────────────────────────────
-   Shows a "Use My Location" popup to guest users.
+/* ── Signup Location Popup (Guest-only, consent-first) ───────────────────────
+   DESIGN PRINCIPLE: Never fire browser geolocation permission dialog without
+   explicit user consent. This prevents the OS from permanently blocking
+   location because of an unexpected dialog at the wrong moment.
 
-   TRIGGER (two-signal, whichever fires first):
-     A) User scrolls home menu >150px  → engaged with content, good time to ask
-     B) Fallback timer 12s             → catches users who don't scroll much
+   FLOW:
+     1. Guest opens Signup tab → popup appears after 2.5s
+     2. "Allow Location" → fire ONE getCurrentPosition (browser dialog appears)
+        → GPS warms in background while user fills form → Detect tap is instant
+     3. "Remind Me Later" → close popup, no GPS call, user continues signup
+     4. "Detect My Location" button tap → show popup again (if no GPS yet)
+     5. "Create Account" without location → scroll to Detect button + message
+        (same on repeated attempts — no popup re-shown automatically)
 
-   PERMISSION CASES:
-     granted → skip popup entirely, silently warm GPS in background (no dialog)
-     denied  → skip popup, nothing we can do (area dropdown fallback at signup)
-     prompt  → show popup. User taps "Use My Location" → ONE browser dialog →
-               GPS warms while user fills signup form → detect tap is instant.
+   LOGGED-IN USERS: This entire flow is skipped. Address managed via Settings.
 
-   WHY no silent call before popup (old Step A removed):
-     Even low-accuracy getCurrentPosition triggers the browser system dialog
-     when state is 'prompt' on Android Chrome, Firefox, iOS Safari.
-     Old code fired it silently at t=0 → browser dialog immediately,
-     then our popup at t=15s → user saw TWO dialogs. Removed.
+   PERMISSION PERSISTENCE:
+     'granted' flag in localStorage → silent warm on next visit (no popup)
+     'denied'  flag               → skip entirely (area dropdown fallback)     */
 
-   DISMISS: re-ask after 10s, max 2 re-asks per session then stop.
-   Coords set ONCE at signup. Change only via Settings → Update Address. */
+// (Legacy guest-loc-popup vars removed — signup popup uses _suLocPopupArmed/_suLocPopupTimer above)
 
-let _guestLocPopupShown   = false;  // shown at least once this session
-let _guestLocDismissCount = 0;      // how many times user dismissed (max 2 re-asks)
-let _guestLocTimer        = null;   // setTimeout handle for fallback timer
-let _guestLocScrollBound  = false;  // true once scroll listener is attached
-let _guestLocScrollHandler = null;  // module-level ref so we can removeEventListener on reset
-
-/* Attach one-shot scroll listener on home-scroll container.
-   Fires popup when user scrolls >150px into the menu — they're engaged. */
-function _attachGuestLocScrollTrigger() {
-  if (_guestLocScrollBound) return;
-  const container = document.getElementById('home-scroll');
-  if (!container) return;
-  _guestLocScrollBound = true;
-  _guestLocScrollHandler = () => {
-    if (container.scrollTop > 150) {
-      container.removeEventListener('scroll', _guestLocScrollHandler);
-      _guestLocScrollHandler = null;
-      // Cancel the fallback timer — scroll beat it
-      if (_guestLocTimer) { clearTimeout(_guestLocTimer); _guestLocTimer = null; }
-      _showGuestLocPopup();
-    }
-  };
-  container.addEventListener('scroll', _guestLocScrollHandler, { passive: true });
+/* Called by switchTab('signup') — schedules popup, guards on guest mode.
+   Also called when user taps "Detect My Location" if no GPS yet. */
+function _showSignupLocPopup() {
+  if (!_isGuestMode) return; // logged-in users never see this
+  if (_suWarmPos) return;    // GPS already resolved — no need to ask
+  // Don't show if user already hard-denied (they can tap Detect for the deny banner)
+  try { if (localStorage.getItem('tiffo_loc_perm') === 'denied') return; } catch(e) {}
+  const popup = document.getElementById('guest-loc-popup');
+  if (popup) popup.style.display = 'flex';
 }
 
-/* Called from _transitionToGuestHome */
-function _scheduleGuestLocPopup() {
-  if (_guestLocTimer || _guestLocScrollBound) return; // already armed
-
-  if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then(r => {
-
-      if (r.state === 'granted') {
-        // ── CASE 1: Already allowed ──────────────────────────────────────
-        // Silent high-accuracy warm — no dialog, chip starts immediately.
-        // Guard: skip if prewarm already in-flight or resolved.
-        if (!_suWarmPos && !_suWarmPending && navigator.geolocation) {
-          _suWarmPending = true;
-          const myWarmToken = _suWarmToken;
-          navigator.geolocation.getCurrentPosition(
-            pos => {
-              _suWarmPending = false;
-              if (_suWarmToken !== myWarmToken) return;
-              _suWarmPos = pos;
-              _saveCoordsToStorage(pos);
-              try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
-            },
-            () => { _suWarmPending = false; },
-            { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
-          );
-        }
-        return; // no popup needed
-      }
-
-      if (r.state === 'denied') {
-        // ── CASE 2: Hard denied ──────────────────────────────────────────
-        return; // area dropdown is fallback at signup
-      }
-
-      // ── CASE 3: 'prompt' — permission not yet asked ───────────────────
-      // Arm scroll trigger (primary) + fallback timer (secondary).
-      // No silent GPS call — that would immediately trigger browser dialog.
-      _attachGuestLocScrollTrigger();
-      _guestLocTimer = setTimeout(_showGuestLocPopup, 45000);
-
-    }).catch(() => {
-      // permissions API unsupported (iOS Safari, old Android) — use localStorage
-      // flag 'tiffo_loc_perm' to know real state without firing any GPS probe.
-      // Flag is written by _guestLocAllow (on GPS success → 'granted', on code 1 → 'denied').
-      _scheduleByLocFlag();
-    });
-  } else {
-    // No permissions API — same localStorage flag check
-    _scheduleByLocFlag();
-  }
-}
-
-/* Save coords to localStorage — shared by popup allow + Case 1 warm */
+/* Save coords to localStorage — used by allow handler and intent prewarm */
 function _saveCoordsToStorage(pos) {
   try {
     localStorage.setItem('tiffo_warm_coords', JSON.stringify({
@@ -10017,99 +9963,45 @@ function _saveCoordsToStorage(pos) {
   } catch(e) {}
 }
 
-/* Called when navigator.permissions is unavailable (iOS Safari, old Android).
-   Reads 'tiffo_loc_perm' flag written by _guestLocAllow on prior visits.
-   No GPS probe fired — zero risk of unexpected browser dialog.
-   'granted' → silently warm GPS (permission already confirmed by user in past).
-   'denied'  → stop entirely (user said no, respect it).
-   absent    → first ever visit, arm scroll trigger + 12s timer as normal.          */
-function _scheduleByLocFlag() {
-  let flag = null;
-  try { flag = localStorage.getItem('tiffo_loc_perm'); } catch(e) {}
-
-  if (flag === 'granted') {
-    // User already allowed on a previous visit — warm silently, skip popup.
-    if (!_suWarmPos && !_suWarmPending && navigator.geolocation) {
-      _suWarmPending = true;
-      const myWarmToken = _suWarmToken;
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          _suWarmPending = false;
-          if (_suWarmToken !== myWarmToken) return;
-          _suWarmPos = pos;
-          _saveCoordsToStorage(pos);
-        },
-        () => { _suWarmPending = false; },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
-      );
-    }
-    return; // no popup
-  }
-
-  if (flag === 'denied') {
-    return; // user denied before — don't ask again
-  }
-
-  // No flag — first ever visit on this browser. Arm popup normally.
-  _attachGuestLocScrollTrigger();
-  _guestLocTimer = setTimeout(_showGuestLocPopup, 45000);
-}
-
-function _showGuestLocPopup() {
-  if (!_isGuestMode) return; // already logged in / signed up
-  // Don't interrupt signup tab — it manages its own GPS flow
-  if (document.getElementById('signup-tab')?.style.display !== 'none') return;
-  // Don't overlay the auth page (pg-auth has no z-index, modal z-index:1001 wins)
-  if (document.body.classList.contains('auth-mode')) return;
-  _guestLocPopupShown = true;
-  const popup = document.getElementById('guest-loc-popup');
-  if (popup) popup.style.display = 'flex';
-}
-
+/* "Allow Location" button in popup — only place browser dialog fires */
 function _guestLocAllow() {
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
   if (!navigator.geolocation) return;
-  // User explicitly tapped "Use My Location" — fire ONE high-accuracy GPS call.
-  // This is the only place a browser permission dialog appears for 'prompt' state.
-  // GPS warms in background; by the time user opens signup and fills the form,
-  // _suWarmPos is set → "Detect My Location" tap is instant.
-  // Guard: skip if prewarm already in-flight or resolved (e.g. signup tab racing this).
-  if (!_suWarmPos && !_suWarmPending) {
-    _suWarmPending = true;
-    const myWarmToken = _suWarmToken;
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        _suWarmPending = false;
-        if (_suWarmToken !== myWarmToken) return;
-        _suWarmPos = pos;
-        _saveCoordsToStorage(pos);
-        // Persist grant so _scheduleByLocFlag skips popup on future visits
-        // (for browsers where navigator.permissions API is unavailable, e.g. iOS Safari).
-        try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
-      },
-      err => {
-        _suWarmPending = false;
-        if (err.code === 1) {
-          // Browser dialog denied — persist so future visits don't ask again,
-          // and stop any re-ask timer this session.
-          try { localStorage.setItem('tiffo_loc_perm', 'denied'); } catch(e) {}
-          _guestLocDismissCount = 99;
-        }
-      },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
-    );
-  }
+  // Guard: skip if prewarm already in-flight or resolved
+  if (_suWarmPos || _suWarmPending) return;
+  _suWarmPending = true;
+  const myWarmToken = _suWarmToken;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      _suWarmPending = false;
+      if (_suWarmToken !== myWarmToken) return;
+      _suWarmPos = pos;
+      _saveCoordsToStorage(pos);
+      // Persist grant so future visits skip popup and warm silently
+      try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
+      // Auto-detect and autofill location in background if signup tab is still open
+      const _signupTab = document.getElementById('signup-tab');
+      if (_signupTab && _signupTab.style.display !== 'none') {
+        detectSignupLocation(); // consumes _suWarmPos instantly via prewarm shortcut
+      }
+    },
+    err => {
+      _suWarmPending = false;
+      if (err.code === 1) {
+        // User denied browser dialog — persist so we never ask again
+        try { localStorage.setItem('tiffo_loc_perm', 'denied'); } catch(e) {}
+      }
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 }
+  );
 }
 
+/* "Remind Me Later" button — close popup, no GPS call, no re-show timer */
 function _guestLocDismiss() {
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
-  _guestLocDismissCount++;
-  // Re-ask after 10s, max 2 re-asks per session then stop
-  if (_guestLocDismissCount < 3 && _isGuestMode) {
-    _guestLocTimer = setTimeout(_showGuestLocPopup, 10000);
-  }
+  // No re-ask timer — user will see Detect button + can tap it to re-show popup
 }
 
 /* Load warm coords from localStorage (from a previous session / tab) */
