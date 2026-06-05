@@ -1,23 +1,18 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v114                                     ║
-     ║  Updated : 2026-06-03                               ║
-     ║  CHANGE  : Android Back Navigation — 4 bug fixes:  ║
-     ║            Fix 1: _transitionToLogin — pushState   ║
-     ║            instead of replaceState so back returns ║
-     ║            to guest home instead of exiting app.   ║
-     ║            Fix 2: _transitionToHome /              ║
-     ║            _transitionToGuestHome — sentinel       ║
-     ║            pattern (replaceState+pushState) so     ║
-     ║            back on home fires popstate not exit.   ║
-     ║            Fix 3: back() re-establishes sentinel   ║
-     ║            when returning to pg-home so next back  ║
-     ║            still shows exit toast, not app exit.   ║
-     ║            Fix 4: _pgHashMap — added pg-recharge,  ║
-     ║            pg-success, pg-success-insuf,           ║
-     ║            pg-success-sub (were missing → empty    ║
-     ║            URL string on pushState).               ║
+     ║  Version : v115                                     ║
+     ║  Updated : 2026-06-05                               ║
+     ║  CHANGE  : Bug Fix — STORE_CLOSED detection        ║
+     ║            api() now preserves server errorCode    ║
+     ║            (json.errorCode → e.code) so            ║
+     ║            placeOrder & confirmInsufOrder use       ║
+     ║            e.code === 'STORE_CLOSED' instead of    ║
+     ║            fragile string matching on e.message.   ║
+     ║            Prevented false "Store Closed" popup    ║
+     ║            on DB/network errors containing the     ║
+     ║            word "closed" (e.g. "connection         ║
+     ║            closed", "SSL connection closed").      ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -237,6 +232,7 @@
         "name": "Daily Veg Tiffin – Morning",
         "description": "Fresh home-cooked morning tiffin (veg & non-veg) delivered daily to BHU hostels, Lanka, and nearby colonies in Varanasi",
         "availability": "https://schema.org/InStock",
+        "price": "60",
         "priceCurrency": "INR"
       },
       {
@@ -244,6 +240,7 @@
         "name": "Voting-Based Daily Tiffin",
         "description": "India's first voting-based tiffin — customers vote on WhatsApp daily for dishes and ingredients. Fresh home-cooked veg & non-veg thali in Varanasi.",
         "availability": "https://schema.org/InStock",
+        "price": "60",
         "priceCurrency": "INR"
       },
       {
@@ -251,6 +248,7 @@
         "name": "Monthly Tiffin Subscription",
         "description": "Affordable monthly tiffin plan with morning and evening meals. Free home delivery for all subscribers in Varanasi.",
         "availability": "https://schema.org/InStock",
+        "price": "1500",
         "priceCurrency": "INR"
       },
       {
@@ -258,6 +256,7 @@
         "name": "Evening Tiffin – Dinner",
         "description": "Hot, hygienic home-cooked evening tiffin delivered to your doorstep in Varanasi every day",
         "availability": "https://schema.org/InStock",
+        "price": "60",
         "priceCurrency": "INR"
       }
     ]
@@ -531,9 +530,9 @@
     "@type": "OfferCatalog",
     "name": "Tiffo Tiffin Plans",
     "itemListElement": [
-      { "@type": "Offer", "name": "Daily Veg Tiffin", "priceCurrency": "INR", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Voting-Based Daily Tiffin", "priceCurrency": "INR", "availability": "https://schema.org/InStock" },
-      { "@type": "Offer", "name": "Monthly Tiffin Subscription", "priceCurrency": "INR", "availability": "https://schema.org/InStock" }
+      { "@type": "Offer", "name": "Daily Veg Tiffin", "price": "60", "priceCurrency": "INR", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Voting-Based Daily Tiffin", "price": "60", "priceCurrency": "INR", "availability": "https://schema.org/InStock" },
+      { "@type": "Offer", "name": "Monthly Tiffin Subscription", "price": "1500", "priceCurrency": "INR", "availability": "https://schema.org/InStock" }
     ]
   },
   "availableChannel": {
@@ -1800,11 +1799,11 @@ input[type=number]{-moz-appearance:textfield}
      key content even though the app is JavaScript-rendered.
      DO NOT REMOVE — critical for local SEO ranking.                ══ -->
 <main id="main-content">
-<div role="region" aria-label="Tiffo tiffin service information" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;pointer-events:none">
+<div role="region" aria-label="Tiffo tiffin service information" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none">
   <h1>Tiffo – Best Tiffin Service in Varanasi | BHU, Lanka, Hostel Daily Delivery</h1>
   <h2>Fresh Ghar Ka Tiffin Near BHU, Lanka, Assi Ghat, Sunderpur Varanasi</h2>
-  <p>Tiffo is Varanasi's most trusted tiffin service — and India's first voting-based tiffin service. We offer both pure-veg and non-veg tiffin options. Every day, customers vote on WhatsApp to choose the dishes and ingredients in their next thali. Meals are cooked in traditional clay pots. We deliver fresh home-cooked meals daily to BHU students, hostel residents, and working professionals across Lanka, Assi Ghat, Sunderpur, Hyderabad Gate, and Trauma Centre BHU.</p>
-  <p>Looking for a healthy mess alternative near BHU? Tiffo offers daily tiffin subscription plans with morning and evening slots. Whether you are a NEET aspirant, IIT student, or office goer in Varanasi, our ghar jaisa khana is the perfect solution for nutritious, hygienic, home-style meals delivered to your door.</p>
+  <p class="seo-intro">Tiffo is Varanasi's most trusted tiffin service — and India's first voting-based tiffin service. We offer both pure-veg and non-veg tiffin options. Every day, customers vote on WhatsApp to choose the dishes and ingredients in their next thali. Meals are cooked in traditional clay pots. We deliver fresh home-cooked meals daily to BHU students, hostel residents, and working professionals across Lanka, Assi Ghat, Sunderpur, Hyderabad Gate, and Trauma Centre BHU.</p>
+  <p class="seo-description">Looking for a healthy mess alternative near BHU? Tiffo offers daily tiffin subscription plans with morning and evening slots. Whether you are a NEET aspirant, IIT student, or office goer in Varanasi, our ghar jaisa khana is the perfect solution for nutritious, hygienic, home-style meals delivered to your door.</p>
   <p>Affordable monthly tiffin plans available — veg &amp; non-veg. Best tiffin service in Lanka Varanasi with free home delivery for subscribers. Voting-based daily menu, clay pot cooking, pay-only-for-what-you-eat daily model. Contact us on WhatsApp: +91 98897 60350. Order online at tiffo.online.</p>
   <ul>
     <li>Tiffin service near BHU – Banaras Hindu University</li>
@@ -2061,6 +2060,34 @@ input[type=number]{-moz-appearance:textfield}
         <div id="su-retry-bar" class="loc-retry-bar">
           <i class="fa fa-rotate" style="margin-right:5px"></i>
           <span id="su-retry-label">Retrying automatically in</span> <span id="su-retry-count" class="retry-count">10</span>s…
+        </div>
+
+        <!-- Device Location OFF Banner (err.code 2/3 - GPS hardware disabled) -->
+        <div id="su-dev-off-banner" style="display:none;margin-top:10px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;padding:12px 13px;font-family:var(--fb);font-size:12.5px;color:#7f1d1d;line-height:1.6">
+          <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#991b1b;margin-bottom:5px;display:flex;align-items:center;gap:6px">
+            &#128245; Device Location is Turned Off
+          </div>
+          <div style="margin-bottom:6px">We need your GPS location to confirm your delivery zone. Please turn on Location in device settings:</div>
+          <ul id="dob-steps-android" style="display:none;margin:4px 0 8px 0;padding-left:16px">
+            <li>Go to <b>Settings &#8594; Location</b></li>
+            <li>Turn it <b>ON</b></li>
+            <li>Come back and tap <b>Detect My Location</b></li>
+          </ul>
+          <ul id="dob-steps-ios" style="display:none;margin:4px 0 8px 0;padding-left:16px">
+            <li>Go to <b>Settings &#8594; Privacy &#8594; Location Services</b></li>
+            <li>Turn <b>Location Services ON</b></li>
+            <li>Come back and tap <b>Detect My Location</b></li>
+          </ul>
+          <ul id="dob-steps-generic" style="display:none;margin:4px 0 8px 0;padding-left:16px">
+            <li>Open <b>Settings &#8594; Location / Privacy</b></li>
+            <li>Turn on <b>Location Services</b></li>
+            <li>Return here and tap <b>Detect My Location</b></li>
+          </ul>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <button onclick="_suRetryLocation()" style="background:#1e293b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <i class="fa fa-rotate"></i> Retry Location
+            </button>
+          </div>
         </div>
 
         <!-- Interactive Leaflet map (shown after GPS fires) -->
@@ -3371,7 +3398,11 @@ async function api(action, data = {}, _retry = 2, _keyRetried = false, _tokenRet
     }
     if (!res.ok) throw new Error('Server error ' + res.status);
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || 'Request failed');
+    if (!json.success) {
+      const _err = new Error(json.error || 'Request failed');
+      if (json.errorCode) _err.code = json.errorCode; // preserve server errorCode (e.g. 'STORE_CLOSED')
+      throw _err;
+    }
     return json;
   } catch(e) {
     // Only retry on network/timeout errors, never on logical failures (wrong password etc.)
@@ -5037,33 +5068,112 @@ const _SU_MAX_ATTEMPTS = 5;     // give up after 5 attempts
    Internal retries (_suRetryLocation, permission poll, visibility-change) call
    detectSignupLocation() directly — they already know permission was granted.        */
 function _onDetectBtnTap() {
-  // If GPS already resolved — go straight to detect (prewarm shortcut will fire)
+  // ── Prewarm shortcut: GPS already resolved in background — fire instantly ──
   if (_suWarmPos) { detectSignupLocation(); return; }
 
-  // Check permission state — prefer live API, fall back to localStorage flag
-  function _proceed() { detectSignupLocation(); }
-  function _showPopup() { _showSignupLocPopup(); }
+  // ── Step 1: Check browser permission state (does NOT check device hardware switch) ──
+  // navigator.permissions tells us: granted / denied / prompt
+  // It does NOT know if the device Location toggle (Settings → Location) is ON or OFF.
+  // We handle that in Step 2 via a 2s pre-probe.
 
+  function _runPreProbe() {
+    // ── Step 2: 2-second pre-probe — detect device location ON/OFF before 20s attempt 1 ──
+    // Why: navigator.permissions = granted does NOT mean device Location switch is ON.
+    // Without this probe: user waits 20s for attempt 1 to timeout, THEN sees red banner.
+    // With this probe: device OFF is detected in <=2s, banner shown immediately.
+    // Probe uses low-accuracy (faster) + 2s timeout + no cache.
+    // Success: real coords — consume as prewarm, skip attempt 1 entirely (instant result).
+    // err.code 1: permission denied at OS level — show perm banner immediately.
+    // err.code 2: device location OFF — show device-off banner immediately.
+    // err.code 3 (2s timeout): permission OK + device ON but signal weak — proceed to full attempt 1 (20s).
+    const btn    = document.getElementById('su-loc-btn');
+    const btnTxt = document.getElementById('su-loc-btn-txt');
+    if (btn) { btn.disabled = true; btnTxt.textContent = 'Checking location…'; }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        // Device ON, signal available — treat as prewarm hit, goes through prewarm shortcut
+        if (btn) btn.disabled = false;
+        _suWarmPos = pos;
+        detectSignupLocation();
+      },
+      err => {
+        if (btn) { btn.disabled = false; btnTxt.textContent = 'Detect My Location'; }
+        if (err.code === 1) {
+          // OS-level permission denied (can happen on iOS even if browser shows granted)
+          // Show perm banner + open manual card immediately
+          _suShowPermBanner();
+          _suShowManualCard();
+          _suStartPermissionPolling();
+          setTimeout(() => {
+            const card = document.getElementById('su-manual-card');
+            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
+          }, 200);
+        } else if (err.code === 2) {
+          // Device location switch is OFF — show banner with steps, start polling
+          _suShowDeviceOffBanner();
+          const locStatus = document.getElementById('su-loc-status');
+          if (locStatus) {
+            locStatus.style.display = 'block';
+            locStatus.style.background = '#fef2f2';
+            locStatus.style.color = '#991b1b';
+            locStatus.textContent = '📵 Location is turned off on your device. Please enable it and tap Retry.';
+          }
+        } else {
+          // err.code 3 = 2s timeout — permission OK + device ON but signal weak (indoor/basement)
+          // Proceed to full attempt 1 with 20s timeout. User already saw "Checking location..." briefly.
+          detectSignupLocation();
+        }
+      },
+      { enableHighAccuracy: false, timeout: 2000, maximumAge: 0 }
+    );
+  }
+
+  // ── Route based on permission state ──
   if (navigator.permissions) {
     navigator.permissions.query({ name: 'geolocation' }).then(r => {
-      if (r.state === 'granted') _proceed();
-      else if (r.state === 'denied') _proceed(); // let detectSignupLocation show the deny banner
-      else _showPopup(); // 'prompt' → show consent popup first
+      if (r.state === 'granted') {
+        _runPreProbe(); // permission OK — pre-probe to check device switch
+      } else if (r.state === 'denied') {
+        // Already denied in browser — no point probing, show banner directly
+        _suShowPermBanner();
+        _suShowManualCard();
+        _suStartPermissionPolling();
+        setTimeout(() => {
+          const card = document.getElementById('su-manual-card');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
+        }, 200);
+      } else {
+        // 'prompt' — user hasn't decided yet, show consent popup first
+        _showSignupLocPopup();
+      }
     }).catch(() => {
-      // permissions API error — check localStorage flag
+      // permissions API failed — check localStorage flag
       try {
         const flag = localStorage.getItem('tiffo_loc_perm');
-        if (flag === 'granted' || flag === 'denied') _proceed(); // proceed — detect handles both
-        else _showPopup();
-      } catch(e) { _showPopup(); }
+        if (flag === 'denied') {
+          _suShowPermBanner(); _suShowManualCard(); _suStartPermissionPolling();
+        } else if (flag === 'granted') {
+          _runPreProbe();
+        } else {
+          _showSignupLocPopup();
+        }
+      } catch(e) { _showSignupLocPopup(); }
     });
   } else {
-    // No permissions API (iOS Safari) — check localStorage flag from prior allow
+    // No permissions API (iOS Safari) — check localStorage flag
     try {
       const flag = localStorage.getItem('tiffo_loc_perm');
-      if (flag === 'granted' || flag === 'denied') _proceed(); // detect handles both
-      else _showPopup();
-    } catch(e) { _showPopup(); }
+      if (flag === 'denied') {
+        _suShowPermBanner(); _suShowManualCard(); _suStartPermissionPolling();
+      } else if (flag === 'granted') {
+        _runPreProbe(); // prior session was granted — pre-probe device switch
+      } else {
+        _showSignupLocPopup(); // first time — show consent popup
+      }
+    } catch(e) { _showSignupLocPopup(); }
   }
 }
 
@@ -5294,6 +5404,24 @@ function detectSignupLocation(thisToken) {
         return;
       }
 
+      // ── Device location turned OFF mid-flow (err.code 2 = POSITION_UNAVAILABLE) ──
+      // Pre-probe in _onDetectBtnTap already handled code 2 BEFORE attempt 1.
+      // If code 2 fires here it means user turned location OFF after pre-probe passed.
+      // err.code 3 here = weak signal (pre-probe passed = device was ON) — handled by normal retry ladder.
+      if (err.code === 2) {
+        _suPendingAutoSubmit = false;
+        _clearRetryCountdown();
+        _suShowDeviceOffBanner();
+        const locStatus = document.getElementById('su-loc-status');
+        if (locStatus) {
+          locStatus.style.display = 'block';
+          locStatus.style.background = '#fef2f2';
+          locStatus.style.color = '#991b1b';
+          locStatus.textContent = '📵 Location was turned off. Please enable it and tap Retry.';
+        }
+        return; // stop all retries — device polling will auto-resume when location turns ON
+      }
+
       // ── Schedule next attempt — all retries are 100% silent ────────────────
       if (isAttempt1) {
         // Chip ran 20s — fire attempt 2 immediately (chip already warm, no gap needed).
@@ -5392,11 +5520,74 @@ function _suHidePermBanner() {
   if (banner) banner.style.display = 'none';
 }
 
-/* ── Retry location from banner button ── */
+/* ── Show / hide device location OFF banner (err.code 2/3) ── */
+function _suShowDeviceOffBanner() {
+  const banner = document.getElementById('su-dev-off-banner');
+  if (!banner) return;
+  banner.style.display = 'block';
+  const ua = navigator.userAgent || '';
+  const isIOS     = /iP(hone|ad|od)/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  document.getElementById('dob-steps-ios').style.display     = isIOS ? 'block' : 'none';
+  document.getElementById('dob-steps-android').style.display = (!isIOS && isAndroid) ? 'block' : 'none';
+  document.getElementById('dob-steps-generic').style.display = (!isIOS && !isAndroid) ? 'block' : 'none';
+  _suStartDeviceLocPolling(); // auto-resume GPS when user turns location on
+}
+function _suHideDeviceOffBanner() {
+  const banner = document.getElementById('su-dev-off-banner');
+  if (banner) banner.style.display = 'none';
+  _suStopDeviceLocPolling();
+}
+
+/* ── Device location polling ──
+   Probes getCurrentPosition every 3s (2.5s timeout, no cache).
+   Success → device ON, hide banner, auto-retry GPS detect.
+   err.code 1 → switch to perm-denied banner.
+   err.code 2/3 → still off, keep polling. */
+let _suDeviceLocPollTimer = null;
+function _suStartDeviceLocPolling() {
+  if (_suDeviceLocPollTimer) return;
+  _suDeviceLocPollTimer = setInterval(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => { // Device turned ON — probe succeeded
+        _suStopDeviceLocPolling();
+        _suHideDeviceOffBanner();
+        const locStatus = document.getElementById('su-loc-status');
+        if (locStatus) locStatus.style.display = 'none';
+        // Consume probe pos as prewarm — detect fires instantly via prewarm shortcut
+        _suWarmPos = pos;
+        detectSignupLocation();
+      },
+      (e) => {
+        if (e.code === 1) { // Denied — switch banner
+          _suStopDeviceLocPolling();
+          _suHideDeviceOffBanner();
+          _suShowPermBanner();
+          _suShowManualCard();
+          _suStartPermissionPolling();
+        }
+        // code 2/3 = still off, keep polling silently
+      },
+      { timeout: 2500, maximumAge: 0, enableHighAccuracy: false }
+    );
+  }, 3000);
+}
+function _suStopDeviceLocPolling() {
+  if (_suDeviceLocPollTimer) { clearInterval(_suDeviceLocPollTimer); _suDeviceLocPollTimer = null; }
+}
+
+/* ── Retry location from any banner button ──
+   Goes through _onDetectBtnTap so the 2s pre-probe runs again.
+   This correctly re-checks: device ON/OFF, permission state, prewarm cache. */
 function _suRetryLocation() {
-  _suStopPermissionPolling(); // cancel poll — user is manually retrying
+  _suStopPermissionPolling();
+  _suStopDeviceLocPolling();
   _suHidePermBanner();
-  detectSignupLocation();
+  _suHideDeviceOffBanner();
+  const locStatus = document.getElementById('su-loc-status');
+  if (locStatus) locStatus.style.display = 'none';
+  _onDetectBtnTap(); // full flow: pre-probe → attempt 1 if needed
 }
 
 /* ── Permission polling — called after err.code===1 on Android Chrome/Firefox ──
@@ -5881,6 +6072,15 @@ async function doSignup() {
 
   try {
     // needs_geocode=true when Nominatim failed client-side — backend will try a richer query
+    // ── Coordinates mandatory — geocode must resolve before signup ──
+    // Manual address path (locMode='2'): if geocode is still pending or failed,
+    // block signup and prompt user to wait or try GPS.
+    if (locMode === '2' && _suGeocodeState === 'pending') {
+      _suSetBtnLoading(false);
+      _suInFlight = false;
+      toast('🟡 Checking your delivery zone… please wait a moment and try again.', 3000);
+      return;
+    }
     const needsGeocode = _suGeocodeState === 'done_err' && locMode === '2';
     const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw, needs_geocode: needsGeocode });
 
@@ -5908,6 +6108,7 @@ async function doSignup() {
     _suStopBgGps();
     _clearRetryCountdown();
     _suStopPermissionPolling(); // stop polling — no longer needed after signup
+    _suStopDeviceLocPolling();    // stop device-off polling too
     // Also orphan any in-flight foreground retry loop (bump token so stale callbacks self-cancel)
     _suAbortToken++;
 
@@ -6982,7 +7183,9 @@ async function placeOrder() {
     _prefetchAfterOrder();
   } catch(e) {
     // Server STORE_CLOSED → show proper popup, not a generic toast
-    if (e.message && (e.message.includes('Store') || e.message.includes('opens') || e.message.includes('closed'))) {
+    // Use e.code (set by api() from json.errorCode) — reliable, no false positives
+    // Fallback string check retained for legacy/direct-throw paths only
+    if (e.code === 'STORE_CLOSED') {
       showClosedPopup(e.message);
     } else {
       toast(e.message || 'Order failed. Try again.');
@@ -7693,7 +7896,8 @@ async function confirmInsufOrder() {
     _prefetchAfterOrder();
   } catch(e) {
     // Server STORE_CLOSED → show proper popup, not a generic toast
-    if (e.message && (e.message.includes('Store') || e.message.includes('opens') || e.message.includes('closed'))) {
+    // Use e.code (set by api() from json.errorCode) — reliable, no false positives
+    if (e.code === 'STORE_CLOSED') {
       showClosedPopup(e.message);
     } else {
       toast(e.message || 'Order failed. Try again.');
