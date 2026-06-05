@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v8.0  |  Updated : 2026-06-02
+   Version : v10.0  |  Updated : 2026-06-04
+
+   CHANGES v10.0:
+   - Cache bumped → tiffo-admin-v16 (v114 admin panel update)
+
+   CHANGES v9.0:
+   - Cache bumped → tiffo-admin-v15
 
    CHANGES v8.0:
    - Cache bumped → tiffo-admin-v14 (flash window coupon type added)
@@ -20,7 +26,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v14';
+const CACHE      = 'tiffo-admin-v16';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
