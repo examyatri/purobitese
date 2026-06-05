@@ -1,14 +1,12 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v111                                      ║
-// ║  Updated : 2026-05-29                               ║
-// ║  Changes : Fix 1 — createOrder now validates store  ║
-// ║            open/closed from weekly_schedule at      ║
-// ║            order time. Outside window → clear error.║
-// ║            Staff-placed orders bypass check.        ║
-// ║            Prior: slot was detected but never       ║
-// ║            validated — orders went through anytime. ║
+// ║  Version : v114                                      ║
+// ║  Updated : 2026-06-04                               ║
+// ║  Fix     : Restored missing                         ║
+// ║            async function _createSingleOrder(       ║
+// ║            declaration (line 973 — syntax error     ║
+// ║            caused server crash on startup).         ║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -970,7 +968,8 @@ async function _geocodeAndPatchAsync(phone, address, area) {
   }
 }
 
-async function _createSingleOrder({ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
+async function _createSingleOrder(
+{ user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   let discount = 0;
   if (coupon) {
@@ -1188,6 +1187,13 @@ app.post('/api', async (req, res) => {
 
       case 'signup': {
         const phone = cleanPhone(data.phone);
+        // Server-side validation
+        if (!data.name || String(data.name).trim().length < 2)
+          return res.json({ success: false, error: 'Name is required' });
+        if (!data.password || String(data.password).length < 6)
+          return res.json({ success: false, error: 'Password must be at least 6 characters' });
+        if (!phone || phone.length !== 10 || !/^[6-9]/.test(phone))
+          return res.json({ success: false, error: 'Invalid phone number' });
         const { data: existing } = await supabase.from('users').select('phone').eq('phone', phone).single();
         if (existing) return res.json({ success: false, error: 'Phone already registered' });
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
@@ -1208,8 +1214,17 @@ app.post('/api', async (req, res) => {
         // Uses a richer query with city/campus context. Fire-and-forget — does NOT
         // delay the signup response. User gets their account immediately; coords
         // are patched into the address field in the background within ~2–5s.
+        // ── Server-side geocode: runs synchronously before response ──
+        // Client Nominatim failed (BHU campus names often missing from OSM).
+        // We await here so coordinates are in DB before the user sees "Account created".
+        // 4s timeout guard prevents slow Nominatim from delaying signup response.
         if (data.needs_geocode && data.address) {
-          _geocodeAndPatchAsync(phone, data.address, data.area || '').catch(() => {});
+          try {
+            await Promise.race([
+              _geocodeAndPatchAsync(phone, data.address, data.area || ''),
+              new Promise(r => setTimeout(r, 4000)) // 4s max wait
+            ]);
+          } catch(_) {}
         }
         // ── Fire new-user notification so admin can send welcome coupon ──
         try {
