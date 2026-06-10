@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v114                                   ║
-     ║  Updated : 2026-06-03                               ║
+     ║  Version : v121                                   ║
+     ║  Updated : 2026-06-10                               ║
      ║  Changes : v80 — Earning logic final cleanup        ║
      ║   1. Earning = Wallet recharges (all) +             ║
      ║      UPI/UPI_insuf/Udhar (only admin-marked paid)  ║
@@ -1560,7 +1560,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         <!-- Smart Search Bar -->
         <div style="position:relative;margin-bottom:12px">
           <i class="fa fa-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:14px;pointer-events:none"></i>
-          <input id="users-search" type="search" placeholder="Search by name, phone, email or user ID…" oninput="filterUsers()"
+          <input id="users-search" type="search" placeholder="Search by name, phone or user ID…" oninput="filterUsers()"
             style="width:100%;padding:11px 14px 11px 40px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-family:var(--ff);outline:none;transition:border-color .2s;box-sizing:border-box"
             onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'">
         </div>
@@ -1579,6 +1579,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <option value="za">Z–A</option>
               <option value="oldest">Oldest Joined</option>
               <option value="most_orders">Most Orders</option>
+              <option value="top_rating">Top Rating</option>
+              <option value="low_rating">Low Rating</option>
             </select>
           </div>
         </div>
@@ -1590,7 +1592,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
                 <tr>
                   <th style="min-width:160px">User</th>
                   <th>Phone</th>
-                  <th>Email</th>
+                  <th>Rating</th>
                   <th style="min-width:130px">Address</th>
                   <th>Type</th>
                   <th>Orders</th>
@@ -1757,6 +1759,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <div class="settings-item" onclick="showSettingPanel('master-del',this)">
               <div class="si-icon" style="background:#fee2e2"><i class="fa fa-skull-crossbones" style="color:#be123c"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Master Delete</span>
+            </div>
+            <div class="settings-item" onclick="showSettingPanel('referral',this)">
+              <div class="si-icon" style="background:#fef3c7"><i class="fa fa-share-nodes" style="color:#d97706"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Referral Discounts</span>
             </div>
           </div>
           <div id="settings-panel-area"></div>
@@ -2109,7 +2115,7 @@ async function doAdminLogin() {
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(role);
-    showPage('p-dash');
+    showPage('p-notifs');
     _updateBeepBtn(); // apply saved beep preference to button
     // UNLOCK AUDIO: login button click = valid user gesture.
     // unlockNow() creates + resumes AudioContext immediately so the first order
@@ -2169,10 +2175,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Decode the JWT exp field without a library (it's just base64 JSON).
   // If the token has expired, clear the session and show the login screen
   // immediately — no need to wait for a 401 from the first API call.
+  // NOTE: exp is stored in milliseconds (Date.now() + TTL) — NOT Unix seconds.
+  // Customer and rider panels correctly compare Date.now() > payload.exp directly.
   if (session?.sessionToken) {
     try {
       const payload = JSON.parse(atob(session.sessionToken.split('.')[1]));
-      if (payload.exp && Date.now() > payload.exp * 1000) {
+      if (payload.exp && Date.now() > payload.exp) {
         // Wipe all session/app data — fresh login required.
         // Preserve tiffo_beep_enabled (device preference, not session data).
         const _bp = localStorage.getItem('tiffo_beep_enabled');
@@ -2187,7 +2195,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('auth-pg').style.display = 'none';
     document.getElementById('main-layout').style.display = 'flex';
     applyRoleRestrictions(session.role);
-    showPage('p-dash');
+    showPage('p-notifs');
     _updateBeepBtn(); // restore saved beep preference to button on session resume
     // Pre-create AudioContext eagerly on session resume (no gesture needed to CREATE,
     // only to RESUME). The ctx will be in 'suspended' state — on the user's first
@@ -4854,7 +4862,7 @@ async function findUserForPromote() {
     document.getElementById('promote-user-info').innerHTML = `
       <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
         <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--blue),#6366f1);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px">${(u.name||'?')[0].toUpperCase()}</div>
-        <div><div style="font-weight:700;font-size:14px">${u.name||'—'}</div><div style="font-size:12px;color:#64748b">${u.phone} ${u.email?'· '+u.email:''}</div></div>
+        <div><div style="font-weight:700;font-size:14px">${u.name||'—'}</div><div style="font-size:12px;color:#64748b">${u.phone}</div></div>
       </div>
       <div class="field"><label>Plan</label>
         <select id="promo-plan">
@@ -5079,7 +5087,6 @@ function filterUsers() {
   if (q) filtered = filtered.filter(u =>
     (u.name||'').toLowerCase().includes(q) ||
     (u.phone||'').includes(q) ||
-    (u.email||'').toLowerCase().includes(q) ||
     (u.user_id||'').toLowerCase().includes(q)
   );
 
@@ -5087,11 +5094,28 @@ function filterUsers() {
   if (sort === 'za')          filtered.sort((a,b) => (b.name||'').localeCompare(a.name||''));
   if (sort === 'oldest')      filtered.sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
   if (sort === 'most_orders') filtered.sort((a,b) => (b.total_orders||0) - (a.total_orders||0));
+  if (sort === 'top_rating')  filtered.sort((a,b) => (b.rating||0) - (a.rating||0));
+  if (sort === 'low_rating')  filtered.sort((a,b) => (a.rating||0) - (b.rating||0));
 
   const lbl = document.getElementById('users-count-label');
   if (lbl) lbl.textContent = filtered.length + ' user' + (filtered.length !== 1 ? 's' : '');
 
   renderUsersTable(filtered);
+}
+
+// ── User Rating Badge ─────────────────────────────────────
+function _ratingBadge(score) {
+  const r = score ?? 0;
+  let color, bg, label;
+  if (r >= 80)      { color='#15803d'; bg='#dcfce7'; label='Champion'; }
+  else if (r >= 60) { color='#1d4ed8'; bg='#dbeafe'; label='Loyal'; }
+  else if (r >= 40) { color='#b45309'; bg='#fef3c7'; label='Developing'; }
+  else if (r >= 20) { color='#c2410c'; bg='#ffedd5'; label='At Risk'; }
+  else              { color='#9f1239'; bg='#ffe4e6'; label='Inactive'; }
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div style="font-weight:800;font-size:15px;color:${color}">${r}%</div>
+    <span style="padding:2px 7px;background:${bg};color:${color};border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap">${label}</span>
+  </div>`;
 }
 
 function renderUsersTable(users) {
@@ -5126,7 +5150,7 @@ function renderUsersTable(users) {
         </div>
       </td>
       <td style="font-size:13px;font-weight:600">${u.phone||'\u2014'}</td>
-      <td style="font-size:12px;color:#475569">${u.email||'<span style="color:#cbd5e1">\u2014</span>'}</td>
+      <td style="font-size:12px;color:#475569">${_ratingBadge(u.rating)}</td>
       <td style="font-size:12px;color:#475569;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${u.address||''}">${_adminShortAddr(u.address)||'<span style="color:#cbd5e1">\u2014</span>'}</td>
       <td>${subBadge(u)}</td>
       <td style="text-align:center"><span style="font-weight:700;font-size:13px;color:${(u.total_orders||0)>0?'#0f172a':'#cbd5e1'}">${u.total_orders||0}</span></td>
@@ -5145,14 +5169,18 @@ function renderUsersTable(users) {
             </a>
           </div>
           <div style="display:flex;gap:4px">
-            <button onclick="resetUserPw('${u.phone}','${u.name}')" title="Reset Password"
+            <button onclick="openUserRatingModal('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}',${u.manual_score||0},${u.rating||0})" title="Update Rating"
               style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
-              <i class="fa fa-key" style="font-size:10px"></i> Reset PW
+              <i class="fa fa-star" style="font-size:10px"></i> Rating
             </button>
             <button class="btn btn-danger" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 2px 6px rgba(239,68,68,.30);transition:opacity .15s" onclick="deleteUserFromAllTab('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}') " title="Delete User" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
               <i class="fa fa-trash" style="font-size:10px"></i> Delete
             </button>
           </div>
+          <button onclick="resetUserPw('${u.phone}','${u.name}')" title="Reset Password"
+            style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#64748b,#475569);color:#fff;box-shadow:0 2px 6px rgba(100,116,139,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+            <i class="fa fa-key" style="font-size:10px"></i> Reset Password
+          </button>
           <button onclick="openEditUserAddress('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}','${(u.address||'').replace(/\n/g,'\\n').replace(/'/g,"\\'")}','${(u.area||'').replace(/'/g,"\\'")}' )" title="Edit Delivery Address"
             style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 2px 6px rgba(14,165,233,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
             <i class="fa fa-location-dot" style="font-size:10px"></i> Edit Address
@@ -5309,7 +5337,6 @@ function promoteUserFromAllTab(phone) {
   const _u = _allUsers.find(x => x.phone === phone) || {};
   const name = _u.name || '';
   const address = _u.address || '';
-  const email = _u.email || '';
   const today = new Date().toISOString().split('T')[0];
   openMo(`
     <div class="mo-title"><i class="fa fa-arrow-up" style="color:#6366f1"></i> Promote to Subscriber</div>
@@ -5357,6 +5384,86 @@ async function _doPromoteFromAllTab(phone) {
   } catch(e) {
     if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.innerHTML = '<i class="fa fa-arrow-up"></i> Confirm &amp; Promote'; }
     aToast(e.message || 'Promotion failed');
+  }
+}
+
+// ── User Rating Modal ─────────────────────────────────────────────────────────
+function openUserRatingModal(phone, name, manualScore, currentRating) {
+  const ms = manualScore ?? 0;
+  // rating category label
+  function catLabel(r) {
+    if (r >= 80) return '🟢 Champion';
+    if (r >= 60) return '🔵 Loyal';
+    if (r >= 40) return '🟡 Developing';
+    if (r >= 20) return '🟠 At Risk';
+    return '🔴 Inactive';
+  }
+  openMo(`
+    <div class="mo-title"><i class="fa fa-star" style="color:#f59e0b"></i> User Rating — ${name}</div>
+
+    <!-- Current Rating Display -->
+    <div style="background:linear-gradient(135deg,#fefce8,#fef3c7);border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:16px;text-align:center">
+      <div style="font-size:11px;color:#92400e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current Rating</div>
+      <div style="font-size:36px;font-weight:900;color:#b45309;line-height:1">${currentRating}%</div>
+      <div style="font-size:13px;color:#92400e;margin-top:4px;font-weight:600">${catLabel(currentRating)}</div>
+    </div>
+
+    <!-- Rating Formula Info -->
+    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#475569;font-family:var(--ff)">
+      <div style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:13px">📊 Rating Breakdown (Auto-Calculated)</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;line-height:1.7">
+        <span>💰 Wallet Balance</span><span style="font-weight:700;color:#0f172a">up to 20 pts</span>
+        <span>🏆 Lifetime Total Spend</span><span style="font-weight:700;color:#0f172a">up to 30 pts</span>
+        <span>🔄 Order Consistency (last 30d)</span><span style="font-weight:700;color:#0f172a">up to 25 pts</span>
+        <span>♻️ Subscription Loyalty</span><span style="font-weight:700;color:#0f172a">up to 15 pts</span>
+        <span>🎯 Manual Admin Score</span><span style="font-weight:700;color:#0f172a">up to 10 pts</span>
+      </div>
+    </div>
+
+    <!-- Manual Score Slider -->
+    <div class="field" style="margin-bottom:8px">
+      <label style="font-weight:700;color:#0f172a;font-size:13px">🎯 Manual Admin Score (0–10)
+        <span style="font-weight:400;color:#64748b;font-size:11px"> — your personal assessment</span>
+      </label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+        <input type="range" id="ur-slider" min="0" max="10" step="1" value="${ms}"
+          oninput="document.getElementById('ur-val').textContent=this.value"
+          style="flex:1;accent-color:#f59e0b;height:6px;cursor:pointer">
+        <div id="ur-val" style="min-width:28px;text-align:center;font-size:20px;font-weight:900;color:#b45309">${ms}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:4px;padding:0 2px">
+        <span>Problematic</span><span>Average</span><span>Excellent</span>
+      </div>
+    </div>
+
+    <!-- Manual Score Guide -->
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:11px;color:#15803d;font-family:var(--ff)">
+      <strong>Guide:</strong> 0–2 = Problem customer (rude, fake orders) · 3–4 = Below avg ·
+      5 = Neutral · 6–7 = Good behaviour · 8–9 = Referrals / very helpful · 10 = VIP / exceptional
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeMo()">Cancel</button>
+      <button id="ur-save-btn" class="btn" style="flex:2;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;font-weight:700"
+        onclick="_doSaveUserRating('${phone}')">
+        <i class="fa fa-save"></i> Save Rating
+      </button>
+    </div>`);
+}
+
+async function _doSaveUserRating(phone) {
+  const slider = document.getElementById('ur-slider');
+  const manual_score = parseInt(slider?.value ?? 5);
+  const btn = document.getElementById('ur-save-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…'; }
+  try {
+    await api('adminSetUserRating', { phone, manual_score });
+    closeMo();
+    loadUsers();
+    aToast('Rating updated ✅');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-save"></i> Save Rating'; }
+    aToast(e.message || 'Save failed');
   }
 }
 
@@ -5798,9 +5905,46 @@ function showSettingPanel(type, el) {
     'delivery-zone': renderDeliveryZonePanel,
     'delivery-areas': renderDeliveryAreasPanel,
     'auto-tiffin-cutoff': renderAutoTiffinCutoffPanel,
-    'help-videos': renderHelpVideosPanel
+    'help-videos':  renderHelpVideosPanel,
+    'referral':     renderReferralPanel
   };
   if (panels[type]) panels[type](area);
+}
+
+async function renderReferralPanel(area) {
+  area.innerHTML = `
+    <div class="settings-panel">
+      <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:6px">🎁 Referral Discount Settings</div>
+      <p style="font-size:12px;color:#64748b;margin-bottom:16px;line-height:1.5">Coupons are auto-generated when you click <b>Send Coupon</b> on a referral notification. Each coupon expires in 7 days or after 1 use.</p>
+      <div class="field">
+        <label style="font-size:13px;font-weight:600">Old User Gets (%)</label>
+        <input id="ref-old-pct" type="number" min="1" max="50" placeholder="e.g. 10" style="padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;width:100%">
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label style="font-size:13px;font-weight:600">New User Gets (%)</label>
+        <input id="ref-new-pct" type="number" min="1" max="50" placeholder="e.g. 15" style="padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;width:100%">
+      </div>
+      <button class="btn btn-p" style="margin-top:16px" onclick="saveReferralSettings()">Save Settings</button>
+    </div>`;
+  try {
+    const r = await api('getSettings');
+    const inp = id => document.getElementById(id);
+    if (inp('ref-old-pct')) inp('ref-old-pct').value = r.settings?.referralReferrerPct ?? 10;
+    if (inp('ref-new-pct')) inp('ref-new-pct').value = r.settings?.referralNewUserPct  ?? 15;
+  } catch(e) { aToast('Could not load settings'); }
+}
+
+async function saveReferralSettings() {
+  const referrer_pct = parseInt(document.getElementById('ref-old-pct')?.value);
+  const new_user_pct = parseInt(document.getElementById('ref-new-pct')?.value);
+  if (isNaN(referrer_pct) || referrer_pct < 1 || referrer_pct > 50 ||
+      isNaN(new_user_pct)  || new_user_pct  < 1 || new_user_pct  > 50) {
+    aToast('Both values must be between 1 and 50'); return;
+  }
+  try {
+    await api('setReferralSettings', { referrer_pct, new_user_pct });
+    aToast('Saved ✅');
+  } catch(e) { aToast(e.message || 'Save failed'); }
 }
 
 function renderCutoffPanel(area) {
@@ -6320,18 +6464,35 @@ async function renderHelpVideosPanel(area) {
         </div>
       </div>
 
-      <!-- ── Video List ── -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">
-          <i class="fa fa-list" style="color:#9333ea;margin-right:6px"></i>Published Videos
+      <!-- ── Video List Tabs ── -->
+      <div style="margin-bottom:12px">
+        <div style="display:flex;gap:6px;margin-bottom:12px;background:#f8fafc;border-radius:12px;padding:4px">
+          <button id="hv-tab-regular" onclick="hvSetTab('regular')"
+            style="flex:1;padding:8px;border:none;border-radius:9px;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;background:#fff;color:#6d28d9;box-shadow:0 1px 4px rgba(0,0,0,.1);transition:all .18s">
+            <i class="fa fa-film" style="margin-right:5px"></i>Regular
+            <span id="hv-count" style="margin-left:4px;background:#ede9fe;color:#7c3aed;border-radius:10px;padding:1px 6px;font-size:10px"></span>
+          </button>
+          <button id="hv-tab-shorts" onclick="hvSetTab('shorts')"
+            style="flex:1;padding:8px;border:none;border-radius:9px;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .18s">
+            <i class="fa-brands fa-youtube" style="margin-right:5px"></i>Shorts
+            <span id="hv-shorts-count" style="margin-left:4px;background:#f1f5f9;color:#64748b;border-radius:10px;padding:1px 6px;font-size:10px"></span>
+          </button>
         </div>
-        <div id="hv-count" style="font-size:11px;color:#64748b;font-family:var(--fb);background:#f1f5f9;padding:3px 10px;border-radius:20px"></div>
+        <div id="hv-shorts-cat-filter" style="display:none;margin-bottom:10px">
+          <div style="font-size:11px;color:#64748b;font-family:var(--fb);margin-bottom:6px">
+            <i class="fa fa-circle-info" style="color:#9333ea;margin-right:4px"></i>
+            Shorts order is per-category. Select a category to reorder:
+          </div>
+          <div id="hv-shorts-cat-btns" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
       </div>
+
       <div id="hv-list">
         <div style="text-align:center;padding:32px;color:#94a3b8;font-size:13px;font-family:var(--fb)">
           <i class="fa fa-spinner fa-spin" style="margin-bottom:8px;display:block;font-size:20px;color:#c4b5fd"></i>Loading videos…
         </div>
       </div>
+      <div id="hv-shorts-list" style="display:none"></div>
 
     </div>`;
 
@@ -6483,14 +6644,27 @@ function hvRenderList() {
   const el = document.getElementById('hv-list');
   if (!el) return;
 
-  const countEl = document.getElementById('hv-count');
-  if (countEl) countEl.textContent = `${_hvVideos.length} video${_hvVideos.length !== 1 ? 's' : ''}`;
+  // Count regular (non-shorts) videos
+  const regularVideos = _hvVideos.filter(v => !/youtube\.com\/shorts\//i.test(v.youtube_url || ''));
+  const shortVideos   = _hvVideos.filter(v =>  /youtube\.com\/shorts\//i.test(v.youtube_url || ''));
 
-  if (!_hvVideos.length) {
+  const countEl = document.getElementById('hv-count');
+  if (countEl) countEl.textContent = regularVideos.length;
+
+  const shortsCountEl = document.getElementById('hv-shorts-count');
+  if (shortsCountEl) shortsCountEl.textContent = shortVideos.length;
+
+  // If shorts tab is active, re-render it too
+  if (typeof _hvActiveTab !== 'undefined' && _hvActiveTab === 'shorts') {
+    hvRenderShortsSection();
+    return;
+  }
+
+  if (!regularVideos.length) {
     el.innerHTML = `
       <div style="text-align:center;padding:36px 24px;background:#faf5ff;border:1.5px dashed #e9d5ff;border-radius:12px">
         <i class="fa-brands fa-youtube" style="font-size:28px;color:#c4b5fd;margin-bottom:10px;display:block"></i>
-        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:4px">No videos yet</div>
+        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#6d28d9;margin-bottom:4px">No regular videos yet</div>
         <div style="font-size:12px;color:#94a3b8;font-family:var(--fb)">Add your first tutorial video above</div>
       </div>`;
     return;
@@ -6500,14 +6674,14 @@ function hvRenderList() {
   const CAT_COLOR = Object.fromEntries(_hvCategories.map(c => [c.slug, c.color]));
   const CAT_BG    = Object.fromEntries(_hvCategories.map(c => [c.slug, c.bg_color]));
 
-  el.innerHTML = _hvVideos.map((v, idx) => {
+  el.innerHTML = regularVideos.map((v, idx) => {
     const thumbId  = hvYtId(v.youtube_url);
     const thumbUrl = thumbId ? `https://img.youtube.com/vi/${thumbId}/hqdefault.jpg` : '';
     const catLabel = CAT_LABEL[v.category] || 'General';
     const catColor = CAT_COLOR[v.category] || '#64748b';
     const catBg    = CAT_BG[v.category]    || '#f1f5f9';
     const isFirst  = idx === 0;
-    const isLast   = idx === _hvVideos.length - 1;
+    const isLast   = idx === regularVideos.length - 1;
 
     return `
     <div id="hv-row-${v.id}" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:8px;overflow:hidden;transition:box-shadow .2s">
@@ -6692,15 +6866,202 @@ async function hvDelete(id) {
 }
 
 async function hvMove(id, dir) {
-  const idx = _hvVideos.findIndex(v => v.id === id);
+  // Operate only within regular (non-shorts) videos to avoid disturbing shorts order_index
+  const regularVids = _hvVideos.filter(v => !/youtube\.com\/shorts\//i.test(v.youtube_url || ''));
+  const idx = regularVids.findIndex(v => v.id === id);
   if (idx === -1) return;
   const swapIdx = idx + dir;
-  if (swapIdx < 0 || swapIdx >= _hvVideos.length) return;
-  const ids = _hvVideos.map(v => v.id);
+  if (swapIdx < 0 || swapIdx >= regularVids.length) return;
+  const ids = regularVids.map(v => v.id);
   [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
   try {
     await api('reorderHelpVideos', { ordered_ids: ids });
     await hvLoad();
+  } catch(e) { aToast(e.message); }
+}
+
+/* ── Tab switching ── */
+let _hvActiveTab = 'regular';
+let _hvShortsCat = null; // currently selected category for shorts ordering
+
+function hvSetTab(tab) {
+  _hvActiveTab = tab;
+  const regBtn    = document.getElementById('hv-tab-regular');
+  const shortBtn  = document.getElementById('hv-tab-shorts');
+  const regList   = document.getElementById('hv-list');
+  const shortList = document.getElementById('hv-shorts-list');
+  const catFilter = document.getElementById('hv-shorts-cat-filter');
+
+  if (tab === 'regular') {
+    regBtn.style.background   = '#fff';
+    regBtn.style.color        = '#6d28d9';
+    regBtn.style.boxShadow    = '0 1px 4px rgba(0,0,0,.1)';
+    shortBtn.style.background = 'transparent';
+    shortBtn.style.color      = '#64748b';
+    shortBtn.style.boxShadow  = 'none';
+    regList.style.display     = '';
+    shortList.style.display   = 'none';
+    catFilter.style.display   = 'none';
+  } else {
+    shortBtn.style.background = '#fff';
+    shortBtn.style.color      = '#6d28d9';
+    shortBtn.style.boxShadow  = '0 1px 4px rgba(0,0,0,.1)';
+    regBtn.style.background   = 'transparent';
+    regBtn.style.color        = '#64748b';
+    regBtn.style.boxShadow    = 'none';
+    regList.style.display     = 'none';
+    shortList.style.display   = '';
+    catFilter.style.display   = '';
+    hvRenderShortsSection();
+  }
+}
+
+/* ── Render shorts category filter buttons ── */
+function hvRenderShortsSection() {
+  const btnsEl = document.getElementById('hv-shorts-cat-btns');
+  if (!btnsEl) return;
+
+  const shortVideos = _hvVideos.filter(v => /youtube\.com\/shorts\//i.test(v.youtube_url || ''));
+
+  // Build category list from shorts
+  const catsInShorts = [...new Set(shortVideos.map(v => v.category || 'general'))];
+
+  if (!catsInShorts.length) {
+    btnsEl.innerHTML = '<div style="font-size:12px;color:#94a3b8;font-family:var(--fb);padding:8px">No shorts added yet. Add a YouTube Shorts URL above.</div>';
+    document.getElementById('hv-shorts-list').innerHTML = '';
+    return;
+  }
+
+  // Default to first cat if none selected or selected cat has no shorts
+  if (!_hvShortsCat || !catsInShorts.includes(_hvShortsCat)) {
+    _hvShortsCat = catsInShorts[0];
+  }
+
+  const CAT_LABEL = Object.fromEntries(_hvCategories.map(c => [c.slug, c.label]));
+  const CAT_COLOR = Object.fromEntries(_hvCategories.map(c => [c.slug, c.color]));
+  const CAT_BG    = Object.fromEntries(_hvCategories.map(c => [c.slug, c.bg_color]));
+
+  btnsEl.innerHTML = catsInShorts.map(slug => {
+    const label = CAT_LABEL[slug] || slug;
+    const color = CAT_COLOR[slug] || '#475569';
+    const bg    = CAT_BG[slug]    || '#f1f5f9';
+    const isActive = slug === _hvShortsCat;
+    return `<button onclick="hvSelectShortsCat('${slug}')"
+      style="padding:5px 13px;border-radius:20px;border:1.5px solid ${isActive?'#9333ea':bg};
+             background:${isActive?'#faf5ff':bg};color:${isActive?'#6d28d9':color};
+             font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s">
+      ${escAdminHtml(label)}
+      <span style="margin-left:3px;opacity:.7">(${shortVideos.filter(v => (v.category||'general') === slug).length})</span>
+    </button>`;
+  }).join('');
+
+  hvRenderShortsList();
+}
+
+function hvSelectShortsCat(slug) {
+  _hvShortsCat = slug;
+  hvRenderShortsSection();
+}
+
+/* ── Render shorts list for selected category ── */
+function hvRenderShortsList() {
+  const el = document.getElementById('hv-shorts-list');
+  if (!el) return;
+
+  const shorts = _hvVideos
+    .filter(v => /youtube\.com\/shorts\//i.test(v.youtube_url || '') && (v.category || 'general') === _hvShortsCat)
+    .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+  const countEl = document.getElementById('hv-shorts-count');
+  const allShorts = _hvVideos.filter(v => /youtube\.com\/shorts\//i.test(v.youtube_url || ''));
+  if (countEl) countEl.textContent = allShorts.length;
+
+  if (!shorts.length) {
+    el.innerHTML = `<div style="text-align:center;padding:24px;background:#fdf4ff;border:1.5px dashed #e9d5ff;border-radius:10px;font-size:12px;color:#94a3b8;font-family:var(--fb)">
+      No shorts in this category yet.
+    </div>`;
+    return;
+  }
+
+  const CAT_LABEL = Object.fromEntries(_hvCategories.map(c => [c.slug, c.label]));
+  const CAT_BG    = Object.fromEntries(_hvCategories.map(c => [c.slug, c.bg_color]));
+  const CAT_COLOR = Object.fromEntries(_hvCategories.map(c => [c.slug, c.color]));
+
+  el.innerHTML = shorts.map((v, idx) => {
+    const thumbId  = hvYtId(v.youtube_url);
+    // Use maxresdefault for portrait shorts thumbnail
+    const thumbUrl = thumbId ? `https://img.youtube.com/vi/${thumbId}/maxresdefault.jpg` : '';
+    const catLabel = CAT_LABEL[v.category] || 'General';
+    const catBg    = CAT_BG[v.category]    || '#f1f5f9';
+    const catColor = CAT_COLOR[v.category] || '#64748b';
+    const isFirst  = idx === 0;
+    const isLast   = idx === shorts.length - 1;
+
+    return `
+    <div id="hvs-row-${v.id}" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;align-items:stretch">
+        <!-- Order controls -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 8px;background:#faf5ff;border-right:1px solid #f3e8ff;flex-shrink:0">
+          <button onclick="hvMoveShort(${v.id},-1,'${escAdminAttr(_hvShortsCat)}')" title="Move Up"
+            style="width:26px;height:26px;border:1px solid #e9d5ff;border-radius:6px;background:${isFirst?'#f8fafc':'#fff'};cursor:${isFirst?'not-allowed':'pointer'};font-size:11px;color:${isFirst?'#cbd5e1':'#7c3aed'};display:flex;align-items:center;justify-content:center"
+            ${isFirst ? 'disabled' : ''}>
+            <i class="fa fa-arrow-up"></i>
+          </button>
+          <span style="font-size:10px;font-weight:700;color:#a78bfa;font-family:var(--ff)">${idx + 1}</span>
+          <button onclick="hvMoveShort(${v.id},1,'${escAdminAttr(_hvShortsCat)}')" title="Move Down"
+            style="width:26px;height:26px;border:1px solid #e9d5ff;border-radius:6px;background:${isLast?'#f8fafc':'#fff'};cursor:${isLast?'not-allowed':'pointer'};font-size:11px;color:${isLast?'#cbd5e1':'#7c3aed'};display:flex;align-items:center;justify-content:center"
+            ${isLast ? 'disabled' : ''}>
+            <i class="fa fa-arrow-down"></i>
+          </button>
+        </div>
+        <!-- Portrait thumbnail (9:16) -->
+        <div style="width:54px;flex-shrink:0;position:relative;overflow:hidden;background:#111;align-self:stretch">
+          ${thumbUrl
+            ? `<img src="${thumbUrl}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"
+                 onerror="this.src='https://img.youtube.com/vi/${thumbId}/hqdefault.jpg'">`
+            : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e0a30,#3b0764)"><i class="fa-brands fa-youtube" style="color:#a78bfa;font-size:16px"></i></div>`}
+          <!-- Portrait indicator -->
+          <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:rgba(147,51,234,.85);border-radius:3px;padding:1px 4px;font-size:8px;color:#fff;font-family:var(--ff);font-weight:700;white-space:nowrap">9:16</div>
+        </div>
+        <!-- Info -->
+        <div style="flex:1;min-width:0;padding:10px 12px">
+          <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0f172a;line-height:1.4;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escAdminHtml(v.title)}</div>
+          <span style="display:inline-block;padding:2px 8px;background:${catBg};color:${catColor};border-radius:20px;font-size:10px;font-family:var(--ff);font-weight:700;margin-bottom:4px">${catLabel}</span>
+          <div style="font-size:9.5px;color:#94a3b8;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAdminHtml(v.youtube_url)}</div>
+        </div>
+        <!-- Delete -->
+        <div style="display:flex;flex-direction:column;gap:4px;padding:10px 10px 10px 0;flex-shrink:0;justify-content:center">
+          <button onclick="hvDelete(${v.id})" title="Delete"
+            style="width:32px;height:32px;border:1.5px solid #fecdd3;border-radius:8px;background:#fff1f2;cursor:pointer;font-size:12px;color:#dc2626;display:flex;align-items:center;justify-content:center"
+            onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fff1f2'">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Move short within its category ── */
+async function hvMoveShort(id, dir, cat) {
+  const shorts = _hvVideos
+    .filter(v => /youtube\.com\/shorts\//i.test(v.youtube_url || '') && (v.category || 'general') === cat)
+    .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+
+  const idx     = shorts.findIndex(v => v.id === id);
+  const swapIdx = idx + dir;
+  if (idx === -1 || swapIdx < 0 || swapIdx >= shorts.length) return;
+
+  const ids = shorts.map(v => v.id);
+  [ids[idx], ids[swapIdx]] = [ids[swapIdx], ids[idx]];
+
+  try {
+    await api('reorderHelpVideos', { ordered_ids: ids });
+    await hvLoad();
+    // Stay on shorts tab
+    if (_hvActiveTab === 'shorts') {
+      hvSetTab('shorts');
+    }
   } catch(e) { aToast(e.message); }
 }
 
@@ -7715,11 +8076,13 @@ function renderNotifCard(n) {
   const titleLow = (n.title || '').toLowerCase();
   const bodyLow  = (n.body  || n.message || '').toLowerCase();
 
-  const isUser   = typeKey === 'user'  || titleLow.includes('join') || titleLow.includes('new user') || titleLow.includes('registered');
-  const isOrder  = typeKey === 'order' || titleLow.includes('order');
-  const isTxn    = typeKey === 'transaction' || typeKey === 'recharge' || titleLow.includes('transaction') || titleLow.includes('wallet') || titleLow.includes('recharge');
+  const isReferral = typeKey === 'referral' || titleLow.includes('referral') || bodyLow.includes('joined via referral');
+  // isUser must exclude referral — referral titles contain "joined" which would cause false match
+  const isUser     = !isReferral && (typeKey === 'user'  || titleLow.includes('join') || titleLow.includes('new user') || titleLow.includes('registered'));
+  const isOrder    = typeKey === 'order' || titleLow.includes('order');
+  const isTxn      = typeKey === 'transaction' || typeKey === 'recharge' || titleLow.includes('transaction') || titleLow.includes('wallet') || titleLow.includes('recharge');
   // Everything else is System/Info
-  const isSystem = !isUser && !isOrder && !isTxn;
+  const isSystem   = !isUser && !isOrder && !isTxn && !isReferral;
 
   // ── Card type config ──────────────────────────────────────────────────────
   let borderColor, iconBg, iconColor, iconClass, labelText, labelBg, labelColor;
@@ -7735,6 +8098,10 @@ function renderNotifCard(n) {
     borderColor = 'var(--blue)';     iconBg = '#eff6ff'; iconColor = '#1d4ed8';
     iconClass   = 'fa-coins';        labelText = typeKey === 'recharge' ? 'Recharge' : 'Transaction';
     labelBg     = '#dbeafe';         labelColor = '#1d4ed8';
+  } else if (isReferral) {
+    borderColor = '#f59e0b';         iconBg = '#fefce8'; iconColor = '#d97706';
+    iconClass   = 'fa-share-nodes';  labelText = 'Referral';
+    labelBg     = '#fef9c3';         labelColor = '#854d0e';
   } else {
     borderColor = '#94a3b8';         iconBg = '#f8fafc'; iconColor = '#64748b';
     iconClass   = 'fa-circle-info';  labelText = 'System';
@@ -7760,7 +8127,9 @@ function renderNotifCard(n) {
 
   } else if (isOrder) {
     // Card Type 1 — Order: 2-section card (Order + Transaction)
-    const markReadOnView = !n.is_read ? `markNotifRead('${n.id}');` : '';
+    // View Order alone does NOT mark as read. View Txn/Wallet alone does NOT either.
+    // BOTH must be clicked for auto-mark-read. Exception: no-txn orders (cash) auto-mark
+    // on View Order alone since there is no second button to click.
     const orderId   = n.meta?.orderId    || '';
     const txnId     = n.meta?.txnId      || '';
     const userName  = n.meta?.userName   || n.meta?.name || '';
@@ -7772,6 +8141,11 @@ function renderNotifCard(n) {
     const payLabel = _payEntry[0], payBg = _payEntry[1], payFg = _payEntry[2];
 
     const hasTxn = !!(txnId && isSub && payMode === 'wallet');
+    // hasTxnSection: true if this card renders a View Txn OR View Wallet button
+    const hasTxnSection = hasTxn || isSub;
+    // Only track clicks if notification is currently unread
+    const trackOrder = n.is_read ? '' : `_trackOrderView('${n.id}','order',${hasTxnSection});`;
+    const trackTxn   = n.is_read ? '' : `_trackOrderView('${n.id}','txn',${hasTxnSection});`;
 
     const orderSection = `<div style="background:#fff8f8;border:1.5px solid #fecdd3;border-radius:10px;padding:10px 12px;margin-bottom:${hasTxn || (isSub && payMode !== 'wallet') ? '7px' : '0'}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
@@ -7784,7 +8158,7 @@ function renderNotifCard(n) {
             </div>
           </div>
           <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#e63946;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
-                  onclick="${markReadOnView}gotoOrderById('${orderId}')">
+                  onclick="${trackOrder}gotoOrderById('${orderId}')">
             <i class="fa fa-receipt"></i> View Order
           </button>
         </div>
@@ -7800,7 +8174,7 @@ function renderNotifCard(n) {
             <div style="font-size:11px;color:#64748b;margin-top:2px">Wallet debit · ${userName}</div>
           </div>
           <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
-                  onclick="${markReadOnView}gotoKhataForPhone('${phone}')">
+                  onclick="${trackTxn}gotoKhataForPhone('${phone}')">
             <i class="fa fa-wallet"></i> View Txn
           </button>
         </div>
@@ -7813,13 +8187,37 @@ function renderNotifCard(n) {
             <div style="font-size:11px;color:#94a3b8">${payLabel ? payLabel + ' payment — no wallet debit' : 'No wallet transaction'}</div>
           </div>
           <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#e2e8f0;color:#64748b;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
-                  onclick="${markReadOnView}gotoKhataForPhone('${phone}')">
+                  onclick="${trackTxn}gotoKhataForPhone('${phone}')">
             <i class="fa fa-wallet"></i> View Wallet
           </button>
         </div>
       </div>`;
     }
     actionBtns = orderSection + txnSection;
+
+  } else if (isReferral) {
+    // Card Type — Referral: two coupon buttons (one for referrer, one for new user)
+    const referrerPhone = n.meta?.referrer_phone || '';
+    const newPhone      = n.meta?.new_phone      || '';
+    const newName       = (n.meta?.new_name || 'New User').replace(/'/g, "&#39;");
+    // Show buttons only if we have both phones
+    if (referrerPhone && newPhone) {
+      actionBtns = `
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button style="padding:5px 11px;font-size:11px;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap"
+                  onclick="_sendReferralCoupon('${n.id}','${referrerPhone}','${newPhone}','${newName}','old')">
+            <i class="fa fa-ticket"></i> Send to Referrer
+          </button>
+          <button style="padding:5px 11px;font-size:11px;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap"
+                  onclick="_sendReferralCoupon('${n.id}','${referrerPhone}','${newPhone}','${newName}','new')">
+            <i class="fa fa-ticket"></i> Send to New User
+          </button>
+        </div>`;
+    } else {
+      actionBtns = !n.is_read
+        ? `<button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="markNotifRead('${n.id}')"><i class="fa fa-check"></i> Mark Read</button>`
+        : '';
+    }
 
   } else if (isTxn) {
     // Card Type 1 — Transaction: blue View Transaction btn
@@ -8040,7 +8438,7 @@ function buildNuWaMsg(name, phone) {
 
   let extras = '';
   if (minOrd && parseFloat(minOrd) > 0) extras += `\n📦 Min order: ₹${minOrd}`;
-  if (exp) extras += `\n⏳ Valid till: ${exp}`;
+  if (exp) extras += `\n⏳ Valid till: ${exp} (7 din mein use karein)`;
 
   return `Hi ${name||'there'}! 🎉 Welcome to Tiffo – Ghar ka Tiffin ♥️!\n\nAs a special welcome gift, here's your exclusive coupon:\n\n🏷️ Code: ${code}\n${discLine}${extras}\n\nUse this code at checkout to claim your discount! 🍱\n— Tiffo Team`;
 }
@@ -8120,11 +8518,16 @@ async function openCouponWorkflow(notifId, phone, name, address) {
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
     </div>`);
 
-  // Auto-generate unique WELCOME code and populate WA message
+  // Auto-generate unique WELCOME code, default expiry to 7 days, populate WA message
   setTimeout(() => {
     const rnd = Math.random().toString(36).slice(2, 7).toUpperCase();
     const codeEl = document.getElementById('cf-nu-code');
     if (codeEl && !codeEl.value) codeEl.value = 'WELCOME' + rnd;
+    const expEl = document.getElementById('cf-nu-expiry');
+    if (expEl && !expEl.value) {
+      const d = new Date(Date.now() + 7 * 86400000);
+      expEl.value = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    }
     nuWaMsgRefresh(name, phone);
   }, 10);
 }
@@ -8201,6 +8604,77 @@ function relTime(ts) {
   const h = Math.floor(m/60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h/24)}d ago`;
+}
+
+// ── Referral coupon sender ────────────────────────────────────────────────────
+// target: 'old' = send to referrer, 'new' = send to new user
+// Generates ONE coupon server-side (for the requested target only),
+// opens WhatsApp, marks notification read only after BOTH targets are sent.
+// Duplicate-click guard: _referralSentTracker prevents double-coupon for same target.
+const _referralSentTracker = {};
+
+async function _sendReferralCoupon(notifId, referrerPhone, newPhone, newName, target) {
+  // Guard: prevent duplicate coupon if admin clicks same button twice
+  if (_referralSentTracker[notifId]?.has(target)) {
+    aToast('Already sent to ' + (target === 'old' ? 'referrer' : newName) + ' — check WhatsApp');
+    return;
+  }
+  try {
+    const res = await api('generateReferralCoupons', {
+      referrer_phone:  referrerPhone,
+      new_user_phone:  newPhone,
+      target:          target        // 'old' or 'new' — server creates only this coupon
+    });
+    if (!res.success) { aToast(res.error || 'Failed to generate coupons'); return; }
+
+    const targetPhone = target === 'old' ? referrerPhone : newPhone;
+    const targetCode  = target === 'old' ? res.referrer_code : res.new_user_code;
+    const targetPct   = target === 'old' ? res.referrer_pct  : res.new_user_pct;
+    const targetLabel = target === 'old' ? 'aapko' : newName + ' ko';
+
+    const msg = '🎁 *Tiffo Referral Coupon*\n\n' +
+      targetLabel + ' ' + targetPct + '% discount coupon mila hai!\n\n' +
+      '🎟 Code: *' + targetCode + '*\n' +
+      '📅 Valid till: ' + res.expiry + ' (7 din mein use karein)\n' +
+      '✅ Sirf 1 baar use hoga — order pe apply karein.\n\n' +
+      'Tiffo app: https://tiffo.online';
+
+    window.open('https://wa.me/91' + targetPhone + '?text=' + encodeURIComponent(msg), '_blank');
+
+    // Track which targets have been sent
+    if (!_referralSentTracker[notifId]) _referralSentTracker[notifId] = new Set();
+    _referralSentTracker[notifId].add(target);
+
+    // Mark notification read and reload only after both coupons have been sent
+    if (_referralSentTracker[notifId].has('old') && _referralSentTracker[notifId].has('new')) {
+      await markNotifRead(notifId);
+    }
+
+    aToast('Coupon sent to ' + (target === 'old' ? 'referrer' : newName) + ' ✅');
+  } catch(e) {
+    aToast(e.message || 'Error sending coupon');
+  }
+}
+
+// ── Order notification view tracker ──────────────────────────────────────────
+// Tracks whether admin has clicked BOTH View Order AND View Txn/Wallet buttons.
+// The notification auto-marks read only after both have been clicked — this ensures
+// admin has reviewed the full order context (items + payment) before it leaves unread.
+// If a notification has no txn section (non-subscriber, cash order), clicking View Order
+// alone is sufficient to auto-mark it read.
+const _orderViewTracker = {};
+
+function _trackOrderView(notifId, key, hasTxnSection) {
+  if (!_orderViewTracker[notifId]) _orderViewTracker[notifId] = new Set();
+  _orderViewTracker[notifId].add(key);
+  // Auto-mark read when:
+  // - both 'order' and 'txn' clicked (for orders with a transaction section), OR
+  // - only 'order' clicked and there is no txn section (cash/non-wallet order)
+  const bothClicked = _orderViewTracker[notifId].has('order') && _orderViewTracker[notifId].has('txn');
+  const orderOnlyOk = !hasTxnSection && _orderViewTracker[notifId].has('order');
+  if (bothClicked || orderOnlyOk) {
+    markNotifRead(notifId);
+  }
 }
 
 async function markNotifRead(id) {
