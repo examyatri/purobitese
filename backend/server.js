@@ -192,6 +192,7 @@ const _STAFF_ACTIONS = new Set([
   'setAutoTiffinCutoff',
   'setDeliveryAreas',
   'adminSetUserAddress',
+  'adminSetUserRating',
   'createRider',
   'addHelpVideo',
   'updateHelpVideo',
@@ -203,6 +204,8 @@ const _STAFF_ACTIONS = new Set([
   'getSettings',           // returns full admin_settings (cutoff, zone, schedule, etc.)
   'getOrderTransactions',  // returns user's khata_entries — sensitive financial data
   'getAdminNotifVersion',  // lightweight version check — admin frontend polls every 60s
+  'generateReferralCoupons',
+  'setReferralSettings',
 ]);
 
 
@@ -215,6 +218,7 @@ const _USER_SENSITIVE_ACTIONS = new Set([
   'getSubscriberPauseStatus', 'changePassword', 'updateProfile', 'getMyProfile',
   'getSubscriberStatus', 'getSubscriberBalance',
   'checkSubscriber',  // contains full subscriber row including pause/plan — self or staff only
+  'getUserRating',
 ]);
 
 function _verifyUserToken(token, phone) {
@@ -317,7 +321,7 @@ if (process.env.RENDER_EXTERNAL_URL) {
 //   khata_entries    → older than 35 days  (one billing cycle of history)
 //   notifications    → older than 1 day    (acted-on or dismissed)
 //   cooking_sessions → older than 5 days   (kitchen lock reference only)
-//   nu_coupon_sent   → older than 5 days   (coupon dedup record only)
+//   nu_coupon_sent   → older than 7 days   (coupon dedup record only)
 //
 // NEVER touches: users, subscribers, riders, staff, menu_items, thalis,
 //                thali_items, admin_settings, coupons, khata_summary
@@ -342,7 +346,7 @@ async function runAutoCleanup() {
       supabase.from('khata_entries')   .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
       supabase.from('notifications')   .delete({ count: 'exact' }).lt('created_at',    isoCutoff(1)),
       supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', dateCutoff(5)),
-      supabase.from('nu_coupon_sent')  .delete({ count: 'exact' }).lt('sent_at',       isoCutoff(5)),
+      supabase.from('nu_coupon_sent')  .delete({ count: 'exact' }).lt('sent_at',       isoCutoff(7)),
     ]);
 
     const fmt = (r) => r.status === 'fulfilled' ? (r.value.count ?? 0) : `err(${r.reason?.message || '?'})`;
@@ -968,6 +972,36 @@ async function _geocodeAndPatchAsync(phone, address, area) {
   }
 }
 
+// ─── USER RATING UPSERT HELPER ───────────────────────────────────────────────
+// Called at every order creation/rejection to keep lifetime_spend + last_order_date
+// permanently up-to-date in user_ratings. These values MUST survive the 35-day
+// orders auto-delete — storing them here means they are never lost.
+//
+// spend_delta : +amount on order create, -amount on rejectOrder rollback
+// order_date  : YYYY-MM-DD string on create | null on rollback (never downgrade date)
+// Non-fatal: rating upsert failure never blocks the order flow.
+async function _upsertUserRating(phone, spend_delta, order_date) {
+  try {
+    const { data: existing } = await supabase
+      .from('user_ratings')
+      .select('lifetime_spend, last_order_date')
+      .eq('phone', phone)
+      .single();
+
+    const newSpend = Math.max(0, ((existing?.lifetime_spend) || 0) + spend_delta);
+    // Only advance last_order_date — never go backwards (reject shouldn't wipe last date)
+    let newLastDate = existing?.last_order_date || null;
+    if (order_date && (!newLastDate || order_date >= newLastDate)) {
+      newLastDate = order_date;
+    }
+
+    await supabase.from('user_ratings').upsert(
+      { phone, lifetime_spend: newSpend, last_order_date: newLastDate, updated_at: new Date().toISOString() },
+      { onConflict: 'phone' }
+    );
+  } catch (_) { /* non-fatal */ }
+}
+
 async function _createSingleOrder(
 { user, items, deliveryCharge, khataEnabled, ist, coupon, _rawCouponRow = null, source = 'user', slot = 'morning', paymentMode = null }) {
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -981,24 +1015,22 @@ async function _createSingleOrder(
       discount = coupon.discount_value;
     }
   }
-  // Mark coupon used at order-placement time (not at validate time)
-  // OPT: use _rawCouponRow if passed (already fetched by createOrder) — skips a DB re-fetch
+  // Mark coupon used — atomic RPC prevents double-use in simultaneous orders (v122 fix)
   if (coupon && coupon.code) {
     try {
       const cpnRow = _rawCouponRow ||
-        (await supabase.from('coupons').select('used_count,usage_count,used_by,auto_delete,max_usage,total_usage_limit').eq('code', coupon.code).single()).data;
-      if (cpnRow) {
-        const newUsedCount = (cpnRow.used_count||0) + 1;
-        let ub=[]; try{ub=JSON.parse(cpnRow.used_by||'[]');}catch{ub=[];}
-        await supabase.from('coupons').update({
-          used_count:  newUsedCount,
-          usage_count: (cpnRow.usage_count||0)+1,
-          used_by:     JSON.stringify([...ub, ...(user.phone ? [user.phone] : [])])
-        }).eq('code', coupon.code);
-        // Auto-delete: remove from DB if auto_delete=true and usage limit is now reached
-        const limit = cpnRow.max_usage ?? cpnRow.total_usage_limit ?? null;
-        if (cpnRow.auto_delete === true && limit !== null && newUsedCount >= limit) {
-          await supabase.from('coupons').delete().eq('code', coupon.code);
+        (await supabase.from('coupons').select('auto_delete,max_usage,total_usage_limit,used_count').eq('code', coupon.code).single()).data;
+      const maxUsage = cpnRow ? (cpnRow.max_usage ?? cpnRow.total_usage_limit ?? null) : null;
+      const { data: rpcResult } = await supabase.rpc('use_coupon_atomic', {
+        p_code:      coupon.code,
+        p_phone:     user.phone || '',
+        p_max_usage: maxUsage
+      });
+      // Auto-delete: mark inactive instead of deleting — preserves referral_key for idempotency
+      // (deleting row would allow admin to re-issue a second coupon for same referral pair)
+      if (rpcResult === 'ok' && cpnRow?.auto_delete === true && maxUsage !== null) {
+        if ((cpnRow.used_count || 0) + 1 >= maxUsage) {
+          await supabase.from('coupons').update({ is_active: false }).eq('code', coupon.code);
         }
       }
     } catch(_) {}
@@ -1045,7 +1077,56 @@ async function _createSingleOrder(
     time:            timeStr,
     created_at:      new Date().toISOString()
   });
-  if (ordErr) throw new Error('Order save failed: ' + ordErr.message);
+  if (ordErr) {
+    // ── ROLLBACK: reverse wallet deduction and txn entry if order insert failed ──
+    // Sequence was: wallet deducted → txn recorded → stock deducted → order INSERT (failed here)
+    // Without rollback, subscriber's wallet is debited but no order exists — money lost silently.
+    if (newBal !== null) {
+      // Reverse the wallet deduction atomically
+      try {
+        await _atomicWalletUpdate(user.phone, +finalAmount);
+      } catch (rollbackErr) {
+        // Rollback failed — log so admin can manually fix via khata adjustment
+        console.error(`[_createSingleOrder] CRITICAL: wallet rollback failed for ${user.phone}, amount=${finalAmount}. Manual adjustment needed.`, rollbackErr.message);
+      }
+      // Remove the txn entry that was just inserted (delete by txnId)
+      if (txnId) {
+        try {
+          await supabase.from('khata_entries').delete().eq('id', txnId);
+        } catch (_) { /* non-fatal — orphaned txn visible in khata but won't affect balance */ }
+      }
+    }
+    // Restore stock that was already deducted (source='user' only — admin orders never deduct)
+    if (source === 'user') {
+      try {
+        const ids = items.map(i => i.item_id).filter(Boolean);
+        if (ids.length) {
+          const { data: stockRows } = await supabase.from('menu_items').select('item_id, stock_grams, portion_grams').in('item_id', ids);
+          const stockMap = {};
+          for (const r of (stockRows || [])) stockMap[r.item_id] = r;
+          const restoreOps = [];
+          items.forEach(item => {
+            const row = stockMap[item.item_id];
+            if (!row || row.stock_grams == null) return;
+            let perUnit;
+            const vLabel = item.variantLabel || item.variant_label || '';
+            if (vLabel) { const m = String(vLabel).match(/^(\d+(?:\.\d+)?)\s+[A-Za-z]/); if (m) perUnit = parseFloat(m[1]); }
+            if (perUnit == null) perUnit = row.portion_grams != null ? row.portion_grams : 1;
+            restoreOps.push({ item_id: item.item_id, newStock: row.stock_grams + perUnit * (item.qty || 1) });
+          });
+          await Promise.all(restoreOps.map(({ item_id, newStock }) =>
+            supabase.from('menu_items').update({ stock_grams: newStock }).eq('item_id', item_id)
+          ));
+        }
+      } catch (_) { /* non-fatal stock restore on insert failure */ }
+    }
+    throw new Error('Order save failed: ' + ordErr.message);
+  }
+
+  // ── Update permanent rating stats (non-fatal, fire-and-forget) ──
+  // lifetime_spend and last_order_date are stored permanently in user_ratings
+  // so they survive the 35-day orders auto-delete.
+  _upsertUserRating(user.phone, finalAmount, dateStr).catch(() => {});
 
   // ── Fire notification for every order type (subscriber + daily + upi_insuf) ──
   try {
@@ -1211,13 +1292,9 @@ app.post('/api', async (req, res) => {
         if (insertErr) return res.json({ success: false, error: 'Registration failed. Please try again.' });
         // ── Server-side geocode safety net ─────────────────────────────────────
         // Fires when client Nominatim failed (e.g. BHU hostel names not in OSM).
-        // Uses a richer query with city/campus context. Fire-and-forget — does NOT
-        // delay the signup response. User gets their account immediately; coords
-        // are patched into the address field in the background within ~2–5s.
-        // ── Server-side geocode: runs synchronously before response ──
-        // Client Nominatim failed (BHU campus names often missing from OSM).
-        // We await here so coordinates are in DB before the user sees "Account created".
-        // 4s timeout guard prevents slow Nominatim from delaying signup response.
+        // Uses a richer query with city/campus context. Runs synchronously (awaited)
+        // so coordinates are in DB before user sees "Account created".
+        // 4s timeout guard via Promise.race prevents slow Nominatim from blocking signup.
         if (data.needs_geocode && data.address) {
           try {
             await Promise.race([
@@ -1253,6 +1330,39 @@ app.post('/api', async (req, res) => {
           await supabase.from('khata_summary')
             .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
         } catch(_) {}
+
+        // ── Referral tracking: save referred_by + create notification for admin ──
+        const referredBy = typeof data.referred_by === 'string'
+          ? data.referred_by.replace(/\D/g, '').slice(-10)
+          : null;
+        if (referredBy && referredBy.length === 10) {
+          try {
+            // Verify referrer actually exists
+            const { data: referrer } = await supabase
+              .from('users').select('phone').eq('phone', referredBy).single();
+            if (referrer) {
+              // Save referred_by on new user's row
+              await supabase.from('users')
+                .update({ referred_by: referredBy })
+                .eq('phone', phone);
+              // Create referral notification for admin to review and send coupons
+              await _createNotification({
+                type:     'referral',
+                priority: 'high',
+                group_id: referredBy + '_' + phone,
+                title:    'New Referral! ' + data.name + ' joined',
+                body:     data.name + ' (' + phone + ') joined via referral from ' + referredBy,
+                meta:     {
+                  referrer_phone: referredBy,
+                  new_phone:      phone,
+                  new_name:       data.name,
+                  new_address:    data.address || ''
+                }
+              });
+            }
+          } catch (_) { /* non-fatal — referral failure never blocks signup */ }
+        }
+
         const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days — matches login
         const signupToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
         return res.json({
@@ -1723,35 +1833,61 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'NOT_SUBSCRIBER', message: 'This customer is a normal user and does not have a wallet. Please try a different refund method.' });
         }
 
-        // Mark order rejected
-        await supabase.from('orders').update({ order_status: 'rejected', refund_type: refundType }).eq('order_id', data.orderId);
+        // ── FIX #9: Wallet refund BEFORE order status update ─────────────────
+        // Bug: old code updated order status to 'rejected' first, then did wallet refund.
+        // If _atomicWalletUpdate threw (Supabase timeout), the order was permanently
+        // marked rejected but customer's wallet was never credited — money lost.
+        // Retry was blocked by idempotency guard: "Order is already rejected".
+        //
+        // New sequence: wallet refund → khata entry → notification → status update
+        // If status update fails after refund: order stays 'pending' — admin can retry.
+        //
+        // Double-refund guard: before crediting, check if a refund khata_entry already
+        // exists for this orderId. Handles the edge case where refund succeeded but the
+        // subsequent status update failed, causing admin to retry — without this guard,
+        // the wallet would be credited a second time on retry.
 
-        // Wallet refund — only for subscribers
+        // Wallet refund — only for subscribers (done BEFORE status update)
         let refundNewBal = null;
         if (refundType === 'wallet' && isSubscriber) {
-          refundNewBal = await _atomicWalletUpdate(order.phone, +order.final_amount);
-          await supabase.from('khata_entries').insert({
-            id:              generateTxnId(ist),
-            phone:           order.phone,
-            type:            'adjustment',
-            amount:          +order.final_amount,
-            running_balance: refundNewBal,
-            note:            'Refund: Order ' + data.orderId + ' rejected',
-            date:            istDateStr(ist),
-            time:            istTimeStr(ist),
-            order_id:        data.orderId,
-            order_status:    'rejected',
-            source:          'admin',
-            created_at:      new Date().toISOString()
-          });
-          await _createNotification({
-            type:     'order',
-            priority: 'high',
-            group_id: data.orderId,
-            title:    'Order Rejected — Wallet Refunded',
-            body:     'Order ' + data.orderId + ' rejected. ₹' + order.final_amount + ' refunded to your wallet.',
-            meta:     { orderId: data.orderId, phone: order.phone, refundAmount: order.final_amount, is_subscriber: isSubscriber }
-          });
+          // Double-refund guard: check if refund entry already exists for this order
+          const { data: existingRefund } = await supabase
+            .from('khata_entries')
+            .select('id, running_balance')
+            .eq('order_id', data.orderId)
+            .eq('type', 'adjustment')
+            .eq('source', 'admin')
+            .maybeSingle();
+
+          if (existingRefund) {
+            // Refund was already credited in a previous attempt — don't credit again.
+            // Use the balance from the existing entry so the response is consistent.
+            refundNewBal = existingRefund.running_balance;
+          } else {
+            refundNewBal = await _atomicWalletUpdate(order.phone, +order.final_amount);
+            await supabase.from('khata_entries').insert({
+              id:              generateTxnId(ist),
+              phone:           order.phone,
+              type:            'adjustment',
+              amount:          +order.final_amount,
+              running_balance: refundNewBal,
+              note:            'Refund: Order ' + data.orderId + ' rejected',
+              date:            istDateStr(ist),
+              time:            istTimeStr(ist),
+              order_id:        data.orderId,
+              order_status:    'rejected',
+              source:          'admin',
+              created_at:      new Date().toISOString()
+            });
+            await _createNotification({
+              type:     'order',
+              priority: 'high',
+              group_id: data.orderId,
+              title:    'Order Rejected — Wallet Refunded',
+              body:     'Order ' + data.orderId + ' rejected. ₹' + order.final_amount + ' refunded to your wallet.',
+              meta:     { orderId: data.orderId, phone: order.phone, refundAmount: order.final_amount, is_subscriber: isSubscriber }
+            });
+          } // end else (new refund path)
         } else if (refundType === 'cash') {
           await _createNotification({
             type:     'order',
@@ -1771,6 +1907,52 @@ app.post('/api', async (req, res) => {
             meta:     { orderId: data.orderId, phone: order.phone, is_subscriber: isSubscriber }
           });
         }
+
+        // ── Mark order rejected (AFTER wallet refund) ──────────────────────────
+        // Now that refund succeeded (or refundType != wallet), safe to update status.
+        // If this update fails, wallet was already credited — admin sees order still
+        // in 'pending' state and can see the orphan credit in khata. Rare but recoverable.
+        await supabase.from('orders').update({ order_status: 'rejected', refund_type: refundType }).eq('order_id', data.orderId);
+
+        // ── Restore stock for user-placed orders (non-fatal) ──────────────────
+        // Stock was deducted when the order was placed (source='user' only).
+        // Admin/bulk orders never deducted stock — nothing to restore.
+        if ((order.source || 'user') === 'user') {
+          try {
+            let rejItems = order.items;
+            if (typeof rejItems === 'string') { try { rejItems = JSON.parse(rejItems); } catch(_) { rejItems = []; } }
+            if (Array.isArray(rejItems) && rejItems.length) {
+              const ids = rejItems.map(i => i.item_id).filter(Boolean);
+              if (ids.length) {
+                const { data: stockRows } = await supabase
+                  .from('menu_items').select('item_id, stock_grams, portion_grams').in('item_id', ids);
+                const stockMap = {};
+                for (const r of (stockRows || [])) stockMap[r.item_id] = r;
+                const restoreOps = [];
+                rejItems.forEach(item => {
+                  const row = stockMap[item.item_id];
+                  if (!row || row.stock_grams == null) return;
+                  let perUnit;
+                  const vLabel = item.variantLabel || item.variant_label || '';
+                  if (vLabel) {
+                    const m = String(vLabel).match(/^(\d+(?:\.\d+)?)\s+[A-Za-z]/);
+                    if (m) perUnit = parseFloat(m[1]);
+                  }
+                  if (perUnit == null) perUnit = row.portion_grams != null ? row.portion_grams : 1;
+                  const cartQty = item.qty ?? item.quantity ?? 1;
+                  restoreOps.push({ item_id: item.item_id, newStock: row.stock_grams + perUnit * cartQty });
+                });
+                await Promise.all(restoreOps.map(({ item_id, newStock }) =>
+                  supabase.from('menu_items').update({ stock_grams: newStock, is_available: true }).eq('item_id', item_id)
+                ));
+                _menuItemsCache = null; _menuItemsCacheTs = 0; _bumpMenuVersion();
+              }
+            }
+          } catch(_) { /* non-fatal — stock restore failure never blocks reject */ }
+        }
+
+        // ── Rollback lifetime_spend in user_ratings (non-fatal) ──
+        _upsertUserRating(order.phone, -(order.final_amount || 0), null).catch(() => {});
 
         return res.json({ success: true, refundType, isSubscriber, newBalance: refundNewBal });
       }
@@ -2066,6 +2248,12 @@ app.post('/api', async (req, res) => {
           }
           return res.json({ success: false, error: 'Orders insert failed: ' + ordersErr.message });
         }
+
+        // ── Update permanent rating stats for all eligible phones (non-fatal) ──
+        // Fire-and-forget: don't await — bulk insert already committed, don't delay response
+        Promise.allSettled(
+          eligiblePhones.map(ph => _upsertUserRating(ph, priceNum, today))
+        ).catch(() => {});
 
         // ─── STEP 6: Admin summary notification — one entry for the whole bulk run ──
         // Mirrors what _createSingleOrder does per order, but bulk collapses to one notification
@@ -2888,14 +3076,21 @@ app.post('/api', async (req, res) => {
         const notifsCutoff  = dateCutoff(1);   // notifications older than 1 day
 
         const sessionsCutoff = dateCutoff(5);  // cooking_sessions older than 5 days
-        const nuCouponCutoff  = new Date(Date.now() - 5 * 86_400_000).toISOString(); // nu_coupon_sent older than 5 days
+        const nuCouponCutoff  = new Date(Date.now() - 7 * 86_400_000).toISOString(); // nu_coupon_sent older than 7 days
 
-        const [r1, r2, r3, r4, r5] = await Promise.all([
+        const refCouponCutoff = new Date(Date.now() - 7 * 86_400_000).toISOString(); // used/expired referral coupons older than 7 days
+
+        const [r1, r2, r3, r4, r5, r6] = await Promise.all([
           supabase.from('orders').delete({ count: 'exact' }).lte('date', ordersCutoff),
           supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', txnsCutoff),
           supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', notifsCutoff + 'T23:59:59Z'),
           supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', sessionsCutoff),
           supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', nuCouponCutoff),
+          // Delete used referral coupons (is_active=false, auto_delete=true) older than 7 days
+          supabase.from('coupons').delete({ count: 'exact' })
+            .eq('auto_delete', true)
+            .eq('is_active', false)
+            .lt('created_at', refCouponCutoff),
         ]);
 
         return res.json({
@@ -2906,6 +3101,7 @@ app.post('/api', async (req, res) => {
           notifsDeleted:          r3.count || 0,
           cookingSessionsDeleted: r4.count || 0,
           nuCouponSentDeleted:    r5.count || 0,
+          usedCouponsDeleted:     r6.count || 0,
           cutoffs: { orders: ordersCutoff, transactions: txnsCutoff, notifications: notifsCutoff, cookingSessions: sessionsCutoff }
         });
       }
@@ -2951,29 +3147,51 @@ app.post('/api', async (req, res) => {
       case 'adminGetUsers':
         { const { data: rows, error: uErr } = await supabase.from('users').select('*').order('created_at', { ascending: false });
           if (uErr) throw new Error('DB error: ' + uErr.message);
-          const { data: subs } = await supabase.from('subscribers').select('phone, plan, plan_end');
+
+          // ── Parallel fetch: 3 independent tables — single round trip ─────
+          // user_ratings removed: rating now cached directly in users.rating (NUMERIC column)
+          const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+          const [
+            { data: subs },
+            { data: balRows },
+            { data: recentOrders }
+          ] = await Promise.all([
+            supabase.from('subscribers').select('phone, plan, plan_end, created_at'),
+            supabase.from('khata_summary').select('phone, balance'),
+            supabase.from('orders')
+              .select('phone, date')
+              .neq('order_status', 'cancelled')
+              .neq('order_status', 'rejected')
+              .gte('date', today30ago)
+          ]);
+
+          // Build lookup maps in JS — O(n), zero extra DB calls
           const subMap = {};
           for (const s of (subs || [])) subMap[s.phone] = s;
-          // Fetch only phone+date (two lean columns) — avoids pulling all order data.
-          // Ordered desc so first row per phone is the most recent date.
-          const { data: orderAgg } = await supabase
-            .from('orders')
-            .select('phone, date')
-            .neq('order_status', 'cancelled')
-            .neq('order_status', 'rejected')
-            .order('date', { ascending: false });
-          // Aggregate in JS: count total orders and track latest date per user
-          const orderMap = {};
-          for (const o of (orderAgg || [])) {
-            if (!orderMap[o.phone]) orderMap[o.phone] = { count: 0, last: o.date };
-            orderMap[o.phone].count++;
-            // first iteration sets last=o.date (most recent due to desc order); subsequent keep it
+
+          const balMap = {};
+          for (const b of (balRows || [])) balMap[b.phone] = parseFloat(b.balance) || 0;
+
+          const recent30Map = {};
+          for (const o of (recentOrders || [])) {
+            recent30Map[o.phone] = (recent30Map[o.phone] || 0) + 1;
           }
+
           const safe = (rows || []).map(u => {
             const { password_hash, ...s } = u;
-            const sub = subMap[u.phone];
-            const ord = orderMap[u.phone] || { count: 0, last: null };
-            return { ...s, is_subscriber: !!sub, subscriber_plan: sub?.plan || null, subscriber_plan_end: sub?.plan_end || null, total_orders: ord.count, last_order_date: ord.last };
+            const sub    = subMap[u.phone];
+            const walBal = balMap[u.phone] || 0;
+            const recent30 = recent30Map[u.phone] || 0;
+            return {
+              ...s,
+              is_subscriber:       !!sub,
+              subscriber_plan:     sub?.plan || null,
+              subscriber_plan_end: sub?.plan_end || null,
+              total_orders:        recent30,
+              wallet_balance:      walBal,
+              // rating comes directly from users.rating (NUMERIC) — no join needed
+              rating:              parseFloat(u.rating) || 0,
+            };
           });
           return res.json({ success: true, users: safe }); }
 
@@ -3063,12 +3281,14 @@ app.post('/api', async (req, res) => {
           const map = {};
           for (const r of (rows || [])) { try { map[r.key] = JSON.parse(r.value); } catch { map[r.key] = r.value; } }
           return res.json({ success: true, settings: {
-            cutoff:           map['order_cutoff_config']   || {},
-            weeklySchedule:   map['weekly_schedule']       || [],
-            khataEnabled:     map['khata_enabled']         === true,
-            deliveryZone:     map['delivery_zone']         || null,
-            autoTiffinCutoff: map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' },
-            deliveryAreas:    map['delivery_areas']        || []
+            cutoff:              map['order_cutoff_config']   || {},
+            weeklySchedule:      map['weekly_schedule']       || [],
+            khataEnabled:        map['khata_enabled']         === true,
+            deliveryZone:        map['delivery_zone']         || null,
+            autoTiffinCutoff:    map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' },
+            deliveryAreas:       map['delivery_areas']        || [],
+            referralReferrerPct: parseInt(map['referral_referrer_pct'] || '10'),
+            referralNewUserPct:  parseInt(map['referral_new_user_pct'] || '15')
           }}); }
 
       case 'getDeliveryAreas': {
@@ -3085,10 +3305,12 @@ app.post('/api', async (req, res) => {
       // Intentionally excludes sensitive admin data: cutoff config, weekly schedule,
       // khata toggle, and any future staff-only keys added to getSettings.
       case 'getPublicSettings': {
-        const [zoneRaw, cutoffRaw, areasRaw] = await Promise.all([
+        const [zoneRaw, cutoffRaw, areasRaw, referrerPctRaw, newUserPctRaw] = await Promise.all([
           getCachedSetting('delivery_zone'),
           getCachedSetting('auto_tiffin_cutoff'),
           getCachedSetting('delivery_areas'),
+          getCachedSetting('referral_referrer_pct'),
+          getCachedSetting('referral_new_user_pct'),
         ]);
         let deliveryZone     = null;
         let autoTiffinCutoff = { morning: '11:00', evening: '18:00' };
@@ -3096,7 +3318,9 @@ app.post('/api', async (req, res) => {
         try { if (zoneRaw)   deliveryZone     = JSON.parse(zoneRaw);   } catch (_) {}
         try { if (cutoffRaw) autoTiffinCutoff = JSON.parse(cutoffRaw); } catch (_) {}
         try { if (areasRaw)  deliveryAreas    = JSON.parse(areasRaw);  } catch (_) {}
-        return res.json({ success: true, settings: { deliveryZone, autoTiffinCutoff, deliveryAreas } });
+        const referralReferrerPct = parseInt(referrerPctRaw || '10');
+        const referralNewUserPct  = parseInt(newUserPctRaw  || '15');
+        return res.json({ success: true, settings: { deliveryZone, autoTiffinCutoff, deliveryAreas, referralReferrerPct, referralNewUserPct } });
       }
 
       case 'setDeliveryAreas': {
@@ -3269,6 +3493,65 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true });
       }
 
+      case 'adminSetUserRating': {
+        const phone = cleanPhone(data.phone);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+        const score = Math.max(0, Math.min(10, parseInt(data.manual_score ?? 5)));
+        // Only update manual_score + updated_at — never overwrite lifetime_spend or last_order_date
+        // which are maintained automatically by order create/reject triggers.
+        const { data: existing } = await supabase
+          .from('user_ratings').select('lifetime_spend, last_order_date').eq('phone', phone).single();
+        const { error: rErr } = await supabase.from('user_ratings').upsert(
+          {
+            phone,
+            manual_score:    score,
+            lifetime_spend:  existing?.lifetime_spend  || 0,
+            last_order_date: existing?.last_order_date || null,
+            updated_at:      new Date().toISOString()
+          },
+          { onConflict: 'phone' }
+        );
+        if (rErr) throw new Error('DB error: ' + rErr.message);
+
+        // Sync computed rating to users.rating so adminGetUsers can read it directly
+        // (non-fatal — if this fails the rating in user_ratings is still correct)
+        try {
+          const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+          const [
+            { data: walRow },
+            { data: subRow },
+            { data: recentOrders },
+            { data: updatedRating }
+          ] = await Promise.all([
+            supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
+            supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
+            supabase.from('orders').select('id')
+              .eq('phone', phone)
+              .neq('order_status', 'cancelled')
+              .neq('order_status', 'rejected')
+              .gte('date', today30ago),
+            supabase.from('user_ratings').select('lifetime_spend, manual_score').eq('phone', phone).single()
+          ]);
+          const walletBal = parseFloat(walRow?.balance) || 0;
+          const recent30  = (recentOrders || []).length;
+          const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
+          const p2 = Math.round(Math.min((parseFloat(updatedRating?.lifetime_spend) || 0) / 10000, 1) * 30);
+          const p3 = Math.round(Math.min(recent30 / 30, 1) * 25);
+          let p4 = 0;
+          if (subRow?.created_at) {
+            const subDays = Math.floor((Date.now() - new Date(subRow.created_at)) / 86400000);
+            if (subDays >= 90)      p4 = 15;
+            else if (subDays >= 30) p4 = 12;
+            else                    p4 = 8;
+          }
+          const p5    = Math.max(0, Math.min(10, updatedRating?.manual_score || 0));
+          const total = Math.min(p1 + p2 + p3 + p4 + p5, 100);
+          await supabase.from('users').update({ rating: total }).eq('phone', phone);
+        } catch (_) { /* non-fatal */ }
+
+        return res.json({ success: true });
+      }
+
       case 'deleteNotificationRange': {
         // Server-side guard: validate from/to before touching DB
         if (!data.from || !data.to) return res.json({ success: false, error: 'from and to dates required' });
@@ -3279,10 +3562,10 @@ app.post('/api', async (req, res) => {
         if (data.from > data.to) return res.json({ success: false, error: 'from must be before to' });
         // Respects read_only flag — only deletes read notifications, never unread
         // ALWAYS excludes today's notifications regardless of read status
-        // Use IST midnight (not UTC midnight) so the "today" guard is correct
-        // getIST() shifts clock by +5:30 and stores IST time in UTC fields
-        const todayStart = getIST();
-        todayStart.setUTCHours(0, 0, 0, 0); // zero IST midnight via UTC accessors
+        // IST midnight = today's IST date at 00:00 IST = (IST date string + 'T00:00:00+05:30')
+        // Correct: parse ISO string with explicit IST offset so JS gives the right UTC epoch.
+        const todayISTDateStr = istDateStr(ist); // e.g. "2024-01-15"
+        const todayStart = new Date(todayISTDateStr + 'T00:00:00+05:30'); // IST midnight as UTC
         const safeEnd = data.to + 'T23:59:59.999Z';
         // Ensure the range end never reaches today
         let rangeEnd;
@@ -3331,13 +3614,19 @@ app.post('/api', async (req, res) => {
       // Toggle granular pause for a subscriber session (admin action)
       case 'adminDeleteUser': {
         const phone = cleanPhone(data.phone);
-        // FIX #16: Also delete the user's orders to prevent orphaned records
-        await supabase.from('orders').delete().eq('phone', phone);
-        // Remove subscriber record, wallet, ledger entries, then user
-        await supabase.from('subscribers').delete().eq('phone', phone);
-        await supabase.from('khata_summary').delete().eq('phone', phone);
-        await supabase.from('khata_entries').delete().eq('phone', phone);
-        await supabase.from('nu_coupon_sent').delete().eq('phone', phone);
+        // Delete all user-owned data in parallel before removing the user row.
+        // user_ratings and referral notifications are also cleaned to avoid orphaned data.
+        await Promise.all([
+          supabase.from('orders').delete().eq('phone', phone),
+          supabase.from('subscribers').delete().eq('phone', phone),
+          supabase.from('khata_summary').delete().eq('phone', phone),
+          supabase.from('khata_entries').delete().eq('phone', phone),
+          supabase.from('nu_coupon_sent').delete().eq('phone', phone),
+          supabase.from('user_ratings').delete().eq('phone', phone),
+          // Referral notifications: group_id = referrerPhone_newPhone — clean both roles
+          supabase.from('notifications').delete().like('group_id', phone + '_%'),
+          supabase.from('notifications').delete().like('group_id', '%_' + phone),
+        ]);
         await supabase.from('users').delete().eq('phone', phone);
         return res.json({ success: true });
       }
@@ -3808,6 +4097,182 @@ app.post('/api', async (req, res) => {
           report,
           grandTotal,
           grandCount
+        });
+      }
+
+      case 'generateReferralCoupons': {
+        // Admin clicks "Send to Referrer" OR "Send to New User" on a referral notification.
+        // target: 'old' = referrer, 'new' = new user. Only ONE coupon is created per call.
+        // Notification is NOT marked read here — client does that after both buttons are clicked.
+        const referrerPhone = cleanPhone(data.referrer_phone);
+        const newUserPhone  = cleanPhone(data.new_user_phone);
+        const target        = data.target === 'new' ? 'new' : 'old'; // default to 'old' if missing
+        if (!referrerPhone || !newUserPhone) {
+          return res.json({ success: false, error: 'Both referrer_phone and new_user_phone are required' });
+        }
+
+        // Idempotency key: unique per referrer+newUser+target pair
+        // Prevents double coupon if admin clicks same button twice (page refresh etc.)
+        const refKey = referrerPhone + '_' + newUserPhone + '_' + target;
+
+        // Check if coupon already issued for this exact pair+target
+        const { data: existingCpn } = await supabase
+          .from('coupons')
+          .select('code, discount_value, expiry_date, is_active')
+          .eq('referral_key', refKey)
+          .maybeSingle();
+        if (existingCpn) {
+          if (!existingCpn.is_active) {
+            // Coupon was already used — block re-issue
+            return res.json({ success: false, error: 'Coupon already used by this user — no re-issue allowed' });
+          }
+          // Already issued but not yet used — return existing code (admin can re-send WhatsApp)
+          const isOldExisting = target === 'old';
+          return res.json({
+            success:       true,
+            referrer_code: isOldExisting ? existingCpn.code : null,
+            new_user_code: isOldExisting ? null : existingCpn.code,
+            referrer_pct:  existingCpn.discount_value,
+            new_user_pct:  existingCpn.discount_value,
+            expiry:        existingCpn.expiry_date,
+            already_issued: true
+          });
+        }
+
+        const [referrerPctRaw, newUserPctRaw] = await Promise.all([
+          getCachedSetting('referral_referrer_pct'),
+          getCachedSetting('referral_new_user_pct'),
+        ]);
+        const referrerPct = Math.max(1, Math.min(50, parseInt(referrerPctRaw || '10')));
+        const newUserPct  = Math.max(1, Math.min(50, parseInt(newUserPctRaw  || '15')));
+
+        // Expiry: 7 days from today in IST (YYYY-MM-DD)
+        const expiryDate = new Date(Date.now() + 7 * 86400000)
+          .toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // en-CA gives YYYY-MM-DD
+
+        const rand = () => Math.random().toString(36).slice(2, 5).toUpperCase();
+
+        // Generate only the requested coupon
+        const isOld         = target === 'old';
+        const targetPhone   = isOld ? referrerPhone : newUserPhone;
+        const targetPct     = isOld ? referrerPct   : newUserPct;
+        const couponCode    = 'REF' + targetPhone.slice(-4) + rand();
+
+        const now = new Date().toISOString();
+        const { error: cErr } = await supabase.from('coupons').insert([
+          {
+            code:             couponCode,
+            discount_type:    'percent',
+            discount_value:   targetPct,
+            restriction_type: 'specific_phone',
+            allowed_phones:   JSON.stringify([targetPhone]),
+            expiry_date:      expiryDate,
+            auto_delete:      true,
+            is_active:        true,
+            max_usage:        1,
+            used_count:       0,
+            referral_key:     refKey,
+            created_at:       now
+          }
+        ]);
+        if (cErr) throw new Error('Coupon insert failed: ' + cErr.message);
+
+        // Notification read-marking is handled entirely by the client
+        // after admin has clicked both "Send to Referrer" and "Send to New User".
+
+        return res.json({
+          success:      true,
+          referrer_code: isOld ? couponCode : null,
+          new_user_code: isOld ? null        : couponCode,
+          referrer_pct:  referrerPct,
+          new_user_pct:  newUserPct,
+          expiry:        expiryDate
+        });
+      }
+
+      case 'setReferralSettings': {
+        const referrerPct = parseInt(data.referrer_pct);
+        const newUserPct  = parseInt(data.new_user_pct);
+        if (isNaN(referrerPct) || referrerPct < 1 || referrerPct > 50) {
+          return res.json({ success: false, error: 'referrer_pct must be between 1 and 50' });
+        }
+        if (isNaN(newUserPct) || newUserPct < 1 || newUserPct > 50) {
+          return res.json({ success: false, error: 'new_user_pct must be between 1 and 50' });
+        }
+        const now = new Date().toISOString();
+        await supabase.from('admin_settings').upsert([
+          { key: 'referral_referrer_pct', value: String(referrerPct), updated_at: now },
+          { key: 'referral_new_user_pct', value: String(newUserPct),  updated_at: now }
+        ], { onConflict: 'key' });
+        // Clear cached values so next read picks up new values
+        delete _settingsCache['referral_referrer_pct'];
+        delete _settingsCache['referral_new_user_pct'];
+        return res.json({ success: true });
+      }
+
+      case 'getUserRating': {
+        // Customer panel calls this to show the user their own score and breakdown.
+        // Requires user token (getUserRating is in _USER_SENSITIVE_ACTIONS).
+        const phone = cleanPhone(data.phone);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+
+        const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        const [
+          { data: ratingRow },
+          { data: walRow },
+          { data: subRow },
+          { data: recentOrders }
+        ] = await Promise.all([
+          supabase.from('user_ratings').select('lifetime_spend, last_order_date, manual_score').eq('phone', phone).single(),
+          supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
+          supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
+          supabase.from('orders')
+            .select('id')
+            .eq('phone', phone)
+            .neq('order_status', 'cancelled')
+            .neq('order_status', 'rejected')
+            .gte('date', today30ago)
+        ]);
+
+        const walletBal = parseFloat(walRow?.balance) || 0;
+        const recent30  = (recentOrders || []).length;
+        const today     = new Date();
+
+        // P1: Wallet Balance (₹0=0 → ₹500+=20)
+        const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
+
+        // P2: Lifetime Spend (₹0=0 → ₹10000+=30)
+        const spend = parseFloat(ratingRow?.lifetime_spend) || 0;
+        const p2 = Math.round(Math.min(spend / 10000, 1) * 30);
+
+        // P3: Order Consistency last 30 days (0=0 → 30=25)
+        const p3 = Math.round(Math.min(recent30 / 30, 1) * 25);
+
+        // P4: Subscription tenure
+        let p4 = 0;
+        if (subRow?.created_at) {
+          const subDays = Math.floor((today - new Date(subRow.created_at)) / 86400000);
+          if (subDays >= 90)      p4 = 15;
+          else if (subDays >= 30) p4 = 12;
+          else                    p4 = 8;
+        }
+
+        // P5: Manual admin score (0–10)
+        const p5 = Math.max(0, Math.min(10, ratingRow?.manual_score || 0));
+
+        const total = Math.min(p1 + p2 + p3 + p4 + p5, 100);
+
+        let badge = 'Inactive';
+        if (total >= 80)      badge = 'Champion';
+        else if (total >= 60) badge = 'Loyal';
+        else if (total >= 40) badge = 'Developing';
+        else if (total >= 20) badge = 'At Risk';
+
+        return res.json({
+          success:   true,
+          rating:    total,
+          breakdown: { wallet: p1, spend: p2, consistency: p3, subscription: p4, manual: p5 },
+          badge
         });
       }
 
