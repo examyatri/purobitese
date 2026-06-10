@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v114                                    ║
-     ║  Updated : 2026-06-03                               ║
+     ║  Version : v121                                    ║
+     ║  Updated : 2026-06-10                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1246,8 +1246,8 @@ function renderOrderCard(o) {
   const isDone    = status === 'delivered';
   const isOut     = status === 'out for delivery' || status === 'out_for_delivery';
   const items     = (o.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
-  const payClass  = o.user_type === 'subscriber' ? 'pay-wallet' : 'pay-cash';
-  const payLabel  = o.user_type === 'subscriber' ? '💳 Wallet'  : '💵 Cash';
+  const payClass  = o.payment_mode === 'upi_insuf' ? 'pay-cash' : o.user_type === 'subscriber' ? 'pay-wallet' : 'pay-cash';
+  const payLabel  = o.payment_mode === 'upi_insuf' ? '💳 UPI'    : o.user_type === 'subscriber' ? '💳 Wallet'  : '💵 Cash';
   const safePhone = o.phone || '';
   const slotBadge = o.slot
     ? `<span style="background:${o.slot==='morning'?'#fffbeb':'#eef2ff'};color:${o.slot==='morning'?'#d97706':'#4f46e5'};border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">${o.slot==='morning'?'☀️ Morning':'🌙 Evening'}</span>`
@@ -1644,7 +1644,7 @@ function generateRiderPDF() {
   const rows = filtered.map((o,i) => {
     const items = (o.items||[]).map(it=>`${it.name}${it.qty>1?` ×${it.qty}`:''}`).join(', ');
     const slot  = o.slot ? (o.slot==='morning'?'☀️ Morning':'🌙 Evening') : (_isSlotMatch(o,'morning')?'☀️ Morning':'🌙 Evening');
-    const pay   = o.user_type==='subscriber' ? '💳 Wallet' : '💵 Cash';
+    const pay   = o.payment_mode === 'upi_insuf' ? '💳 UPI' : o.user_type==='subscriber' ? '💳 Wallet' : '💵 Cash';
     const status= (o.order_status||'pending').replace(/_/g,' ');
     const _cm   = (o.address||'').match(/Coordinates\s*:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i)
                || (o.address||'').match(/latitude\s*=\s*([+-]?\d+\.?\d*)[,\s]+longitude\s*=\s*([+-]?\d+\.?\d*)/i);
@@ -2464,7 +2464,7 @@ function _updateDeliveryBar() {
     card.classList.add('show');
     document.getElementById('dbc-name').textContent = cur.order.name || '—';
     document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address);
-    const payLabel = cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
+    const payLabel = cur.order.payment_mode === 'upi_insuf' ? '💳 UPI' : cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
     document.getElementById('dbc-amount').textContent = '';
     document.getElementById('dbc-pay').textContent = payLabel;
     const items = (cur.order.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
@@ -2667,7 +2667,7 @@ function _showCelebration() {
   const deliveredRows = delivered.map((s, i) => {
     const o = s.order;
     const items = (o.items||[]).map(i => i.name).join(', ') || '—';
-    const pay = o.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
+    const pay = o.payment_mode === 'upi_insuf' ? '💳 UPI' : o.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
     return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)">
       <div style="width:26px;height:26px;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;color:white">${i+1}</div>
       <div style="flex:1;min-width:0">
