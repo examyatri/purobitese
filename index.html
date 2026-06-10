@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v115                                     ║
-     ║  Updated : 2026-06-05                               ║
+     ║  Version : v121                                     ║
+     ║  Updated : 2026-06-10                               ║
      ║  CHANGE  : Bug Fix — STORE_CLOSED detection        ║
      ║            api() now preserves server errorCode    ║
      ║            (json.errorCode → e.code) so            ║
@@ -2740,6 +2740,49 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         <div class="wallet-bal" style="font-family:var(--ff);font-weight:800;font-size:32px;color:var(--g);margin-top:6px">₹0</div>
       </div>
+      <!-- Refer & Earn -->
+      <div class="acct-section" id="refer-earn-section">
+        <div class="acct-section-title">🎁 Refer &amp; Earn</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <span id="ref-old-pill" style="padding:4px 12px;background:#dcfce7;color:#15803d;border-radius:20px;font-size:12px;font-weight:700">You get: 10% OFF</span>
+          <span id="ref-new-pill" style="padding:4px 12px;background:#dbeafe;color:#1d4ed8;border-radius:20px;font-size:12px;font-weight:700">Friend gets: 15% OFF</span>
+        </div>
+        <!-- How it works flowchart -->
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:16px;flex-wrap:wrap">
+          <div style="text-align:center;flex:1;min-width:60px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">1</div>
+            <div style="font-size:10px;color:#64748b;font-weight:600">Share Link</div>
+          </div>
+          <div style="color:#cbd5e1;font-size:14px">→</div>
+          <div style="text-align:center;flex:1;min-width:60px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">2</div>
+            <div style="font-size:10px;color:#64748b;font-weight:600">Friend Signs Up</div>
+          </div>
+          <div style="color:#cbd5e1;font-size:14px">→</div>
+          <div style="text-align:center;flex:1;min-width:60px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">3</div>
+            <div style="font-size:10px;color:#64748b;font-weight:600">Coupon Sent</div>
+          </div>
+          <div style="color:#cbd5e1;font-size:14px">→</div>
+          <div style="text-align:center;flex:1;min-width:60px">
+            <div style="width:28px;height:28px;border-radius:50%;background:#16a34a;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">4</div>
+            <div style="font-size:10px;color:#64748b;font-weight:600">Both Save!</div>
+          </div>
+        </div>
+        <button class="btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px" onclick="shareReferralLink()">
+          <i class="fa-brands fa-whatsapp"></i> Share on WhatsApp
+        </button>
+        <p style="font-size:11px;color:#94a3b8;margin-top:8px;text-align:center">Coupon admin dwara WhatsApp pe bheja jayega signup ke baad.</p>
+      </div>
+
+      <!-- My Tiffo Score -->
+      <div class="acct-section" id="my-score-section">
+        <div class="acct-section-title">⭐ My Tiffo Score</div>
+        <div id="my-score-body">
+          <button class="btn-outline" style="width:100%" onclick="loadMyRating()">View My Score</button>
+        </div>
+      </div>
+
       <!-- About -->
       <div class="acct-section">
         <button class="flex-sb w100" style="border:none;background:none;cursor:pointer" onclick="document.getElementById('about-modal').style.display='flex'">
@@ -2905,6 +2948,9 @@ input[type=number]{-moz-appearance:textfield}
   </button>
   <button class="panel-link khata-gated" onclick="closeAccountPanel();nav('pg-khata')" style="display:none">
     <i class="fa-solid fa-wallet"></i> Wallet / Khata
+  </button>
+  <button class="panel-link" onclick="closeAccountPanel();nav('pg-account');setTimeout(()=>document.getElementById('refer-earn-section')?.scrollIntoView({behavior:'smooth',block:'start'}),300)">
+    <i class="fa-solid fa-gift"></i> Refer &amp; Earn
   </button>
   <button class="panel-link" onclick="closeAccountPanel();nav('pg-account')">
     <i class="fa-solid fa-gear"></i> Settings
@@ -6082,9 +6128,11 @@ async function doSignup() {
       return;
     }
     const needsGeocode = _suGeocodeState === 'done_err' && locMode === '2';
-    const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw, needs_geocode: needsGeocode });
+    const _signupRef = (() => { try { return sessionStorage.getItem('tiffo_ref'); } catch(_) { return null; } })();
+    const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw, needs_geocode: needsGeocode, referred_by: _signupRef || null });
 
     // ── 6. Success ────────────────────────────────────────────────────────
+    try { sessionStorage.removeItem('tiffo_ref'); } catch(_) {}
     Creds.save(phone, pw);
     Auth.set(res.user);
     _session.is_subscriber = false;
@@ -7802,24 +7850,34 @@ function closeInsufPopup() {
   document.getElementById('insuf-bal-popup').style.display = 'none';
 }
 async function confirmInsufOrder() {
-  closeInsufPopup();
   const cart = Cart.get();
   const user = Auth.get();
-  if (!cart.length || !user) return;
+  if (!cart.length || !user) { closeInsufPopup(); return; }
 
   // ── Same guards as placeOrder() — insuf path must be equally safe ──────────
 
   // Guard 1: store open/closed check
   const hour = currentISTHour();
   const stateObj = (_lastSchedule || _lastCutoff) ? calcOrderState(_lastSchedule, hour, _lastCutoff) : null;
-  if (stateObj?.closed) { showClosedPopup(stateObj.reason); return; }
+  if (stateObj?.closed) { closeInsufPopup(); showClosedPopup(stateObj.reason); return; }
 
-  // Guard 2: stale menu check — refresh and re-show popup if data is old
+  // Guard 2: stale menu check — refresh silently then re-show popup automatically
   const _MENU_STALE_MS = 15 * 60 * 1000;
   const menuAge = _menuFreshTs > 0 ? Date.now() - _menuFreshTs : Infinity;
   if (menuAge > _MENU_STALE_MS) {
-    toast('Refreshing menu… please try again in a moment.');
-    loadMenu(true, true).catch(() => toast('Menu refresh failed. Please try again.'));
+    toast('Refreshing menu…');
+    loadMenu(true, true)
+      .then(() => {
+        // Re-compute insuf values with fresh data and re-show popup
+        const _u = Auth.get();
+        const _c = Cart.get();
+        if (!_u || !_c.length) return;
+        const _sub   = Math.round(_c.reduce((s, i) => s + i.price * i.qty, 0));
+        const _disc  = calcCouponDiscount(_appliedCoupon, _sub);
+        const _need  = _sub + 20 - _disc;
+        showInsufPopup(_walletBal, _need, _sub, _disc, 20);
+      })
+      .catch(() => toast('Menu refresh failed. Please try again.'));
     return;
   }
 
@@ -7836,13 +7894,15 @@ async function confirmInsufOrder() {
       return false;
     });
     if (badItems.length) {
+      closeInsufPopup();
       _wipeStaleCartItems();
       toast('Some items are out of stock or unavailable. Cart updated — please review and retry.');
       return;
     }
   }
 
-  // ── Guards passed — proceed ─────────────────────────────────────────────────
+  // ── Guards passed — close popup and proceed ─────────────────────────────────
+  closeInsufPopup();
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = calcCouponDiscount(_appliedCoupon, subtotal);
@@ -8214,6 +8274,115 @@ function populateAccountPage() {
     const planLabel = planMap[u.plan] || 'Tiffin Plan';
     const sinceStr  = u.plan_start ? ' · Since ' + fmtDate(u.plan_start) : '';
     document.getElementById('sub-dates').textContent = planLabel + sinceStr;
+  }
+
+  // Refresh referral discount pill labels (non-blocking, session-cached)
+  _refreshReferralPills().catch(() => {});
+
+  // Reset score section to collapsed state on every visit (score loads only on button click)
+  const _scoreBody = document.getElementById('my-score-body');
+  if (_scoreBody) _scoreBody.innerHTML = '<button class="btn-outline" style="width:100%" onclick="loadMyRating()">View My Score</button>';
+}
+
+// ── Referral share ────────────────────────────────────────────────────────────
+// Called when user opens pg-account — updates discount pill labels from cached settings.
+// _fetchSettings() is session-cached so this is free after the first call.
+async function _refreshReferralPills() {
+  try {
+    const r = await _fetchSettings();
+    const oldPct = r.settings?.referralReferrerPct || 10;
+    const newPct = r.settings?.referralNewUserPct  || 15;
+    const oldEl = document.getElementById('ref-old-pill');
+    const newEl = document.getElementById('ref-new-pill');
+    if (oldEl) oldEl.textContent = 'You get: ' + oldPct + '% OFF';
+    if (newEl) newEl.textContent = 'Friend gets: ' + newPct + '% OFF';
+    // Store for use in shareReferralLink()
+    window._refOldPct = oldPct;
+    window._refNewPct = newPct;
+  } catch(_) {
+    window._refOldPct = 10;
+    window._refNewPct = 15;
+  }
+}
+
+function shareReferralLink() {
+  const phone = Auth.get()?.phone || '';
+  if (!phone) { toast('Please log in first'); return; }
+  const refUrl = 'https://tiffo.online?ref=' + phone;
+  const oldPct = window._refOldPct || 10;
+  const newPct = window._refNewPct || 15;
+  const msg =
+    '🍱 *Tiffo — Ghar Jaisa Tiffin!*\n\n' +
+    'Main yahan subscribe karke bahut khush hoon! 😋\n\n' +
+    'Tujhe pehle order par *' + newPct + '% discount* milega\n' +
+    'aur mujhe bhi *' + oldPct + '% discount* milega! 🎁\n\n' +
+    'Abhi sign up kar: ' + refUrl;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ── My Tiffo Score ────────────────────────────────────────────────────────────
+async function loadMyRating() {
+  const phone = Auth.get()?.phone;
+  if (!phone) return;
+  const body = document.getElementById('my-score-body');
+  if (!body) return;
+
+  // Show loading state
+  body.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Loading your score…</div>';
+
+  try {
+    const res = await api('getUserRating', { phone });
+    if (!res.success) { body.innerHTML = '<p style="color:#e63946;font-size:13px">' + (res.error || 'Could not load score') + '</p>'; return; }
+
+    const { rating, breakdown, badge } = res;
+    const badgeColors = {
+      Champion:   { bg: '#dcfce7', color: '#15803d' },
+      Loyal:      { bg: '#dbeafe', color: '#1d4ed8' },
+      Developing: { bg: '#fef3c7', color: '#b45309' },
+      'At Risk':  { bg: '#ffedd5', color: '#c2410c' },
+      Inactive:   { bg: '#ffe4e6', color: '#9f1239' }
+    };
+    const bc = badgeColors[badge] || badgeColors['Inactive'];
+
+    const params = [
+      { emoji: '💰', label: 'Wallet Balance',    score: breakdown.wallet,       max: 20 },
+      { emoji: '🏆', label: 'Lifetime Spend',    score: breakdown.spend,        max: 30 },
+      { emoji: '🔄', label: 'Order Consistency', score: breakdown.consistency,  max: 25 },
+      { emoji: '♻️', label: 'Subscription',       score: breakdown.subscription, max: 15 },
+      { emoji: '🎯', label: 'Admin Score',        score: breakdown.manual,       max: 10 },
+    ];
+
+    const barColor = (score, max) => {
+      const pct = score / max;
+      if (pct >= 0.7) return '#16a34a';
+      if (pct >= 0.4) return '#d97706';
+      return '#e63946';
+    };
+
+    const paramRows = params.map(p => {
+      const pct  = Math.round((p.score / p.max) * 100);
+      const col  = barColor(p.score, p.max);
+      return `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <span style="font-size:12px;color:#374151">${p.emoji} ${p.label}</span>
+            <span style="font-size:11px;font-weight:700;color:#64748b">${p.score}/${p.max}</span>
+          </div>
+          <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .4s"></div>
+          </div>
+        </div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:36px;font-weight:800;color:#0f172a">${rating}<span style="font-size:18px;color:#94a3b8">/100</span></div>
+        <span style="padding:4px 14px;background:${bc.bg};color:${bc.color};border-radius:20px;font-size:13px;font-weight:700">${badge}</span>
+      </div>
+      ${paramRows}
+      <button class="btn-outline" style="width:100%;margin-top:4px;font-size:12px" onclick="loadMyRating()">↻ Refresh</button>`;
+  } catch(e) {
+    if (body) body.innerHTML = '<button class="btn-outline" style="width:100%" onclick="loadMyRating()">View My Score</button>';
   }
 }
 
@@ -10555,6 +10724,15 @@ window.addEventListener('popstate', (e) => {
 
 // Init on DOM ready
 document.addEventListener('DOMContentLoaded', () => {
+  // Read ?ref= URL param and store in sessionStorage for use at signup
+  // Format expected: ?ref=9876543210 (referrer's 10-digit phone number)
+  try {
+    const _refParam = new URLSearchParams(window.location.search).get('ref');
+    if (_refParam) {
+      const _refPhone = _refParam.replace(/\D/g, '').slice(-10);
+      if (_refPhone.length === 10) sessionStorage.setItem('tiffo_ref', _refPhone);
+    }
+  } catch(_) {}
   bootApp();
   initPullToRefresh();
 });
