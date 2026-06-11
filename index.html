@@ -1,18 +1,9 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v121                                     ║
-     ║  Updated : 2026-06-10                               ║
-     ║  CHANGE  : Bug Fix — STORE_CLOSED detection        ║
-     ║            api() now preserves server errorCode    ║
-     ║            (json.errorCode → e.code) so            ║
-     ║            placeOrder & confirmInsufOrder use       ║
-     ║            e.code === 'STORE_CLOSED' instead of    ║
-     ║            fragile string matching on e.message.   ║
-     ║            Prevented false "Store Closed" popup    ║
-     ║            on DB/network errors containing the     ║
-     ║            word "closed" (e.g. "connection         ║
-     ║            closed", "SSL connection closed").      ║
+     ║  Version : v125                                     ║
+     ║  Updated : 2026-06-11                               ║
+     ║  CHANGE  : v125 — Full audit & deploy prep         ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -2740,48 +2731,6 @@ input[type=number]{-moz-appearance:textfield}
         </div>
         <div class="wallet-bal" style="font-family:var(--ff);font-weight:800;font-size:32px;color:var(--g);margin-top:6px">₹0</div>
       </div>
-      <!-- Refer & Earn -->
-      <div class="acct-section" id="refer-earn-section">
-        <div class="acct-section-title">🎁 Refer &amp; Earn</div>
-        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-          <span id="ref-old-pill" style="padding:4px 12px;background:#dcfce7;color:#15803d;border-radius:20px;font-size:12px;font-weight:700">You get: 10% OFF</span>
-          <span id="ref-new-pill" style="padding:4px 12px;background:#dbeafe;color:#1d4ed8;border-radius:20px;font-size:12px;font-weight:700">Friend gets: 15% OFF</span>
-        </div>
-        <!-- How it works flowchart -->
-        <div style="display:flex;align-items:center;gap:4px;margin-bottom:16px;flex-wrap:wrap">
-          <div style="text-align:center;flex:1;min-width:60px">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">1</div>
-            <div style="font-size:10px;color:#64748b;font-weight:600">Share Link</div>
-          </div>
-          <div style="color:#cbd5e1;font-size:14px">→</div>
-          <div style="text-align:center;flex:1;min-width:60px">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">2</div>
-            <div style="font-size:10px;color:#64748b;font-weight:600">Friend Signs Up</div>
-          </div>
-          <div style="color:#cbd5e1;font-size:14px">→</div>
-          <div style="text-align:center;flex:1;min-width:60px">
-            <div style="width:28px;height:28px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">3</div>
-            <div style="font-size:10px;color:#64748b;font-weight:600">Coupon Sent</div>
-          </div>
-          <div style="color:#cbd5e1;font-size:14px">→</div>
-          <div style="text-align:center;flex:1;min-width:60px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#16a34a;color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px">4</div>
-            <div style="font-size:10px;color:#64748b;font-weight:600">Both Save!</div>
-          </div>
-        </div>
-        <button class="btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px" onclick="shareReferralLink()">
-          <i class="fa-brands fa-whatsapp"></i> Share on WhatsApp
-        </button>
-        <p style="font-size:11px;color:#94a3b8;margin-top:8px;text-align:center">Coupon admin dwara WhatsApp pe bheja jayega signup ke baad.</p>
-      </div>
-
-      <!-- My Tiffo Score -->
-      <div class="acct-section" id="my-score-section">
-        <div class="acct-section-title">⭐ My Tiffo Score</div>
-        <div id="my-score-body">
-          <button class="btn-outline" style="width:100%" onclick="loadMyRating()">View My Score</button>
-        </div>
-      </div>
 
       <!-- About -->
       <div class="acct-section">
@@ -2949,8 +2898,11 @@ input[type=number]{-moz-appearance:textfield}
   <button class="panel-link khata-gated" onclick="closeAccountPanel();nav('pg-khata')" style="display:none">
     <i class="fa-solid fa-wallet"></i> Wallet / Khata
   </button>
-  <button class="panel-link" onclick="closeAccountPanel();nav('pg-account');setTimeout(()=>document.getElementById('refer-earn-section')?.scrollIntoView({behavior:'smooth',block:'start'}),300)">
+  <button class="panel-link" onclick="closeAccountPanel();setTimeout(openReferModal,300)">
     <i class="fa-solid fa-gift"></i> Refer &amp; Earn
+  </button>
+  <button class="panel-link" onclick="closeAccountPanel();setTimeout(openScoreModal,300)">
+    <i class="fa-solid fa-star"></i> My Tiffo Score
   </button>
   <button class="panel-link" onclick="closeAccountPanel();nav('pg-account')">
     <i class="fa-solid fa-gear"></i> Settings
@@ -2959,6 +2911,95 @@ input[type=number]{-moz-appearance:textfield}
     <button class="btn-primary" style="background:var(--pd)" onclick="doLogout()">
       <i class="fa-solid fa-right-from-bracket"></i> Logout
     </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MY TIFFO SCORE MODAL
+══════════════════════════════════════════════ -->
+<div id="score-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeScoreModal()">
+  <div style="background:#fff;border-radius:20px;width:92%;max-width:360px;max-height:88vh;overflow-y:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#0f172a">⭐ My Tiffo Score</div>
+      <button onclick="closeScoreModal()" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div id="score-modal-body">
+      <div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px"><i class="fa-solid fa-spinner fa-spin"></i> Loading your score…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     REFER & EARN MODAL
+══════════════════════════════════════════════ -->
+<div id="refer-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:20px;width:92%;max-width:360px;max-height:88vh;overflow-y:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#0f172a">🎁 Refer &amp; Earn</div>
+      <button onclick="document.getElementById('refer-modal').style.display='none'" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;line-height:1">✕</button>
+    </div>
+
+    <!-- Discount pills -->
+    <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+      <span id="ref-old-pill" style="padding:6px 14px;background:#dcfce7;color:#15803d;border-radius:20px;font-size:13px;font-weight:700">You get: 10% OFF</span>
+      <span id="ref-new-pill" style="padding:6px 14px;background:#dbeafe;color:#1d4ed8;border-radius:20px;font-size:13px;font-weight:700">Friend gets: 15% OFF</span>
+    </div>
+
+    <!-- How it works — stepwise with descriptions -->
+    <div style="margin-bottom:20px">
+      <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#374151;margin-bottom:12px">How it works:</div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <!-- Step 1 -->
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
+            <div style="width:2px;height:28px;background:#e2e8f0;margin:4px 0"></div>
+          </div>
+          <div style="padding-top:4px;padding-bottom:16px">
+            <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">Share your referral link</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.5">Tap the WhatsApp button below and send your unique invite link to a friend.</div>
+          </div>
+        </div>
+        <!-- Step 2 -->
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
+            <div style="width:2px;height:28px;background:#e2e8f0;margin:4px 0"></div>
+          </div>
+          <div style="padding-top:4px;padding-bottom:16px">
+            <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">Friend signs up</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.5">Your friend opens the link, which takes them directly to the signup page with your referral already applied.</div>
+          </div>
+        </div>
+        <!-- Step 3 -->
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--p);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
+            <div style="width:2px;height:28px;background:#e2e8f0;margin:4px 0"></div>
+          </div>
+          <div style="padding-top:4px;padding-bottom:16px">
+            <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">Coupon codes are sent</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.5">After your friend signs up, admin sends discount coupons to both of you via WhatsApp within 24 hours.</div>
+          </div>
+        </div>
+        <!-- Step 4 -->
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;align-items:center">
+            <div style="width:32px;height:32px;border-radius:50%;background:#16a34a;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0">4</div>
+          </div>
+          <div style="padding-top:4px">
+            <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">Both of you save!</div>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;line-height:1.5">Apply your coupon at checkout. Coupons are valid for 7 days and can be used once each.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Share button -->
+    <button class="btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;padding:14px;font-size:14px" onclick="shareReferralLink()">
+      <i class="fa-brands fa-whatsapp"></i> Share on WhatsApp
+    </button>
+    <p style="font-size:11px;color:#94a3b8;margin-top:10px;text-align:center;line-height:1.5">Coupon will be sent by admin via WhatsApp after your friend signs up.</p>
   </div>
 </div>
 
@@ -3261,16 +3302,20 @@ function _doPostLoginRefresh(initialMenuPromise, skipSubscriberCheck = false) {
   if (_postLoginRefreshDone) return;
   _postLoginRefreshDone = true;
 
-  // Kick off non-menu refreshes immediately — don't wait for menu first.
-  // Subscriber/pause/wallet data arrives sooner → faster perceived load.
+  // Single merged call replaces 3 separate round-trips:
+  //   OLD: refreshPauseStatus (getSubscriberPauseStatus)
+  //      + refreshSubscriberStatus (checkSubscriber → loadPauseState = another getSubscriberPauseStatus)
+  //      + refreshWalletBalance (getSubscriberBalance)
+  //   = up to 4 DB calls on login
+  //
+  //   NEW: refreshSubscriberStatusMerged (getSubscriberStatus = balance + pause + pendingTomorrow
+  //        in ONE HTTP call, with 2 parallel Supabase queries inside)
+  //   = 1 HTTP call, covers all three, handles promotion/demotion detection (forceSubCheck=true)
+  //
   // skipSubscriberCheck=true on fresh signup: server already confirmed is_subscriber=false,
-  // so the checkSubscriber round-trip is unnecessary and saves ~400-600ms on first load.
+  // so subscriber check is skipped — merged call still runs but returns early if not subscriber.
   const sideRefreshes = [
-    refreshPauseStatus(true).catch(() => {}),
-    skipSubscriberCheck ? Promise.resolve() : refreshSubscriberStatus(true).catch(() => {}),
-    (_session?.is_subscriber && _khataEnabled)
-      ? refreshWalletBalance(true).catch(() => {})
-      : Promise.resolve(),
+    refreshSubscriberStatusMerged(!skipSubscriberCheck).catch(() => {}),
     // Prefetch auto-tiffin cutoff config in parallel — cached for session lifetime
     _loadAtCutoff().catch(() => {})
   ];
@@ -3282,7 +3327,7 @@ function _doPostLoginRefresh(initialMenuPromise, skipSubscriberCheck = false) {
     try {
       await Promise.all(sideRefreshes);
     } catch {}
-    startPolling(); // reset 240s poll timer from this point
+    startPolling(); // reset poll timer from this point
   }).catch(() => {});
 }
 let _stack = [];
@@ -4108,8 +4153,11 @@ function onEnter(id) {
     // immediately after login/PTR. Guest and logged-in both covered.
     _menuLoading = false; // unlock in case a background poll fetch is in-flight
     _checkMenuVersion();
-    if (Date.now() - _pauseFreshTs  > _DATA_FRESH_TTL) loadPauseState();
-    if (Date.now() - _walletFreshTs > _DATA_FRESH_TTL) refreshWalletBalance(true);
+    // Single merged call covers pause + wallet in 1 HTTP request.
+    // Fires if either was stale (same TTL, reset together on login/PTR).
+    if (Date.now() - Math.min(_pauseFreshTs, _walletFreshTs) > _DATA_FRESH_TTL) {
+      refreshSubscriberStatusMerged(false).catch(() => {});
+    }
     // NOTE: startPolling() intentionally NOT called here — poll is a background heartbeat
     // started once at login and on visibility restore; resetting it on every home entry
     // would prevent the timer ever reaching 360s for active users.
@@ -6918,11 +6966,12 @@ async function manualIndexRefresh() {
     _resetSettingsCache();
     await Promise.all([
       loadMenu(true, true),                                     // bypassCache=true, silent=true → DB fetch; PTR spinner provides visual feedback
-      refreshPauseStatus(true).catch(() => {}),                // force=true → re-applies UI even if same value
-      refreshSubscriberStatus(true).catch(() => {}),           // force=true → re-applies subscriber UI from DB
-      _session?.is_subscriber && _khataEnabled
-        ? refreshWalletBalance(true).catch(() => {})           // force=true → re-draws wallet even if balance same
-        : Promise.resolve()
+      // Single merged call replaces 3 separate round-trips:
+      //   OLD: refreshPauseStatus (getSubscriberPauseStatus)
+      //      + refreshSubscriberStatus (checkSubscriber → loadPauseState = another getSubscriberPauseStatus)
+      //      + refreshWalletBalance (getSubscriberBalance)
+      //   NEW: refreshSubscriberStatusMerged (getSubscriberStatus — covers all three in 1 HTTP call)
+      _session ? refreshSubscriberStatusMerged(true).catch(() => {}) : Promise.resolve()
     ]);
   } finally {
     startPolling(); // reset background poll timer after PTR
@@ -8278,10 +8327,6 @@ function populateAccountPage() {
 
   // Refresh referral discount pill labels (non-blocking, session-cached)
   _refreshReferralPills().catch(() => {});
-
-  // Reset score section to collapsed state on every visit (score loads only on button click)
-  const _scoreBody = document.getElementById('my-score-body');
-  if (_scoreBody) _scoreBody.innerHTML = '<button class="btn-outline" style="width:100%" onclick="loadMyRating()">View My Score</button>';
 }
 
 // ── Referral share ────────────────────────────────────────────────────────────
@@ -8312,27 +8357,51 @@ function shareReferralLink() {
   const oldPct = window._refOldPct || 10;
   const newPct = window._refNewPct || 15;
   const msg =
-    '🍱 *Tiffo — Ghar Jaisa Tiffin!*\n\n' +
-    'Main yahan subscribe karke bahut khush hoon! 😋\n\n' +
-    'Tujhe pehle order par *' + newPct + '% discount* milega\n' +
-    'aur mujhe bhi *' + oldPct + '% discount* milega! 🎁\n\n' +
-    'Abhi sign up kar: ' + refUrl;
+    '🍱 *Tiffo — Home-style Tiffin Delivery*\n\n' +
+    'Hi! I have been ordering from Tiffo and really enjoying it.\n\n' +
+    'Sign up using my referral link and get *' + newPct + '% OFF* your first order.\n' +
+    'I will also get *' + oldPct + '% OFF* as a thank you! 🎁\n\n' +
+    '🔗 Sign up here: ' + refUrl + '\n\n' +
+    '📋 How it works:\n' +
+    '1. Open the link above\n' +
+    '2. Sign up on Tiffo\n' +
+    '3. Admin sends coupon codes to both of us via WhatsApp\n' +
+    '4. Apply at checkout and save!\n\n' +
+    '⚠️ Coupons are valid for 7 days after signup.\n— Tiffo';
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ── Score Modal ───────────────────────────────────────────────────────────────
+function openScoreModal() {
+  const modal = document.getElementById('score-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  loadMyRating();
+}
+function closeScoreModal() {
+  const modal = document.getElementById('score-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// ── Refer Modal ───────────────────────────────────────────────────────────────
+function openReferModal() {
+  _refreshReferralPills().catch(()=>{});
+  const modal = document.getElementById('refer-modal');
+  if (modal) modal.style.display = 'flex';
 }
 
 // ── My Tiffo Score ────────────────────────────────────────────────────────────
 async function loadMyRating() {
   const phone = Auth.get()?.phone;
   if (!phone) return;
-  const body = document.getElementById('my-score-body');
+  const body = document.getElementById('score-modal-body');
   if (!body) return;
 
-  // Show loading state
-  body.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Loading your score…</div>';
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:13px"><i class="fa-solid fa-spinner fa-spin"></i> Loading your score…</div>';
 
   try {
     const res = await api('getUserRating', { phone });
-    if (!res.success) { body.innerHTML = '<p style="color:#e63946;font-size:13px">' + (res.error || 'Could not load score') + '</p>'; return; }
+    if (!res.success) { body.innerHTML = '<p style="color:#e63946;font-size:13px;text-align:center">' + (res.error || 'Could not load score') + '</p>'; return; }
 
     const { rating, breakdown, badge } = res;
     const badgeColors = {
@@ -8376,13 +8445,13 @@ async function loadMyRating() {
 
     body.innerHTML = `
       <div style="text-align:center;margin-bottom:16px">
-        <div style="font-size:36px;font-weight:800;color:#0f172a">${rating}<span style="font-size:18px;color:#94a3b8">/100</span></div>
-        <span style="padding:4px 14px;background:${bc.bg};color:${bc.color};border-radius:20px;font-size:13px;font-weight:700">${badge}</span>
+        <div style="font-size:44px;font-weight:900;color:#0f172a;line-height:1">${rating}<span style="font-size:20px;color:#94a3b8">/100</span></div>
+        <span style="display:inline-block;margin-top:8px;padding:5px 16px;background:${bc.bg};color:${bc.color};border-radius:20px;font-size:13px;font-weight:700">${badge}</span>
       </div>
       ${paramRows}
-      <button class="btn-outline" style="width:100%;margin-top:4px;font-size:12px" onclick="loadMyRating()">↻ Refresh</button>`;
+      <button class="btn-outline" style="width:100%;margin-top:8px;font-size:12px" onclick="loadMyRating()"><i class="fa-solid fa-rotate-right"></i> Refresh</button>`;
   } catch(e) {
-    if (body) body.innerHTML = '<button class="btn-outline" style="width:100%" onclick="loadMyRating()">View My Score</button>';
+    if (body) body.innerHTML = '<p style="color:#e63946;font-size:13px;text-align:center">Could not load score. Try again.</p>';
   }
 }
 
@@ -9515,8 +9584,10 @@ async function _prefetchAfterOrder() {
       _session?.is_subscriber && _khataEnabled
         ? loadUserKhata(true, true).catch(() => {})    // silent prefetch — no spinner
         : Promise.resolve(),
+      // Merged call: refreshes wallet balance + pause state in 1 HTTP call after order.
+      // Replaces standalone refreshWalletBalance — also re-syncs pause so UI is consistent.
       _session?.is_subscriber && _khataEnabled
-        ? refreshWalletBalance(true).catch(() => {})   // refresh wallet balance immediately after order
+        ? refreshSubscriberStatusMerged(false).catch(() => {})
         : Promise.resolve()
     ]);
   } catch {}
@@ -10088,6 +10159,16 @@ async function bootApp() {
 
   // Case: No credentials at all → new user, show home with menu (guest mode)
   if (!creds || !creds.phone || !creds.pw) {
+    // If opened via a referral link (?ref=XXXXXXXXXX), skip guest home and
+    // go directly to the signup tab — referral is already in sessionStorage.
+    try {
+      if (sessionStorage.getItem('tiffo_ref')) {
+        _isGuestMode = true; // mark guest so back() works correctly
+        document.getElementById('app-loader').style.display = 'none';
+        _transitionToLogin(false); // false = show signup tab, not login
+        return;
+      }
+    } catch(_) {}
     _transitionToGuestHome();
     return;
   }
