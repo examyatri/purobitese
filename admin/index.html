@@ -1,16 +1,9 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v121                                   ║
-     ║  Updated : 2026-06-10                               ║
-     ║  Changes : v80 — Earning logic final cleanup        ║
-     ║   1. Earning = Wallet recharges (all) +             ║
-     ║      UPI/UPI_insuf/Udhar (only admin-marked paid)  ║
-     ║   2. Wallet orders excluded from earnings           ║
-     ║      (cash already counted at recharge time)        ║
-     ║   3. Renamed _earnExportCSV → _earnExportPDF        ║
-     ║      (was already PDF, name was misleading)         ║
-     ║   4. Export PDF opens printable HTML in new tab     ║
+     ║  Version : v125                                   ║
+     ║  Updated : 2026-06-11                               ║
+     ║  Changes : v125 — Full audit & deploy prep          ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -2068,6 +2061,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     </div>
   </div>
 
+</div><!-- /#main-layout -->
+
 <div id="mo-bg" class="mo-bg" style="display:none" onclick="if(event.target===this)closeMo()">
   <div id="mo-box" class="mo-box"></div>
 </div>
@@ -2974,6 +2969,33 @@ let _ordDay = 'today', _ordCat = 'all', _ordStatus = 'all'; // 2-layer filters: 
 let _ridersCacheTime = 0, _settingsCacheTime = 0;
 const _RIDERS_SETTINGS_TTL = 10 * 60 * 1000; // 10 minutes
 
+// ─── ADMIN SETTINGS CACHE ─────────────────────────────────
+// All settings panels (Cutoff, Schedule, Khata, AutoCutoff, DeliveryZone, Areas, Referral)
+// share ONE promise. When admin opens the settings page and taps multiple panels quickly,
+// only one api('getSettings') call fires — the rest wait on the same promise.
+// TTL: 2 minutes. Cleared immediately on every successful save so next open is always fresh.
+let _adminSettingsCacheP   = null;
+let _adminSettingsCacheTs  = 0;
+const _ADMIN_SETTINGS_TTL  = 2 * 60 * 1000; // 2 min
+
+function _getAdminSettings() {
+  const now = Date.now();
+  if (_adminSettingsCacheP && (now - _adminSettingsCacheTs) < _ADMIN_SETTINGS_TTL) {
+    return _adminSettingsCacheP; // still fresh — return existing promise (or already-resolved value)
+  }
+  _adminSettingsCacheTs = now;
+  _adminSettingsCacheP  = api('getSettings').catch(e => {
+    _adminSettingsCacheP = null; // clear on error so next call retries
+    throw e;
+  });
+  return _adminSettingsCacheP;
+}
+
+function _invalidateAdminSettingsCache() {
+  _adminSettingsCacheP  = null;
+  _adminSettingsCacheTs = 0;
+}
+
 // ── Time helpers ──
 function _getMorningCutoff(dateStr) {
   if (!dateStr) return null;
@@ -3047,7 +3069,7 @@ async function loadOrders(forceRender = false) {
 
     const fetches = [api('adminGetOrders', { fromDate: yesterdayIST })];
     if (needRiders)   fetches.push(api('getRiders').catch(() => ({ riders: [] })));
-    if (needSettings) fetches.push(api('getSettings').catch(() => ({})));
+    if (needSettings) fetches.push(_getAdminSettings().catch(() => ({})));
 
     const results = await Promise.all(fetches);
     if (!owner()) return; // stale
@@ -5390,7 +5412,13 @@ async function _doPromoteFromAllTab(phone) {
 // ── User Rating Modal ─────────────────────────────────────────────────────────
 function openUserRatingModal(phone, name, manualScore, currentRating) {
   const ms = manualScore ?? 0;
-  // rating category label
+
+  function barColor(score, max) {
+    const pct = score / max;
+    if (pct >= 0.7) return '#16a34a';
+    if (pct >= 0.4) return '#d97706';
+    return '#e63946';
+  }
   function catLabel(r) {
     if (r >= 80) return '🟢 Champion';
     if (r >= 60) return '🔵 Loyal';
@@ -5398,25 +5426,22 @@ function openUserRatingModal(phone, name, manualScore, currentRating) {
     if (r >= 20) return '🟠 At Risk';
     return '🔴 Inactive';
   }
+
   openMo(`
     <div class="mo-title"><i class="fa fa-star" style="color:#f59e0b"></i> User Rating — ${name}</div>
 
     <!-- Current Rating Display -->
-    <div style="background:linear-gradient(135deg,#fefce8,#fef3c7);border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:16px;text-align:center">
+    <div style="background:linear-gradient(135deg,#fefce8,#fef3c7);border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:14px;text-align:center">
       <div style="font-size:11px;color:#92400e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current Rating</div>
       <div style="font-size:36px;font-weight:900;color:#b45309;line-height:1">${currentRating}%</div>
       <div style="font-size:13px;color:#92400e;margin-top:4px;font-weight:600">${catLabel(currentRating)}</div>
     </div>
 
-    <!-- Rating Formula Info -->
-    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#475569;font-family:var(--ff)">
-      <div style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:13px">📊 Rating Breakdown (Auto-Calculated)</div>
-      <div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;line-height:1.7">
-        <span>💰 Wallet Balance</span><span style="font-weight:700;color:#0f172a">up to 20 pts</span>
-        <span>🏆 Lifetime Total Spend</span><span style="font-weight:700;color:#0f172a">up to 30 pts</span>
-        <span>🔄 Order Consistency (last 30d)</span><span style="font-weight:700;color:#0f172a">up to 25 pts</span>
-        <span>♻️ Subscription Loyalty</span><span style="font-weight:700;color:#0f172a">up to 15 pts</span>
-        <span>🎯 Manual Admin Score</span><span style="font-weight:700;color:#0f172a">up to 10 pts</span>
+    <!-- Live Breakdown Section -->
+    <div id="ur-breakdown-wrap" style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-weight:700;color:#0f172a;margin-bottom:10px;font-size:13px">📊 Rating Breakdown (Auto-Calculated)</div>
+      <div id="ur-breakdown-body" style="text-align:center;padding:10px 0;color:#94a3b8;font-size:12px">
+        <i class="fa fa-spinner fa-spin"></i> Loading breakdown…
       </div>
     </div>
 
@@ -5449,6 +5474,39 @@ function openUserRatingModal(phone, name, manualScore, currentRating) {
         <i class="fa fa-save"></i> Save Rating
       </button>
     </div>`);
+
+  // Fetch live breakdown asynchronously
+  (async () => {
+    const el = document.getElementById('ur-breakdown-body');
+    if (!el) return;
+    try {
+      const res = await api('adminGetUserRating', { phone });
+      if (!res.success) { el.innerHTML = '<span style="color:#e63946;font-size:12px">Could not load breakdown</span>'; return; }
+      const { breakdown } = res;
+      const params = [
+        { emoji: '💰', label: 'Wallet Balance',      hint: '₹' + (breakdown.wallet.value||0),    score: breakdown.wallet.score,       max: 20 },
+        { emoji: '🏆', label: 'Lifetime Total Spend', hint: '₹' + (breakdown.spend.value||0),     score: breakdown.spend.score,        max: 30 },
+        { emoji: '🔄', label: 'Order Consistency (last 30d)', hint: (breakdown.consistency.value||0) + ' orders', score: breakdown.consistency.score, max: 25 },
+        { emoji: '♻️', label: 'Subscription Loyalty', hint: '',                                   score: breakdown.subscription.score, max: 15 },
+        { emoji: '🎯', label: 'Manual Admin Score',   hint: '',                                   score: breakdown.manual.score,       max: 10 },
+      ];
+      el.innerHTML = params.map(p => {
+        const pct = Math.round((p.score / p.max) * 100);
+        const col = barColor(p.score, p.max);
+        return `<div style="margin-bottom:9px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <span style="font-size:12px;color:#374151">${p.emoji} ${p.label}${p.hint ? ' <span style="font-size:10px;color:#94a3b8">('+p.hint+')</span>' : ''}</span>
+            <span style="font-size:11px;font-weight:700;color:#64748b">${p.score}/${p.max}</span>
+          </div>
+          <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;transition:width .4s"></div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch(_) {
+      if (el) el.innerHTML = '<span style="color:#94a3b8;font-size:12px">Breakdown unavailable</span>';
+    }
+  })();
 }
 
 async function _doSaveUserRating(phone) {
@@ -5927,7 +5985,7 @@ async function renderReferralPanel(area) {
       <button class="btn btn-p" style="margin-top:16px" onclick="saveReferralSettings()">Save Settings</button>
     </div>`;
   try {
-    const r = await api('getSettings');
+    const r = await _getAdminSettings();
     const inp = id => document.getElementById(id);
     if (inp('ref-old-pct')) inp('ref-old-pct').value = r.settings?.referralReferrerPct ?? 10;
     if (inp('ref-new-pct')) inp('ref-new-pct').value = r.settings?.referralNewUserPct  ?? 15;
@@ -5943,6 +6001,7 @@ async function saveReferralSettings() {
   }
   try {
     await api('setReferralSettings', { referrer_pct, new_user_pct });
+    _invalidateAdminSettingsCache();
     aToast('Saved ✅');
   } catch(e) { aToast(e.message || 'Save failed'); }
 }
@@ -5956,7 +6015,7 @@ function renderCutoffPanel(area) {
       <div class="field"><label>Cutoff Night</label><input id="set-cutoff-night" type="time"></div>
       <button class="btn btn-p" onclick="saveCutoff()">Save Cutoff</button>
     </div>`;
-  api('getSettings').then(r => {
+  _getAdminSettings().then(r => {
     const cfg = r.settings?.cutoff || {};
     document.getElementById('set-cutoff-day').value = cfg.cutoffDay || '';
     document.getElementById('set-cutoff-night').value = cfg.cutoffNight || '';
@@ -5968,7 +6027,7 @@ async function saveCutoff() {
     cutoffDay:   document.getElementById('set-cutoff-day')?.value,
     cutoffNight: document.getElementById('set-cutoff-night')?.value
   };
-  try { await api('setOrderCutoff', { config }); _settingsCacheTime = 0; aToast('Cutoff saved'); }
+  try { await api('setOrderCutoff', { config }); _settingsCacheTime = 0; _invalidateAdminSettingsCache(); aToast('Cutoff saved'); }
   catch(e) { aToast(e.message); }
 }
 
@@ -5995,7 +6054,7 @@ function renderSchedulePanel(area) {
       </div>
       <button class="btn btn-p" style="margin-top:16px" onclick="saveSchedule()">Save Schedule</button>
     </div>`;
-  api('getSettings').then(r => {
+  _getAdminSettings().then(r => {
     const sched = r.settings?.weeklySchedule || [];
     sched.forEach((d,i) => {
       const el = id => document.getElementById(id);
@@ -6017,7 +6076,7 @@ async function saveSchedule() {
     dinnerStart: document.getElementById(`sch-ds-${i}`)?.value,
     dinnerEnd:   document.getElementById(`sch-de-${i}`)?.value
   }));
-  try { await api('setWeeklySchedule', { schedule }); _settingsCacheTime = 0; aToast('Schedule saved ✅'); }
+  try { await api('setWeeklySchedule', { schedule }); _settingsCacheTime = 0; _invalidateAdminSettingsCache(); aToast('Schedule saved ✅'); }
   catch(e) { aToast(e.message); }
 }
 
@@ -6031,7 +6090,7 @@ function renderKhataTogglePanel(area) {
         <span id="khata-toggle-label" style="font-family:var(--ff);font-weight:600"></span>
       </div>
     </div>`;
-  api('getSettings').then(r => {
+  _getAdminSettings().then(r => {
     const enabled = r.settings?.khataEnabled !== false;
     document.getElementById('khata-toggle-chk').checked = enabled;
     document.getElementById('khata-toggle-label').textContent = enabled ? 'Enabled' : 'Disabled';
@@ -6041,6 +6100,7 @@ function renderKhataTogglePanel(area) {
 async function setKhataEnabled(enabled) {
   try {
     await api('setKhataEnabled', { enabled });
+    _invalidateAdminSettingsCache();
     document.getElementById('khata-toggle-label').textContent = enabled ? 'Enabled' : 'Disabled';
     aToast(enabled ? 'Wallet enabled' : 'Wallet disabled');
   } catch(e) { aToast(e.message); }
@@ -6274,7 +6334,7 @@ function renderAutoTiffinCutoffPanel(area) {
       </button>
     </div>`;
 
-  api('getSettings').then(r => {
+  _getAdminSettings().then(r => {
     const cfg = r.settings?.autoTiffinCutoff || {};
     document.getElementById('atc-morning').value = cfg.morning || '11:00';
     document.getElementById('atc-evening').value = cfg.evening || '18:00';
@@ -6289,6 +6349,7 @@ async function saveAutoTiffinCutoff() {
   try {
     await api('setAutoTiffinCutoff', { config });
     _settingsCacheTime = 0;
+    _invalidateAdminSettingsCache();
     aToast('Auto Tiffin cutoff saved ✅');
   } catch(e) { aToast(e.message); }
 }
@@ -6310,7 +6371,7 @@ function renderMasterDelPanel(area) {
           <div>💳 <b>Transaction Details</b> — data newer than <b>35 days</b> is preserved</div>
           <div>🔔 <b>Notifications</b> — data newer than <b>1 day</b> is preserved</div>
           <div>🍳 <b>Cooking Sessions</b> — data newer than <b>5 days</b> is preserved</div>
-          <div>🎟️ <b>New User Coupon Log</b> — data newer than <b>5 days</b> is preserved</div>
+          <div>🎟️ <b>New User Coupon Log</b> — data newer than <b>7 days</b> is preserved</div>
         </div>
       </div>
       <div class="field">
@@ -6339,7 +6400,7 @@ async function doMasterDelete() {
       <li>💳 Transactions older than <b>35 days</b></li>
       <li>🔔 Notifications older than <b>1 day</b></li>
       <li>🍳 Cooking Sessions older than <b>5 days</b></li>
-      <li>🎟️ New User Coupon Log older than <b>5 days</b></li>
+      <li>🎟️ New User Coupon Log older than <b>7 days</b></li>
     </ul>
     <div style="margin-top:8px;font-size:12px;color:#dc2626">Data within retention periods is NOT deleted. This cannot be undone.</div>`,
     async function() {
@@ -7156,7 +7217,7 @@ function renderDeliveryZonePanel(area) {
       <div id="dz-status" style="margin-top:12px;font-size:13px;display:none;padding:10px 14px;border-radius:9px;font-family:var(--fb);line-height:1.4"></div>
     </div>`;
 
-  api('getSettings').then(r => {
+  _getAdminSettings().then(r => {
     const z = r.settings?.deliveryZone;
     if (z) {
       document.getElementById('dz-lat').value = z.lat;
@@ -7199,7 +7260,7 @@ function renderDeliveryAreasPanel(container) {
     </div>`;
 
   // Load current areas
-  api('getSettings').then(r => {
+  _getAdminSettings().then(r => {
     _daCurrentAreas = r.settings?.deliveryAreas || [];
     _daRenderList();
   }).catch(() => {
@@ -7266,6 +7327,7 @@ async function _daSave() {
   if (!_daCurrentAreas.length) { showSt('❌ Add at least one area', false); return; }
   try {
     await api('setDeliveryAreas', { areas: _daCurrentAreas });
+    _invalidateAdminSettingsCache();
     showSt(`✅ Saved ${_daCurrentAreas.length} area(s) successfully`, true);
     setTimeout(() => { if (status) status.style.display = 'none'; }, 3000);
   } catch(e) { showSt('❌ ' + (e.message || 'Save failed'), false); }
@@ -7300,6 +7362,7 @@ async function saveDeliveryZone() {
   if (isNaN(radiusKm) || radiusKm <= 0) { showSt('❌ Radius must be greater than 0', false); return; }
   try {
     await api('setDeliveryZone', { lat, lng, radiusKm });
+    _invalidateAdminSettingsCache();
     showSt(`✅ Saved — ${radiusKm} km radius around (${lat.toFixed(5)}, ${lng.toFixed(5)})`, true);
     aToast('Delivery zone saved ✅');
     // Auto-show map preview after save
@@ -8438,9 +8501,9 @@ function buildNuWaMsg(name, phone) {
 
   let extras = '';
   if (minOrd && parseFloat(minOrd) > 0) extras += `\n📦 Min order: ₹${minOrd}`;
-  if (exp) extras += `\n⏳ Valid till: ${exp} (7 din mein use karein)`;
+  if (exp) extras += `\n📅 Valid till: ${exp} (expires in 7 days)`;
 
-  return `Hi ${name||'there'}! 🎉 Welcome to Tiffo – Ghar ka Tiffin ♥️!\n\nAs a special welcome gift, here's your exclusive coupon:\n\n🏷️ Code: ${code}\n${discLine}${extras}\n\nUse this code at checkout to claim your discount! 🍱\n— Tiffo Team`;
+  return `Hi ${name||'there'}! 👋 Welcome to Tiffo – Home-style Tiffin Delivery.\n\nAs a welcome gift, here is your exclusive coupon code:\n\n🏷️ Code: *${code}*\n${discLine}${extras}\n\n📋 How to redeem:\n1. Open tiffo.online\n2. Add items to cart\n3. Enter code *${code}* at checkout\n\n⚠️ Single use only — do not share this code.\n\n🌐 Order here: https://tiffo.online\n— Tiffo Team`;
 }
 
 function nuWaMsgRefresh(name, phone) {
@@ -8630,14 +8693,19 @@ async function _sendReferralCoupon(notifId, referrerPhone, newPhone, newName, ta
     const targetPhone = target === 'old' ? referrerPhone : newPhone;
     const targetCode  = target === 'old' ? res.referrer_code : res.new_user_code;
     const targetPct   = target === 'old' ? res.referrer_pct  : res.new_user_pct;
-    const targetLabel = target === 'old' ? 'aapko' : newName + ' ko';
+    const targetLabel = target === 'old' ? 'You have' : (newName + ' has');
 
-    const msg = '🎁 *Tiffo Referral Coupon*\n\n' +
-      targetLabel + ' ' + targetPct + '% discount coupon mila hai!\n\n' +
-      '🎟 Code: *' + targetCode + '*\n' +
-      '📅 Valid till: ' + res.expiry + ' (7 din mein use karein)\n' +
-      '✅ Sirf 1 baar use hoga — order pe apply karein.\n\n' +
-      'Tiffo app: https://tiffo.online';
+    const msg = '🎁 *Tiffo — Your Referral Reward*\n\n' +
+      'Hi ' + (target === 'old' ? 'there' : newName) + '!\n\n' +
+      targetLabel + ' received a *' + targetPct + '% discount coupon* on your next Tiffo order.\n\n' +
+      '🎟 Coupon Code: *' + targetCode + '*\n' +
+      '📅 Valid till: ' + res.expiry + '\n' +
+      '⚠️ Single use only — expires in 7 days.\n\n' +
+      '📋 How to redeem:\n' +
+      '1. Open tiffo.online\n' +
+      '2. Add items to cart\n' +
+      '3. Enter code *' + targetCode + '* at checkout\n\n' +
+      '🌐 Order now: https://tiffo.online\n— Tiffo Team';
 
     window.open('https://wa.me/91' + targetPhone + '?text=' + encodeURIComponent(msg), '_blank');
 
