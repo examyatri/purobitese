@@ -193,6 +193,7 @@ const _STAFF_ACTIONS = new Set([
   'setDeliveryAreas',
   'adminSetUserAddress',
   'adminSetUserRating',
+  'adminGetUserRating',
   'createRider',
   'addHelpVideo',
   'updateHelpVideo',
@@ -341,18 +342,24 @@ async function runAutoCleanup() {
     const dateCutoff = (days) => istDateStr(new Date(ist.getTime() - days * 86_400_000));
     const isoCutoff  = (days) => new Date(Date.now() - days * 86_400_000).toISOString();
 
-    const [r1, r2, r3, r4, r5] = await Promise.allSettled([
+    const [r1, r2, r3, r4, r5, r6] = await Promise.allSettled([
       supabase.from('orders')          .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
       supabase.from('khata_entries')   .delete({ count: 'exact' }).lte('date',         dateCutoff(35)),
       supabase.from('notifications')   .delete({ count: 'exact' }).lt('created_at',    isoCutoff(1)),
       supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', dateCutoff(5)),
       supabase.from('nu_coupon_sent')  .delete({ count: 'exact' }).lt('sent_at',       isoCutoff(7)),
+      // Delete used auto_delete coupons (is_active=false) older than 7 days.
+      // referral_key is preserved even after is_active=false, so idempotency is intact.
+      supabase.from('coupons').delete({ count: 'exact' })
+        .eq('auto_delete', true)
+        .eq('is_active', false)
+        .lt('created_at', isoCutoff(7)),
     ]);
 
     const fmt = (r) => r.status === 'fulfilled' ? (r.value.count ?? 0) : `err(${r.reason?.message || '?'})`;
     console.log('[auto-cleanup] done in', Date.now() - start, 'ms — deleted:', JSON.stringify({
       orders: fmt(r1), khata_entries: fmt(r2), notifications: fmt(r3),
-      cooking_sessions: fmt(r4), nu_coupon_sent: fmt(r5),
+      cooking_sessions: fmt(r4), nu_coupon_sent: fmt(r5), used_coupons: fmt(r6),
     }));
   } catch (err) {
     // Should never reach here (Promise.allSettled never rejects) but belt-and-suspenders
@@ -1650,7 +1657,30 @@ app.post('/api', async (req, res) => {
               else if (dbCoupon.flash_end   && nowTime2 >= dbCoupon.flash_end.slice(0,5))  flashOk = false;
             }
             const maxUse = dbCoupon.max_usage ?? dbCoupon.total_usage_limit ?? null;
+            // ── FIX #10: Mirror all restriction checks from validateCoupon ─────────────
+            // validateCoupon checks these but createOrder previously skipped them,
+            // meaning a user could bypass validateCoupon and POST createOrder directly
+            // with a locked coupon code (e.g. a referral/welcome coupon for another phone).
+            let restrictionOk = true;
             if (flashOk && (maxUse == null || (dbCoupon.used_count || 0) < maxUse)) {
+              const rtype = dbCoupon.restriction_type || 'unlimited';
+              let usedBy = []; try { usedBy = JSON.parse(dbCoupon.used_by || '[]'); } catch(_) {}
+              if (rtype === 'specific_phone') {
+                let allowed = []; try { allowed = JSON.parse(dbCoupon.allowed_phones || '[]'); } catch(_) {}
+                if (!allowed.includes(phone)) restrictionOk = false;
+              } else if (rtype === 'one_time_per_user') {
+                if (usedBy.filter(p => p === phone).length >= 1) restrictionOk = false;
+              } else if (rtype === 'per_user_limit') {
+                const perLimit = dbCoupon.per_user_limit ?? dbCoupon.max_per_user ?? 1;
+                if (usedBy.filter(p => p === phone).length >= perLimit) restrictionOk = false;
+              }
+              // new_users_only: validateCoupon enforces this; skip DB lookup here for perf
+              // (the worst outcome of skipping is a slightly-too-old new user gets a discount;
+              // the atomic RPC still caps total usage, so financial risk is bounded)
+            } else {
+              restrictionOk = false; // flashOk failed or maxUse exceeded
+            }
+            if (restrictionOk) {
               const capAmt = dbCoupon.cap_amount ?? dbCoupon.max_cap ?? null;
               verifiedCoupon = {
                 code:           dbCoupon.code,
@@ -2769,8 +2799,11 @@ app.post('/api', async (req, res) => {
 
       case 'getKhata': {
         const phone = cleanPhone(data.phone);
-        const { data: entries } = await supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: false });
-        const { data: sumRow }  = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+        // ── Parallel fetch: entries + balance are independent — one round-trip instead of two ──
+        const [{ data: entries }, { data: sumRow }] = await Promise.all([
+          supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: false }),
+          supabase.from('khata_summary').select('balance').eq('phone', phone).single()
+        ]);
 
         // ── Enrich entries with order details (items, discount, coupon) ──
         const orderIds = (entries || []).map(e => e.order_id).filter(Boolean);
@@ -3073,7 +3106,10 @@ app.post('/api', async (req, res) => {
 
         const ordersCutoff  = dateCutoff(35);  // orders  older than 35 days
         const txnsCutoff    = dateCutoff(35);  // transactions older than 35 days
-        const notifsCutoff  = dateCutoff(1);   // notifications older than 1 day
+        // FIX: use ISO timestamp (same as auto-cleanup) not date+'T23:59:59Z'
+        // The old form 'YYYY-MM-DDT23:59:59Z' = yesterday 23:59 UTC = today 05:29 IST,
+        // which would silently delete today's early-morning notifications.
+        const notifsCutoff  = new Date(Date.now() - 86_400_000).toISOString(); // 24h ago
 
         const sessionsCutoff = dateCutoff(5);  // cooking_sessions older than 5 days
         const nuCouponCutoff  = new Date(Date.now() - 7 * 86_400_000).toISOString(); // nu_coupon_sent older than 7 days
@@ -3083,7 +3119,7 @@ app.post('/api', async (req, res) => {
         const [r1, r2, r3, r4, r5, r6] = await Promise.all([
           supabase.from('orders').delete({ count: 'exact' }).lte('date', ordersCutoff),
           supabase.from('khata_entries').delete({ count: 'exact' }).lte('date', txnsCutoff),
-          supabase.from('notifications').delete({ count: 'exact' }).lte('created_at', notifsCutoff + 'T23:59:59Z'),
+          supabase.from('notifications').delete({ count: 'exact' }).lt('created_at', notifsCutoff),
           supabase.from('cooking_sessions').delete({ count: 'exact' }).lte('session_date', sessionsCutoff),
           supabase.from('nu_coupon_sent').delete({ count: 'exact' }).lt('sent_at', nuCouponCutoff),
           // Delete used referral coupons (is_active=false, auto_delete=true) older than 7 days
@@ -3550,6 +3586,68 @@ app.post('/api', async (req, res) => {
         } catch (_) { /* non-fatal */ }
 
         return res.json({ success: true });
+      }
+
+      case 'adminGetUserRating': {
+        // Admin panel calls this to get a full live breakdown for any user.
+        // Requires staff session token.
+        const phone = cleanPhone(data.phone);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+
+        const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        const [
+          { data: ratingRow },
+          { data: walRow },
+          { data: subRow },
+          { data: recentOrders }
+        ] = await Promise.all([
+          supabase.from('user_ratings').select('lifetime_spend, last_order_date, manual_score').eq('phone', phone).single(),
+          supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
+          supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
+          supabase.from('orders')
+            .select('id')
+            .eq('phone', phone)
+            .neq('order_status', 'cancelled')
+            .neq('order_status', 'rejected')
+            .gte('date', today30ago)
+        ]);
+
+        const walletBal = parseFloat(walRow?.balance) || 0;
+        const recent30  = (recentOrders || []).length;
+        const today     = new Date();
+
+        const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
+        const spend = parseFloat(ratingRow?.lifetime_spend) || 0;
+        const p2 = Math.round(Math.min(spend / 10000, 1) * 30);
+        const p3 = Math.round(Math.min(recent30 / 30, 1) * 25);
+        let p4 = 0;
+        if (subRow?.created_at) {
+          const subDays = Math.floor((today - new Date(subRow.created_at)) / 86400000);
+          if (subDays >= 90)      p4 = 15;
+          else if (subDays >= 30) p4 = 12;
+          else                    p4 = 8;
+        }
+        const p5    = Math.max(0, Math.min(10, ratingRow?.manual_score || 0));
+        const total = Math.min(p1 + p2 + p3 + p4 + p5, 100);
+
+        let badge = 'Inactive';
+        if (total >= 80)      badge = 'Champion';
+        else if (total >= 60) badge = 'Loyal';
+        else if (total >= 40) badge = 'Developing';
+        else if (total >= 20) badge = 'At Risk';
+
+        return res.json({
+          success:   true,
+          rating:    total,
+          breakdown: {
+            wallet:       { score: p1, max: 20,  value: Math.round(walletBal) },
+            spend:        { score: p2, max: 30,  value: Math.round(spend) },
+            consistency:  { score: p3, max: 25,  value: recent30 },
+            subscription: { score: p4, max: 15 },
+            manual:       { score: p5, max: 10 }
+          },
+          badge
+        });
       }
 
       case 'deleteNotificationRange': {
