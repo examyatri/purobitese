@@ -1,19 +1,4 @@
-<!DOCTYPE html>
-<!-- ╔══════════════════════════════════════════════════════╗
-     ║  Tiffo — User App (index.html)           ║
-     ║  Version : v130                                     ║
-     ║  Updated : 2026-06-12                               ║
-     ║  CHANGE  : v130 — Version alignment release (no    ║
-     ║            functional changes; see v126 below for  ║
-     ║            last functional update)                 ║
-     ║  CHANGE  : v126 — Continuous GPS watch system for   ║
-     ║            signup location detection (sparse-GPS   ║
-     ║            cities like Indore): single watchPosition║
-     ║            running from "Allow" through signup,     ║
-     ║            ≤100m instant accept, 60s/≤500m fallback,║
-     ║            manual-popup race, silent post-accept     ║
-     ║            refinement.                               ║
-     ╚══════════════════════════════════════════════════════╝ -->
+<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v133                                     ║\n     ║  Updated : 2026-06-12                               ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ║  CHANGE  : v132 — Google-Maps-style map-first GPS   ║\n     ║            workflow: idle map pre-loads at BHU,     ║\n     ║            red pulsing FAB for user-initiated GPS.  ║\n     ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
 <!-- Google tag (gtag.js) -->
@@ -826,10 +811,55 @@ textarea{resize:vertical;min-height:80px}
 /* Inline success on signup */
 .field-ok{font-family:var(--fb);font-size:11px;color:#16a34a;margin-top:3px;display:none}
 .field-ok.show{display:block}
-/* Location verify section inside signup */
+/* ═══════════════════════════════════════════════════════════════
+   LOCATION SECTION — v132 Google-Maps-style map-first workflow
+═══════════════════════════════════════════════════════════════ */
 .loc-section{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:16px;padding:16px;margin-top:4px;margin-bottom:18px;overflow:hidden}
 .loc-section-title{font-family:var(--ff);font-size:12.5px;font-weight:700;color:#334155;margin-bottom:12px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.4px}
-.loc-btn{width:100%;padding:14px;background:#1a1a2e;color:#fff;border:none;border-radius:12px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 250ms,opacity 200ms;min-height:50px}
+/* ── Map-first container ── */
+.loc-map-first-wrap{position:relative;border-radius:14px;overflow:hidden;border:1.5px solid #cbd5e1;background:#e8edf1;margin-bottom:0}
+#su-leaflet-map{width:100%;height:280px;display:block;background:#e8edf1}
+/* ── Compass / GPS button (prominent, pulsing, labelled) ── */
+.loc-gps-fab-wrap{position:absolute;bottom:14px;right:10px;display:flex;flex-direction:column;align-items:center;gap:5px;z-index:800}
+.loc-gps-fab{position:relative;width:52px;height:52px;background:#e63946;border:none;border-radius:16px;box-shadow:0 3px 14px rgba(230,57,70,.45);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 200ms,box-shadow 150ms,transform 100ms;-webkit-tap-highlight-color:transparent;flex-shrink:0}
+.loc-gps-fab:active{transform:scale(.92)}
+.loc-gps-fab svg{width:26px;height:26px}
+/* Idle pulse ring — always visible to attract attention */
+.loc-gps-fab::after{content:'';position:absolute;inset:-6px;border-radius:22px;border:2.5px solid rgba(230,57,70,.5);animation:fabIdlePulse 2s ease-in-out infinite;pointer-events:none}
+.loc-gps-fab.searching{background:#2563eb;box-shadow:0 3px 14px rgba(37,99,235,.45)}
+.loc-gps-fab.searching::after{border-color:rgba(59,130,246,.6);animation:fabIdlePulse 0.75s ease-in-out infinite}
+.loc-gps-fab.located{background:#16a34a;box-shadow:0 3px 14px rgba(22,163,74,.4)}
+.loc-gps-fab.located::after{animation:none;border:none}
+.loc-gps-fab.searching svg{animation:compassSpin 1s linear infinite}
+@keyframes fabIdlePulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes compassSpin{to{transform:rotate(360deg)}}
+/* Label pill below FAB */
+.loc-gps-label{background:rgba(0,0,0,.65);color:#fff;font-family:var(--ff);font-size:10px;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap;letter-spacing:.1px;pointer-events:none;text-align:center;line-height:1.35;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+/* ── Map status bar (below map) ── */
+.loc-map-status{padding:10px 13px;font-family:var(--fb);font-size:12.5px;line-height:1.55;min-height:42px;display:flex;align-items:center;gap:8px;background:#fff;border-top:1px solid #e2e8f0;transition:background 200ms,color 200ms}
+.loc-map-status.idle{color:#64748b}
+.loc-map-status.searching{color:#1d4ed8;background:#eff6ff}
+.loc-map-status.found{color:#166534;background:#f0fdf4}
+.loc-map-status.adjust{color:#92400e;background:#fffbeb}
+.loc-map-status.saved{color:#166534;background:#f0fdf4;font-weight:600}
+.loc-map-status.error{color:#991b1b;background:#fef2f2}
+/* ── Bottom action bar (recenter + save) ── */
+.loc-action-bar{display:none;padding:10px 12px;background:#fff;border-top:1px solid #e2e8f0;gap:8px;align-items:center;justify-content:space-between}
+.loc-action-bar.visible{display:flex}
+.loc-recenter-btn{display:flex;align-items:center;gap:6px;padding:9px 14px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:10px;font-family:var(--ff);font-size:12.5px;font-weight:600;color:#334155;cursor:pointer;transition:background 150ms;-webkit-tap-highlight-color:transparent}
+.loc-recenter-btn:active{background:#e2e8f0}
+.loc-recenter-btn.blink{animation:recenterBlink 1.2s ease-in-out infinite}
+@keyframes recenterBlink{0%,100%{border-color:#3b82f6;color:#1d4ed8;background:#eff6ff}50%{border-color:#93c5fd;color:#2563eb;background:#dbeafe}}
+.loc-save-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;background:#16a34a;border:none;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:background 150ms,transform 100ms;box-shadow:0 2px 8px rgba(22,163,74,.3);-webkit-tap-highlight-color:transparent}
+.loc-save-btn:active{transform:scale(.97);background:#15803d}
+.loc-save-btn.saved-state{background:#15803d}
+/* ── Status chip below map card ── */
+.loc-chip{display:none;margin-top:8px;padding:9px 12px;border-radius:12px;font-family:var(--fb);font-size:12px;line-height:1.6}
+.loc-chip.ok{display:flex;align-items:center;gap:7px;background:#f0fdf4;border:1.5px solid #86efac;color:#15803d}
+.loc-chip.warn{display:flex;align-items:center;gap:7px;background:#fefce8;border:1.5px solid #fde047;color:#854d0e}
+.loc-chip.err{display:flex;align-items:center;gap:7px;background:#fef2f2;border:1.5px solid #fca5a5;color:#991b1b}
+/* ── Old elements (kept hidden but functional) ── */
+.loc-btn{width:100%;padding:14px;background:#1a1a2e;color:#fff;border:none;border-radius:12px;font-family:var(--ff);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 250ms,opacity 200ms;min-height:50px;display:none}
 .loc-btn:disabled{opacity:.55;cursor:not-allowed}
 .loc-btn.verified{background:#166534}
 .loc-btn.rejected{background:#991b1b}
@@ -837,6 +867,10 @@ textarea{resize:vertical;min-height:80px}
 .loc-map-wrap{margin-top:12px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
 .loc-map-hdr{background:#0f172a;color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;font-family:var(--ff);display:flex;align-items:center;gap:6px}
 .loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
+/* Searching pulse ring on map center */
+@keyframes gpsRingPulse{0%{transform:translate(-50%,-50%) scale(.5);opacity:.7}100%{transform:translate(-50%,-50%) scale(2.2);opacity:0}}
+.gps-pulse-ring{position:absolute;top:50%;left:50%;width:40px;height:40px;border-radius:50%;border:2.5px solid #4285F4;pointer-events:none;z-index:700;display:none}
+.gps-pulse-ring.active{display:block;animation:gpsRingPulse 1.2s ease-out infinite}
 /* ── Retry countdown bar ── */
 .loc-retry-bar{margin-top:10px;background:#fef3c7;border:1.5px solid #fcd34d;border-radius:10px;padding:11px 13px;font-family:var(--fb);font-size:12.5px;color:#92400e;display:none;line-height:1.5;font-weight:500}
 .loc-retry-bar .retry-count{font-weight:700;color:#78350f}
@@ -923,8 +957,8 @@ textarea{resize:vertical;min-height:80px}
 #su-leaflet-map .leaflet-control-zoom{border:none;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 #su-leaflet-map .leaflet-control-zoom a{color:#1a1a2e;font-weight:700;background:#fff}
 .leaflet-container{font-family:var(--fb)!important}
-@keyframes pinSaveBlink{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.5)}50%{opacity:.82;box-shadow:0 0 0 5px rgba(34,197,94,0)}}
-#su-leaflet-map.map-locked,#acct-leaflet-map.map-locked{opacity:.88}
+#su-leaflet-map.map-locked{cursor:default}
+#acct-leaflet-map.map-locked{opacity:.88}
 .tab-bar{display:flex;background:#f0f0f0;border-radius:14px;padding:4px;margin-bottom:24px;gap:3px}
 .tab-btn{flex:1;border:none;background:none;padding:11px;font-family:var(--ff);font-weight:700;font-size:14px;border-radius:11px;cursor:pointer;color:var(--gr);transition:all 220ms;letter-spacing:.1px}
 .tab-btn.active{background:#fff;color:var(--dk);box-shadow:0 1px 6px rgba(0,0,0,.10);}
@@ -2023,39 +2057,66 @@ input[type=number]{-moz-appearance:textfield}
           Pin your delivery location
         </div>
 
-        <!-- Detect button -->
-        <button type="button" id="su-loc-btn" class="loc-btn" onclick="_onDetectBtnTap()">
-          <i class="fa fa-location-crosshairs"></i>
-          <span id="su-loc-btn-txt">Detect My Location</span>
-        </button>
+        <!-- ═══════════════════════════════════════════════════════════
+             v132: Map-first workflow — map always visible, GPS button
+             overlaid like Google Maps, no upfront permission ask.
+        ═══════════════════════════════════════════════════════════ -->
 
-        <!-- Premium Address Card — shown after manual address saved via popup -->
-        <div id="su-manual-addr-card" style="display:none;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:16px 16px 14px;margin-top:0;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.22)">
-          <div style="position:absolute;right:-18px;top:-18px;width:80px;height:80px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none"></div>
-          <div style="position:absolute;right:20px;bottom:-12px;width:50px;height:50px;background:rgba(230,57,70,.12);border-radius:50%;pointer-events:none"></div>
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="background:rgba(230,57,70,.2);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <i class="fa fa-location-dot" style="color:#f87171;font-size:14px"></i>
-              </div>
-              <div>
-                <div style="font-family:var(--ff);font-size:10px;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:.6px;text-transform:uppercase">Delivery Address</div>
-                <div id="su-mac-status" style="font-family:var(--fb);font-size:10.5px;color:#86efac;margin-top:1px">&#10003; Address saved</div>
-              </div>
-            </div>
-            <button onclick="_suEditManualAddr()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;padding:5px 10px;font-family:var(--ff);font-size:11px;font-weight:600;color:#e2e8f0;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">
-              <i class="fa fa-pen" style="font-size:9px"></i> Edit
+        <!-- Main map card -->
+        <div class="loc-map-first-wrap" id="su-map-first-wrap">
+
+          <!-- Leaflet map — always shown, pre-loaded at BHU area -->
+          <div id="su-leaflet-map" style="width:100%;height:280px;display:block"></div>
+
+          <!-- GPS FAB with label — prominent, pulsing, obvious to all users -->
+          <div class="loc-gps-fab-wrap" id="su-gps-fab-wrap">
+            <button type="button" id="su-gps-fab" class="loc-gps-fab" onclick="_onGpsFabTap()" title="Apni location dhundhe">
+              <!-- Location pin icon — universally understood -->
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="4" fill="white" opacity="0.9"/>
+                <circle cx="12" cy="12" r="8" stroke="white" stroke-width="2" stroke-dasharray="3 2" opacity="0.5"/>
+                <line x1="12" y1="2" x2="12" y2="5" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <line x1="12" y1="19" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <line x1="2" y1="12" x2="5" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                <line x1="19" y1="12" x2="22" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <!-- Label — shown at idle and after located; hidden while searching -->
+            <div class="loc-gps-label" id="su-gps-label">Tap to detect<br>your location</div>
+          </div>
+
+          <!-- Map status bar -->
+          <div class="loc-map-status idle" id="su-map-status-bar">
+            <i class="fa fa-arrow-right" style="color:#94a3b8;font-size:11px;flex-shrink:0"></i>
+            <span id="su-map-status-txt">Tap the <b>red button</b> to automatically detect your location</span>
+          </div>
+
+          <!-- Recenter + Save action bar (shown after GPS found) -->
+          <div class="loc-action-bar" id="su-action-bar">
+            <button type="button" id="su-recenter-btn" class="loc-recenter-btn" onclick="_recenterToGPS()">
+              <i class="fa fa-location-crosshairs" style="font-size:13px"></i>
+              Recenter
+            </button>
+            <button type="button" id="su-save-pin-btn" class="loc-save-btn" onclick="_suSavePinLocation()">
+              <i class="fa fa-check"></i>
+              Save Location
             </button>
           </div>
-          <div id="su-mac-line1" style="font-family:var(--ff);font-size:14px;font-weight:700;color:#fff;line-height:1.35;margin-bottom:3px"></div>
-          <div id="su-mac-line2" style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.6);line-height:1.5"></div>
-          <div id="su-mac-line3" style="font-family:var(--fb);font-size:11.5px;color:rgba(255,255,255,.4);margin-top:5px"></div>
+
+        </div><!-- /loc-map-first-wrap -->
+
+        <!-- Zone / address chip below map -->
+        <div id="su-addr-chip" class="loc-chip">
+          <i class="fa fa-circle-check" style="flex-shrink:0;font-size:14px"></i>
+          <span id="su-addr-chip-text">Location saved — coordinates confirmed.</span>
         </div>
 
-        <!-- Status bar (zone check result / error) -->
-        <div id="su-loc-status" class="loc-status"></div>
+        <!-- Hidden compat elements (JS still writes to these) -->
+        <div id="su-loc-status" class="loc-status" style="display:none"></div>
+        <div id="su-geocode-hint" style="display:none"></div>
+        <div id="su-map-pin-area" style="display:none"></div><!-- kept for compat -->
 
-        <!-- Permission Denied Banner — shown when user blocks location -->
+        <!-- Permission Denied Banner -->
         <div id="su-perm-banner">
           <div class="pb-title">🔒 Location Permission Blocked</div>
           <div style="margin-bottom:4px">Allow location access so we can verify your delivery zone:</div>
@@ -2080,65 +2141,61 @@ input[type=number]{-moz-appearance:textfield}
           </div>
         </div>
 
-        <!-- Retry countdown bar — shown between GPS attempts and before manual card -->
+        <!-- Retry countdown bar -->
         <div id="su-retry-bar" class="loc-retry-bar">
           <i class="fa fa-rotate" style="margin-right:5px"></i>
-          <span id="su-retry-label">Retrying automatically in</span> <span id="su-retry-count" class="retry-count">10</span>s…
+          <span id="su-retry-label">Retrying in</span> <span id="su-retry-count" class="retry-count">10</span>s…
         </div>
 
-        <!-- Device Location OFF Banner (err.code 2/3 - GPS hardware disabled) -->
+        <!-- Device Location OFF Banner -->
         <div id="su-dev-off-banner" style="display:none;margin-top:10px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;padding:12px 13px;font-family:var(--fb);font-size:12.5px;color:#7f1d1d;line-height:1.6">
           <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#991b1b;margin-bottom:5px;display:flex;align-items:center;gap:6px">
             &#128245; Device Location is Turned Off
           </div>
-          <div style="margin-bottom:6px">We need your GPS location to confirm your delivery zone. Please turn on Location in device settings:</div>
+          <div style="margin-bottom:6px">Please enable Location in device settings, then tap the <b>📍</b> button again.</div>
           <ul id="dob-steps-android" style="display:none;margin:4px 0 8px 0;padding-left:16px">
-            <li>Go to <b>Settings &#8594; Location</b></li>
-            <li>Turn it <b>ON</b></li>
-            <li>Come back and tap <b>Detect My Location</b></li>
+            <li>Go to <b>Settings &#8594; Location</b> → Turn it <b>ON</b></li>
           </ul>
           <ul id="dob-steps-ios" style="display:none;margin:4px 0 8px 0;padding-left:16px">
-            <li>Go to <b>Settings &#8594; Privacy &#8594; Location Services</b></li>
-            <li>Turn <b>Location Services ON</b></li>
-            <li>Come back and tap <b>Detect My Location</b></li>
+            <li>Go to <b>Settings &#8594; Privacy &#8594; Location Services</b> → Turn <b>ON</b></li>
           </ul>
           <ul id="dob-steps-generic" style="display:none;margin:4px 0 8px 0;padding-left:16px">
-            <li>Open <b>Settings &#8594; Location / Privacy</b></li>
-            <li>Turn on <b>Location Services</b></li>
-            <li>Return here and tap <b>Detect My Location</b></li>
+            <li>Open <b>Settings &#8594; Location / Privacy</b> → Turn on <b>Location Services</b></li>
           </ul>
           <div style="display:flex;gap:8px;margin-top:6px">
             <button onclick="_suRetryLocation()" style="background:#1e293b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
-              <i class="fa fa-rotate"></i> Retry Location
+              <i class="fa fa-rotate"></i> Try Again
             </button>
           </div>
         </div>
 
-        <!-- Interactive Leaflet map (shown after GPS fires) -->
-        <div id="su-map-pin-area" style="display:none">
-          <div class="loc-map-wrap">
-            <div class="loc-map-hdr" style="justify-content:space-between">
-              <span><i class="fa fa-map-pin"></i>&nbsp;Your pinned location</span>
-              <div style="display:flex;gap:6px;align-items:center">
-                <button type="button" id="su-recenter-btn" onclick="_recenterToGPS()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
-                  <i class="fa fa-location-crosshairs"></i> Recenter
-                </button>
-                <button type="button" id="su-save-pin-btn" onclick="_suSavePinLocation()" style="display:none;background:#22c55e;border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:700;align-items:center;gap:5px;animation:pinSaveBlink 0.8s ease-in-out infinite">
-                  <i class="fa fa-check"></i> Save Location
-                </button>
+        <!-- Manual address card (GPS failed / denied fallback) -->
+        <div id="su-manual-addr-card" style="display:none;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:16px 16px 14px;margin-top:10px;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.22)">
+          <div style="position:absolute;right:-18px;top:-18px;width:80px;height:80px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="background:rgba(230,57,70,.2);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i class="fa fa-location-dot" style="color:#f87171;font-size:14px"></i>
+              </div>
+              <div>
+                <div style="font-family:var(--ff);font-size:10px;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:.6px;text-transform:uppercase">Delivery Address</div>
+                <div id="su-mac-status" style="font-family:var(--fb);font-size:10.5px;color:#86efac;margin-top:1px">&#10003; Address saved</div>
               </div>
             </div>
-            <div id="su-leaflet-map" style="width:100%;height:260px;display:block"></div>
-            <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
-              <div id="su-geocode-hint" style="font-size:11.5px;color:#475569;font-family:var(--fb);line-height:1.55">
-                📌 Pin locked at your GPS location. Tap <b>Recenter</b> to adjust.
-              </div>
-            </div>
+            <button onclick="_suEditManualAddr()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;padding:5px 10px;font-family:var(--ff);font-size:11px;font-weight:600;color:#e2e8f0;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">
+              <i class="fa fa-pen" style="font-size:9px"></i> Edit
+            </button>
           </div>
-          <div id="su-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
-            <span id="su-addr-chip-text">✅ Location detected — your address will be saved with GPS coordinates.</span>
-          </div>
+          <div id="su-mac-line1" style="font-family:var(--ff);font-size:14px;font-weight:700;color:#fff;line-height:1.35;margin-bottom:3px"></div>
+          <div id="su-mac-line2" style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.6);line-height:1.5"></div>
+          <div id="su-mac-line3" style="font-family:var(--fb);font-size:11.5px;color:rgba(255,255,255,.4);margin-top:5px"></div>
         </div>
+
+        <!-- Compat: old detect button (hidden — kept for JS refs) -->
+        <button type="button" id="su-loc-btn" class="loc-btn" onclick="_onDetectBtnTap()" style="display:none">
+          <i class="fa fa-location-crosshairs"></i>
+          <span id="su-loc-btn-txt">Detect My Location</span>
+        </button>
 
         <!-- ── Structured Manual Address Card — shown after GPS fails / perm denied ── -->
         <div id="su-manual-card" class="loc-manual-card">
@@ -2667,19 +2724,13 @@ input[type=number]{-moz-appearance:textfield}
             <div style="margin-top:4px;font-size:11px;color:#94a3b8;font-family:var(--fb)">Will be combined with your map location</div>
           </div>
 
-          <!-- Detect / Map -->
-          <button type="button" id="acct-loc-btn" class="loc-btn" onclick="detectAcctLocation()" style="margin-bottom:8px">
-            <i class="fa fa-location-crosshairs"></i>
-            <span id="acct-loc-btn-txt">Detect My Location</span>
-          </button>
-          <div id="acct-loc-status" class="loc-status" style="display:none"></div>
-
-          <div id="acct-map-pin-area" style="display:none;margin-top:8px">
+          <!-- v133: Map always visible — GPS FAB workflow (mirrors signup) -->
+          <div id="acct-map-pin-area" style="margin-top:8px">
             <div class="loc-map-wrap">
               <div class="loc-map-hdr" style="justify-content:space-between">
-                <span><i class="fa fa-map-pin"></i>&nbsp;Your pinned location</span>
+                <span><i class="fa fa-map-pin"></i>&nbsp;Your delivery location</span>
                 <div style="display:flex;gap:6px;align-items:center">
-                  <button type="button" id="acct-recenter-btn" onclick="_acctRecenter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px">
+                  <button type="button" id="acct-recenter-btn" onclick="_acctRecenter()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;align-items:center;gap:5px">
                     <i class="fa fa-location-crosshairs"></i> Recenter
                   </button>
                   <button type="button" id="acct-save-pin-btn" onclick="_acctSavePinLocation()" style="display:none;background:#22c55e;border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:700;align-items:center;gap:5px;animation:pinSaveBlink 0.8s ease-in-out infinite">
@@ -2687,18 +2738,30 @@ input[type=number]{-moz-appearance:textfield}
                   </button>
                 </div>
               </div>
-              <div id="acct-leaflet-map" style="width:100%;height:240px;display:block"></div>
-              <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #e2e8f0">
-                <div id="acct-geocode-hint" style="font-size:11.5px;color:#475569;line-height:1.55">
-                  📌 Pin locked at your GPS location. Tap <b>Recenter</b> to adjust.
+              <!-- Map with FAB overlay -->
+              <div style="position:relative">
+                <div id="acct-leaflet-map" style="width:100%;height:240px;display:block"></div>
+                <div class="loc-gps-fab-wrap" id="acct-gps-fab-wrap">
+                  <button type="button" id="acct-gps-fab" class="loc-gps-fab" onclick="detectAcctLocation()" title="Detect your location">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8" stroke-opacity=".35"/>
+                    </svg>
+                  </button>
+                  <div id="acct-gps-label" class="loc-gps-label">Tap to detect<br>your location</div>
                 </div>
               </div>
+              <!-- v133: Status bar with live accuracy -->
+              <div class="loc-map-status idle" id="acct-map-status-bar">
+                <span id="acct-map-status-txt">Tap the <b>red button</b> to automatically detect your location</span>
+              </div>
             </div>
-            <!-- Location detection success indicator (no raw geo details shown to user) -->
+            <!-- Location chip -->
             <div id="acct-addr-chip" style="display:none;margin-top:8px;padding:9px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;font-family:var(--fb);font-size:12px;color:#15803d;line-height:1.6">
               <span id="acct-addr-chip-text">✅ Location detected — your address will be saved with GPS coordinates.</span>
             </div>
           </div>
+          <!-- Legacy status div (kept hidden for any legacy JS refs) -->
+          <div id="acct-loc-status" style="display:none"></div>
 
           <!-- Delivery Area selector for settings -->
           <div class="form-group" style="margin-top:12px;margin-bottom:8px">
@@ -4365,13 +4428,9 @@ function switchTab(tab) {
     _suGeocodeState = 'idle';
     // Also cancel any pending geocode debounce timer from the previous tab visit
     if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
-    // Location popup: show after a short delay so user sees the form first.
-    // Fires for all signup paths: new guest, referral link, session-expired/logout.
-    // Only fires once per signup tab open (guard: _suLocPopupArmed).
-    if (!_suLocPopupArmed) {
-      _suLocPopupArmed = true;
-      _suLocPopupTimer = setTimeout(_showSignupLocPopup, 2500);
-    }
+    // v132: Pre-init the idle map (no permission asked — shows BHU area)
+    // Short delay so the container is visible/sized before Leaflet inits
+    setTimeout(_suInitIdleMap, 80);
     // Zone: refresh cache if older than 5 min so detect is instant
     const _ZONE_TTL = 5 * 60 * 1000;
     if (!_deliveryZone || (Date.now() - _zoneLoadedAt) > _ZONE_TTL) {
@@ -4542,16 +4601,22 @@ async function _loadDeliveryZone() {
 }
 
 /* Called after GPS detects a position — evaluates distance against zone */
-function _evaluateLocation(lat, lng) {
+function _evaluateLocation(lat, lng, accuracy) {
+  // v133: build accuracy suffix for status bar (accuracy is optional, from GPS fix)
+  const _accSuffix = (typeof accuracy === 'number' && !isNaN(accuracy))
+    ? ` <span style="color:#15803d;font-weight:600">(GPS accuracy: ~${Math.round(accuracy)}m)</span>`
+    : '';
   const zone    = _deliveryZone;
   const status  = document.getElementById('su-loc-status');
   const btnTxt  = document.getElementById('su-loc-btn-txt');
   const btn     = document.getElementById('su-loc-btn');
   const showStatus = (msg, ok, warn) => {
-    status.style.display = 'block';
-    status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
-    status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
-    status.textContent = msg;
+    if (status) {
+      status.style.display = 'block';
+      status.style.background = warn ? '#fef9c3' : ok ? '#dcfce7' : '#fee2e2';
+      status.style.color      = warn ? '#854d0e'  : ok ? '#166534' : '#991b1b';
+      status.textContent = msg;
+    }
   };
 
   document.getElementById('su-lat').value      = lat;
@@ -4560,19 +4625,25 @@ function _evaluateLocation(lat, lng) {
 
   // If manual address card was showing, hide it and restore detect button (GPS won)
   const _mac = document.getElementById('su-manual-addr-card');
-  if (_mac && _mac.style.display !== 'none') { _mac.style.display = 'none'; btn.style.display = ''; }
+  if (_mac && _mac.style.display !== 'none') { _mac.style.display = 'none'; if(btn) btn.style.display = ''; }
 
   // Reset btn classes + clear any validation highlights
-  btn.classList.remove('verified','rejected','loc-btn-required');
+  if (btn) btn.classList.remove('verified','rejected','loc-btn-required');
   document.querySelector('.loc-section')?.classList.remove('loc-err');
   const locErrEl = document.getElementById('su-loc-err');
   if (locErrEl) { locErrEl.classList.remove('show'); locErrEl.textContent = ''; }
 
+  // v132: clear FAB searching state
+  _suFabState('located');
+  const ring = document.getElementById('su-gps-ring');
+  if (ring) ring.classList.remove('active');
+
   if (!zone || !zone.lat || !zone.lng || !zone.radiusKm) {
     document.getElementById('su-loc-ok').value = '1';
-    btnTxt.textContent = '✅ Location Captured';
-    btn.classList.add('verified');
+    if (btnTxt) btnTxt.textContent = '✅ Location Captured';
+    if (btn) btn.classList.add('verified');
     showStatus('✅ Location captured. Delivery zone not configured by admin yet — proceeding.', false, true);
+    _suMapStatus('found', '✅ GPS location captured — pin locked on your position.' + _accSuffix);
     _showMapPin(lat, lng);
     return;
   }
@@ -4582,15 +4653,16 @@ function _evaluateLocation(lat, lng) {
 
   if (dist <= zone.radiusKm) {
     document.getElementById('su-loc-ok').value = '1';
-    btnTxt.textContent = '✅ Within Delivery Area';
-    btn.classList.add('verified');
+    if (btnTxt) btnTxt.textContent = '✅ Within Delivery Area';
+    if (btn) btn.classList.add('verified');
     showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
+    _suMapStatus('found', `✅ Within delivery area — ${distStr} km from us. Pin locked.` + _accSuffix);
   } else {
     document.getElementById('su-loc-ok').value = '0';
-    btnTxt.textContent = '✅ Location Captured';
-    btn.classList.add('verified');
+    if (btnTxt) btnTxt.textContent = '✅ Location Captured';
+    if (btn) btn.classList.add('verified');
     showStatus('✅ Location captured successfully.', true, false);
-    // Outside zone — no warning at signup; block shown at order time.
+    _suMapStatus('found', '📍 Location pinned — tap <b>Recenter</b> if the pin is slightly off.' + _accSuffix);
   }
   _showMapPin(lat, lng);
 }
@@ -4695,10 +4767,23 @@ function _suOnWatchUpdate(pos) {
   try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
   _saveCoordsToStorage(pos);
 
-  // ── Phase 2: 60s detect countdown active — instant accept on a good fix ──
-  if (_suDetectCountdownTimer && accuracy <= _SU_GOOD_ACCURACY) {
-    _suAcceptDetectedLocation(lat, lng, accuracy);
-    return;
+  // ── Phase 2: 60s detect countdown active — show live accuracy, instant accept on good fix ──
+  if (_suDetectCountdownTimer) {
+    // v133: show live accuracy in status bar so user can see GPS improving in real-time
+    const accM = Math.round(accuracy);
+    if (accuracy <= _SU_GOOD_ACCURACY) {
+      // Great fix — accept immediately
+      _suAcceptDetectedLocation(lat, lng, accuracy);
+      return;
+    } else {
+      // Still improving — show live progress
+      const accLabel = accM > 300
+        ? `<span style="color:#dc2626">~${accM}m</span>`
+        : accM > 100
+          ? `<span style="color:#d97706">~${accM}m</span>`
+          : `<span style="color:#16a34a">~${accM}m</span>`;
+      _suMapStatus('searching', `<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Getting location… accuracy: ${accLabel} — stay still`);
+    }
   }
 
   // ── Phase 3: manual popup is open — race it ──────────────────────────────
@@ -4741,7 +4826,7 @@ function _suAcceptDetectedLocation(lat, lng, accuracy) {
   if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
   _suGeocodeState = 'idle';
 
-  _evaluateLocation(lat, lng);
+  _evaluateLocation(lat, lng, accuracy);
 
   if (_suPendingAutoSubmit) {
     _suPendingAutoSubmit = false;
@@ -4769,10 +4854,12 @@ function _suLockMap() {
   if (_leafletMarker) _leafletMarker.dragging.disable();
   const mapEl = document.getElementById('su-leaflet-map');
   if (mapEl) mapEl.classList.add('map-locked');
-  const rBtn = document.getElementById('su-recenter-btn');
-  const sBtn = document.getElementById('su-save-pin-btn');
-  if (rBtn) rBtn.style.display = 'flex';
-  if (sBtn) sBtn.style.display = 'none';
+  // v132: Update FAB to located state; show action bar with blinking recenter
+  _suFabState('located');
+  _suShowActionBar();
+  // Hide pulse ring
+  const ring = document.getElementById('su-gps-ring');
+  if (ring) ring.classList.remove('active');
 }
 
 function _suUnlockMap() {
@@ -4788,17 +4875,25 @@ function _suUnlockMap() {
   if (_leafletMarker) _leafletMarker.dragging.enable();
   const mapEl = document.getElementById('su-leaflet-map');
   if (mapEl) mapEl.classList.remove('map-locked');
-  const rBtn = document.getElementById('su-recenter-btn');
-  const sBtn = document.getElementById('su-save-pin-btn');
-  if (rBtn) rBtn.style.display = 'none';
-  if (sBtn) sBtn.style.display = 'flex';
+  // v132: show Save button (via _suShowSaveBtn called by caller)
 }
 
 async function _suSavePinLocation() {
+  const sav = document.getElementById('su-save-pin-btn');
+  if (sav) { sav.disabled = true; sav.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…'; }
   if (_pendingLat !== null && _pendingLng !== null) {
     await _updateAddressFromPin(_pendingLat, _pendingLng);
   }
   _suLockMap();
+  // Update status bar to saved state
+  _suMapStatus('saved', '✅ Location saved — coordinates confirmed for delivery.');
+  // Show green chip below map
+  const chip = document.getElementById('su-addr-chip');
+  const chipTxt = document.getElementById('su-addr-chip-text');
+  if (chip) chip.className = 'loc-chip ok';
+  if (chipTxt) chipTxt.textContent = '✅ Location saved — your delivery coordinates are confirmed.';
+  // Restore Save button
+  if (sav) { sav.disabled = false; sav.innerHTML = '<i class="fa fa-check"></i> Saved ✓'; sav.classList.add('saved-state'); }
 }
 
 /* ── Plus Code — computed locally via Google's open-location-code JS library.
@@ -5031,118 +5126,231 @@ function _waAddr(addr) {
   return parts.join(' · ');
 }
 
-/* Init or move the Leaflet map to given coords */
+/* ══════════════════════════════════════════════════════════════════════
+   v132 MAP-FIRST WORKFLOW
+   ── Map pre-loads at BHU centre on tab open (no permission needed)
+   ── GPS FAB tap → browser permission → pin drops with animation
+   ── After pin drop: Recenter blinks, Save button shown
+   ── Drag / tap map to adjust → Save button pulses green
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* BHU / Lanka area centre — shown before GPS is acquired */
+const _SU_MAP_DEFAULT_LAT = 25.2677;
+const _SU_MAP_DEFAULT_LNG = 82.9930;
+const _SU_MAP_DEFAULT_ZOOM = 15;
+
+/* Map status bar helper */
+function _suMapStatus(state, txt) {
+  const bar = document.getElementById('su-map-status-bar');
+  const span = document.getElementById('su-map-status-txt');
+  if (!bar || !span) return;
+  bar.className = 'loc-map-status ' + state;
+  span.innerHTML = txt;
+}
+
+/* GPS FAB state helper */
+function _suFabState(state) {
+  // state: 'idle' | 'searching' | 'located'
+  const fab   = document.getElementById('su-gps-fab');
+  const label = document.getElementById('su-gps-label');
+  if (!fab) return;
+  fab.className = 'loc-gps-fab ' + (state !== 'idle' ? state : '');
+  if (!label) return;
+  if (state === 'searching') {
+    label.innerHTML = 'Detecting location…';
+  } else if (state === 'located') {
+    label.innerHTML = '✅ Location detected';
+  } else {
+    label.innerHTML = 'Tap to detect<br>your location';
+  }
+}
+
+/* Initialise Leaflet map pre-loaded at BHU default location.
+   Called once when signup tab opens — NO permission needed. */
+let _suMapInitDone = false;
+function _suInitIdleMap() {
+  if (_suMapInitDone) {
+    // Already initialised — just invalidate size in case container was hidden
+    if (_leafletMap) setTimeout(() => _leafletMap.invalidateSize(), 120);
+    return;
+  }
+  let retries = 0;
+  function _tryInit() {
+    if (typeof L === 'undefined') {
+      if (++retries > 40) return; // give up after ~6s
+      setTimeout(_tryInit, 150);
+      return;
+    }
+    _suMapInitDone = true;
+
+    _leafletMap = L.map('su-leaflet-map', {
+      center: [_SU_MAP_DEFAULT_LAT, _SU_MAP_DEFAULT_LNG],
+      zoom: _SU_MAP_DEFAULT_ZOOM,
+      zoomControl: true,
+      attributionControl: false
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      crossOrigin: true
+    }).addTo(_leafletMap);
+
+    // Build red drop pin icon
+    const _suPinIcon = L.divIcon({
+      className: '',
+      html: `<div id="su-pin-svg" style="width:32px;height:44px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.35));display:none">
+        <svg viewBox="0 0 32 44" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 0C7.163 0 0 7.163 0 16c0 11 16 28 16 28S32 27 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.2"/>
+          <circle cx="16" cy="16" r="7" fill="#fff"/>
+          <circle cx="16" cy="16" r="4" fill="#e63946"/>
+        </svg>
+      </div>`,
+      iconSize: [32, 44],
+      iconAnchor: [16, 44],
+      popupAnchor: [0, -44]
+    });
+
+    _leafletMarker = L.marker([_SU_MAP_DEFAULT_LAT, _SU_MAP_DEFAULT_LNG], {
+      draggable: false,
+      icon: _suPinIcon,
+      autoPan: true
+    }).addTo(_leafletMap);
+
+    // Drag end (when map unlocked) → mark pending, enable Save
+    _leafletMarker.on('dragend', async function(e) {
+      if (_suMapLocked) return;
+      const pos = e.target.getLatLng();
+      _pendingLat = pos.lat; _pendingLng = pos.lng;
+      document.getElementById('su-loc-ok').value = '0';
+      _suMapStatus('adjust', '📌 Pin moved — tap <b>Save Location</b> to confirm.');
+      _suShowSaveBtn();
+      await _updateAddressFromPin(pos.lat, pos.lng);
+    });
+
+    // Map tap (when unlocked) → move pin, enable Save
+    _leafletMap.on('click', async function(e) {
+      if (_suMapLocked) return;
+      _leafletMarker.setLatLng(e.latlng);
+      _pendingLat = e.latlng.lat; _pendingLng = e.latlng.lng;
+      document.getElementById('su-loc-ok').value = '0';
+      _suMapStatus('adjust', '📌 New position selected — tap <b>Save Location</b> to confirm.');
+      _suShowSaveBtn();
+      await _updateAddressFromPin(e.latlng.lat, e.latlng.lng);
+    });
+  }
+  _tryInit();
+}
+
+/* Show pin on map at GPS coords with drop animation */
+function _suDropPinOnMap(lat, lng) {
+  if (!_leafletMap || !_leafletMarker) return;
+  // Move map to GPS location
+  _leafletMap.setView([lat, lng], 17, { animate: true });
+  _leafletMarker.setLatLng([lat, lng]);
+  // Reveal the pin SVG with a drop animation
+  const pinEl = document.getElementById('su-pin-svg');
+  if (pinEl) {
+    pinEl.style.display = 'block';
+    pinEl.style.animation = 'none';
+    pinEl.style.transform = 'translateY(-20px)';
+    pinEl.style.opacity = '0';
+    pinEl.style.transition = 'transform 350ms cubic-bezier(0.34,1.4,0.64,1), opacity 200ms';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      pinEl.style.transform = 'translateY(0)';
+      pinEl.style.opacity = '1';
+    }));
+  }
+  setTimeout(() => _leafletMap.invalidateSize(), 120);
+}
+
+/* Show action bar (Recenter blinks by default; Save appears after adjusting) */
+function _suShowActionBar() {
+  const bar = document.getElementById('su-action-bar');
+  const rec = document.getElementById('su-recenter-btn');
+  const sav = document.getElementById('su-save-pin-btn');
+  if (bar) bar.classList.add('visible');
+  if (rec) { rec.style.display = 'flex'; rec.classList.add('blink'); }
+  if (sav) sav.style.display = 'none';
+}
+
+function _suShowSaveBtn() {
+  const rec = document.getElementById('su-recenter-btn');
+  const sav = document.getElementById('su-save-pin-btn');
+  if (rec) rec.classList.remove('blink');
+  if (sav) sav.style.display = 'flex';
+}
+
+/* ── GPS FAB tap handler — entry point for the new workflow ── */
+function _onGpsFabTap() {
+  // If already located and saved, tapping FAB = recenter
+  if (_suWatchAccepted && _suMapLocked) {
+    _recenterToGPS();
+    return;
+  }
+  // Route via permission state (same logic as _onDetectBtnTap)
+  _onDetectBtnTap();
+}
+
+/* Init or move the Leaflet map to given GPS coords — called after GPS acquired */
 function _showMapPin(lat, lng) {
-  const wrap = document.getElementById('su-map-pin-area');
-  if (!wrap) return;
-  wrap.style.display = 'block';
   _pendingLat = lat;
   _pendingLng = lng;
 
-  // Leaflet must be loaded (deferred script) — wait if needed, bail out after 5s
-  let _leafletRetries = 0;
-  function _initLeaflet() {
-    if (typeof L === 'undefined') {
-      if (++_leafletRetries > 33) { // ~5s at 150ms intervals
-        const hint = document.getElementById('su-geocode-hint');
-        if (hint) hint.innerHTML = '⚠️ Map failed to load. <b>Your GPS coordinates are saved</b> — you can still continue without the map.';
+  if (!_leafletMap) {
+    // Map not yet init (Leaflet CDN still loading?) — retry in 150ms
+    let retries = 0;
+    function _waitAndShow() {
+      if (!_leafletMap) {
+        if (++retries > 33) return;
+        setTimeout(_waitAndShow, 150);
         return;
       }
-      setTimeout(_initLeaflet, 150); return;
+      _suDropPinOnMap(lat, lng);
+      _updateAddressFromPin(lat, lng);
+      _suLockMap();
     }
-
-    if (!_leafletMap) {
-      // First-time init
-      _leafletMap = L.map('su-leaflet-map', {
-        center: [lat, lng],
-        zoom: 17,
-        zoomControl: true,
-        attributionControl: false
-      });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19
-      }).addTo(_leafletMap);
-
-      // Custom red draggable marker
-      const redIcon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:32px;height:42px;position:relative;cursor:grab
-        ">
-          <svg viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg">
-            <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 26 16 26S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.5"/>
-            <circle cx="16" cy="16" r="6" fill="white"/>
-          </svg>
-        </div>`,
-        iconSize: [32, 42],
-        iconAnchor: [16, 42],
-        popupAnchor: [0, -42]
-      });
-
-      _leafletMarker = L.marker([lat, lng], {
-        draggable: false,
-        icon: redIcon,
-        autoPan: true
-      }).addTo(_leafletMap);
-
-      // On drag end → only fires when unlocked
-      _leafletMarker.on('dragend', async function(e) {
-        if (_suMapLocked) return;
-        const pos = e.target.getLatLng();
-        _pendingLat = pos.lat;
-        _pendingLng = pos.lng;
-        document.getElementById('su-loc-ok').value = '0';
-        await _updateAddressFromPin(pos.lat, pos.lng);
-      });
-
-      // Tap on map → only fires when unlocked
-      _leafletMap.on('click', async function(e) {
-        if (_suMapLocked) return;
-        _leafletMarker.setLatLng(e.latlng);
-        _pendingLat = e.latlng.lat;
-        _pendingLng = e.latlng.lng;
-        document.getElementById('su-loc-ok').value = '0';
-        await _updateAddressFromPin(e.latlng.lat, e.latlng.lng);
-      });
-
-    } else {
-      // Map already exists — just move to new position
-      _leafletMap.setView([lat, lng], 17);
-      _leafletMarker.setLatLng([lat, lng]);
-      setTimeout(() => _leafletMap.invalidateSize(), 100);
-    }
-
-    // Coordinates shown immediately; plus code updates silently via _updateAddressFromPin
-    const _initHint = document.getElementById('su-geocode-hint');
-    if (_initHint) {
-      _initHint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-        <span style="color:#64748b;font-size:11px"> — ${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
-    }
-    _updateAddressFromPin(lat, lng);
-    _suLockMap();
+    _waitAndShow();
+    return;
   }
 
-  _initLeaflet();
+  _suDropPinOnMap(lat, lng);
+  _updateAddressFromPin(lat, lng);
+  _suLockMap();
 }
 
 /* Recenter map to GPS position */
 function _recenterToGPS() {
-  if (!navigator.geolocation) { toast('GPS not supported'); return; }
-  const hint = document.getElementById('su-geocode-hint');
-  if (hint) hint.textContent = '⏳ Getting your GPS position…';
+  if (!navigator.geolocation) { _suMapStatus('error', '⚠️ GPS not supported on this device.'); return; }
+  const fab = document.getElementById('su-gps-fab');
+  const ring = document.getElementById('su-gps-ring');
+  if (fab) { fab.classList.add('searching'); }
+  if (ring) ring.classList.add('active');
+  _suMapStatus('searching', '<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Getting your GPS position…');
   navigator.geolocation.getCurrentPosition(
     pos => {
       const { latitude: lat, longitude: lng } = pos.coords;
+      if (fab) fab.classList.remove('searching');
+      if (ring) ring.classList.remove('active');
       if (_leafletMap && _leafletMarker) {
-        _leafletMap.setView([lat, lng], 17);
+        _leafletMap.setView([lat, lng], 17, { animate: true });
         _leafletMarker.setLatLng([lat, lng]);
         _pendingLat = lat; _pendingLng = lng;
         document.getElementById('su-loc-ok').value = '0';
         _suUnlockMap();
-        if (hint) hint.innerHTML = '📌 Pin unlocked — drag pin or tap map to adjust. Tap <b>Save Location</b> when done.';
+        _suShowSaveBtn();
+        _suMapStatus('adjust', '📌 Recentered — drag the pin to fine-tune, then tap <b>Save Location</b>.');
       }
     },
-    () => toast('Could not get GPS. Try again.'),
+    (err) => {
+      if (fab) fab.classList.remove('searching');
+      if (ring) ring.classList.remove('active');
+      if (err.code === 1) {
+        _suMapStatus('error', '🔒 Location access blocked. Tap <b>Enter Manually</b> below.');
+        _suShowPermBanner();
+      } else {
+        _suMapStatus('error', '⚠️ Could not get GPS. Check device location settings and try again.');
+      }
+    },
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
   );
 }
@@ -5518,8 +5726,11 @@ function _suStartDetectSession() {
     _suClearZoneStatus();
   }
 
-  const btn    = document.getElementById('su-loc-btn');
-  const btnTxt = document.getElementById('su-loc-btn-txt');
+  // v132: FAB searching state + pulse ring + status bar
+  _suFabState('searching');
+  const ring = document.getElementById('su-gps-ring');
+  if (ring) ring.classList.add('active');
+  _suMapStatus('searching', '<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Finding your location…');
 
   // Pre-load zone + make sure the continuous watch is running (idempotent)
   _loadDeliveryZone();
@@ -5534,22 +5745,15 @@ function _suStartDetectSession() {
   // Mark session active for doSignup pending-submit check
   _suGpsAttempt = 1;
 
-  // ── Start 60s countdown: button disabled + professional status below ──
+  // ── Start 60s countdown: compat status below (hidden in v132) ──
   _suDetectCountdownSec = 60;
+  const btn    = document.getElementById('su-loc-btn');
+  const btnTxt = document.getElementById('su-loc-btn-txt');
   if (btn)    { btn.disabled = true; btn.classList.remove('verified', 'rejected'); }
   if (btnTxt) btnTxt.textContent = 'Detecting…';
-  // Show live countdown in su-loc-status (below button) for professional look
-  const _detectSt = document.getElementById('su-loc-status');
-  if (_detectSt) {
-    _detectSt.style.display = 'block';
-    _detectSt.style.background = '#eff6ff';
-    _detectSt.style.color = '#1e40af';
-    _detectSt.textContent = `Fetching your precise location… ${_suDetectCountdownSec}s`;
-  }
 
   _suDetectCountdownTimer = setInterval(() => {
     _suDetectCountdownSec--;
-    if (_detectSt) _detectSt.textContent = `Fetching your precise location… ${_suDetectCountdownSec}s`;
     if (_suDetectCountdownSec <= 0) {
       clearInterval(_suDetectCountdownTimer);
       _suDetectCountdownTimer = null;
@@ -5561,7 +5765,9 @@ function _suStartDetectSession() {
         _suAcceptDetectedLocation(_suBestPos.lat, _suBestPos.lng, _suBestPos.accuracy);
       } else {
         // Nothing usable yet — fall back to manual entry.
-        // The watch keeps running and can still auto-accept if it improves.
+        _suFabState('idle');
+        if (ring) ring.classList.remove('active');
+        _suMapStatus('error', '⚠️ Could not detect GPS. Try again or <b>enter address manually</b> below.');
         _suOpenManualPopup();
       }
     }
@@ -5618,6 +5824,11 @@ function _suShowPermBanner() {
   document.getElementById('pb-steps-ios').style.display = isIOS ? 'block' : 'none';
   document.getElementById('pb-steps-android').style.display = (!isIOS && isAndroid) ? 'block' : 'none';
   document.getElementById('pb-steps-generic').style.display = (!isIOS && !isAndroid) ? 'block' : 'none';
+  // v132: Update map status bar and FAB
+  _suFabState('idle');
+  const ring = document.getElementById('su-gps-ring');
+  if (ring) ring.classList.remove('active');
+  _suMapStatus('error', '🔒 Location blocked — follow steps below or <b>enter address manually</b>.');
 }
 
 /* ── Hide permission denied banner ── */
@@ -8452,17 +8663,15 @@ function populateAccountPage() {
     _updateForm.style.display = 'none';
     const _toggleBtn = document.getElementById('acct-addr-toggle-btn');
     if (_toggleBtn) _toggleBtn.textContent = '📍 Update Address with Map';
-    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false;
+    _acctStopContinuousWatch();
+    if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
+    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false; _acctBestPos = null;
     const _chip3 = document.getElementById('acct-addr-chip');
     if (_chip3) _chip3.style.display = 'none';
     const _locOk3 = document.getElementById('acct-loc-ok');
     if (_locOk3) _locOk3.value = '0';
-    const _mapArea3 = document.getElementById('acct-map-pin-area');
-    if (_mapArea3) _mapArea3.style.display = 'none';
-    const _locSt3 = document.getElementById('acct-loc-status');
-    if (_locSt3) { _locSt3.style.display = 'none'; _locSt3.textContent = ''; }
-    const _btnTxt3 = document.getElementById('acct-loc-btn-txt');
-    if (_btnTxt3) _btnTxt3.textContent = 'Detect My Location';
+    _acctFabState('idle');
+    _acctMapStatus('idle', 'Tap the <b>red button</b> to automatically detect your location');
   }
 
   // Show current address in read-only display div
@@ -8670,10 +8879,7 @@ function _acctLockMap() {
   if (_acctMarker) _acctMarker.dragging.disable();
   const mapEl = document.getElementById('acct-leaflet-map');
   if (mapEl) mapEl.classList.add('map-locked');
-  const rBtn = document.getElementById('acct-recenter-btn');
-  const sBtn = document.getElementById('acct-save-pin-btn');
-  if (rBtn) rBtn.style.display = 'flex';
-  if (sBtn) sBtn.style.display = 'none';
+  // Note: recenter/save button visibility managed by callers (_acctAcceptLocation, _acctSavePinLocation)
 }
 
 function _acctUnlockMap() {
@@ -8689,6 +8895,7 @@ function _acctUnlockMap() {
   if (_acctMarker) _acctMarker.dragging.enable();
   const mapEl = document.getElementById('acct-leaflet-map');
   if (mapEl) mapEl.classList.remove('map-locked');
+  // Show Save btn, hide Recenter when map is manually unlocked for drag
   const rBtn = document.getElementById('acct-recenter-btn');
   const sBtn = document.getElementById('acct-save-pin-btn');
   if (rBtn) rBtn.style.display = 'none';
@@ -8700,6 +8907,12 @@ async function _acctSavePinLocation() {
     await _acctUpdateAddress(_acctPendingLat, _acctPendingLng);
   }
   _acctLockMap();
+  // Show Recenter, hide Save after confirming dragged pin
+  const rBtn = document.getElementById('acct-recenter-btn');
+  const sBtn = document.getElementById('acct-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'flex';
+  if (sBtn) sBtn.style.display = 'none';
+  _acctMapStatus('saved', '✅ Location saved — coordinates confirmed for delivery.');
 }
 
 function toggleAddrUpdateForm() {
@@ -8710,20 +8923,16 @@ function toggleAddrUpdateForm() {
   form.style.display = showing ? 'none' : 'block';
   btn.textContent = showing ? '📍 Update Address with Map' : '✕ Cancel Update';
   if (showing) {
-    // ── CLOSE path: reset all transient UI state ──────────────────────────
-    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false;
+    // ── CLOSE path: stop watch, reset state ───────────────────────────────
+    _acctStopContinuousWatch();
+    if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
+    _acctPendingLat = null; _acctPendingLng = null; _acctPinConfirmed = false; _acctBestPos = null;
     const _chip2 = document.getElementById('acct-addr-chip');
     if (_chip2) _chip2.style.display = 'none';
     const _locOkEl = document.getElementById('acct-loc-ok');
     if (_locOkEl) _locOkEl.value = '0';
-    const _mapArea = document.getElementById('acct-map-pin-area');
-    if (_mapArea) _mapArea.style.display = 'none';
-    const _locSt = document.getElementById('acct-loc-status');
-    if (_locSt) { _locSt.style.display = 'none'; _locSt.textContent = ''; }
-    const _btnTxtEl = document.getElementById('acct-loc-btn-txt');
-    if (_btnTxtEl) _btnTxtEl.textContent = 'Detect My Location';
-    const _locBtn = document.getElementById('acct-loc-btn');
-    if (_locBtn) _locBtn.disabled = false;
+    _acctFabState('idle');
+    _acctMapStatus('idle', 'Tap the <b>red button</b> to automatically detect your location');
     return;
   }
   if (!showing) {
@@ -8749,6 +8958,9 @@ function toggleAddrUpdateForm() {
       if (areaHidden) areaHidden.value = curArea;
     }
 
+    // v133: Init idle map at BHU, then check for saved coords
+    setTimeout(_acctInitIdleMap, 80);
+
     // ── v84: Pre-load existing GPS coords so user can update Area/Room without re-pinning ──
     const coordMatch = savedAddr.match(/Coordinates:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i);
     if (coordMatch) {
@@ -8767,119 +8979,266 @@ function toggleAddrUpdateForm() {
         chipText.innerHTML = `✅ Using saved GPS — ${lat.toFixed(6)}, ${lng.toFixed(6)} &nbsp;<span style="font-size:10px;color:#64748b">(Re-detect to update pin)</span>`;
         chip.style.display = 'block';
       }
-      // Show the map area so rider is clear about the current pin
-      const mapArea = document.getElementById('acct-map-pin-area');
-      if (mapArea) {
-        mapArea.style.display = 'block';
-        _acctShowMap(lat, lng);
-      }
-      // Update loc btn label
-      const btnTxtEl = document.getElementById('acct-loc-btn-txt');
-      if (btnTxtEl) btnTxtEl.textContent = 'Re-detect Location';
+      // v133: Show pin on map and FAB located state
+      _acctFabState('located');
+      _acctMapStatus('found', `📌 Saved GPS pin loaded — tap the button to re-detect or drag pin to adjust.`);
+      // Show Recenter btn (saved pin = already located state)
+      setTimeout(() => {
+        const rBtn = document.getElementById('acct-recenter-btn');
+        if (rBtn) rBtn.style.display = 'flex';
+      }, 100);
+      // Show map with saved pin — wait for _acctInitIdleMap + invalidateSize to settle
+      setTimeout(() => {
+        if (_acctMap) _acctMap.invalidateSize();
+        _acctShowPinOnMap(lat, lng);
+      }, 300);
     }
   }
 }
 
-async function detectAcctLocation() {
-  const btn    = document.getElementById('acct-loc-btn');
-  const btnTxt = document.getElementById('acct-loc-btn-txt');
-  const status = document.getElementById('acct-loc-status');
-  const showSt = (msg, ok, isWarn) => {
-    status.style.display = 'block';
-    status.style.background = ok ? '#dcfce7' : isWarn ? '#fef9c3' : '#fee2e2';
-    status.style.color      = ok ? '#166534' : isWarn ? '#854d0e' : '#991b1b';
-    status.textContent = msg;
-  };
-  if (!navigator.geolocation) { showSt('❌ GPS not supported on this device.', false); return; }
-  btnTxt.textContent = 'Detecting…'; btn.disabled = true;
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      btn.disabled = false;
-      btnTxt.textContent = '✅ Location Detected';
-      const { latitude: lat, longitude: lng } = pos.coords;
-      _acctPendingLat = lat; _acctPendingLng = lng;
-      document.getElementById('acct-lat').value = lat;
-      document.getElementById('acct-lng').value = lng;
-      document.getElementById('acct-loc-ok').value = '1';
-      showSt('✅ Location detected — drag pin to fine-tune, then save.', true);
-      _acctShowMap(lat, lng);
-    },
+/* ═══════════════════════════════════════════════════════════════════════════
+   v133 — SETTINGS ADDRESS: watchPosition-based GPS with live accuracy display
+   Mirrors signup GPS system. Single continuous watch, FAB-initiated,
+   60s countdown, live color-coded accuracy in status bar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const _ACCT_GOOD_ACCURACY = 100; // metres — instant-accept
+const _ACCT_MAX_ACCURACY  = 500; // metres — accept at deadline
+
+let _acctWatchId              = null;  // watchPosition handle
+let _acctBestPos              = null;  // { lat, lng, accuracy } — best fix so far
+let _acctDetectCountdownTimer = null;  // 60s countdown interval
+let _acctDetectCountdownSec   = 60;
+let _acctMapInitDone          = false; // idle map init guard
+
+/* Helpers — status bar + FAB state */
+function _acctMapStatus(state, txt) {
+  const bar  = document.getElementById('acct-map-status-bar');
+  const span = document.getElementById('acct-map-status-txt');
+  if (!bar || !span) return;
+  bar.className  = 'loc-map-status ' + state;
+  span.innerHTML = txt;
+}
+function _acctFabState(state) {
+  const fab   = document.getElementById('acct-gps-fab');
+  const label = document.getElementById('acct-gps-label');
+  if (!fab) return;
+  fab.className = 'loc-gps-fab ' + (state !== 'idle' ? state : '');
+  if (!label) return;
+  if (state === 'searching') {
+    label.innerHTML = 'Detecting location…';
+  } else if (state === 'located') {
+    label.innerHTML = '✅ Location detected';
+  } else {
+    label.innerHTML = 'Tap to detect<br>your location';
+  }
+}
+
+/* Init idle map at BHU — called when form opens, no permission needed */
+function _acctInitIdleMap() {
+  if (_acctMapInitDone) {
+    if (_acctMap) setTimeout(() => _acctMap.invalidateSize(), 120);
+    return;
+  }
+  let retries = 0;
+  function _tryInit() {
+    if (typeof L === 'undefined') {
+      if (++retries > 40) return;
+      setTimeout(_tryInit, 150); return;
+    }
+    const mapEl = document.getElementById('acct-leaflet-map');
+    if (!mapEl || mapEl.offsetWidth === 0) {
+      if (++retries > 40) return;
+      setTimeout(_tryInit, 150); return;
+    }
+    if (_acctMap) { _acctMap.invalidateSize(); return; }
+    const redIcon = L.divIcon({
+      className: '',
+      html: `<div style="width:32px;height:42px"><svg viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 26 16 26S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.5"/><circle cx="16" cy="16" r="6" fill="white"/></svg></div>`,
+      iconSize: [32, 42], iconAnchor: [16, 42]
+    });
+    _acctMap = L.map('acct-leaflet-map', { center: [25.2677, 82.9930], zoom: 15, zoomControl: true, attributionControl: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_acctMap);
+    _acctMarker = L.marker([25.2677, 82.9930], { draggable: false, icon: redIcon, autoPan: true, opacity: 0 }).addTo(_acctMap);
+    _acctMarker.on('dragend', async e => {
+      if (_acctMapLocked) return;
+      const p = e.target.getLatLng();
+      _acctPendingLat = p.lat; _acctPendingLng = p.lng; _acctPinConfirmed = false;
+      _acctMapStatus('adjust', '📌 Pin moved — tap <b>Save Location</b> to confirm.');
+      const sBtn = document.getElementById('acct-save-pin-btn');
+      if (sBtn) sBtn.style.display = 'flex';
+      await _acctUpdateAddress(p.lat, p.lng);
+    });
+    _acctMap.on('click', async e => {
+      if (_acctMapLocked) return;
+      _acctMarker.setLatLng(e.latlng);
+      _acctPendingLat = e.latlng.lat; _acctPendingLng = e.latlng.lng; _acctPinConfirmed = false;
+      _acctMapStatus('adjust', '📌 New position — tap <b>Save Location</b> to confirm.');
+      const sBtn = document.getElementById('acct-save-pin-btn');
+      if (sBtn) sBtn.style.display = 'flex';
+      await _acctUpdateAddress(e.latlng.lat, e.latlng.lng);
+    });
+    _acctMapInitDone = true;
+    _acctMapLocked   = true;
+  }
+  _tryInit();
+}
+
+/* Drop/move pin on map — used after GPS lock */
+function _acctShowPinOnMap(lat, lng) {
+  if (!_acctMap || !_acctMarker) return;
+  _acctMarker.setOpacity(1);
+  _acctMap.setView([lat, lng], 17);
+  _acctMarker.setLatLng([lat, lng]);
+  setTimeout(() => _acctMap.invalidateSize(), 100);
+}
+
+/* Start continuous watchPosition — idempotent */
+function _acctStartContinuousWatch() {
+  if (_acctWatchId !== null || !navigator.geolocation) return;
+  _acctWatchId = navigator.geolocation.watchPosition(
+    _acctOnWatchUpdate,
     err => {
-      btn.disabled = false;
-      btnTxt.textContent = 'Detect My Location';
-      const msg = err.code === 1 ? '📵 Location permission denied. Allow location in browser settings.'
-                : err.code === 2 ? '📡 Location unavailable. Move to open area and try again.'
-                : '⏱️ Timed out. Please try again.';
-      // code 1 = denied (yellow/warn — may be intentional); code 2/3 = red — must retry
-      showSt(msg, false, err.code === 1);
+      if (err.code === 1) {
+        navigator.geolocation.clearWatch(_acctWatchId);
+        _acctWatchId = null;
+        if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
+        _acctFabState('idle');
+        _acctMapStatus('error', '🔒 Location access blocked. Allow location in browser settings and try again.');
+      }
     },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
   );
 }
-
-function _acctShowMap(lat, lng) {
-  const wrap = document.getElementById('acct-map-pin-area');
-  if (wrap) wrap.style.display = 'block';
-  _acctPendingLat = lat; _acctPendingLng = lng;
-  _acctPinConfirmed = false;
-
-  let _acctLeafletRetries = 0;
-  function _initAcctLeaflet() {
-    if (typeof L === 'undefined') {
-      if (++_acctLeafletRetries > 33) { // ~5s at 150ms — same limit as signup map
-        const hint = document.getElementById('acct-geocode-hint');
-        if (hint) hint.innerHTML = '⚠️ Map failed to load. Your GPS coordinates are saved — you can still save without the map.';
-        return;
-      }
-      setTimeout(_initAcctLeaflet, 150); return;
-    }
-    if (!_acctMap) {
-      _acctMap = L.map('acct-leaflet-map', { center:[lat,lng], zoom:17, zoomControl:true, attributionControl:false });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(_acctMap);
-      const redIcon = L.divIcon({
-        className:'',
-        html:`<div style="width:32px;height:42px"><svg viewBox="0 0 32 42" xmlns="http://www.w3.org/2000/svg"><path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 26 16 26S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#e63946" stroke="#b91c2c" stroke-width="1.5"/><circle cx="16" cy="16" r="6" fill="white"/></svg></div>`,
-        iconSize:[32,42], iconAnchor:[16,42]
-      });
-      _acctMarker = L.marker([lat,lng], { draggable:false, icon:redIcon, autoPan:true }).addTo(_acctMap);
-      _acctMarker.on('dragend', async e => {
-        if (_acctMapLocked) return;
-        const p = e.target.getLatLng();
-        _acctPendingLat = p.lat; _acctPendingLng = p.lng; _acctPinConfirmed = false;
-        await _acctUpdateAddress(p.lat, p.lng);
-      });
-      _acctMap.on('click', async e => {
-        if (_acctMapLocked) return;
-        _acctMarker.setLatLng(e.latlng);
-        _acctPendingLat = e.latlng.lat; _acctPendingLng = e.latlng.lng; _acctPinConfirmed = false;
-        await _acctUpdateAddress(e.latlng.lat, e.latlng.lng);
-      });
-    } else {
-      _acctMap.setView([lat,lng], 17);
-      _acctMarker.setLatLng([lat,lng]);
-      setTimeout(() => _acctMap.invalidateSize(), 100);
-    }
-    _acctUpdateAddress(lat, lng);
-    _acctLockMap();
-  }
-  _initAcctLeaflet();
+function _acctStopContinuousWatch() {
+  if (_acctWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(_acctWatchId);
+  _acctWatchId = null;
 }
 
+/* Every fix from the watch flows here */
+function _acctOnWatchUpdate(pos) {
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  if (typeof accuracy !== 'number' || isNaN(accuracy)) return;
+  if (!_acctBestPos || accuracy < _acctBestPos.accuracy) {
+    _acctBestPos = { lat, lng, accuracy };
+  }
+  // During active 60s countdown — live accuracy display + instant accept if good
+  if (_acctDetectCountdownTimer) {
+    const accM = Math.round(accuracy);
+    if (accuracy <= _ACCT_GOOD_ACCURACY) {
+      _acctAcceptLocation(lat, lng, accuracy);
+      return;
+    } else {
+      const accLabel = accM > 300
+        ? `<span style="color:#dc2626">~${accM}m</span>`
+        : accM > 100
+          ? `<span style="color:#d97706">~${accM}m</span>`
+          : `<span style="color:#16a34a">~${accM}m</span>`;
+      _acctMapStatus('searching', `<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Getting location… accuracy: ${accLabel} — stay still`);
+    }
+  }
+}
+
+/* Accept a GPS fix as the user's location */
+async function _acctAcceptLocation(lat, lng, accuracy) {
+  if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
+  _acctStopContinuousWatch();
+
+  _acctPendingLat = lat; _acctPendingLng = lng; _acctPinConfirmed = true;
+  document.getElementById('acct-lat').value = lat;
+  document.getElementById('acct-lng').value = lng;
+  document.getElementById('acct-loc-ok').value = '1';
+
+  _acctFabState('located');
+  const accSuffix = (typeof accuracy === 'number' && !isNaN(accuracy))
+    ? ` <span style="color:#15803d;font-weight:600">(GPS accuracy: ~${Math.round(accuracy)}m)</span>` : '';
+  _acctMapStatus('found', '✅ Location detected — pin locked.' + accSuffix);
+
+  // Show recenter, hide save
+  const rBtn = document.getElementById('acct-recenter-btn');
+  const sBtn = document.getElementById('acct-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'flex';
+  if (sBtn) sBtn.style.display = 'none';
+  _acctMapLocked = true;
+
+  // Show chip
+  const chip = document.getElementById('acct-addr-chip');
+  const chipText = document.getElementById('acct-addr-chip-text');
+  if (chip && chipText) {
+    chipText.innerHTML = `✅ GPS pinned — ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    chip.style.display = 'block';
+  }
+
+  // Drop pin + geocode
+  _acctShowPinOnMap(lat, lng);
+  await _acctUpdateAddress(lat, lng);
+}
+
+/* FAB tap handler — starts watchPosition + 60s countdown */
+function detectAcctLocation() {
+  if (!navigator.geolocation) {
+    _acctMapStatus('error', '⚠️ GPS not supported on this device.');
+    return;
+  }
+  // Reset state
+  _acctBestPos = null;
+  if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
+  _acctFabState('searching');
+  _acctMapStatus('searching', '<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Finding your location…');
+
+  // Start continuous watch (idempotent)
+  _acctStartContinuousWatch();
+
+  // If we already have a great fix from the watch, accept instantly
+  if (_acctBestPos && _acctBestPos.accuracy <= _ACCT_GOOD_ACCURACY) {
+    _acctAcceptLocation(_acctBestPos.lat, _acctBestPos.lng, _acctBestPos.accuracy);
+    return;
+  }
+
+  // 60s countdown
+  _acctDetectCountdownSec = 60;
+  _acctDetectCountdownTimer = setInterval(() => {
+    _acctDetectCountdownSec--;
+    if (_acctDetectCountdownSec <= 0) {
+      clearInterval(_acctDetectCountdownTimer);
+      _acctDetectCountdownTimer = null;
+      if (_acctBestPos && _acctBestPos.accuracy <= _ACCT_MAX_ACCURACY) {
+        _acctAcceptLocation(_acctBestPos.lat, _acctBestPos.lng, _acctBestPos.accuracy);
+      } else {
+        _acctStopContinuousWatch();
+        _acctFabState('idle');
+        _acctMapStatus('error', '⚠️ Could not detect GPS. Try again or enter address manually.');
+      }
+    }
+  }, 1000);
+}
+
+/* Recenter — re-runs watchPosition for a fresh fix */
 function _acctRecenter() {
   if (!navigator.geolocation) { toast('GPS not supported'); return; }
-  const hint = document.getElementById('acct-geocode-hint');
-  if (hint) hint.textContent = '⏳ Getting your GPS position…';
-  navigator.geolocation.getCurrentPosition(pos => {
-    const { latitude:lat, longitude:lng } = pos.coords;
-    if (_acctMap && _acctMarker) {
-      _acctMap.setView([lat,lng], 17);
-      _acctMarker.setLatLng([lat,lng]);
-      _acctPendingLat = lat; _acctPendingLng = lng; _acctPinConfirmed = false;
-      document.getElementById('acct-loc-ok').value = '0';
-      _acctUnlockMap();
-      if (hint) hint.innerHTML = '📌 Pin unlocked — drag pin or tap map to adjust. Tap <b>Save Location</b> when done.';
-    }
-  }, () => toast('Could not get GPS. Try again.'), { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
+  _acctBestPos = null;
+  _acctFabState('searching');
+  _acctMapStatus('searching', '<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Getting your GPS position…');
+  // Unlock map interaction but hide Save btn during search
+  _acctMapLocked = false;
+  if (_acctMap) {
+    _acctMap.dragging.enable(); _acctMap.touchZoom.enable();
+    _acctMap.scrollWheelZoom.enable(); _acctMap.doubleClickZoom.enable();
+  }
+  if (_acctMarker) _acctMarker.dragging.enable();
+  const mapEl = document.getElementById('acct-leaflet-map');
+  if (mapEl) mapEl.classList.remove('map-locked');
+  const rBtn = document.getElementById('acct-recenter-btn');
+  const sBtn = document.getElementById('acct-save-pin-btn');
+  if (rBtn) rBtn.style.display = 'none';
+  if (sBtn) sBtn.style.display = 'none';
+  detectAcctLocation();
+}
+
+/* _acctShowMap kept as thin wrapper for any legacy callers */
+function _acctShowMap(lat, lng) {
+  _acctShowPinOnMap(lat, lng);
+  _acctUpdateAddress(lat, lng);
+  _acctLockMap();
 }
 
 async function _acctUpdateAddress(lat, lng) {
@@ -8898,11 +9257,6 @@ async function _acctUpdateAddress(lat, lng) {
     chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}`;
     chip.style.display = 'block';
   }
-  const hint = document.getElementById('acct-geocode-hint');
-  if (hint) {
-    hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr}</span>`;
-  }
   const box = document.getElementById('acct-addr-box');
   if (box) { box.removeAttribute('readonly'); box.value = _buildSettingsAddress(room, lat, lng, selectedArea, ''); }
 
@@ -8917,10 +9271,6 @@ async function _acctUpdateAddress(lat, lng) {
 
   if (chip && chipText) {
     chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}${plusCode ? ` · <b>${plusCode}</b>` : ''}`;
-  }
-  if (hint) {
-    hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
-      <span style="color:#64748b;font-size:11px"> — ${latStr}, ${lngStr}${plusCode ? ` · Plus Code: <b>${plusCode}</b>` : ''}</span>`;
   }
   if (box) {
     box.value = _buildSettingsAddress(room, lat, lng, selectedArea, plusCode);
@@ -9069,10 +9419,12 @@ async function saveAddress() {
     if (chip) chip.style.display = 'none';
     const locOkEl2 = document.getElementById('acct-loc-ok');
     if (locOkEl2) locOkEl2.value = '0';
-    const btnTxtEl2 = document.getElementById('acct-loc-btn-txt');
-    if (btnTxtEl2) btnTxtEl2.textContent = 'Detect My Location';
-    const mapArea2 = document.getElementById('acct-map-pin-area');
-    if (mapArea2) mapArea2.style.display = 'none';
+    // v133: reset watch + FAB state
+    _acctStopContinuousWatch();
+    if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
+    _acctBestPos = null;
+    _acctFabState('idle');
+    _acctMapStatus('idle', 'Tap the <b>red button</b> to automatically detect your location');
     // Clear form inputs so next open is fully blank
     const roomEl4 = document.getElementById('acct-room');
     if (roomEl4) roomEl4.value = '';
@@ -9080,8 +9432,6 @@ async function saveAddress() {
     if (areaSearchEl4) { areaSearchEl4.value = ''; areaSearchEl4.style.borderColor = ''; }
     const areaHiddenEl4 = document.getElementById('acct-area');
     if (areaHiddenEl4) areaHiddenEl4.value = '';
-    const locStEl4 = document.getElementById('acct-loc-status');
-    if (locStEl4) { locStEl4.style.display = 'none'; locStEl4.textContent = ''; }
     toast('✅ Address saved!');
   } catch(e) { toast(e.message || 'Save failed'); }
 }
