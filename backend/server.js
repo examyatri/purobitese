@@ -1,12 +1,12 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v114                                      ║
-// ║  Updated : 2026-06-04                               ║
-// ║  Fix     : Restored missing                         ║
-// ║            async function _createSingleOrder(       ║
-// ║            declaration (line 973 — syntax error     ║
-// ║            caused server crash on startup).         ║
+// ║  Version : v130                                      ║
+// ║  Updated : 2026-06-12                               ║
+// ║  Note    : Version alignment release — header was   ║
+// ║            stale at v114; code already included     ║
+// ║            v117/v118/v122/v130 features (ratings,   ║
+// ║            referrals, atomic coupons, zone backfill).║
 // ╚══════════════════════════════════════════════════════╝
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
@@ -143,6 +143,7 @@ const _STAFF_ACTIONS = new Set([
   'adminGetOrders',
   'adminGetUsers',
   'adminAllowOrder',
+  'adminBlockOrder',
   'adminSetUserCoords',
   'adminGetSubscribers',
   'getStaff',
@@ -995,6 +996,14 @@ async function _geocodeAndPatchAsync(phone, address, area) {
       }
     } catch(_) {}
 
+    // Same area-based exemption as signup: a recognised delivery area (not
+    // "Other") already grants order access at signup time. This async
+    // safety-net patch must NOT silently revoke that — only ever upgrade
+    // order_allowed, never downgrade it, for users who picked a valid area.
+    const hasValidArea = !!resolvedArea && resolvedArea !== 'Other';
+    if (hasValidArea && !patchOrderAllowed) patchOrderAllowed = true;
+    if (patchZoneStatus === 'unknown' && hasValidArea) patchZoneStatus = 'manual_only';
+
     // Update address, coords, zone_status, and order_allowed atomically
     await supabase.from('users').update({
       address:       newAddress,
@@ -1320,7 +1329,13 @@ app.post('/api', async (req, res) => {
         const signupLat = parseFloat(data.coord_lat) || null;
         const signupLng = parseFloat(data.coord_lng) || null;
         const signupZoneStatus  = data.zone_status || 'unknown';
-        const signupOrderAllowed = signupZoneStatus === 'inside'; // only explicitly inside zone gets order access
+        const signupArea        = (data.area || '').trim();
+        // manual_only (no GPS coords, address typed manually) is allowed to order
+        // immediately IF the user picked a recognised delivery area — only the
+        // generic "Other" selection (or no area at all) needs admin permission.
+        const signupOrderAllowed =
+          signupZoneStatus === 'inside' ||
+          (signupZoneStatus === 'manual_only' && signupArea && signupArea !== 'Other');
 
         const { error: insertErr } = await supabase.from('users').insert({
           user_id:       phone,
@@ -3340,6 +3355,17 @@ app.post('/api', async (req, res) => {
           .update({ order_allowed: true, zone_status: aoNewZs })
           .eq('phone', cleanPhone(aoPhone));
         if (aoErr) return res.json({ success: false, error: aoErr.message });
+        return res.json({ success: true });
+      }
+
+      case 'adminBlockOrder': {
+        // Admin disables order placement for this user (reverse of adminAllowOrder)
+        const { phone: boPhone } = data;
+        if (!boPhone) return res.json({ success: false, error: 'Phone required' });
+        const { error: boErr } = await supabase.from('users')
+          .update({ order_allowed: false })
+          .eq('phone', cleanPhone(boPhone));
+        if (boErr) return res.json({ success: false, error: boErr.message });
         return res.json({ success: true });
       }
 
