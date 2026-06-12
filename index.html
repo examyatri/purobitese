@@ -1,4 +1,4 @@
-<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v133                                     ║\n     ║  Updated : 2026-06-12                               ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ║  CHANGE  : v132 — Google-Maps-style map-first GPS   ║\n     ║            workflow: idle map pre-loads at BHU,     ║\n     ║            red pulsing FAB for user-initiated GPS.  ║\n     ╚══════════════════════════════════════════════════════╝ -->
+<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v134                                     ║\n     ║  Updated : 2026-06-12                               ║\n     ║  CHANGE  : v134 — GPS/signup reliability fixes:     ║\n     ║            1) Server geocode fire-and-forget (no    ║\n     ║               more 4s signup block on manual addr). ║\n     ║            2) err.code 2 split: case A=device off,  ║\n     ║               case B=transient loss mid-countdown.  ║\n     ║            3) switchTab(login) stops GPS polls.     ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
 <!-- Google tag (gtag.js) -->
@@ -799,6 +799,16 @@ textarea{resize:vertical;min-height:80px}
 /* Detect button attention pulse — shown when validation requires location */
 @keyframes locBtnPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
 .loc-btn-required{animation:locBtnPulse 1s ease 2;border:2px solid #ef4444!important}
+/* Map attention ring — shown briefly when user tries to submit without
+   detecting location, drawing the eye to the GPS button on the map */
+@keyframes mapAttentionRing{0%,100%{box-shadow:inset 0 0 0 3px rgba(239,68,68,.65)}50%{box-shadow:inset 0 0 0 3px rgba(239,68,68,.15)}}
+.loc-map-area.attention{animation:mapAttentionRing 1s ease-in-out 3}
+/* Pointing-hand hint — sits just above the FAB, only visible while
+   .loc-map-area has the .attention class (i.e. user tried to submit
+   without setting location). Bounces to draw the eye. */
+.loc-gps-pointer{position:absolute;bottom:72px;right:14px;font-size:26px;z-index:801;opacity:0;pointer-events:none;transition:opacity 200ms;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.loc-map-area.attention .loc-gps-pointer{opacity:1;animation:gpsPointerBounce .7s ease-in-out 4}
+@keyframes gpsPointerBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
 /* Input invalid state */
 .input-invalid{border-color:#ef4444!important;background:#fff5f5!important}
 /* Input valid state */
@@ -817,7 +827,8 @@ textarea{resize:vertical;min-height:80px}
 .loc-section{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:16px;padding:16px;margin-top:4px;margin-bottom:18px;overflow:hidden}
 .loc-section-title{font-family:var(--ff);font-size:12.5px;font-weight:700;color:#334155;margin-bottom:12px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.4px}
 /* ── Map-first container ── */
-.loc-map-first-wrap{position:relative;border-radius:14px;overflow:hidden;border:1.5px solid #cbd5e1;background:#e8edf1;margin-bottom:0}
+.loc-map-first-wrap{position:relative;border-radius:14px;overflow:hidden;border:1.5px solid #cbd5e1;background:#e8edf1;margin-bottom:0;display:flex;flex-direction:column}
+.loc-map-area{position:relative;width:100%;flex-shrink:0}
 #su-leaflet-map{width:100%;height:280px;display:block;background:#e8edf1}
 /* ── Compass / GPS button (prominent, pulsing, labelled) ── */
 .loc-gps-fab-wrap{position:absolute;bottom:14px;right:10px;display:flex;flex-direction:column;align-items:center;gap:5px;z-index:800}
@@ -828,8 +839,10 @@ textarea{resize:vertical;min-height:80px}
 .loc-gps-fab::after{content:'';position:absolute;inset:-6px;border-radius:22px;border:2.5px solid rgba(230,57,70,.5);animation:fabIdlePulse 2s ease-in-out infinite;pointer-events:none}
 .loc-gps-fab.searching{background:#2563eb;box-shadow:0 3px 14px rgba(37,99,235,.45)}
 .loc-gps-fab.searching::after{border-color:rgba(59,130,246,.6);animation:fabIdlePulse 0.75s ease-in-out infinite}
-.loc-gps-fab.located{background:#16a34a;box-shadow:0 3px 14px rgba(22,163,74,.4)}
+.loc-gps-fab.located{background:#16a34a;box-shadow:0 3px 14px rgba(22,163,74,.4);width:42px;height:42px;border-radius:13px}
 .loc-gps-fab.located::after{animation:none;border:none}
+.loc-gps-fab.located svg{width:21px;height:21px}
+.loc-gps-fab-wrap.located .loc-gps-label{display:none}
 .loc-gps-fab.searching svg{animation:compassSpin 1s linear infinite}
 @keyframes fabIdlePulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}
 @keyframes compassSpin{to{transform:rotate(360deg)}}
@@ -848,7 +861,7 @@ textarea{resize:vertical;min-height:80px}
 .loc-action-bar.visible{display:flex}
 .loc-recenter-btn{display:flex;align-items:center;gap:6px;padding:9px 14px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:10px;font-family:var(--ff);font-size:12.5px;font-weight:600;color:#334155;cursor:pointer;transition:background 150ms;-webkit-tap-highlight-color:transparent}
 .loc-recenter-btn:active{background:#e2e8f0}
-.loc-recenter-btn.blink{animation:recenterBlink 1.2s ease-in-out infinite}
+.loc-recenter-btn.blink{animation:recenterBlink 1.2s ease-in-out 3}
 @keyframes recenterBlink{0%,100%{border-color:#3b82f6;color:#1d4ed8;background:#eff6ff}50%{border-color:#93c5fd;color:#2563eb;background:#dbeafe}}
 .loc-save-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;background:#16a34a;border:none;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:background 150ms,transform 100ms;box-shadow:0 2px 8px rgba(22,163,74,.3);-webkit-tap-highlight-color:transparent}
 .loc-save-btn:active{transform:scale(.97);background:#15803d}
@@ -2065,24 +2078,35 @@ input[type=number]{-moz-appearance:textfield}
         <!-- Main map card -->
         <div class="loc-map-first-wrap" id="su-map-first-wrap">
 
-          <!-- Leaflet map — always shown, pre-loaded at BHU area -->
-          <div id="su-leaflet-map" style="width:100%;height:280px;display:block"></div>
+          <!-- Map area — relative container so the GPS FAB anchors to the
+               map itself, not the whole card (prevents it drifting onto
+               the status/action bars below once they appear). -->
+          <div class="loc-map-area">
+            <!-- Leaflet map — always shown, pre-loaded at BHU area -->
+            <div id="su-leaflet-map" style="width:100%;height:280px;display:block"></div>
 
-          <!-- GPS FAB with label — prominent, pulsing, obvious to all users -->
-          <div class="loc-gps-fab-wrap" id="su-gps-fab-wrap">
-            <button type="button" id="su-gps-fab" class="loc-gps-fab" onclick="_onGpsFabTap()" title="Apni location dhundhe">
-              <!-- Location pin icon — universally understood -->
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="12" r="4" fill="white" opacity="0.9"/>
-                <circle cx="12" cy="12" r="8" stroke="white" stroke-width="2" stroke-dasharray="3 2" opacity="0.5"/>
-                <line x1="12" y1="2" x2="12" y2="5" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                <line x1="12" y1="19" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                <line x1="2" y1="12" x2="5" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                <line x1="19" y1="12" x2="22" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </button>
-            <!-- Label — shown at idle and after located; hidden while searching -->
-            <div class="loc-gps-label" id="su-gps-label">Tap to detect<br>your location</div>
+            <!-- GPS FAB with label — prominent, pulsing, obvious to all users -->
+            <div class="loc-gps-fab-wrap" id="su-gps-fab-wrap">
+              <button type="button" id="su-gps-fab" class="loc-gps-fab" onclick="_onGpsFabTap()" title="Apni location dhundhe">
+                <!-- Location pin icon — universally understood -->
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="4" fill="white" opacity="0.9"/>
+                  <circle cx="12" cy="12" r="8" stroke="white" stroke-width="2" stroke-dasharray="3 2" opacity="0.5"/>
+                  <line x1="12" y1="2" x2="12" y2="5" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                  <line x1="12" y1="19" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                  <line x1="2" y1="12" x2="5" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                  <line x1="19" y1="12" x2="22" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <!-- Label — shown at idle and while searching; hidden once
+                   located (the green chip below already confirms this,
+                   so we avoid showing the same message twice). -->
+              <div class="loc-gps-label" id="su-gps-label">Tap to detect<br>your location</div>
+            </div>
+            <!-- Pointing-hand hint — appears only when the user tried to
+                 submit without setting location, so they instantly know
+                 which button to tap. -->
+            <div class="loc-gps-pointer" id="su-gps-pointer">👆</div>
           </div>
 
           <!-- Map status bar -->
@@ -4410,6 +4434,12 @@ function switchTab(tab) {
     // Close popup if it was open
     const glpL = document.getElementById('guest-loc-popup');
     if (glpL) glpL.style.display = 'none';
+    // v134: stop all background GPS polls — device-off poll and permission poll
+    // were only cleaned up on signup success, not on tab switch. This caused
+    // 3s interval timers to keep firing in background if user gave up on signup
+    // and switched back to login (battery + unnecessary navigator API calls).
+    _suStopDeviceLocPolling();
+    _suStopPermissionPolling();
     prefillLoginForm();
   } else {
     loginTab.style.display  = 'none';
@@ -4428,6 +4458,11 @@ function switchTab(tab) {
     _suGeocodeState = 'idle';
     // Also cancel any pending geocode debounce timer from the previous tab visit
     if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+    // v137: Prewarm GPS the instant the signup tab opens — like Swiggy/Uber,
+    // the location fix starts resolving in the background before the user
+    // even taps the red GPS button, so it's instant when they do.
+    _loadWarmCoordsFromStorage();
+    _suTryPrewarmOnIntent();
     // v132: Pre-init the idle map (no permission asked — shows BHU area)
     // Short delay so the container is visible/sized before Leaflet inits
     setTimeout(_suInitIdleMap, 80);
@@ -4737,6 +4772,60 @@ function _suStartContinuousWatch() {
         _suShowPermBanner();
         _suShowManualCard();
         _suStartPermissionPolling();
+      } else if (err.code === 2) {
+        // POSITION_UNAVAILABLE — two distinct sub-cases:
+        //
+        // A) No fix ever received (!_suBestPos): almost always means the device's
+        //    GPS/location toggle is OFF. Surface the "turn on GPS" banner immediately
+        //    instead of letting the user wait out the full 60s countdown.
+        //
+        // B) We already have a best-pos fix (_suBestPos exists) but then get a
+        //    POSITION_UNAVAILABLE: this is transient signal loss (moved indoors,
+        //    elevator, tunnel). The continuous watch will self-recover when signal
+        //    returns. Do NOT show the device-off banner — that would be a false alarm.
+        //    v134: previously this case fell through silently; now we cancel the active
+        //    countdown so the user isn't stuck waiting 60s for a watch that just
+        //    temporarily lost signal, and instead surface a retry prompt.
+        if (!_suBestPos) {
+          // Case A: GPS/location toggle is OFF — show device-off banner
+          const banner = document.getElementById('su-dev-off-banner');
+          if (banner && banner.style.display !== 'block') {
+            if (_suDetectCountdownTimer) {
+              clearInterval(_suDetectCountdownTimer); _suDetectCountdownTimer = null;
+              const btn    = document.getElementById('su-loc-btn');
+              const btnTxt = document.getElementById('su-loc-btn-txt');
+              if (btn)    btn.disabled = false;
+              if (btnTxt) btnTxt.textContent = 'Detect My Location';
+            }
+            _suFabState('idle');
+            const ring = document.getElementById('su-gps-ring');
+            if (ring) ring.classList.remove('active');
+            _suMapStatus('error', '📡 Device location is OFF — turn on GPS to continue.');
+            _suShowDeviceOffBanner();
+            _suShowManualCard();
+          }
+        } else if (_suDetectCountdownTimer && !_suWatchAccepted) {
+          // Case B: transient signal loss mid-countdown — cancel countdown, show retry
+          clearInterval(_suDetectCountdownTimer); _suDetectCountdownTimer = null;
+          const btn    = document.getElementById('su-loc-btn');
+          const btnTxt = document.getElementById('su-loc-btn-txt');
+          if (btn)    btn.disabled = false;
+          if (btnTxt) btnTxt.textContent = 'Detect My Location';
+          _suFabState('idle');
+          const ring = document.getElementById('su-gps-ring');
+          if (ring) ring.classList.remove('active');
+          // If we had a coarse fix (>500m), it's not usable — don't silently accept it.
+          // Show a clear retry message so user knows what happened.
+          const bestAcc = _suBestPos ? _suBestPos.accuracy : Infinity;
+          if (bestAcc <= _SU_MAX_ACCURACY) {
+            // Coarse-but-usable fix already in hand — accept it rather than stranding user
+            _suAcceptDetectedLocation(_suBestPos.lat, _suBestPos.lng, bestAcc);
+          } else {
+            _suMapStatus('error', '📡 GPS signal lost. Move to an open area and tap Detect again, or <b>enter address manually</b>.');
+          }
+        }
+        // Case B with _suWatchAccepted=true: location already confirmed on map —
+        // silent refinement will resume when signal returns. No UI change needed.
       }
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
@@ -4764,6 +4853,9 @@ function _suOnWatchUpdate(pos) {
   if (!_suBestPos || accuracy < _suBestPos.accuracy) {
     _suBestPos = { lat, lng, accuracy, ts: Date.now() };
   }
+  // Device location came back ON — drop the "turn on GPS" banner if shown.
+  const devOffBanner = document.getElementById('su-dev-off-banner');
+  if (devOffBanner && devOffBanner.style.display === 'block') _suHideDeviceOffBanner();
   try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
   _saveCoordsToStorage(pos);
 
@@ -4792,6 +4884,9 @@ function _suOnWatchUpdate(pos) {
     if (accuracy <= _SU_MAX_ACCURACY) {
       _suCloseManualPopup();
       _suAcceptDetectedLocation(lat, lng, accuracy);
+      // Let the user know why the form they were filling just closed —
+      // avoids confusion ("I was typing, where did it go?").
+      toast('📍 Location found! Using your GPS location — manual entry not needed.', 3500);
     }
     return;
   }
@@ -5153,8 +5248,10 @@ function _suFabState(state) {
   // state: 'idle' | 'searching' | 'located'
   const fab   = document.getElementById('su-gps-fab');
   const label = document.getElementById('su-gps-label');
+  const wrap  = document.getElementById('su-gps-fab-wrap');
   if (!fab) return;
   fab.className = 'loc-gps-fab ' + (state !== 'idle' ? state : '');
+  if (wrap) wrap.classList.toggle('located', state === 'located');
   if (!label) return;
   if (state === 'searching') {
     label.innerHTML = 'Detecting location…';
@@ -5872,12 +5969,15 @@ function _suStartDeviceLocPolling() {
         _suHideDeviceOffBanner();
         const locStatus = document.getElementById('su-loc-status');
         if (locStatus) locStatus.style.display = 'none';
-        // Start the continuous watch now that device location is confirmed ON,
-        // then accept this low-accuracy probe fix as a starting point —
-        // the watch will silently refine it (Phase 4) as accuracy improves.
+        // v134: Do NOT accept this probe fix directly. The probe uses
+        // enableHighAccuracy:false (cell tower, ~500-2000m) — accepting it
+        // would set a 9999m or 1500m accuracy fix on the map, wrong zone
+        // check, and a misleading "location confirmed" state.
+        // Instead: start the continuous watch (now that device is confirmed ON)
+        // and run a proper 60s detect session — same flow as a normal GPS detect.
+        // The watch will get a real GPS fix and accept it correctly.
         _suStartContinuousWatch();
-        const { latitude: _dpl, longitude: _dplng, accuracy: _dpacc } = pos.coords;
-        _suAcceptDetectedLocation(_dpl, _dplng, (typeof _dpacc === 'number' && !isNaN(_dpacc)) ? _dpacc : 9999);
+        _suStartDetectSession();
       },
       (e) => {
         if (e.code === 1) { // Denied — switch banner
@@ -6296,6 +6396,16 @@ async function doSignup() {
   // ── 0. Race guard ──────────────────────────────────────────────────────
   if (_suInFlight) return;
 
+  // ── 0b. Auto-save any unconfirmed pin move ─────────────────────────────
+  // If the user dragged/recentered the pin but never tapped "Save Location",
+  // _pendingLat/_pendingLng holds the latest position. Finalize it now so
+  // the coordinates AND zone status (su-lat/su-lng/su-loc-ok) sent to the
+  // server exactly match what's shown on screen — avoids a mismatch with
+  // the admin panel's zone check.
+  if (!_suMapLocked && _pendingLat !== null && _pendingLng !== null) {
+    await _suSavePinLocation();
+  }
+
   // ── 1. Collect values ──────────────────────────────────────────────────
   const name         = (document.getElementById('su-name')?.value || '').trim();
   const rawPhone     = document.getElementById('su-phone')?.value || '';
@@ -6389,7 +6499,7 @@ async function doSignup() {
     return;
   } else if (locMode === '0') {
     // Nothing detected, nothing typed
-    errors.push({ errId: 'su-loc-err', msg: '📍 Please click "Detect My Location" and allow location access to continue.', inputId: null, scrollTo: 'su-loc-btn' });
+    errors.push({ errId: 'su-loc-err', msg: '📍 Location set nahi hai — neeche map par 🔴 red button dabaayein.<br><span style="font-weight:400;color:#7f1d1d">Location not set — tap the red button below on the map.</span>', inputId: null, scrollTo: 'su-gps-fab' });
   } else if (locMode === '2' && !mfBuilding && !mfRoom) {
     // Manual card shown but required fields empty
     errors.push({ errId: 'su-loc-err', msg: '✏️ Please fill in your Building/Hostel Name and Room/Flat No.', inputId: 'su-mf-building', scrollTo: 'su-mf-building' });
@@ -6453,17 +6563,26 @@ async function doSignup() {
     if (hasLocErr) {
       // Red border + bg on the loc-section card
       document.querySelector('.loc-section')?.classList.add('loc-err');
-      // Pulse the detect button to draw attention
-      const locBtn = document.getElementById('su-loc-btn');
-      if (locBtn) {
-        locBtn.classList.remove('loc-btn-required');
-        void locBtn.offsetWidth; // reflow to re-trigger animation
-        locBtn.classList.add('loc-btn-required');
-        setTimeout(() => locBtn.classList.remove('loc-btn-required'), 2100);
+
+      // Draw the eye to the GPS button on the map: red ring around the
+      // map area, pulsing FAB, arrow pointing at it, and a red status bar
+      // message — so even a first-time / less tech-savvy user instantly
+      // understands what to tap next.
+      const mapArea = document.querySelector('.loc-map-area');
+      const fab     = document.getElementById('su-gps-fab');
+      if (mapArea) {
+        mapArea.classList.remove('attention');
+        void mapArea.offsetWidth;
+        mapArea.classList.add('attention');
+        setTimeout(() => mapArea.classList.remove('attention'), 3000);
       }
-      // isOutside: no message at signup (block shown at order time)
-      if (false) {
+      if (fab) {
+        fab.classList.remove('loc-btn-required');
+        void fab.offsetWidth; // reflow to re-trigger animation
+        fab.classList.add('loc-btn-required');
+        setTimeout(() => fab.classList.remove('loc-btn-required'), 2100);
       }
+      _suMapStatus('error', '👆 Yahan red button dabaayein — apni location dhundne ke liye.<br><span style="font-weight:400">Tap the red button above to find your location.</span>');
     }
 
     // Scroll to the first error's target element
