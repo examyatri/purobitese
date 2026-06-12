@@ -975,7 +975,34 @@ async function _geocodeAndPatchAsync(phone, address, area) {
 
     // Patch address: append Coordinates line in v84 format
     const newAddress = address.trimEnd() + `\nCoordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    await supabase.from('users').update({ address: newAddress }).eq('phone', phone);
+
+    // Also determine zone_status by checking delivery zone radius
+    let patchZoneStatus = 'unknown'; // zone config not yet read — will be set below
+    let patchOrderAllowed = false;
+    try {
+      const { data: zRow } = await supabase.from('admin_settings').select('value').eq('key', 'delivery_zone').single();
+      if (zRow?.value) {
+        const zone = JSON.parse(zRow.value);
+        if (zone?.lat && zone?.lng && zone?.radiusKm) {
+          const R = 6371;
+          const dLat = (lat - zone.lat) * Math.PI / 180;
+          const dLng = (lng - zone.lng) * Math.PI / 180;
+          const a = Math.sin(dLat/2)**2 + Math.cos(zone.lat*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLng/2)**2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          patchZoneStatus = dist <= zone.radiusKm ? 'inside' : 'outside';
+          patchOrderAllowed = patchZoneStatus === 'inside';
+        }
+      }
+    } catch(_) {}
+
+    // Update address, coords, zone_status, and order_allowed atomically
+    await supabase.from('users').update({
+      address:       newAddress,
+      coord_lat:     lat,
+      coord_lng:     lng,
+      zone_status:   patchZoneStatus,
+      order_allowed: patchOrderAllowed,
+    }).eq('phone', phone);
   } catch(e) {
     // Silent fail — user already has their account, coords just won't be in DB
   }
@@ -1293,7 +1320,7 @@ app.post('/api', async (req, res) => {
         const signupLat = parseFloat(data.coord_lat) || null;
         const signupLng = parseFloat(data.coord_lng) || null;
         const signupZoneStatus  = data.zone_status || 'unknown';
-        const signupOrderAllowed = signupZoneStatus !== 'outside';
+        const signupOrderAllowed = signupZoneStatus === 'inside'; // only explicitly inside zone gets order access
 
         const { error: insertErr } = await supabase.from('users').insert({
           user_id:       phone,
@@ -1387,7 +1414,7 @@ app.post('/api', async (req, res) => {
         const signupToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
         return res.json({
           success: true,
-          user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
+          user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, area: data.area || null, zone_status: signupZoneStatus, created_at: createdAt },
           subscriber:    null,
           walletBalance: 0,
           userToken:     signupToken,
@@ -1421,10 +1448,41 @@ app.post('/api', async (req, res) => {
         if (data.address !== undefined) {
           updates.address = data.address;
           updates.area    = data.area || _extractArea(data.address || '');
+          // If new address contains GPS coordinates, update coord_lat/coord_lng + re-check zone
+          const coordMatch = (data.address || '').match(/Coordinates:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i);
+          if (coordMatch) {
+            const upLat = parseFloat(coordMatch[1]);
+            const upLng = parseFloat(coordMatch[2]);
+            if (!isNaN(upLat) && !isNaN(upLng)) {
+              updates.coord_lat = upLat;
+              updates.coord_lng = upLng;
+              // Zone check
+              let upZoneStatus = 'unknown';
+              let upOrderAllowed = false;
+              try {
+                const { data: zRow2 } = await supabase.from('admin_settings').select('value').eq('key', 'delivery_zone').single();
+                if (zRow2?.value) {
+                  const zone2 = JSON.parse(zRow2.value);
+                  if (zone2?.lat && zone2?.lng && zone2?.radiusKm) {
+                    const R = 6371;
+                    const dLat2 = (upLat - zone2.lat) * Math.PI / 180;
+                    const dLng2 = (upLng - zone2.lng) * Math.PI / 180;
+                    const a2 = Math.sin(dLat2/2)**2 + Math.cos(zone2.lat*Math.PI/180)*Math.cos(upLat*Math.PI/180)*Math.sin(dLng2/2)**2;
+                    const dist2 = R * 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1-a2));
+                    upZoneStatus = dist2 <= zone2.radiusKm ? 'inside' : 'outside';
+                    upOrderAllowed = upZoneStatus === 'inside';
+                  }
+                }
+              } catch(_) {}
+              updates.zone_status   = upZoneStatus;
+              updates.order_allowed = upOrderAllowed;
+            }
+          }
         }
         if (data.room_no !== undefined) {} // v84: room_no stored inside address field, not separate column
         await supabase.from('users').update(updates).eq('phone', phone);
-        return res.json({ success: true });
+        // Return zone_status + order_allowed so client can sync session
+        return res.json({ success: true, zone_status: updates.zone_status, order_allowed: updates.order_allowed });
       }
 
       case 'getMyProfile': {
@@ -2135,7 +2193,7 @@ app.post('/api', async (req, res) => {
         ] = await Promise.all([
           getCachedSetting('khata_enabled'),
           supabase.from('orders').select('phone').eq('date', today).or(`slot.eq.${bulkSlot},slot.is.null`).not('order_status', 'eq', 'cancelled'),
-          supabase.from('users').select('phone, name, address').in('phone', cleanPhones),
+          supabase.from('users').select('phone, name, address, order_allowed').in('phone', cleanPhones),
           supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off, plan').in('phone', cleanPhones)
         ]);
 
@@ -2156,6 +2214,9 @@ app.post('/api', async (req, res) => {
           }
           if (!bulkUserMap[cleanPh]) {
             skipped.push({ phone: cleanPh, reason: 'user not found' }); continue;
+          }
+          if (bulkUserMap[cleanPh].order_allowed === false) {
+            skipped.push({ phone: cleanPh, reason: 'ordering not enabled for location' }); continue;
           }
           // Pause/delivery-off check — respects both legacy pause_delivery and granular fields.
           // Granular fields (pause_morning/pause_evening) take priority when set; the _from date
@@ -3265,11 +3326,18 @@ app.post('/api', async (req, res) => {
           return res.json({ success: true, users: safe }); }
 
       case 'adminAllowOrder': {
-        // Admin enables order placement for an outside-zone user
+        // Admin enables order placement for outside-zone or manual_only users
         const { phone: aoPhone } = data;
         if (!aoPhone) return res.json({ success: false, error: 'Phone required' });
+        // Fetch current zone_status so we set the right allowed value
+        const { data: aoUser } = await supabase.from('users').select('zone_status').eq('phone', cleanPhone(aoPhone)).single();
+        const aoCurrentZs = aoUser?.zone_status || 'outside';
+        // manual_only → admin_approved (location unverified but manually enabled)
+        // outside → outside_allowed (GPS confirmed outside but admin approved)
+        // unknown → admin_approved (no data, manually approved)
+        const aoNewZs = aoCurrentZs === 'outside' ? 'outside_allowed' : 'admin_approved';
         const { error: aoErr } = await supabase.from('users')
-          .update({ order_allowed: true, zone_status: 'outside_allowed' })
+          .update({ order_allowed: true, zone_status: aoNewZs })
           .eq('phone', cleanPhone(aoPhone));
         if (aoErr) return res.json({ success: false, error: aoErr.message });
         return res.json({ success: true });
@@ -3299,7 +3367,7 @@ app.post('/api', async (req, res) => {
         } catch(_) {}
         const { error: scErr } = await supabase.from('users')
           .update({ coord_lat: lat, coord_lng: lng, zone_status: zoneStatus,
-                    order_allowed: zoneStatus !== 'outside' })
+                    order_allowed: zoneStatus === 'inside' })
           .eq('phone', cleanPhone(scPhone));
         if (scErr) return res.json({ success: false, error: scErr.message });
         return res.json({ success: true, zone_status: zoneStatus });
