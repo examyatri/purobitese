@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v125                                   ║
-     ║  Updated : 2026-06-11                               ║
-     ║  Changes : v125 — Full audit & deploy prep          ║
+     ║  Version : v128                                   ║
+     ║  Updated : 2026-06-12                               ║
+     ║  Changes : v128 — Audio unlock popup + 2min beep auto-stop ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -2071,6 +2071,42 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
   <div id="mo-box" class="mo-box"></div>
 </div>
 
+<!-- ── AUDIO ALERT PERMISSION POPUP ──────────────────────────────────────────
+     Mobile/desktop browsers block AudioContext until a real user gesture
+     happens on the page. The Notifications tab needs no taps, so beeps were
+     silent on fresh devices. This popup forces ONE explicit tap on load,
+     which unlocks audio for the rest of the session + (on most browsers)
+     persists site media-engagement so future loads beep without a prompt.
+     Choice is stored in localStorage so we never ask again on this device. -->
+<div id="audio-unlock-bg" class="mo-bg" style="display:none;z-index:2000">
+  <div class="mo-box" style="max-width:380px;text-align:center;padding:30px 26px">
+    <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#e63946,#ff6b6b);
+                display:flex;align-items:center;justify-content:center;margin:0 auto 16px;
+                box-shadow:0 8px 24px rgba(230,57,70,.35)">
+      <i class="fa fa-bell" style="font-size:26px;color:#fff"></i>
+    </div>
+    <div style="font-family:var(--ff);font-weight:800;font-size:17px;color:#0f172a;margin-bottom:8px">
+      Enable Order Alert Sound
+    </div>
+    <p style="font-size:13px;color:#64748b;line-height:1.6;margin-bottom:22px">
+      Tap below to allow Tiffo to play a beep sound for new orders &amp; messages
+      on this device. You only need to do this once.
+    </p>
+    <button onclick="AdminAudioPrompt.allow()"
+      style="width:100%;padding:13px 0;border:none;border-radius:11px;cursor:pointer;
+             font-family:var(--ff);font-weight:700;font-size:14.5px;color:#fff;
+             background:linear-gradient(135deg,#e63946,#c1121f);
+             box-shadow:0 4px 14px rgba(230,57,70,.35);margin-bottom:10px">
+      <i class="fa fa-volume-up"></i> Enable Sound Alerts
+    </button>
+    <button onclick="AdminAudioPrompt.dismiss()"
+      style="width:100%;padding:11px 0;border:none;border-radius:11px;cursor:pointer;
+             font-family:var(--ff);font-weight:600;font-size:13px;color:#94a3b8;background:transparent">
+      Not now
+    </button>
+  </div>
+</div>
+
 <div id="a-toast"></div>
 <div id="nprogress" style="width:0;display:none"></div>
 
@@ -2120,7 +2156,11 @@ async function doAdminLogin() {
     // unlockNow() creates + resumes AudioContext immediately so the first order
     // beep fires with ZERO delay — no "tap to beep" amber state needed post-login.
     AudioManager.unlockNow().catch(() => {});
-    AdminNotifVersionPoller.resetKnownVersion(); // fresh baseline — no phantom beep on login
+    // New-device check: if this device hasn't granted audio permission yet,
+    // show the one-tap popup AFTER unlockNow() — the login click itself just
+    // unlocked audio for THIS session, but the popup choice is what prevents
+    // the "blinking but silent" problem on the NEXT page load/new device.
+    AdminAudioPrompt.maybeShow();
     AdminNotifVersionPoller.start();
     startPolling();
     npDone();
@@ -2213,6 +2253,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
       } catch(_) {}
     })();
+    AdminAudioPrompt.maybeShow(); // catch new devices that resumed an existing session
     AdminNotifVersionPoller.resetKnownVersion(); // fresh baseline — no phantom beep on reload
     AdminNotifVersionPoller.start();
     startPolling();
@@ -7517,6 +7558,7 @@ let _prevUnreadCount = -1; // -1 = first load, no beep yet
 const AudioManager = (() => {
   // ── Constants ────────────────────────────────────────────────────────────
   const BEEP_INTERVAL_MS   = 4000;   // repeat alert every 4s
+  const BEEP_MAX_DURATION_MS = 120000; // auto-stop the loop after 2 minutes
   const RESUME_TIMEOUT_MS  = 2500;   // max time to wait for ctx.resume()
   const RESUME_MAX_RETRIES = 4;      // retry resume this many times before giving up
   const RESUME_RETRY_MS    = 600;    // delay between resume retries
@@ -7585,6 +7627,7 @@ const AudioManager = (() => {
 
   // Beep loop
   let _loopTimer      = null; // setInterval handle for repeating beep
+  let _maxDurationTimer = null; // setTimeout handle — auto-stops loop after BEEP_MAX_DURATION_MS
   let _healthTimer    = null; // setInterval handle for health checker
   let _loopActive     = false;
   let _lastPlayedAt   = 0;    // timestamp of last successful oscillator start
@@ -7938,6 +7981,15 @@ const AudioManager = (() => {
       if (!_beepEnabled || !_loopActive) { stopLoop(); return; }
       _schedulePlay();
     }, BEEP_INTERVAL_MS);
+    // Auto-stop after BEEP_MAX_DURATION_MS so a missed/unread alert doesn't
+    // beep forever and drain battery / annoy everyone nearby. Admin can still
+    // stop earlier any time via the "Stop Beep" button (toggle/stopLoop).
+    if (_maxDurationTimer) clearTimeout(_maxDurationTimer);
+    _maxDurationTimer = setTimeout(() => {
+      log('Auto-stopping beep loop after', BEEP_MAX_DURATION_MS, 'ms (max duration reached)');
+      stopLoop();
+      aToast('🔕 Alert beep auto-stopped after 2 min — check Notifications');
+    }, BEEP_MAX_DURATION_MS);
     _startHealthCheck();
     _updateBeepBtn(); // shows AMBER until first oscillator confirms play
   }
@@ -7950,6 +8002,7 @@ const AudioManager = (() => {
     _audioVerified = false;
     _stopBeepLoopTimer();
     _stopHealthCheck();
+    if (_maxDurationTimer) { clearTimeout(_maxDurationTimer); _maxDurationTimer = null; }
     _updateBeepBtn();
   }
 
@@ -8055,6 +8108,73 @@ const AudioManager = (() => {
   return { startLoop, stopLoop, playOnce, toggle, isLooping, isEnabled, getState,
            initFallback: _initFallback, unlockNow,
            get debug() { return _debug; }, set debug(v) { _debug = v; } };
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN AUDIO UNLOCK PROMPT — one-time popup to guarantee a real user gesture
+// ═══════════════════════════════════════════════════════════════════════════
+// Problem: admin lands directly on the Notifications tab and may never tap
+// anything else → AudioContext stays LOCKED → beep button blinks but plays
+// nothing. Fix: show a popup that REQUIRES a tap to dismiss. That tap is a
+// genuine user gesture, so AudioManager.unlockNow() succeeds every time.
+// The choice (allowed/dismissed) is remembered per-device in localStorage —
+// 'tiffo_audio_unlock_choice' = 'granted' | 'dismissed'.
+const AdminAudioPrompt = (() => {
+  const KEY = 'tiffo_audio_unlock_choice';
+
+  function _bg() { return document.getElementById('audio-unlock-bg'); }
+
+  // Decide whether to show the popup. Call after login / on session resume.
+  async function maybeShow() {
+    const choice = localStorage.getItem(KEY);
+    if (choice === 'granted') {
+      // Already granted before on this device. On Chrome/Android, the
+      // origin's "media engagement" is usually enough to resume audio
+      // without a fresh gesture. On iOS Safari / some WebViews that's NOT
+      // guaranteed — resume() can silently fail on a cold page load with
+      // zero gesture in the call chain. So: try silently first, and if it
+      // didn't actually result in a running context, fall back to showing
+      // the popup again (one tap) rather than leaving audio dead all session.
+      const ok = await AudioManager.unlockNow().catch(() => false);
+      if (ok && AudioManager.getState().state === 'ready') return;
+      log_fallback();
+      const el = _bg();
+      if (el) el.style.display = 'flex';
+      return;
+    }
+    if (choice === 'dismissed') {
+      AudioManager.unlockNow().catch(() => {}); // best effort, no re-prompt (admin said "not now")
+      return;
+    }
+    const el = _bg();
+    if (el) el.style.display = 'flex';
+  }
+
+  function log_fallback() {
+    try { console.log('[AdminAudioPrompt] silent unlock did not result in running ctx — re-prompting'); } catch(_) {}
+  }
+
+  // Admin tapped "Enable Sound Alerts" — this click IS the user gesture.
+  async function allow() {
+    localStorage.setItem(KEY, 'granted');
+    const el = _bg();
+    if (el) el.style.display = 'none';
+    await AudioManager.unlockNow().catch(() => {});
+    // Confirmation beep so admin gets immediate audible feedback that it worked.
+    AudioManager.playOnce();
+    aToast('🔔 Sound alerts enabled for this device');
+  }
+
+  // Admin tapped "Not now" — still try unlockNow() since the tap itself is
+  // a valid gesture (doesn't hurt, and primes audio in case beeps fire later).
+  function dismiss() {
+    localStorage.setItem(KEY, 'dismissed');
+    const el = _bg();
+    if (el) el.style.display = 'none';
+    AudioManager.unlockNow().catch(() => {});
+  }
+
+  return { maybeShow, allow, dismiss };
 })();
 
 // ── Legacy shim: keep old variable names working so call-sites don't change ──

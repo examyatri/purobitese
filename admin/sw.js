@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.0  |  Updated : 2026-06-11
+   Version : v12.1  |  Updated : 2026-06-12
+
+   CHANGES v12.1:
+   - Cache bumped → tiffo-admin-v19 (v128 — audio unlock popup + 2min beep auto-stop)
 
    CHANGES v12.0:
    - Cache bumped → tiffo-admin-v18 (v125 deploy)
@@ -32,7 +35,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v18';
+const CACHE      = 'tiffo-admin-v19';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
