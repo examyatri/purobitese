@@ -2026,6 +2026,29 @@ input[type=number]{-moz-appearance:textfield}
           <span id="su-loc-btn-txt">Detect My Location</span>
         </button>
 
+        <!-- Premium Address Card — shown after manual address saved via popup -->
+        <div id="su-manual-addr-card" style="display:none;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:16px;padding:16px 16px 14px;margin-top:0;position:relative;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.22)">
+          <div style="position:absolute;right:-18px;top:-18px;width:80px;height:80px;background:rgba(255,255,255,.05);border-radius:50%;pointer-events:none"></div>
+          <div style="position:absolute;right:20px;bottom:-12px;width:50px;height:50px;background:rgba(230,57,70,.12);border-radius:50%;pointer-events:none"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="background:rgba(230,57,70,.2);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i class="fa fa-location-dot" style="color:#f87171;font-size:14px"></i>
+              </div>
+              <div>
+                <div style="font-family:var(--ff);font-size:10px;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:.6px;text-transform:uppercase">Delivery Address</div>
+                <div id="su-mac-status" style="font-family:var(--fb);font-size:10.5px;color:#86efac;margin-top:1px">&#10003; Address saved</div>
+              </div>
+            </div>
+            <button onclick="_suEditManualAddr()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;padding:5px 10px;font-family:var(--ff);font-size:11px;font-weight:600;color:#e2e8f0;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap">
+              <i class="fa fa-pen" style="font-size:9px"></i> Edit
+            </button>
+          </div>
+          <div id="su-mac-line1" style="font-family:var(--ff);font-size:14px;font-weight:700;color:#fff;line-height:1.35;margin-bottom:3px"></div>
+          <div id="su-mac-line2" style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.6);line-height:1.5"></div>
+          <div id="su-mac-line3" style="font-family:var(--fb);font-size:11.5px;color:rgba(255,255,255,.4);margin-top:5px"></div>
+        </div>
+
         <!-- Status bar (zone check result / error) -->
         <div id="su-loc-status" class="loc-status"></div>
 
@@ -2190,6 +2213,7 @@ input[type=number]{-moz-appearance:textfield}
         <!-- Hidden: '1' = GPS coords, '2' = manual address (geocoded or text), '0' = nothing -->
         <input type="hidden" id="su-loc-mode" value="0">
         <textarea id="su-addr" style="display:none" readonly></textarea>
+        <input type="hidden" id="su-mf-nearby" value="">
       </div>
 
       <div class="field-error" id="su-loc-err" style="margin-top:-10px;margin-bottom:10px"></div>
@@ -3111,52 +3135,105 @@ input[type=number]{-moz-appearance:textfield}
 
 <!-- ── Manual Address Popup — shown when user taps Remind Me Later on detect-btn popup ── -->
 <div id="su-manual-popup" class="modal-overlay" style="display:none" onclick="if(event.target===this)_suCloseManualPopup()">
-  <div style="background:#fff;border-radius:22px;padding:24px 18px 20px;max-width:340px;width:93%;box-shadow:0 20px 60px rgba(0,0,0,.18);animation:locPopIn 280ms cubic-bezier(.34,1.56,.64,1);max-height:88vh;overflow-y:auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#111827">📝 Enter Your Address</div>
-      <button onclick="_suCloseManualPopup()" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;line-height:1;padding:0 4px">×</button>
-    </div>
-    <div style="font-family:var(--fb);font-size:12.5px;color:#64748b;margin-bottom:16px;line-height:1.5">Fill in your delivery address so the rider can find you easily.</div>
+  <div style="background:#fff;border-radius:24px;padding:0;max-width:360px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.20);animation:locPopIn 280ms cubic-bezier(.34,1.56,.64,1);max-height:92vh;overflow-y:auto;overflow-x:hidden">
 
-    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Hostel / Building Name <span style="color:#ef4444">*</span></label>
-    <input type="text" id="smp-building" placeholder="e.g. Viswanath Hostel, Kashi Apartment…"
-      style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;outline:none"
-      onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
-
-    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Room / Flat No. &amp; Landmark <span style="color:#ef4444">*</span></label>
-    <input type="text" id="smp-room" placeholder="e.g. Room 12, near main gate…"
-      style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;outline:none"
-      onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
-
-    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Nearby Place / Landmark</label>
-    <input type="text" id="smp-nearby" placeholder="e.g. Near BHU Gate No. 1…"
-      style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;outline:none"
-      onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
-
-    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Delivery Area</label>
-    <select id="smp-area" style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;background:#fff;outline:none">
-      <option value="">Select area…</option>
-    </select>
-
-    <div style="display:flex;gap:8px;margin-bottom:4px">
-      <div style="flex:1">
-        <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">District</label>
-        <input type="text" id="smp-district" value="Varanasi" readonly style="width:100%;box-sizing:border-box;border:1.5px solid #f1f5f9;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;background:#f8fafc;color:#64748b" />
-      </div>
-      <div style="flex:1">
-        <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Pincode</label>
-        <input type="text" id="smp-pincode" value="221005" style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;outline:none"
-          onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1a1a2e,#2d2d44);border-radius:24px 24px 0 0;padding:20px 18px 16px;position:sticky;top:0;z-index:2">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-family:var(--ff);font-weight:800;font-size:17px;color:#fff;letter-spacing:-0.3px">📍 Your Delivery Address</div>
+          <div style="font-family:var(--fb);font-size:11.5px;color:rgba(255,255,255,.6);margin-top:2px">Help the rider reach you accurately</div>
+        </div>
+        <button onclick="_suCloseManualPopup()" style="background:rgba(255,255,255,.12);border:none;width:32px;height:32px;border-radius:50%;color:#fff;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0">×</button>
       </div>
     </div>
-    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;margin-top:8px">State</label>
-    <input type="text" id="smp-state" value="Uttar Pradesh" readonly style="width:100%;box-sizing:border-box;border:1.5px solid #f1f5f9;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:18px;background:#f8fafc;color:#64748b" />
 
-    <div id="smp-err" style="display:none;font-family:var(--fb);font-size:12px;color:#dc2626;background:#fef2f2;border-radius:8px;padding:8px 12px;margin-bottom:12px"></div>
+    <!-- Form body -->
+    <div style="padding:20px 18px 6px">
 
-    <button onclick="_suSaveManualPopup()" style="width:100%;background:linear-gradient(135deg,var(--p),#f4591d);color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 6px 20px rgba(230,57,70,.35)">
-      <i class="fa fa-check"></i> Save Address
-    </button>
+      <!-- Field 1: Hostel / Building Name -->
+      <div style="margin-bottom:14px">
+        <label style="font-family:var(--ff);font-size:11.5px;font-weight:700;color:#374151;display:block;margin-bottom:5px;letter-spacing:.3px;text-transform:uppercase">
+          🏠 Hostel / Building Name <span style="color:#ef4444">*</span>
+        </label>
+        <input type="text" id="smp-building" placeholder="e.g. Triveni Hostel, Kashi Apartment…"
+          style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 14px;font-family:var(--fb);font-size:14px;outline:none;transition:border-color 200ms,box-shadow 200ms;color:#111827"
+          onfocus="this.style.borderColor='var(--p)';this.style.boxShadow='0 0 0 3px rgba(230,57,70,.1)'"
+          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'" />
+      </div>
+
+      <!-- Field 2: Near (prominent street / marker) -->
+      <div style="margin-bottom:14px">
+        <label style="font-family:var(--ff);font-size:11.5px;font-weight:700;color:#374151;display:block;margin-bottom:5px;letter-spacing:.3px;text-transform:uppercase">
+          🧭 Near <span style="color:#ef4444">*</span>
+        </label>
+        <input type="text" id="smp-room" placeholder="e.g. NCC BHU, Engineers Hostel Gate…"
+          style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 14px;font-family:var(--fb);font-size:14px;outline:none;transition:border-color 200ms,box-shadow 200ms;color:#111827"
+          onfocus="this.style.borderColor='var(--p)';this.style.boxShadow='0 0 0 3px rgba(230,57,70,.1)'"
+          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'" />
+        <div style="font-family:var(--fb);font-size:11px;color:#94a3b8;margin-top:4px">Nearest known marker, gate, or road name</div>
+      </div>
+
+      <!-- Field 3: Famous Landmark -->
+      <div style="margin-bottom:14px">
+        <label style="font-family:var(--ff);font-size:11.5px;font-weight:700;color:#374151;display:block;margin-bottom:5px;letter-spacing:.3px;text-transform:uppercase">
+          🗺️ Any Famous Landmark <span style="color:#ef4444">*</span>
+        </label>
+        <input type="text" id="smp-nearby" placeholder="e.g. Near LD Guest House BHU…"
+          style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 14px;font-family:var(--fb);font-size:14px;outline:none;transition:border-color 200ms,box-shadow 200ms;color:#111827"
+          onfocus="this.style.borderColor='var(--p)';this.style.boxShadow='0 0 0 3px rgba(230,57,70,.1)'"
+          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'" />
+        <div style="font-family:var(--fb);font-size:11px;color:#94a3b8;margin-top:4px">A well-known place close to you</div>
+      </div>
+
+      <!-- Field 4: Delivery Area (prefilled, required) -->
+      <div style="margin-bottom:14px">
+        <label style="font-family:var(--ff);font-size:11.5px;font-weight:700;color:#374151;display:block;margin-bottom:5px;letter-spacing:.3px;text-transform:uppercase">
+          🛵 Delivery Area <span style="color:#ef4444">*</span>
+        </label>
+        <select id="smp-area"
+          style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 14px;font-family:var(--fb);font-size:14px;background:#fff;outline:none;transition:border-color 200ms,box-shadow 200ms;color:#111827;appearance:none;-webkit-appearance:none;background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\");background-repeat:no-repeat;background-position:right 14px center"
+          onfocus="this.style.borderColor='var(--p)';this.style.boxShadow='0 0 0 3px rgba(230,57,70,.1)'"
+          onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+          <option value="">Select area…</option>
+        </select>
+      </div>
+
+      <!-- Fields 5-7: District / Pincode / State (prefilled, read-only) -->
+      <div style="background:#f8fafc;border-radius:14px;padding:12px 14px;margin-bottom:18px;border:1.5px solid #f1f5f9">
+        <div style="font-family:var(--ff);font-size:10.5px;font-weight:700;color:#94a3b8;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px">📌 Pre-filled Info</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div>
+            <div style="font-family:var(--fb);font-size:10.5px;color:#64748b;margin-bottom:3px">District</div>
+            <input type="text" id="smp-district" value="Varanasi" readonly
+              style="width:100%;box-sizing:border-box;border:1.5px solid #e9ecef;border-radius:9px;padding:8px 10px;font-family:var(--fb);font-size:13px;background:#fff;color:#374151;outline:none" />
+          </div>
+          <div>
+            <div style="font-family:var(--fb);font-size:10.5px;color:#64748b;margin-bottom:3px">Pincode</div>
+            <input type="text" id="smp-pincode" value="221005"
+              style="width:100%;box-sizing:border-box;border:1.5px solid #e9ecef;border-radius:9px;padding:8px 10px;font-family:var(--fb);font-size:13px;background:#fff;color:#374151;outline:none;transition:border-color 200ms"
+              onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e9ecef'" />
+          </div>
+        </div>
+        <div>
+          <div style="font-family:var(--fb);font-size:10.5px;color:#64748b;margin-bottom:3px">State</div>
+          <input type="text" id="smp-state" value="Uttar Pradesh" readonly
+            style="width:100%;box-sizing:border-box;border:1.5px solid #e9ecef;border-radius:9px;padding:8px 10px;font-family:var(--fb);font-size:13px;background:#fff;color:#374151;outline:none" />
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="smp-err" style="display:none;font-family:var(--fb);font-size:12px;color:#dc2626;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:10px 13px;margin-bottom:14px;line-height:1.5"></div>
+
+      <!-- Save Button -->
+      <button id="smp-save-btn" onclick="_suSaveManualPopup()" style="width:100%;background:linear-gradient(135deg,#e63946,#f4591d);color:#fff;border:none;border-radius:14px;padding:15px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 8px 24px rgba(230,57,70,.38);transition:transform 100ms,box-shadow 100ms;letter-spacing:0.2px;margin-bottom:18px"
+        onmousedown="this.style.transform='scale(.98)';this.style.boxShadow='0 4px 14px rgba(230,57,70,.3)'"
+        onmouseup="this.style.transform='';this.style.boxShadow='0 8px 24px rgba(230,57,70,.38)'"
+        ontouchstart="this.style.transform='scale(.98)'" ontouchend="this.style.transform=''">
+        <i class="fa fa-check" style="margin-right:7px"></i> Save Address
+      </button>
+
+    </div>
   </div>
 </div>
 
@@ -4478,6 +4555,10 @@ function _evaluateLocation(lat, lng) {
   document.getElementById('su-lng').value      = lng;
   document.getElementById('su-loc-mode').value = '1'; // GPS — must be set here; doSignup reads this to skip the 'please detect' error
 
+  // If manual address card was showing, hide it and restore detect button (GPS won)
+  const _mac = document.getElementById('su-manual-addr-card');
+  if (_mac && _mac.style.display !== 'none') { _mac.style.display = 'none'; btn.style.display = ''; }
+
   // Reset btn classes + clear any validation highlights
   btn.classList.remove('verified','rejected','loc-btn-required');
   document.querySelector('.loc-section')?.classList.remove('loc-err');
@@ -5234,17 +5315,17 @@ function _suAreaRenderDropdown(filter) {
     dd.style.display = 'block';
     return;
   }
-  const list = _suAreaList;
+  const list = [..._suAreaList.filter(a => a !== 'Other'), 'Other'];
   const filtered = filter ? list.filter(a => a.toLowerCase().includes(filter)) : list;
   if (!filtered.length) {
     dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">No area found</div>`;
   } else {
     dd.innerHTML = filtered.map(a => `
       <div onclick="_suAreaSelect('${a.replace(/'/g,"\\'")}');return false"
-        style="padding:11px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 150ms"
+        style="padding:11px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 150ms${a==='Other'?';color:#64748b;font-style:italic':''}"
         onmousedown="event.preventDefault()"
         onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">
-        ${a}
+        ${a === 'Other' ? '📍 Other (outside listed areas)' : a}
       </div>`).join('');
   }
   dd.style.display = 'block';
@@ -5653,12 +5734,14 @@ function _suSyncAreaToManualField() {
 function _suBuildStructuredAddr() {
   const building = (document.getElementById('su-mf-building')?.value || '').trim();
   const room     = (document.getElementById('su-mf-room')?.value     || '').trim();
+  const nearby   = (document.getElementById('su-mf-nearby')?.value   || '').trim();
   const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
   const district = (document.getElementById('su-mf-district')?.value || 'Varanasi').trim();
   const state    = (document.getElementById('su-mf-state')?.value    || 'Uttar Pradesh').trim();
   const parts = [];
-  if (room)     parts.push(room);
   if (building) parts.push(building);
+  if (room)     parts.push('Near ' + room);
+  if (nearby)   parts.push(nearby);
   if (area)     parts.push(area);
   parts.push(district);
   parts.push(state);
@@ -5744,7 +5827,7 @@ function _suOzSignupWhatsApp(msg) {
    Bottom-sheet with professional prefilled WA message to request delivery.    */
 function _showOzOrderBlock() {
   const existing = document.getElementById('oz-order-block');
-  if (existing) { existing.style.display = 'flex'; return; } // already in DOM — just show
+  if (existing) { existing.style.display = 'flex'; return; }
 
   const user = Auth.get();
   const name  = user?.name  || '';
@@ -5752,18 +5835,20 @@ function _showOzOrderBlock() {
   const area  = user?.area  || '';
   const addr  = user?.address || '';
 
-  const waMsg =
-    `Hello Tiffo Team,
+  // Determine block reason: outside zone vs no-coordinates (manual_only / unknown)
+  const zs = user?.zone_status || _session?.zone_status || '';
+  const isManualOnly = (zs === 'manual_only' || zs === 'unknown');
 
-I have created an account on the Tiffo app but I am unable to place orders as my location appears to be outside your current delivery zone.
-
-My details:
-  Name    : ${name}
-  Phone   : ${phone}${area  ? '\n  Area    : ' + area  : ''}${addr  ? '\n  Address : ' + addr  : ''}
-
-Could you please check if delivery is possible to my location? I would really love to order from Tiffo.
-
-Thank you.`;
+  let title, subtitle, waMsg;
+  if (isManualOnly) {
+    title    = '📍 Location Verification Pending';
+    subtitle = 'We could not automatically verify your delivery location. Please contact the Tiffo team on WhatsApp — we will confirm availability and enable orders for you.';
+    waMsg    = `Hello Tiffo Team,\n\nI have registered on the Tiffo app but am unable to place orders. My location could not be verified automatically.\n\nMy details:\n  Name    : ${name}\n  Phone   : ${phone}${area ? '\n  Area    : ' + area : ''}${addr ? '\n  Address : ' + addr : ''}\n\nCould you please verify my delivery location and enable orders on my account?\n\nThank you.`;
+  } else {
+    title    = '🛫 Delivery Not Available';
+    subtitle = 'Your location is currently outside our delivery zone. Tap below to send us a request on WhatsApp — we\'ll check and enable delivery for you.';
+    waMsg    = `Hello Tiffo Team,\n\nI have created an account on the Tiffo app but I am unable to place orders as my location appears to be outside your current delivery zone.\n\nMy details:\n  Name    : ${name}\n  Phone   : ${phone}${area ? '\n  Area    : ' + area : ''}${addr ? '\n  Address : ' + addr : ''}\n\nCould you please check if delivery is possible to my location? I would really love to order from Tiffo.\n\nThank you.`;
+  }
 
   const sheet = document.createElement('div');
   sheet.id = 'oz-order-block';
@@ -5771,14 +5856,11 @@ Thank you.`;
   sheet.innerHTML = `
     <div style="width:100%;max-width:480px;background:#fff;border-radius:22px 22px 0 0;padding:24px 20px 36px;box-shadow:0 -8px 40px rgba(0,0,0,.18);animation:slideUp 300ms cubic-bezier(.34,1.56,.64,1)">
       <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
-      <div style="font-family:var(--ff);font-weight:800;font-size:18px;color:#111827;text-align:center;margin-bottom:6px">🛫 Delivery Not Available</div>
-      <div style="font-family:var(--fb);font-size:13px;color:#64748b;text-align:center;line-height:1.65;margin-bottom:22px">
-        Your location is currently outside our delivery zone.<br>
-        Tap below to send us a request on WhatsApp — we’ll check and enable delivery for you.
-      </div>
+      <div style="font-family:var(--ff);font-weight:800;font-size:18px;color:#111827;text-align:center;margin-bottom:6px">${title}</div>
+      <div style="font-family:var(--fb);font-size:13px;color:#64748b;text-align:center;line-height:1.65;margin-bottom:22px">${subtitle}</div>
       <button onclick="_ozOrderWhatsApp('${encodeURIComponent(waMsg)}');document.getElementById('oz-order-block').style.display='none'"
         style="width:100%;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:14px;padding:15px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 6px 20px rgba(34,197,94,.35);margin-bottom:10px">
-        <i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Request Delivery via WhatsApp
+        <i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Contact Tiffo on WhatsApp
       </button>
       <button onclick="document.getElementById('oz-order-block').style.display='none'"
         style="width:100%;background:none;border:1px solid #e2e8f0;color:#64748b;border-radius:14px;padding:12px;font-family:var(--fb);font-size:13px;cursor:pointer">
@@ -5787,7 +5869,6 @@ Thank you.`;
     </div>`;
   document.body.appendChild(sheet);
 }
-
 function _ozOrderWhatsApp(encodedMsg) {
   window.open('https://wa.me/919889760350?text=' + encodedMsg, '_blank');
 }
@@ -5864,7 +5945,7 @@ async function _suForwardGeocode(text) {
       const distStr = dist.toFixed(1);
 
       if (dist <= zone.radiusKm) {
-        // In zone ✅
+        // In zone ✅ — save coordinates + address
         _pendingLat = lat; _pendingLng = lng;
         document.getElementById('su-lat').value      = lat;
         document.getElementById('su-lng').value      = lng;
@@ -5873,15 +5954,14 @@ async function _suForwardGeocode(text) {
         _suGeocodeState = 'done_ok';
         _suSetZoneStatus('ok', `✅ Within delivery zone (${distStr} km away) — you're covered!`);
       } else {
-        // Outside zone — Phase 5: allow signup, soft warning only (no hard block popup)
-        _pendingLat = lat; _pendingLng = lng;
-        document.getElementById('su-lat').value      = lat;
-        document.getElementById('su-lng').value      = lng;
+        // Outside zone — discard coordinates, save address only; still allow ordering
+        _pendingLat = null; _pendingLng = null;
+        document.getElementById('su-lat').value      = '';
+        document.getElementById('su-lng').value      = '';
         document.getElementById('su-loc-mode').value = '2';
-        document.getElementById('su-loc-ok').value   = '0';
+        document.getElementById('su-loc-ok').value   = '1'; // always allow ordering
         _suGeocodeState = 'done_outside';
-        _suSetZoneStatus('ok', `✅ Address found — you're all set!`);
-        // Outside zone — no warning at signup; block shown at order time
+        _suSetZoneStatus('warn', `⚠️ Outside usual delivery zone (${distStr} km) — we'll try our best!`);
       }
     } else {
       // Zone not configured — coords saved, allow
@@ -6093,10 +6173,10 @@ async function doSignup() {
     // Fallback: use selected delivery area as zone verification.
     // If area is in the configured delivery areas list — allow signup.
     // Backend will attempt a richer server-side geocode async to get coordinates.
-    const areaIsValid = selectedArea && _suAreaList.length
-      ? _suAreaList.some(a => a.toLowerCase() === selectedArea.toLowerCase())
-      : !!selectedArea; // if area list not loaded, trust dropdown value
-    if (!areaIsValid || !selectedArea) {
+    // "Other" is a valid frontend-only option (zone_status → manual_only, order_allowed=false until admin approves).
+    // Any known delivery area → allow signup (backend geocodes async).
+    // Only block if no area selected at all.
+    if (!selectedArea) {
       errors.push({ errId: 'su-loc-err', msg: '📍 Address not found on map. Please select your delivery area above, or tap “Detect My Location”.', inputId: null, scrollTo: 'su-zone-status-row' });
     }
     // else: area selected + in delivery list — proceed, server geocodes coordinates async
@@ -7323,6 +7403,10 @@ async function placeOrder() {
     // Fallback string check retained for legacy/direct-throw paths only
     if (e.code === 'STORE_CLOSED') {
       showClosedPopup(e.message);
+    } else if (e.message === 'OUTSIDE_ZONE') {
+      // Server rejected order because order_allowed=false — session may have been stale
+      _session.order_allowed = false;
+      _showOzOrderBlock();
     } else {
       toast(e.message || 'Order failed. Try again.');
     }
@@ -7943,6 +8027,13 @@ async function confirmInsufOrder() {
   if (!cart.length || !user) { closeInsufPopup(); return; }
 
   // ── Same guards as placeOrder() — insuf path must be equally safe ──────────
+
+  // Guard 0: zone block — matches placeOrder() guard
+  if (_session.order_allowed === false) {
+    closeInsufPopup();
+    _showOzOrderBlock();
+    return;
+  }
 
   // Guard 1: store open/closed check
   const hour = currentISTHour();
@@ -8925,8 +9016,20 @@ async function saveAddress() {
 
   try {
     // room_no stored inside address, not as separate column
-    await api('updateProfile', { phone: Auth.get()?.phone, address: addr, area: selectedArea, password: Creds.get()?.pw });
+    const _upRes = await api('updateProfile', { phone: Auth.get()?.phone, address: addr, area: selectedArea, password: Creds.get()?.pw });
     Auth.patch({ address: addr, area: selectedArea });
+    // Sync zone_status + order_allowed into session + SessionCache if server re-checked zone
+    if (_session && _upRes.order_allowed !== undefined) {
+      _session.order_allowed = _upRes.order_allowed;
+    }
+    if (_session && _upRes.zone_status !== undefined) {
+      Auth.patch({ zone_status: _upRes.zone_status });
+    }
+    // Persist updated user into SessionCache so zone/order state survives app reload
+    if (_upRes.order_allowed !== undefined || _upRes.zone_status !== undefined) {
+      const _sc = SessionCache.get();
+      if (_sc) SessionCache.save({ ..._sc, user: { ..._sc.user, ..._session } });
+    }
     // Refresh display
     const addrDisplay = document.getElementById('acct-addr-display');
     if (addrDisplay) _renderSavedAddrDisplay(addrDisplay, addr);
@@ -10513,18 +10616,31 @@ function _guestLocDismiss() {
 
 /* ── Manual Address Popup ─────────────────────────────────────────────────── */
 function _suOpenManualPopup() {
-  // Sync area list into popup select
+  // Sync area list into popup select (always include "Other" option)
   const sel = document.getElementById('smp-area');
-  if (sel && _suAreaList.length) {
+  if (sel) {
     const currentArea = document.getElementById('su-area')?.value || '';
+    const areas = _suAreaList.length ? _suAreaList : [];
+    // Build options: loaded areas + "Other" always at end
+    const areaOpts = areas.filter(a => a !== 'Other');
     sel.innerHTML = '<option value="">Select area…</option>' +
-      _suAreaList.map(a => `<option value="${a}"${a === currentArea ? ' selected' : ''}>${a}</option>`).join('');
+      areaOpts.map(a => `<option value="${a}"${a === currentArea ? ' selected' : ''}>${a}</option>`).join('') +
+      `<option value="Other"${'Other' === currentArea ? ' selected' : ''}>Other (outside listed areas)</option>`;
+    // If currentArea was pre-set, ensure it's selected
+    if (currentArea) sel.value = currentArea;
   }
-  // Pre-fill building/room if already typed in inline form
-  const bld = document.getElementById('su-mf-building')?.value || '';
-  const rm  = document.getElementById('su-mf-room')?.value || '';
-  if (bld) { const el = document.getElementById('smp-building'); if(el) el.value = bld; }
-  if (rm)  { const el = document.getElementById('smp-room');     if(el) el.value = rm; }
+  // Pre-fill fields from inline card values (for Edit flow and first-open)
+  const bld    = document.getElementById('su-mf-building')?.value || '';
+  const rm     = document.getElementById('su-mf-room')?.value     || '';
+  const nearby = document.getElementById('su-mf-nearby')?.value   || '';
+  if (bld)    { const el = document.getElementById('smp-building'); if(el) el.value = bld; }
+  if (rm)     { const el = document.getElementById('smp-room');     if(el) el.value = rm; }
+  if (nearby) { const el = document.getElementById('smp-nearby');   if(el) el.value = nearby; }
+  // Reset any red borders from previous validation errors
+  ['smp-building','smp-room','smp-nearby','smp-area'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.borderColor = '#e2e8f0';
+  });
   const errEl = document.getElementById('smp-err');
   if (errEl) errEl.style.display = 'none';
   document.getElementById('su-manual-popup').style.display = 'flex';
@@ -10543,75 +10659,133 @@ async function _suSaveManualPopup() {
   const pincode  = (document.getElementById('smp-pincode')?.value  || '221005').trim();
   const errEl    = document.getElementById('smp-err');
 
+  // ── Validate all required fields ──
   if (!building) {
-    errEl.textContent = '🏠 Hostel / Building Name is required.';
+    errEl.innerHTML = '<b>Hostel / Building Name</b> is required.';
     errEl.style.display = 'block';
     document.getElementById('smp-building')?.focus();
+    document.getElementById('smp-building').style.borderColor = '#ef4444';
+    return;
+  }
+  if (!room) {
+    errEl.innerHTML = '<b>Near</b> field is required — add nearest gate or marker.';
+    errEl.style.display = 'block';
+    document.getElementById('smp-room')?.focus();
+    document.getElementById('smp-room').style.borderColor = '#ef4444';
+    return;
+  }
+  if (!nearby) {
+    errEl.innerHTML = '<b>Famous Landmark</b> is required — e.g. Near LD Guest House BHU.';
+    errEl.style.display = 'block';
+    document.getElementById('smp-nearby')?.focus();
+    document.getElementById('smp-nearby').style.borderColor = '#ef4444';
+    return;
+  }
+  if (!area) {
+    errEl.innerHTML = '<b>Delivery Area</b> is required — please select your area.';
+    errEl.style.display = 'block';
+    document.getElementById('smp-area')?.focus();
+    document.getElementById('smp-area').style.borderColor = '#ef4444';
     return;
   }
   errEl.style.display = 'none';
 
-  // The continuous watch may have raced and auto-accepted a ≤500m GPS fix
-  // just before this submit fired (popup auto-closes when that happens) —
-  // if so GPS already won; ignore this manual submit entirely.
+  // The continuous watch may have raced and auto-accepted a GPS fix
   if (document.getElementById('su-loc-mode')?.value === '1') return;
 
   // ── User submitted first: lock in manual mode, stop the watch for good ──
   _suManualSubmitted = true;
   _suStopContinuousWatch();
 
-  // Copy values into inline manual card
+  // Copy values into inline manual card fields
   if (building) { const el = document.getElementById('su-mf-building'); if (el) el.value = building; }
   if (room)     { const el = document.getElementById('su-mf-room');     if (el) el.value = room; }
+  if (nearby)   { const el = document.getElementById('su-mf-nearby');   if (el) el.value = nearby; }
 
   // Set area in main form if selected
-  if (area) {
-    const areaEl = document.getElementById('su-area');
-    const areaSearch = document.getElementById('su-area-search');
-    if (areaEl) areaEl.value = area;
-    if (areaSearch) areaSearch.value = area;
-    // Sync into manual card area field
-    const mfArea = document.getElementById('su-mf-area');
-    if (mfArea) mfArea.value = area;
-  }
-
-  // Close popup
-  _suCloseManualPopup();
-
-  // Show inline manual card with the data
-  _suShowManualCard();
+  const areaEl = document.getElementById('su-area');
+  const areaSearch = document.getElementById('su-area-search');
+  if (areaEl) areaEl.value = area;
+  if (areaSearch) areaSearch.value = area;
+  const mfArea = document.getElementById('su-mf-area');
+  if (mfArea) mfArea.value = area;
 
   // Set loc mode to manual BEFORE geocoding
   const modeEl = document.getElementById('su-loc-mode');
   if (modeEl) modeEl.value = '2';
 
-  // Update detect button to show address summary
-  const btn    = document.getElementById('su-loc-btn');
-  const btnTxt = document.getElementById('su-loc-btn-txt');
-  if (btn && btnTxt) {
-    btn.classList.remove('verified', 'rejected');
-    btnTxt.textContent = building.substring(0, 22) + (building.length > 22 ? '…' : '');
+  // Close popup
+  _suCloseManualPopup();
+
+  // Show inline manual card
+  _suShowManualCard();
+
+  // ── Hide detect button, show premium address card ──
+  const btn = document.getElementById('su-loc-btn');
+  const addrCard = document.getElementById('su-manual-addr-card');
+  if (btn) btn.style.display = 'none';
+  if (addrCard) {
+    // Line 1: Building name
+    const line1 = document.getElementById('su-mac-line1');
+    if (line1) line1.textContent = building;
+    // Line 2: Near + Landmark
+    const line2 = document.getElementById('su-mac-line2');
+    const nearParts = [room && ('Near ' + room), nearby].filter(Boolean);
+    if (line2) line2.textContent = nearParts.join(' · ');
+    // Line 3: Area, District, Pincode
+    const line3 = document.getElementById('su-mac-line3');
+    if (line3) line3.textContent = [area, 'Varanasi', pincode].filter(Boolean).join(', ') + ', UP';
+    addrCard.style.display = 'block';
   }
 
-  // ── Geocode the typed address immediately (no debounce) ────────────────
-  // Success → _suForwardGeocode fills su-lat/su-lng + sets loc-ok from zone check;
-  //           address + coordinates both get saved at doSignup.
-  // Fail    → su-lat/su-lng stay empty; address-only is saved at doSignup
-  //           (locMode==='2' without coords → no GPS line in the address).
+  // ── Geocode the typed address (forward geocode) ────────────────────────
+  // Success in zone  → save coordinates + address
+  // Success out zone → discard coordinates, save address only (still allow order)
+  // Fail             → save address only (still allow order)
   if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
   _suGeocodeState = 'pending';
-  _suSetZoneStatus('checking', '🟡 Checking delivery availability…');
-  document.getElementById('su-loc-ok').value = '0';
+  _suSetZoneStatus('checking', '\uD83D\uDFE1 Verifying delivery area\u2026');
+  // Always allow ordering regardless of geocode result
+  document.getElementById('su-loc-ok').value = '1';
   await _suForwardGeocode(_suBuildStructuredAddr());
+  // After geocode: if outside zone, clear coordinates but keep address (still allow order)
+  if (_suGeocodeState === 'done_outside') {
+    document.getElementById('su-lat').value  = '';
+    document.getElementById('su-lng').value  = '';
+    document.getElementById('su-loc-ok').value = '1'; // allow order regardless
+    _suSetZoneStatus('warn', '\u26A0\uFE0F Outside our usual delivery zone \u2014 we\'ll do our best to reach you!');
+    const statusEl = document.getElementById('su-mac-status');
+    if (statusEl) { statusEl.textContent = '\u26A0\uFE0F Outside usual zone'; statusEl.style.color = '#fbbf24'; }
+  } else if (_suGeocodeState === 'done_ok') {
+    document.getElementById('su-loc-ok').value = '1';
+    const statusEl = document.getElementById('su-mac-status');
+    if (statusEl) { statusEl.textContent = '\u2713 Within delivery zone'; statusEl.style.color = '#86efac'; }
+  } else if (_suGeocodeState === 'done_err') {
+    // Geocode failed — address only, still allow
+    document.getElementById('su-lat').value  = '';
+    document.getElementById('su-lng').value  = '';
+    document.getElementById('su-loc-ok').value = '1';
+    _suClearZoneStatus();
+    const statusEl = document.getElementById('su-mac-status');
+    if (statusEl) { statusEl.textContent = '\u2713 Address saved'; statusEl.style.color = '#86efac'; }
+  }
 
-  // Scroll to manual card
+  // Scroll to address card
   setTimeout(() => {
-    const card = document.getElementById('su-manual-card');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => {
-      if (!room) document.getElementById('su-mf-room')?.focus();
-    }, 450);
+    const card = document.getElementById('su-manual-addr-card');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 200);
+}
+
+/* Edit button on manual address card — re-open popup with values prefilled */
+function _suEditManualAddr() {
+  // Restore detect button, hide address card
+  const btn = document.getElementById('su-loc-btn');
+  const addrCard = document.getElementById('su-manual-addr-card');
+  if (btn) btn.style.display = '';
+  if (addrCard) addrCard.style.display = 'none';
+  // Re-open the popup with current values
+  _suOpenManualPopup();
 }
 
 /* Load warm coords from localStorage (from a previous session / tab) */
