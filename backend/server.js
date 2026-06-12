@@ -142,6 +142,8 @@ const _ADMIN_ONLY_ACTIONS = new Set([
 const _STAFF_ACTIONS = new Set([
   'adminGetOrders',
   'adminGetUsers',
+  'adminAllowOrder',
+  'adminSetUserCoords',
   'adminGetSubscribers',
   'getStaff',
   'getSubscribersForBulk',
@@ -1286,6 +1288,13 @@ app.post('/api', async (req, res) => {
         if (existing) return res.json({ success: false, error: 'Phone already registered' });
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
         const createdAt = new Date().toISOString();
+
+        // Parse coords and zone info sent by client
+        const signupLat = parseFloat(data.coord_lat) || null;
+        const signupLng = parseFloat(data.coord_lng) || null;
+        const signupZoneStatus  = data.zone_status || 'unknown';
+        const signupOrderAllowed = signupZoneStatus !== 'outside';
+
         const { error: insertErr } = await supabase.from('users').insert({
           user_id:       phone,
           name:          data.name,
@@ -1294,7 +1303,11 @@ app.post('/api', async (req, res) => {
           address:       data.address || null,
           area:          data.area || _extractArea(data.address || ''),
           password_hash: hash,
-          created_at:    createdAt
+          created_at:    createdAt,
+          coord_lat:     signupLat,
+          coord_lng:     signupLng,
+          zone_status:   signupZoneStatus,
+          order_allowed: signupOrderAllowed,
         });
         if (insertErr) return res.json({ success: false, error: 'Registration failed. Please try again.' });
         // ── Server-side geocode safety net ─────────────────────────────────────
@@ -1377,7 +1390,9 @@ app.post('/api', async (req, res) => {
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, created_at: createdAt },
           subscriber:    null,
           walletBalance: 0,
-          userToken:     signupToken
+          userToken:     signupToken,
+          zone_status:   signupZoneStatus,
+          order_allowed: signupOrderAllowed,
         });
       }
 
@@ -1477,7 +1492,16 @@ app.post('/api', async (req, res) => {
         if (scheduleVal)  { try { schedule = JSON.parse(scheduleVal); } catch { schedule = null; } }
         if (cutoffVal)    { try { config   = JSON.parse(cutoffVal);   } catch { config   = null; } }
         const enabled = JSON.parse(khataVal || 'false') === true;
-        return res.json({ success: true, items: menuItems, schedule, config, enabled, version: _menuContentVersion });
+        // If phone + userToken supplied, append user-specific order_allowed
+        let orderAllowed = true; // default — guests and unknown users can proceed
+        if (data.phone) {
+          const cleanedPhone = cleanPhone(data.phone);
+          if (cleanedPhone && _verifyUserToken(req.body.userToken, cleanedPhone)) {
+            const { data: uRow } = await supabase.from('users').select('order_allowed').eq('phone', cleanedPhone).single();
+            if (uRow) orderAllowed = uRow.order_allowed !== false;
+          }
+        }
+        return res.json({ success: true, items: menuItems, schedule, config, enabled, version: _menuContentVersion, order_allowed: orderAllowed });
       }
 
       // ── MERGED: replaces getSubscriberBalance + getSubscriberPauseStatus (same row) ──
@@ -1552,10 +1576,14 @@ app.post('/api', async (req, res) => {
         if (!_isStaff && !_verifyUserToken(req.body.userToken, phone)) {
           return res.status(401).json({ success: false, error: 'Auth required. Please log in again.' });
         }
-        const { data: user } = await supabase.from('users').select('phone, name, address').eq('phone', phone).single();
+        const { data: user } = await supabase.from('users').select('phone, name, address, order_allowed').eq('phone', phone).single();
         if (!user) return res.json({ success: false, error: 'User not found' });
         const address = data.address || user.address;
         if (!address) return res.json({ success: false, error: 'Delivery address required' });
+        // Outside-zone enforcement — order_allowed=false means admin has not enabled delivery
+        if (!_isStaff && user.order_allowed === false) {
+          return res.json({ success: false, error: 'OUTSIDE_ZONE', message: 'Ordering is not available for your location yet. Please contact us via WhatsApp to request delivery.' });
+        }
         if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
           return res.json({ success: false, error: 'Order items required' });
         }
@@ -3227,9 +3255,55 @@ app.post('/api', async (req, res) => {
               wallet_balance:      walBal,
               // rating comes directly from users.rating (NUMERIC) — no join needed
               rating:              parseFloat(u.rating) || 0,
+              // zone / order fields
+              zone_status:         u.zone_status  || 'unknown',
+              order_allowed:       u.order_allowed !== false, // default true
+              coord_lat:           u.coord_lat  || null,
+              coord_lng:           u.coord_lng  || null,
             };
           });
           return res.json({ success: true, users: safe }); }
+
+      case 'adminAllowOrder': {
+        // Admin enables order placement for an outside-zone user
+        const { phone: aoPhone } = data;
+        if (!aoPhone) return res.json({ success: false, error: 'Phone required' });
+        const { error: aoErr } = await supabase.from('users')
+          .update({ order_allowed: true, zone_status: 'outside_allowed' })
+          .eq('phone', cleanPhone(aoPhone));
+        if (aoErr) return res.json({ success: false, error: aoErr.message });
+        return res.json({ success: true });
+      }
+
+      case 'adminSetUserCoords': {
+        // Admin manually sets lat/lng for a user (via edit address modal)
+        const { phone: scPhone, lat: scLat, lng: scLng } = data;
+        if (!scPhone) return res.json({ success: false, error: 'Phone required' });
+        const lat = parseFloat(scLat), lng = parseFloat(scLng);
+        if (isNaN(lat) || isNaN(lng)) return res.json({ success: false, error: 'Invalid coordinates' });
+        // Do zone check to set zone_status
+        let zoneStatus = 'unknown';
+        try {
+          const { data: zRow } = await supabase.from('admin_settings').select('value').eq('key', 'delivery_zone').single();
+          if (zRow?.value) {
+            const zone = JSON.parse(zRow.value);
+            if (zone?.lat && zone?.lng && zone?.radiusKm) {
+              const R = 6371;
+              const dLat = (lat - zone.lat) * Math.PI / 180;
+              const dLng = (lng - zone.lng) * Math.PI / 180;
+              const a = Math.sin(dLat/2)**2 + Math.cos(zone.lat*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLng/2)**2;
+              const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+              zoneStatus = dist <= zone.radiusKm ? 'inside' : 'outside';
+            }
+          }
+        } catch(_) {}
+        const { error: scErr } = await supabase.from('users')
+          .update({ coord_lat: lat, coord_lng: lng, zone_status: zoneStatus,
+                    order_allowed: zoneStatus !== 'outside' })
+          .eq('phone', cleanPhone(scPhone));
+        if (scErr) return res.json({ success: false, error: scErr.message });
+        return res.json({ success: true, zone_status: zoneStatus });
+      }
 
       case 'getMenuItems':
         { const { data: items } = await supabase.from('menu_items').select('*').order('sort_order', { ascending: true });
