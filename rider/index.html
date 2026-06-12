@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v121                                    ║
-     ║  Updated : 2026-06-10                               ║
+     ║  Version : v131                                    ║
+     ║  Updated : 2026-06-12                               ║
+     ║  v131: Rider can edit Room No/Area/GPS for any      ║
+     ║        customer + GPS coverage banner (Total/       ║
+     ║        GPS/No-GPS)                                  ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -464,6 +467,74 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
   cursor:pointer;
 }
 
+/* ─── GPS COVERAGE BANNER ─────────────────────────────── */
+#coverage-banner{
+  display:none;align-items:center;gap:8px;
+  background:#1e293b;border-bottom:1px solid #334155;
+  padding:8px 14px;font-family:var(--ff);font-size:11px;color:#cbd5e1;
+  flex-shrink:0;
+}
+#coverage-banner.show{display:flex}
+#coverage-banner .cb-stat{display:flex;align-items:center;gap:4px;white-space:nowrap}
+#coverage-banner .cb-warn{color:#f97316;font-weight:700;cursor:pointer;text-decoration:underline}
+#coverage-banner .cb-sep{color:#475569}
+
+/* ─── SET LOCATION PICKER MODAL ───────────────────────── */
+#setloc-modal{
+  position:fixed;inset:0;z-index:3000;
+  background:#0f172a;display:none;flex-direction:column;
+  max-width:520px;left:50%;transform:translateX(-50%);width:100%;
+}
+#setloc-modal.open{display:flex}
+#setloc-topbar{
+  background:linear-gradient(180deg,#1a2035 0%,#1e293b 100%);
+  padding:12px 14px;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;flex-shrink:0;border-bottom:1px solid #334155;
+}
+#setloc-title{font-family:var(--ff);font-weight:700;font-size:13px;color:#f1f5f9;flex:1;line-height:1.3}
+#setloc-close{
+  background:#334155;color:#94a3b8;border:none;border-radius:9px;padding:7px 12px;
+  font-size:14px;cursor:pointer;flex-shrink:0;min-width:38px;min-height:38px;
+  display:flex;align-items:center;justify-content:center;font-family:var(--ff);font-weight:700;
+}
+#setloc-info{
+  padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155;
+  font-family:var(--ff);font-size:12px;color:#94a3b8;line-height:1.5;
+}
+#setloc-info b{color:#f1f5f9}
+#setloc-form{
+  padding:10px 14px;background:#0f172a;border-bottom:1px solid #334155;
+  flex-shrink:0;display:flex;flex-direction:column;gap:10px;
+}
+.setloc-field label{
+  display:block;font-family:var(--ff);font-size:11px;font-weight:700;
+  color:#cbd5e1;margin-bottom:4px;
+}
+.setloc-field .setloc-optional{font-weight:400;color:#64748b}
+.setloc-field input,.setloc-field select{
+  width:100%;padding:9px 10px;border:1.5px solid #334155;border-radius:9px;
+  font-family:var(--ff);font-size:13px;color:#e2e8f0;background:#1e293b;
+  outline:none;box-sizing:border-box;appearance:none;
+}
+.setloc-field input:focus,.setloc-field select:focus{border-color:#3b82f6}
+#setloc-map{position:absolute;inset:0;width:100%;height:100%}
+#setloc-pin{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);
+  font-size:34px;pointer-events:none;z-index:500;
+  filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));
+}
+#setloc-actions{
+  display:flex;gap:10px;padding:12px 14px;background:#1e293b;
+  border-top:1px solid #334155;flex-shrink:0;
+}
+#setloc-actions button{
+  flex:1;border:none;border-radius:10px;padding:13px;
+  font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;
+}
+#setloc-save{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+#setloc-mylocation{background:#334155;color:#e2e8f0;flex:0 0 auto;min-width:48px}
+#setloc-save:disabled{opacity:.5}
+
 /* ─── ALL PINS OVERLAY (Street Map full view) ─────────── */
 /* ── All-Pins expanded mode ── */
 #all-pins-bar{
@@ -713,6 +784,15 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 
 
 
+  <!-- GPS Coverage Banner -->
+  <div id="coverage-banner">
+    <span class="cb-stat">📦 Total: <b id="cb-total">0</b></span>
+    <span class="cb-sep">·</span>
+    <span class="cb-stat">📍 GPS: <b id="cb-gps">0</b></span>
+    <span class="cb-sep">·</span>
+    <span class="cb-stat cb-warn" id="cb-nogps-wrap" onclick="scrollToNoGpsStops()">⚠ No GPS: <b id="cb-nogps">0</b></span>
+  </div>
+
   <!-- Stop List -->
   <div id="map-bottom">
     <div id="map-stop-list"></div>
@@ -720,6 +800,44 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 
   <!-- Celebration — content injected dynamically by _showCelebration() -->
   <div id="map-celebration"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     EDIT ADDRESS MODAL — rider can fix Room No, Delivery
+     Area, and GPS coordinates for any customer
+     ═══════════════════════════════════════════════════════ -->
+<div id="setloc-modal">
+  <div id="setloc-topbar">
+    <div id="setloc-title">✏️ Edit Customer Address</div>
+    <button id="setloc-close" onclick="closeSetLocationModal()">✕</button>
+  </div>
+  <div id="setloc-info">
+    <b id="setloc-name">—</b><br>
+    <span id="setloc-addr"></span>
+  </div>
+  <div id="setloc-form">
+    <div class="setloc-field">
+      <label for="setloc-room">Room / Flat No <span class="setloc-optional">(optional)</span></label>
+      <input id="setloc-room" type="text" placeholder="e.g. Room 12, Flat B-4">
+    </div>
+    <div class="setloc-field">
+      <label for="setloc-area">Delivery Area</label>
+      <select id="setloc-area">
+        <option value="">— Select Area —</option>
+      </select>
+    </div>
+    <div class="setloc-field">
+      <label>GPS Location <span class="setloc-optional">(drag map to set/update)</span></label>
+    </div>
+  </div>
+  <div style="position:relative;flex:1;min-height:0">
+    <div id="setloc-map"></div>
+    <div id="setloc-pin">📍</div>
+  </div>
+  <div id="setloc-actions">
+    <button id="setloc-mylocation" onclick="_setlocUseMyGps()" title="Center on my GPS">🎯</button>
+    <button id="setloc-save" onclick="_saveStopCoords()">💾 Save Address</button>
+  </div>
 </div>
 
 <!-- Delivery action floating bar -->
@@ -1855,6 +1973,9 @@ function _startGPS() {
           _updateBatchStrip();
         }, 200); // small delay so map is ready
       }
+      // Keep the Edit Address picker's blue dot in sync too (independent of main map)
+      _setlocUpdateGpsDot();
+
       if (!_map) return;
 
       // 1. Move blue dot & accuracy circle
@@ -2060,10 +2181,15 @@ function _renderStopList() {
         <button onclick="stopWA(${i})" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
         <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>
         <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>` : '';
-    const actionBtns = (viewBtn || commBtns) ? `
+    // Edit Address button: available for all non-delivered stops (room/area/GPS)
+    const setLocBtn = !s.delivered
+      ? `<button onclick="event.stopPropagation();openSetLocationModal(${i})" style="flex:1;min-width:44px;background:#f97316;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Edit address / set GPS for this customer">${hasCoords ? '✏️ Edit' : '📍 Set Location'}</button>`
+      : '';
+    const actionBtns = (viewBtn || commBtns || setLocBtn) ? `
       <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap" onclick="event.stopPropagation()">
         ${commBtns}
         ${viewBtn}
+        ${setLocBtn}
       </div>` : '';
 
     return `<div class="map-stop-card ${activeClass} ${delivClass} ${noClass}" id="stop-card-${i}" onclick="flyToStop(${i})">
@@ -2086,9 +2212,32 @@ function _renderStopList() {
       </div>
     </div>`;
   }).join('');
+
+  _updateCoverageBanner();
 }
 
-// ── Place markers on map ──────────────────────────────────────
+// ── Update GPS coverage banner (Total / GPS / No-GPS counts) ──
+function _updateCoverageBanner() {
+  const bar = document.getElementById('coverage-banner');
+  if (!bar) return;
+  const total = _mapStops.length;
+  const withGps = _mapStops.filter(s => !!s.coords).length;
+  const noGps = total - withGps;
+  document.getElementById('cb-total').textContent = total;
+  document.getElementById('cb-gps').textContent   = withGps;
+  document.getElementById('cb-nogps').textContent = noGps;
+  const noGpsWrap = document.getElementById('cb-nogps-wrap');
+  noGpsWrap.style.display = noGps > 0 ? '' : 'none';
+  bar.classList.toggle('show', total > 0);
+}
+
+// ── Scroll to the first no-GPS stop card ──────────────────────
+function scrollToNoGpsStops() {
+  const idx = _mapStops.findIndex(s => !s.coords && !s.delivered);
+  if (idx === -1) { rToast('All stops have GPS! ✅'); return; }
+  const card = document.getElementById('stop-card-' + idx);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 function _placeMarkers() {
   // Remove old markers
   _mapStops.forEach(s => { if (s.marker) _map.removeLayer(s.marker); s.marker = null; });
@@ -2856,6 +3005,148 @@ function openStreetView(idx) {
   _gMapsOpen(url);
 }
 
+/* ── EDIT ADDRESS MODAL — rider fixes Room No / Delivery Area / GPS
+   for any customer. Updates users table + this order's snapshot so
+   it shows correctly everywhere (admin, customer, future orders). */
+let _setlocMap        = null;
+let _setlocIdx        = null;
+let _setlocCoordTouched = false;   // true once rider intentionally moves the pin
+let _setlocAreaList   = [];
+
+async function _setlocLoadAreas() {
+  if (_setlocAreaList.length) return _setlocAreaList;
+  try {
+    const r = await api('getDeliveryAreas');
+    if (r.areas && r.areas.length) _setlocAreaList = r.areas;
+  } catch(e) {}
+  if (!_setlocAreaList.length) {
+    _setlocAreaList = ['Lanka','BHU Campus','Sunderpur','Hyderabad Colony','Trauma Centre','Durgakund','Ravindrapuri','Assi Ghat','Nagwa','Shivpur'];
+  }
+  return _setlocAreaList;
+}
+
+// Parse a v84-format address into { room, area, lat, lng }
+function _parseAddrFields(address) {
+  const lines = (address || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const room  = (lines.find(l => /^Room No\s*:/i.test(l))  || '').replace(/^Room No\s*:\s*/i, '').trim();
+  const area  = (lines.find(l => /^Area\s*:/i.test(l))     || '').replace(/^Area\s*:\s*/i, '').trim();
+  const cm    = (lines.find(l => /^Coordinates\s*:/i.test(l)) || '').match(/Coordinates\s*:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i);
+  const lat   = cm ? parseFloat(cm[1]) : null;
+  const lng   = cm ? parseFloat(cm[2]) : null;
+  return { room, area, lat, lng };
+}
+
+async function openSetLocationModal(idx) {
+  const s = _mapStops[idx];
+  if (!s) return;
+  _setlocIdx = idx;
+  _setlocCoordTouched = false;
+
+  document.getElementById('setloc-name').textContent = s.order.name || 'Customer';
+  document.getElementById('setloc-addr').textContent = _shortAddr(s.order.address || '');
+  document.getElementById('setloc-modal').classList.add('open');
+  history.pushState({ setLoc: true }, '', location.href);
+
+  const parsed = _parseAddrFields(s.order.address || '');
+  document.getElementById('setloc-room').value = parsed.room || '';
+
+  // Populate area dropdown
+  const areaSel = document.getElementById('setloc-area');
+  const areas = await _setlocLoadAreas();
+  areaSel.innerHTML = '<option value="">— Select Area —</option>' +
+    areas.map(a => `<option value="${a}"${a === parsed.area ? ' selected' : ''}>${a}</option>`).join('');
+
+  // Default map center: existing coords → rider GPS → BHU campus fallback
+  const start = (parsed.lat != null && parsed.lng != null)
+    ? { lat: parsed.lat, lng: parsed.lng }
+    : (_gpsPos || { lat: 25.2677, lng: 82.9913 });
+
+  requestAnimationFrame(() => {
+    if (!_setlocMap) {
+      _setlocMap = L.map('setloc-map', { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_setlocMap);
+      // Any user-initiated drag/zoom after initial load = intentional pin move
+      _setlocMap.on('dragstart zoomstart', () => { _setlocCoordTouched = true; });
+    } else {
+      _setlocMap.invalidateSize();
+    }
+    _setlocMap.setView([start.lat, start.lng], 17);
+    _setlocUpdateGpsDot();
+  });
+}
+
+// ── Show rider's current GPS as a blue dot on the picker map (like Google Maps) ──
+let _setlocGpsMarker = null;
+function _setlocUpdateGpsDot() {
+  if (!_setlocMap || !_gpsPos) return;
+  if (!_setlocGpsMarker) {
+    _setlocGpsMarker = L.marker([_gpsPos.lat, _gpsPos.lng], { icon: _gpsIcon(), zIndexOffset: 999 }).addTo(_setlocMap);
+  } else {
+    _setlocGpsMarker.setLatLng([_gpsPos.lat, _gpsPos.lng]);
+  }
+}
+
+function closeSetLocationModal() {
+  document.getElementById('setloc-modal').classList.remove('open');
+  _setlocIdx = null;
+  if (history.state && history.state.setLoc) history.back();
+}
+
+function _setlocUseMyGps() {
+  if (!_gpsPos) { rToast('GPS not available yet — move outdoors and retry'); return; }
+  _setlocCoordTouched = true;
+  if (_setlocMap) _setlocMap.setView([_gpsPos.lat, _gpsPos.lng], 17);
+}
+
+async function _saveStopCoords() {
+  if (_setlocIdx === null) return;
+  const s = _mapStops[_setlocIdx];
+  if (!s || !_setlocMap) return;
+
+  const room = document.getElementById('setloc-room').value.trim();
+  const area = document.getElementById('setloc-area').value.trim();
+  if (!area) { rToast('Please select a delivery area'); return; }
+
+  // Only send coordinates if the rider intentionally moved the pin,
+  // OR the customer had no coordinates yet (first-time fix).
+  const parsed = _parseAddrFields(s.order.address || '');
+  const hadCoords = parsed.lat != null && parsed.lng != null;
+  const sendCoords = _setlocCoordTouched || !hadCoords;
+
+  const center = _setlocMap.getCenter();
+  const lat = sendCoords ? center.lat : null;
+  const lng = sendCoords ? center.lng : null;
+
+  const btn = document.getElementById('setloc-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await api('riderUpdateUserAddress', {
+      phone:   s.order.phone,
+      orderId: s.order.order_id,
+      room, area, lat, lng
+    });
+    if (!res.success) throw new Error(res.error || 'Failed to save');
+
+    // Update local stop from server's rebuilt address so display, markers,
+    // and routing all reflect the change immediately without a re-fetch.
+    s.order.address = res.address;
+    s.coords = (res.lat != null && res.lng != null) ? { lat: res.lat, lng: res.lng } : null;
+
+    rToast('✅ Address updated!');
+    closeSetLocationModal();
+    _placeMarkers();
+    _renderStopList();
+  } catch (e) {
+    rToast('⚠️ ' + (e.message || 'Failed to save address'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Save Address';
+  }
+}
+
+
 /* ── Share live location with customer via WhatsApp ─────────────
    Sends the rider's current GPS as a Google Maps link in WA.    */
 function shareLocationViaWA(idx) {
@@ -3620,6 +3911,13 @@ function _riderDoExit() {
 }
 
 window.addEventListener('popstate', () => {
+  // If Set Location picker is open, close it first (without re-pushing state)
+  if (document.getElementById('setloc-modal')?.classList.contains('open')) {
+    document.getElementById('setloc-modal').classList.remove('open');
+    _setlocIdx = null;
+    return;
+  }
+
   // If map is open, close it instead of navigating back
   if (_mapModalOpen) {
     closeRiderMap();
