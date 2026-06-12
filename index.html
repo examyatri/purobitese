@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v126                                     ║
+     ║  Version : v130                                     ║
      ║  Updated : 2026-06-12                               ║
+     ║  CHANGE  : v130 — Version alignment release (no    ║
+     ║            functional changes; see v126 below for  ║
+     ║            last functional update)                 ║
      ║  CHANGE  : v126 — Continuous GPS watch system for   ║
      ║            signup location detection (sparse-GPS   ║
      ║            cities like Indore): single watchPosition║
@@ -4742,7 +4745,13 @@ function _suAcceptDetectedLocation(lat, lng, accuracy) {
 
   if (_suPendingAutoSubmit) {
     _suPendingAutoSubmit = false;
-    setTimeout(() => doSignup(), 300);
+    const signupTabEl = document.getElementById('signup-tab');
+    const stillOnSignup = signupTabEl && signupTabEl.style.display !== 'none';
+    if (_suPendingAutoSubmitToken === _suAbortToken && stillOnSignup) {
+      setTimeout(() => doSignup(), 300);
+    }
+    // else: user navigated away (login tab / different session) — drop silently.
+    // Location is still saved to su-lat/su-lng for whenever they return.
   }
 }
 
@@ -5390,6 +5399,7 @@ let _suAbortToken       = 0;   // stale-callback guard
 let _suRetryTimer       = null;
 let _suManualGeocodeTimer = null;
 let _suPendingAutoSubmit = false; // user tapped Create Account while GPS still running — auto-submit on resolve
+let _suPendingAutoSubmitToken = 0; // generation snapshot — guards against firing after user navigates away
 
 /* Legacy bg-GPS stubs — kept so post-signup _suStopBgGps() call at line ~5263
    doesn't throw; the foreground retry loop now handles all visible retries.   */
@@ -5835,12 +5845,25 @@ function _showOzOrderBlock() {
   const area  = user?.area  || '';
   const addr  = user?.address || '';
 
-  // Determine block reason: outside zone vs no-coordinates (manual_only / unknown)
+  // Determine block reason:
+  //   - manual_only/unknown WITHOUT a recognised area → location not verified
+  //   - outside                                        → outside delivery zone
+  //   - anything else (inside / outside_allowed / admin_approved, OR
+  //     manual_only WITH a valid recognised area)      → location is fine,
+  //     order_allowed=false here means admin has manually disabled ordering
+  //     for this account — distinct "permission" message.
   const zs = user?.zone_status || _session?.zone_status || '';
-  const isManualOnly = (zs === 'manual_only' || zs === 'unknown');
+  const hasValidArea = !!area && area !== 'Other';
+  const isManualOnly  = (zs === 'unknown') || (zs === 'manual_only' && !hasValidArea);
+  const isOutsideZone = (zs === 'outside');
+  const isAdminBlock  = !isManualOnly && !isOutsideZone;
 
   let title, subtitle, waMsg;
-  if (isManualOnly) {
+  if (isAdminBlock) {
+    title    = '🔒 Ordering Temporarily Unavailable';
+    subtitle = 'Ordering has been temporarily disabled for your account. Please contact the Tiffo team on WhatsApp to get permission to place orders.';
+    waMsg    = `Hello Tiffo Team,\n\nI am unable to place an order on the Tiffo app — it shows that ordering is currently disabled for my account.\n\nMy details:\n  Name    : ${name}\n  Phone   : ${phone}${area ? '\n  Area    : ' + area : ''}${addr ? '\n  Address : ' + addr : ''}\n\nCould you please review my account and enable ordering again?\n\nThank you.`;
+  } else if (isManualOnly) {
     title    = '📍 Location Verification Pending';
     subtitle = 'We could not automatically verify your delivery location. Please contact the Tiffo team on WhatsApp — we will confirm availability and enable orders for you.';
     waMsg    = `Hello Tiffo Team,\n\nI have registered on the Tiffo app but am unable to place orders. My location could not be verified automatically.\n\nMy details:\n  Name    : ${name}\n  Phone   : ${phone}${area ? '\n  Area    : ' + area : ''}${addr ? '\n  Address : ' + addr : ''}\n\nCould you please verify my delivery location and enable orders on my account?\n\nThank you.`;
@@ -6142,6 +6165,7 @@ async function doSignup() {
     // GPS is actively running — user tapped submit while detection in-flight.
     // Don't error: set flag so GPS success auto-triggers submit, then show brief status.
     _suPendingAutoSubmit = true;
+    _suPendingAutoSubmitToken = _suAbortToken; // snapshot generation — only fire if user hasn't left signup
     const statusEl2 = document.getElementById('su-loc-status');
     if (statusEl2) {
       statusEl2.style.display = 'block';
