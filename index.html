@@ -969,6 +969,8 @@ textarea{resize:vertical;min-height:80px}
 /* Leaflet map overrides for in-app look */
 #su-leaflet-map .leaflet-control-zoom{border:none;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 #su-leaflet-map .leaflet-control-zoom a{color:#1a1a2e;font-weight:700;background:#fff}
+#su-leaflet-map .leaflet-top,#su-leaflet-map .leaflet-bottom{z-index:400!important}
+#su-leaflet-map.area-dd-open .leaflet-control-zoom{visibility:hidden!important;pointer-events:none!important}
 .leaflet-container{font-family:var(--fb)!important}
 #su-leaflet-map.map-locked{cursor:default}
 #acct-leaflet-map.map-locked{opacity:.88}
@@ -2057,7 +2059,7 @@ input[type=number]{-moz-appearance:textfield}
             oninput="_suAreaSearchFilter(this.value)"
             onblur="setTimeout(()=>_suAreaSearchClose(),200)">
           <span style="position:absolute;right:13px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:13px">▾</span>
-          <div id="su-area-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:999;max-height:200px;overflow-y:auto;font-family:var(--fb);font-size:13px"></div>
+          <div id="su-area-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:1100;max-height:200px;overflow-y:auto;font-family:var(--fb);font-size:13px"></div>
         </div>
         <input type="hidden" id="su-area" value="">
         <div class="field-error" id="su-area-err"></div>
@@ -4473,6 +4475,14 @@ function switchTab(tab) {
       _settingsFetchP = null;
       _loadDeliveryZone().catch(() => {});
     }
+    // Auto popup: show website-level location consent 2s after signup tab opens.
+    // Only fires once per tab visit, and only if location not already resolved.
+    // _suWatchId check handles async race: _suTryPrewarmOnIntent() may resolve
+    // permission and start the watch before the 2s timer fires.
+    if (!_suLocPopupArmed && !_suWarmPos && _suWatchId === null) {
+      _suLocPopupArmed = true;
+      _suLocPopupTimer = setTimeout(() => _showSignupLocPopup('auto'), 2000);
+    }
   }
 }
 
@@ -5596,6 +5606,8 @@ async function _loadSignupAreas() {
 }
 
 function _suAreaSearchOpen() {
+  const mapEl = document.getElementById('su-leaflet-map');
+  if (mapEl) mapEl.classList.add('area-dd-open');
   _suAreaRenderDropdown('');
 }
 
@@ -5612,6 +5624,8 @@ function _suAreaSearchFilter(val) {
 function _suAreaSearchClose() {
   const dd = document.getElementById('su-area-dropdown');
   if (dd) dd.style.display = 'none';
+  const mapEl = document.getElementById('su-leaflet-map');
+  if (mapEl) mapEl.classList.remove('area-dd-open');
 }
 
 function _suAreaRenderDropdown(filter) {
@@ -11041,6 +11055,7 @@ let _suPopupContext = 'auto';
    Works for ALL signup paths: new guest, referral link, session-expired/logout. */
 function _showSignupLocPopup(context) {
   if (_suWarmPos) return; // GPS already resolved — no need to ask
+  if (_suWatchId !== null) return; // Watch already running (permission granted earlier) — no need to ask
   // If permission already denied: skip the website popup entirely.
   // For 'detect' context, route directly to the perm banner + manual card
   // (same as _routeDetect does). Silently returning would leave user stuck.
