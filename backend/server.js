@@ -1,8 +1,11 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v130                                      ║
+// ║  Version : v131                                      ║
 // ║  Updated : 2026-06-12                               ║
+// ║  v131    : Added riderUpdateUserAddress action —    ║
+// ║            rider can edit Room No, Delivery Area,   ║
+// ║            and GPS coords for any customer.         ║
 // ║  Note    : Version alignment release — header was   ║
 // ║            stale at v114; code already included     ║
 // ║            v117/v118/v122/v130 features (ratings,   ║
@@ -1937,6 +1940,91 @@ app.post('/api', async (req, res) => {
           await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
         }
         return res.json({ success: true });
+      }
+
+      // ── Rider updates a customer's full address (room, area, coordinates) ──
+      // Triggered from rider panel "✏️ Edit Address" / "📍 Set Location" on
+      // any stop. Rebuilds the address string preserving Plus Code, patches
+      // users.address/area/coord_lat/coord_lng/zone_status/order_allowed,
+      // AND the current order's address snapshot for immediate display.
+      case 'riderUpdateUserAddress': {
+        const riderSession = _verifyToken(req.body.sessionToken);
+        if (!riderSession || !(riderSession.role === 'admin' || riderSession.role === 'staff')) {
+          return res.status(401).json({ success: false, error: 'Rider auth required' });
+        }
+        const phone = cleanPhone(data.phone);
+        if (!phone) return res.json({ success: false, error: 'Phone required' });
+
+        const { data: userRow } = await supabase.from('users').select('address, coord_lat, coord_lng, order_allowed, area').eq('phone', phone).single();
+        if (!userRow) return res.json({ success: false, error: 'User not found' });
+
+        // ── Parse existing address into lines, preserve Plus Code as-is ──
+        const existingLines = (userRow.address || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const plusLine = existingLines.find(l => /^Plus Code\s*:/i.test(l)) || '';
+
+        // ── Coordinates: use provided lat/lng if valid, else keep existing ──
+        let lat = parseFloat(data.lat);
+        let lng = parseFloat(data.lng);
+        let hasNewCoords = !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+        if (!hasNewCoords) {
+          lat = userRow.coord_lat;
+          lng = userRow.coord_lng;
+        }
+        const hasAnyCoords = (lat != null && lng != null && !isNaN(lat) && !isNaN(lng));
+
+        // ── Room No (optional, blank clears it) ──
+        const room = (data.room || '').trim();
+
+        // ── Area: use provided value, else keep existing ──
+        const area = (data.area || '').trim() || (userRow.area || '').trim();
+
+        // ── Rebuild address: Room No / Coordinates / Plus Code / Area ──
+        const parts = [];
+        if (room) parts.push(`Room No: ${room}`);
+        if (hasAnyCoords) {
+          parts.push(`Coordinates: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`);
+          if (plusLine) parts.push(plusLine);
+        }
+        if (area) parts.push(`Area: ${area}`);
+        const newAddress = parts.join('\n');
+        if (!newAddress) return res.json({ success: false, error: 'Address cannot be empty' });
+
+        const updates = { address: newAddress, area };
+
+        // ── Rider-set coordinates are trusted (rider is physically present
+        //    at the location) — treat like a normal verified user: inside
+        //    zone, ordering allowed. No distance/zone math needed. ──
+        let zoneStatus = null, orderAllowed = null;
+        if (hasNewCoords) {
+          zoneStatus   = 'inside';
+          orderAllowed = true;
+          updates.coord_lat     = lat;
+          updates.coord_lng     = lng;
+          updates.zone_status   = zoneStatus;
+          updates.order_allowed = orderAllowed;
+        } else if (area && !userRow.coord_lat && area !== 'Other') {
+          // No coords at all, but a valid area is set/confirmed — allow ordering
+          // (mirrors signup/area-exemption logic; never downgrades).
+          if (!userRow.order_allowed) updates.order_allowed = true;
+        }
+
+        await supabase.from('users').update(updates).eq('phone', phone);
+
+        // Also patch the current order's address snapshot (if orderId given)
+        // so the rider panel shows correct info for THIS delivery immediately.
+        if (data.orderId) {
+          await supabase.from('orders').update({ address: newAddress }).eq('order_id', data.orderId);
+        }
+
+        return res.json({
+          success: true,
+          address: newAddress,
+          lat: hasAnyCoords ? lat : null,
+          lng: hasAnyCoords ? lng : null,
+          area,
+          zone_status:   zoneStatus,
+          order_allowed: updates.order_allowed ?? userRow.order_allowed,
+        });
       }
 
       case 'rejectOrder': {
