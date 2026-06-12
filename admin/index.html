@@ -1563,7 +1563,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <button class="uft-btn uft-act" onclick="setUserFilter('all',this)" style="padding:7px 14px;border:none;background:#fff;border-radius:6px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;color:var(--p);box-shadow:0 1px 4px rgba(0,0,0,.08);transition:all .15s">All</button>
             <button class="uft-btn" onclick="setUserFilter('subscriber',this)" style="padding:7px 14px;border:none;background:transparent;border-radius:6px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;color:#64748b;transition:all .15s">Subscribers</button>
             <button class="uft-btn" onclick="setUserFilter('non-subscriber',this)" style="padding:7px 14px;border:none;background:transparent;border-radius:6px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;color:#64748b;transition:all .15s">Non-Subs</button>
-            <button class="uft-btn" onclick="setUserFilter('outside_zone',this)" style="padding:7px 14px;border:none;background:transparent;border-radius:6px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;color:#991b1b;transition:all .15s">🚫 Outside Zone</button>
+            <button class="uft-btn" onclick="setUserFilter('outside_zone',this)" style="padding:7px 14px;border:none;background:transparent;border-radius:6px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;color:#991b1b;transition:all .15s">🚫 Orders Blocked</button>
             <button class="uft-btn" onclick="setUserFilter('no_coords',this)" style="padding:7px 14px;border:none;background:transparent;border-radius:6px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;color:#b45309;transition:all .15s">❌ No Coords</button>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -5150,7 +5150,7 @@ function filterUsers() {
 
   if (_userFilter === 'subscriber')     filtered = filtered.filter(u => u.is_subscriber);
   if (_userFilter === 'non-subscriber') filtered = filtered.filter(u => !u.is_subscriber);
-  if (_userFilter === 'outside_zone')   filtered = filtered.filter(u => u.zone_status === 'outside');
+  if (_userFilter === 'outside_zone')   filtered = filtered.filter(u => u.order_allowed === false || (u.zone_status === 'outside' || u.zone_status === 'manual_only'));
   if (_userFilter === 'no_coords')      filtered = filtered.filter(u => !u.coord_lat && !u.coord_lng);
 
   if (q) filtered = filtered.filter(u =>
@@ -5210,8 +5210,9 @@ function renderUsersTable(users) {
     const oa = u.order_allowed !== false;
     if (zs === 'inside')          return `<span style="padding:3px 8px;background:#dcfce7;color:#15803d;border-radius:20px;font-size:10px;font-weight:700">✅ Inside</span>`;
     if (zs === 'outside_allowed') return `<span style="padding:3px 8px;background:#d1fae5;color:#065f46;border-radius:20px;font-size:10px;font-weight:700">✅ Allowed</span>`;
+    if (zs === 'admin_approved')  return `<span style="padding:3px 8px;background:#d1fae5;color:#065f46;border-radius:20px;font-size:10px;font-weight:700">✅ Approved</span>`;
     if (zs === 'outside')         return `<span style="padding:3px 8px;background:#fee2e2;color:#991b1b;border-radius:20px;font-size:10px;font-weight:700">🚫 Outside</span>`;
-    if (zs === 'manual_only')     return `<span style="padding:3px 8px;background:#fef3c7;color:#92400e;border-radius:20px;font-size:10px;font-weight:700">📝 Manual</span>`;
+    if (zs === 'manual_only')     return `<span style="padding:3px 8px;background:#fef3c7;color:#92400e;border-radius:20px;font-size:10px;font-weight:700">📍 No Coords</span>`;
     return `<span style="padding:3px 8px;background:#f1f5f9;color:#64748b;border-radius:20px;font-size:10px;font-weight:700">— Unknown</span>`;
   };
 
@@ -5276,7 +5277,7 @@ function renderUsersTable(users) {
             <i class="fa fa-location-dot" style="font-size:10px"></i> Edit Address
           </button>
           ${!u.is_subscriber ? `<button onclick="promoteUserFromAllTab('${u.phone}')" title="Promote to Subscriber" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.35);letter-spacing:.2px;transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-arrow-up" style="font-size:10px"></i> Promote to Subscriber</button>` : `<div style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border-radius:7px;background:#dcfce7;color:#16a34a;"><i class="fa fa-crown" style="font-size:10px"></i> Subscribed</div>`}
-          ${u.zone_status === 'outside' ? `<button onclick="adminAllowUserOrder('${u.phone}','${(u.name||'').replace(/'/g,"\'")}')" title="Allow this user to place orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-unlock" style="font-size:10px"></i> Allow Orders</button>` : ''}
+          ${(u.order_allowed === false || u.order_allowed === null) && (u.zone_status === 'outside' || u.zone_status === 'manual_only' || u.zone_status === 'unknown') ? `<button onclick="adminAllowUserOrder('${u.phone}','${(u.name||'').replace(/'/g,"\'")}')" title="Allow this user to place orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-unlock" style="font-size:10px"></i> Allow Orders</button>` : ''}
         </div>
       </td>
     </tr>`).join('') :
@@ -5482,9 +5483,10 @@ async function saveUserAddress() {
             u.coord_lat   = parseFloat(newLat);
             u.coord_lng   = parseFloat(newLng);
             u.zone_status = zs;
-            u.order_allowed = zs !== 'outside';
+            // inside → always allow; outside → block; anything else (unknown) → block until admin approves
+            u.order_allowed = zs === 'inside' || zs === 'outside_allowed' || zs === 'admin_approved';
           }
-          const zLabel = zs === 'inside' ? '✅ Inside delivery zone' : zs === 'outside' ? '🚫 Outside delivery zone — orders disabled' : '— Zone unknown';
+          const zLabel = zs === 'inside' ? '✅ Inside delivery zone — orders enabled' : zs === 'outside' ? '🚫 Outside delivery zone — orders disabled' : '— Zone unknown — orders disabled until approved';
           showStatus(`Coordinates saved. ${zLabel}`, zs !== 'outside');
           filterUsers();
           setTimeout(closeMo, 1800);
