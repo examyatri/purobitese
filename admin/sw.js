@@ -38,7 +38,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v20';
+const CACHE      = 'tiffo-admin-v21';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
