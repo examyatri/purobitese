@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v125                                     ║
-     ║  Updated : 2026-06-11                               ║
-     ║  CHANGE  : v125 — Full audit & deploy prep         ║
+     ║  Version : v126                                     ║
+     ║  Updated : 2026-06-12                               ║
+     ║  CHANGE  : v126 — Continuous GPS watch system for   ║
+     ║            signup location detection (sparse-GPS   ║
+     ║            cities like Indore): single watchPosition║
+     ║            running from "Allow" through signup,     ║
+     ║            ≤100m instant accept, 60s/≤500m fallback,║
+     ║            manual-popup race, silent post-accept     ║
+     ║            refinement.                               ║
      ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
@@ -1697,6 +1703,7 @@ textarea{resize:vertical;min-height:80px}
 /* ── Guest location popup ── */
 .loc-popup-card{background:#fff;border-radius:24px;padding:28px 22px 22px;text-align:center;max-width:300px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.18);animation:locPopIn 280ms cubic-bezier(.34,1.56,.64,1)}
 @keyframes locPopIn{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
 .loc-popup-icon{width:64px;height:64px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 14px}
 .loc-popup-title{font-family:var(--ff);font-weight:800;font-size:18px;color:#111827;margin-bottom:6px}
 .loc-popup-sub{font-family:var(--fb);font-size:13px;color:#64748b;line-height:1.55;margin-bottom:20px}
@@ -3102,6 +3109,57 @@ input[type=number]{-moz-appearance:textfield}
   </div>
 </div>
 
+<!-- ── Manual Address Popup — shown when user taps Remind Me Later on detect-btn popup ── -->
+<div id="su-manual-popup" class="modal-overlay" style="display:none" onclick="if(event.target===this)_suCloseManualPopup()">
+  <div style="background:#fff;border-radius:22px;padding:24px 18px 20px;max-width:340px;width:93%;box-shadow:0 20px 60px rgba(0,0,0,.18);animation:locPopIn 280ms cubic-bezier(.34,1.56,.64,1);max-height:88vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#111827">📝 Enter Your Address</div>
+      <button onclick="_suCloseManualPopup()" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer;line-height:1;padding:0 4px">×</button>
+    </div>
+    <div style="font-family:var(--fb);font-size:12.5px;color:#64748b;margin-bottom:16px;line-height:1.5">Fill in your delivery address so the rider can find you easily.</div>
+
+    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Hostel / Building Name <span style="color:#ef4444">*</span></label>
+    <input type="text" id="smp-building" placeholder="e.g. Viswanath Hostel, Kashi Apartment…"
+      style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;outline:none"
+      onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
+
+    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Room / Flat No. &amp; Landmark <span style="color:#ef4444">*</span></label>
+    <input type="text" id="smp-room" placeholder="e.g. Room 12, near main gate…"
+      style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;outline:none"
+      onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
+
+    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Nearby Place / Landmark</label>
+    <input type="text" id="smp-nearby" placeholder="e.g. Near BHU Gate No. 1…"
+      style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;outline:none"
+      onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
+
+    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Delivery Area</label>
+    <select id="smp-area" style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:12px;background:#fff;outline:none">
+      <option value="">Select area…</option>
+    </select>
+
+    <div style="display:flex;gap:8px;margin-bottom:4px">
+      <div style="flex:1">
+        <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">District</label>
+        <input type="text" id="smp-district" value="Varanasi" readonly style="width:100%;box-sizing:border-box;border:1.5px solid #f1f5f9;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;background:#f8fafc;color:#64748b" />
+      </div>
+      <div style="flex:1">
+        <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Pincode</label>
+        <input type="text" id="smp-pincode" value="221005" style="width:100%;box-sizing:border-box;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;outline:none"
+          onfocus="this.style.borderColor='var(--p)'" onblur="this.style.borderColor='#e2e8f0'" />
+      </div>
+    </div>
+    <label style="font-family:var(--ff);font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px;margin-top:8px">State</label>
+    <input type="text" id="smp-state" value="Uttar Pradesh" readonly style="width:100%;box-sizing:border-box;border:1.5px solid #f1f5f9;border-radius:10px;padding:10px 12px;font-family:var(--fb);font-size:13px;margin-bottom:18px;background:#f8fafc;color:#64748b" />
+
+    <div id="smp-err" style="display:none;font-family:var(--fb);font-size:12px;color:#dc2626;background:#fef2f2;border-radius:8px;padding:8px 12px;margin-bottom:12px"></div>
+
+    <button onclick="_suSaveManualPopup()" style="width:100%;background:linear-gradient(135deg,var(--p),#f4591d);color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 6px 20px rgba(230,57,70,.35)">
+      <i class="fa fa-check"></i> Save Address
+    </button>
+  </div>
+</div>
+
 
 <!-- ══════════════════════════════════════════════
      WALLET RECHARGE QR MODAL
@@ -4225,10 +4283,12 @@ function switchTab(tab) {
     // Reset geocode state — prevents stale 'done_err' from a previous signup
     // tab visit blocking doSignup when user reopens the tab.
     _suGeocodeState = 'idle';
+    // Also cancel any pending geocode debounce timer from the previous tab visit
+    if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
     // Location popup: show after a short delay so user sees the form first.
-    // Only for guest users — logged-in users manage address via Settings.
+    // Fires for all signup paths: new guest, referral link, session-expired/logout.
     // Only fires once per signup tab open (guard: _suLocPopupArmed).
-    if (_isGuestMode && !_suLocPopupArmed) {
+    if (!_suLocPopupArmed) {
       _suLocPopupArmed = true;
       _suLocPopupTimer = setTimeout(_showSignupLocPopup, 2500);
     }
@@ -4443,11 +4503,10 @@ function _evaluateLocation(lat, lng) {
     showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
   } else {
     document.getElementById('su-loc-ok').value = '0';
-    btnTxt.textContent = '❌ Outside Delivery Area';
-    btn.classList.add('rejected');
-    showStatus(`❌ You're ${distStr} km away. Outside our ${zone.radiusKm} km delivery area.`, false, false);
-    // Hard block: show OZ popup
-    setTimeout(() => _suShowOzPopup(dist, zone.radiusKm, '', ''), 300);
+    btnTxt.textContent = '✅ Location Captured';
+    btn.classList.add('verified');
+    showStatus('✅ Location captured successfully.', true, false);
+    // Outside zone — no warning at signup; block shown at order time.
   }
   _showMapPin(lat, lng);
 }
@@ -4478,6 +4537,133 @@ let _suWarmPending = false; // true while a prewarm getCurrentPosition is in-fli
 let _suWarmToken   = 0;    // bumped when prewarm is consumed — orphans in-flight callbacks
 let _suLocPopupArmed = false; // true once signup popup timer is set for current tab open
 let _suLocPopupTimer = null;  // setTimeout handle for the delayed signup popup
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v126 — CONTINUOUS GPS WATCH SYSTEM
+   One single navigator.geolocation.watchPosition() runs from the moment the
+   user taps "Allow Location" in the consent popup, all the way through to a
+   successful signup. It is NEVER restarted — every getCurrentPosition() call
+   in the old flow is replaced by reading the live _suBestPos snapshot.
+   This is the key fix for sparse-GPS cities (Indore etc.): phones often need
+   10–40s of continuous fixes before the chipset locks to <100m, and a single
+   getCurrentPosition() call was throwing that progress away and starting
+   cold every time the user tapped Detect again.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const _SU_GOOD_ACCURACY = 100; // metres — instant-accept threshold
+const _SU_MAX_ACCURACY  = 500; // metres — accept-at-deadline / manual-race threshold
+
+let _suWatchId         = null;  // navigator.geolocation.watchPosition() id — single, never restarted
+let _suBestPos         = null;  // { lat, lng, accuracy, ts } — best (lowest-accuracy) fix seen so far
+let _suAcceptedAcc     = null;  // accuracy (m) of the currently-accepted/displayed fix — for silent refinement
+let _suWatchAccepted   = false; // true once a location has been accepted at least once
+let _suManualSubmitted = false; // true once the manual popup is submitted — stops the watch permanently
+
+/* Start the single continuous watch. Idempotent — safe to call from anywhere
+   (popup Allow, prewarm-on-intent, device-off-poll recovery, retry, etc). */
+function _suStartContinuousWatch() {
+  if (_suWatchId !== null || !navigator.geolocation || _suManualSubmitted) return;
+  _suWatchId = navigator.geolocation.watchPosition(
+    _suOnWatchUpdate,
+    err => {
+      // Permission revoked mid-watch → tear down; everything else (timeout /
+      // position-unavailable) is transient on a continuous watch, ignore it.
+      if (err.code === 1) {
+        navigator.geolocation.clearWatch(_suWatchId);
+        _suWatchId = null;
+        try { localStorage.setItem('tiffo_loc_perm', 'denied'); } catch(e) {}
+        if (_suDetectCountdownTimer) {
+          clearInterval(_suDetectCountdownTimer); _suDetectCountdownTimer = null;
+          const btn    = document.getElementById('su-loc-btn');
+          const btnTxt = document.getElementById('su-loc-btn-txt');
+          if (btn)    btn.disabled = false;
+          if (btnTxt) btnTxt.textContent = 'Detect My Location';
+        }
+        _suShowPermBanner();
+        _suShowManualCard();
+        _suStartPermissionPolling();
+      }
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+  );
+}
+
+/* Permanently stop the continuous watch (manual address submitted, or signup done). */
+function _suStopContinuousWatch() {
+  if (_suWatchId !== null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(_suWatchId);
+  }
+  _suWatchId = null;
+}
+
+/* Every fix from the continuous watch flows through here. Handles all
+   four phases of the plan: best-fix tracking, in-countdown instant accept,
+   manual-popup race, and post-accept silent refinement. */
+function _suOnWatchUpdate(pos) {
+  if (_suManualSubmitted) { _suStopContinuousWatch(); return; }
+
+  const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+  if (typeof accuracy !== 'number' || isNaN(accuracy)) return;
+
+  // Track the best (lowest-accuracy-number = most precise) fix ever seen.
+  if (!_suBestPos || accuracy < _suBestPos.accuracy) {
+    _suBestPos = { lat, lng, accuracy, ts: Date.now() };
+  }
+  try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
+  _saveCoordsToStorage(pos);
+
+  // ── Phase 2: 60s detect countdown active — instant accept on a good fix ──
+  if (_suDetectCountdownTimer && accuracy <= _SU_GOOD_ACCURACY) {
+    _suAcceptDetectedLocation(lat, lng, accuracy);
+    return;
+  }
+
+  // ── Phase 3: manual popup is open — race it ──────────────────────────────
+  const manualPopup = document.getElementById('su-manual-popup');
+  if (manualPopup && manualPopup.style.display === 'flex') {
+    if (accuracy <= _SU_MAX_ACCURACY) {
+      _suCloseManualPopup();
+      _suAcceptDetectedLocation(lat, lng, accuracy);
+    }
+    return;
+  }
+
+  // ── Phase 4: post-accept silent refinement (10m+ improvement) ───────────
+  if (_suWatchAccepted && _suAcceptedAcc !== null && accuracy <= _suAcceptedAcc - 10) {
+    _suAcceptedAcc = accuracy;
+    const latEl = document.getElementById('su-lat');
+    const lngEl = document.getElementById('su-lng');
+    if (latEl) latEl.value = lat;
+    if (lngEl) lngEl.value = lng;
+    _evaluateLocationSilent(lat, lng);
+  }
+}
+
+/* Accept a fix as the user's location — shared by instant-accept, 60s-deadline
+   accept, and manual-popup-race accept. */
+function _suAcceptDetectedLocation(lat, lng, accuracy) {
+  if (_suDetectCountdownTimer) { clearInterval(_suDetectCountdownTimer); _suDetectCountdownTimer = null; }
+  _clearRetryCountdown();
+
+  const btn    = document.getElementById('su-loc-btn');
+  const btnTxt = document.getElementById('su-loc-btn-txt');
+  if (btn)    btn.disabled = false;
+  if (btnTxt) btnTxt.textContent = 'Detect My Location';
+
+  _suGpsAttempt    = 1;
+  _suWatchAccepted = true;
+  _suAcceptedAcc   = accuracy;
+  try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
+
+  if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+  _suGeocodeState = 'idle';
+
+  _evaluateLocation(lat, lng);
+
+  if (_suPendingAutoSubmit) {
+    _suPendingAutoSubmit = false;
+    setTimeout(() => doSignup(), 300);
+  }
+}
 
 /* ── Signup map lock helpers ── */
 function _suLockMap() {
@@ -4906,9 +5092,10 @@ async function _autoConfirmSignupPin(lat, lng) {
       showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
     } else {
       document.getElementById('su-loc-ok').value = '0';
-      if (btnTxt) btnTxt.textContent = '❌ Outside Delivery Area';
-      if (detectBtn) detectBtn.classList.add('rejected');
-      showStatus(`❌ You're ${distStr} km away. We only deliver within ${zone.radiusKm} km.`, false, false);
+      if (btnTxt) btnTxt.textContent = '✅ Location Captured';
+      if (detectBtn) detectBtn.classList.add('verified');
+      showStatus('✅ Location captured successfully.', true, false);
+      // Outside zone — no warning at signup; block shown at order time.
     }
   } else {
     document.getElementById('su-loc-ok').value = '1';
@@ -5111,11 +5298,11 @@ function _suAreaSetValue(val, fromGPS) {
 }
 
 /* ── Location detection state ────────────────────────────────────────────────
-   _suGpsAttempt    : 0 = not started, 1 = first live try, 2 = second, 3+ = extra
+   _suGpsAttempt    : 0 = not started, 1 = session active (used by doSignup pending check)
    _suAbortToken    : incremented on each new detect session — stale callbacks
                       check this before touching DOM so tab-reopen / double-tap
                       never applies a result from a superseded call
-   _suRetryTimer    : interval handle for visible countdown bar
+   _suRetryTimer    : handle kept for _clearRetryCountdown() calls (bar hide guard)
    _suManualGeocodeTimer : debounce handle for Nominatim forward geocode        */
 let _suGpsAttempt       = 0;
 let _suAbortToken       = 0;   // stale-callback guard
@@ -5139,425 +5326,159 @@ function _suShowLocStatus(msg, ok, warn) {
   status.textContent = msg;
 }
 
-/* ── GPS attempt timeouts ────────────────────────────────────────────────────
-   Attempt 1 (first manual tap, prewarm miss): 20s — cold chip needs max time.
-             maximumAge=30s: grab any OS-cached pos from last 30s (fresh enough).
-   Attempt 2 (immediate — NO countdown gap):   15s — chip already warm after 20s.
-             maximumAge=120s: attempt 1 already tried 30s cache and failed; during
-             the 20s wait OS may have got a pos from Maps/WhatsApp (45–90s old).
-             2-min-old coords = perfectly accurate for hostel delivery address.
-   Attempt 3–5 (background, manual card shown): 10s each, 10s gaps between.
-   Max attempts = 5 → worst-case ~75s total before giving up gracefully.      */
-const _SU_GPS_T1       = 20000; // attempt 1 timeout
-const _SU_GPS_T2       = 15000; // attempt 2 timeout (fires immediately after attempt 1)
-const _SU_GPS_T3       = 10000; // attempt 3–5 timeout
-const _SU_COUNTDOWN_2  = 0;     // NO gap: attempt 2 fires immediately — chip already warm
-const _SU_COUNTDOWN_M  = 10;    // gap (s) between attempt 3+ fail → next (background)
-const _SU_MAX_ATTEMPTS = 5;     // give up after 5 attempts
-
-/* ── Consent gate — called by the "Detect My Location" button and inline GPS buttons ─
-   Checks if we already have consent (GPS resolved, or permission=granted in storage).
-   If not: shows the signup location popup (which asks "Allow Location / Remind Me Later").
-   If yes: proceeds directly to detectSignupLocation().
-   Internal retries (_suRetryLocation, permission poll, visibility-change) call
-   detectSignupLocation() directly — they already know permission was granted.        */
+/* ── Detect My Location button tap ──────────────────────────────────────────
+   Flow (v126 — continuous watch):
+   1. If the continuous watch already has a ≤100m fix → instant accept.
+   2. Permission granted → ensure watch running, _suStartDetectSession() (60s countdown).
+   3. Permission denied  → perm banner + manual card.
+   4. Permission prompt  → show website popup → user allows → watch starts → detect session. */
 function _onDetectBtnTap() {
-  // ── Prewarm shortcut: GPS already resolved in background — fire instantly ──
-  if (_suWarmPos) { detectSignupLocation(); return; }
+  // ── 1. Seed _suBestPos from any pre-consent prewarm/cache, then check instant accept ──
+  if (_suWarmPos && (!_suBestPos || _suWarmPos.coords.accuracy < _suBestPos.accuracy)) {
+    _suBestPos = {
+      lat: _suWarmPos.coords.latitude,
+      lng: _suWarmPos.coords.longitude,
+      accuracy: _suWarmPos.coords.accuracy,
+      ts: Date.now()
+    };
+  }
+  _suWarmPos = null;
+  _suWarmPending = false;
+  _suWarmToken++;
 
-  // ── Step 1: Check browser permission state (does NOT check device hardware switch) ──
-  // navigator.permissions tells us: granted / denied / prompt
-  // It does NOT know if the device Location toggle (Settings → Location) is ON or OFF.
-  // We handle that in Step 2 via a 2s pre-probe.
-
-  function _runPreProbe() {
-    // ── Step 2: 2-second pre-probe — detect device location ON/OFF before 20s attempt 1 ──
-    // Why: navigator.permissions = granted does NOT mean device Location switch is ON.
-    // Without this probe: user waits 20s for attempt 1 to timeout, THEN sees red banner.
-    // With this probe: device OFF is detected in <=2s, banner shown immediately.
-    // Probe uses low-accuracy (faster) + 2s timeout + no cache.
-    // Success: real coords — consume as prewarm, skip attempt 1 entirely (instant result).
-    // err.code 1: permission denied at OS level — show perm banner immediately.
-    // err.code 2: device location OFF — show device-off banner immediately.
-    // err.code 3 (2s timeout): permission OK + device ON but signal weak — proceed to full attempt 1 (20s).
-    const btn    = document.getElementById('su-loc-btn');
-    const btnTxt = document.getElementById('su-loc-btn-txt');
-    if (btn) { btn.disabled = true; btnTxt.textContent = 'Checking location…'; }
-
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        // Device ON, signal available — treat as prewarm hit, goes through prewarm shortcut
-        if (btn) btn.disabled = false;
-        _suWarmPos = pos;
-        detectSignupLocation();
-      },
-      err => {
-        if (btn) { btn.disabled = false; btnTxt.textContent = 'Detect My Location'; }
-        if (err.code === 1) {
-          // OS-level permission denied (can happen on iOS even if browser shows granted)
-          // Show perm banner + open manual card immediately
-          _suShowPermBanner();
-          _suShowManualCard();
-          _suStartPermissionPolling();
-          setTimeout(() => {
-            const card = document.getElementById('su-manual-card');
-            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
-          }, 200);
-        } else if (err.code === 2) {
-          // Device location switch is OFF — show banner with steps, start polling
-          _suShowDeviceOffBanner();
-          const locStatus = document.getElementById('su-loc-status');
-          if (locStatus) {
-            locStatus.style.display = 'block';
-            locStatus.style.background = '#fef2f2';
-            locStatus.style.color = '#991b1b';
-            locStatus.textContent = '📵 Location is turned off on your device. Please enable it and tap Retry.';
-          }
-        } else {
-          // err.code 3 = 2s timeout — permission OK + device ON but signal weak (indoor/basement)
-          // Proceed to full attempt 1 with 20s timeout. User already saw "Checking location..." briefly.
-          detectSignupLocation();
-        }
-      },
-      { enableHighAccuracy: false, timeout: 2000, maximumAge: 0 }
-    );
+  if (_suBestPos && _suBestPos.accuracy <= _SU_GOOD_ACCURACY) {
+    _suAcceptDetectedLocation(_suBestPos.lat, _suBestPos.lng, _suBestPos.accuracy);
+    return;
   }
 
-  // ── Route based on permission state ──
+  // ── 2. Check browser permission and route ──
+  function _routeDetect(permState) {
+    if (permState === 'granted') {
+      // Permission already granted → ensure the continuous watch is running,
+      // then start (or restart) the 60s detect session against it.
+      _suStartContinuousWatch();
+      _suStartDetectSession();
+    } else if (permState === 'denied') {
+      // Already denied → show perm banner + manual card
+      _suShowPermBanner();
+      _suShowManualCard();
+      _suStartPermissionPolling();
+      setTimeout(() => {
+        const card = document.getElementById('su-manual-card');
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
+      }, 200);
+    } else {
+      // 'prompt' or unknown → show website popup (detect context)
+      _showSignupLocPopup('detect');
+    }
+  }
+
   if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then(r => {
-      if (r.state === 'granted') {
-        _runPreProbe(); // permission OK — pre-probe to check device switch
-      } else if (r.state === 'denied') {
-        // Already denied in browser — no point probing, show banner directly
-        _suShowPermBanner();
-        _suShowManualCard();
-        _suStartPermissionPolling();
-        setTimeout(() => {
-          const card = document.getElementById('su-manual-card');
-          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
-        }, 200);
-      } else {
-        // 'prompt' — user hasn't decided yet, show consent popup first
-        _showSignupLocPopup();
-      }
-    }).catch(() => {
-      // permissions API failed — check localStorage flag
-      try {
-        const flag = localStorage.getItem('tiffo_loc_perm');
-        if (flag === 'denied') {
-          _suShowPermBanner(); _suShowManualCard(); _suStartPermissionPolling();
-        } else if (flag === 'granted') {
-          _runPreProbe();
-        } else {
-          _showSignupLocPopup();
-        }
-      } catch(e) { _showSignupLocPopup(); }
-    });
+    navigator.permissions.query({ name: 'geolocation' })
+      .then(r => _routeDetect(r.state))
+      .catch(() => {
+        try {
+          const flag = localStorage.getItem('tiffo_loc_perm');
+          _routeDetect(flag === 'granted' ? 'granted' : flag === 'denied' ? 'denied' : 'prompt');
+        } catch(e) { _routeDetect('prompt'); }
+      });
   } else {
-    // No permissions API (iOS Safari) — check localStorage flag
     try {
       const flag = localStorage.getItem('tiffo_loc_perm');
-      if (flag === 'denied') {
-        _suShowPermBanner(); _suShowManualCard(); _suStartPermissionPolling();
-      } else if (flag === 'granted') {
-        _runPreProbe(); // prior session was granted — pre-probe device switch
-      } else {
-        _showSignupLocPopup(); // first time — show consent popup
-      }
-    } catch(e) { _showSignupLocPopup(); }
+      _routeDetect(flag === 'granted' ? 'granted' : flag === 'denied' ? 'denied' : 'prompt');
+    } catch(e) { _routeDetect('prompt'); }
   }
+}
+
+/* ── 60-second GPS detect session — called after permission confirmed ────────
+   v126: Does NOT fire its own getCurrentPosition. The single continuous watch
+   (started on popup "Allow") keeps feeding _suOnWatchUpdate(); this function
+   just (a) checks whether a good-enough fix already exists, and (b) if not,
+   starts the 60s countdown UI while the watch keeps improving in background.
+   - Already ≤100m            → instant accept, no countdown shown.
+   - 60s elapses, ≤500m best  → accept that fix.
+   - 60s elapses, >500m/none  → open manual popup (watch keeps running). */
+let _suDetectCountdownTimer = null;
+let _suDetectCountdownSec   = 0;
+
+function _suStartDetectSession() {
+  if (!navigator.geolocation) { _suOpenManualPopup(); return; }
+
+  // Abort any previous session
+  _suAbortToken++;
+  _suGpsAttempt = 0;
+  _clearRetryCountdown();
+  if (_suDetectCountdownTimer) { clearInterval(_suDetectCountdownTimer); _suDetectCountdownTimer = null; }
+
+  // Reset stale geocode state
+  if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+  _suGeocodeState = 'idle';
+  // Clear stale coords from previous geocode
+  const prevMode = document.getElementById('su-loc-mode')?.value || '0';
+  if (prevMode !== '1') {
+    const latEl = document.getElementById('su-lat');
+    const lngEl = document.getElementById('su-lng');
+    const okEl  = document.getElementById('su-loc-ok');
+    if (latEl) latEl.value = '';
+    if (lngEl) lngEl.value = '';
+    if (okEl)  okEl.value  = '0';
+    _pendingLat = null; _pendingLng = null;
+    _suClearZoneStatus();
+  }
+
+  const btn    = document.getElementById('su-loc-btn');
+  const btnTxt = document.getElementById('su-loc-btn-txt');
+
+  // Pre-load zone + make sure the continuous watch is running (idempotent)
+  _loadDeliveryZone();
+  _suStartContinuousWatch();
+
+  // ── Already good enough from the watch? Instant accept, skip countdown ──
+  if (_suBestPos && _suBestPos.accuracy <= _SU_GOOD_ACCURACY) {
+    _suAcceptDetectedLocation(_suBestPos.lat, _suBestPos.lng, _suBestPos.accuracy);
+    return;
+  }
+
+  // Mark session active for doSignup pending-submit check
+  _suGpsAttempt = 1;
+
+  // ── Start 60s countdown: button disabled + professional status below ──
+  _suDetectCountdownSec = 60;
+  if (btn)    { btn.disabled = true; btn.classList.remove('verified', 'rejected'); }
+  if (btnTxt) btnTxt.textContent = 'Detecting…';
+  // Show live countdown in su-loc-status (below button) for professional look
+  const _detectSt = document.getElementById('su-loc-status');
+  if (_detectSt) {
+    _detectSt.style.display = 'block';
+    _detectSt.style.background = '#eff6ff';
+    _detectSt.style.color = '#1e40af';
+    _detectSt.textContent = `Fetching your precise location… ${_suDetectCountdownSec}s`;
+  }
+
+  _suDetectCountdownTimer = setInterval(() => {
+    _suDetectCountdownSec--;
+    if (_detectSt) _detectSt.textContent = `Fetching your precise location… ${_suDetectCountdownSec}s`;
+    if (_suDetectCountdownSec <= 0) {
+      clearInterval(_suDetectCountdownTimer);
+      _suDetectCountdownTimer = null;
+      if (btn)    btn.disabled = false;
+      if (btnTxt) btnTxt.textContent = 'Detect My Location';
+
+      if (_suBestPos && _suBestPos.accuracy <= _SU_MAX_ACCURACY) {
+        // ≤500m — good enough, accept it
+        _suAcceptDetectedLocation(_suBestPos.lat, _suBestPos.lng, _suBestPos.accuracy);
+      } else {
+        // Nothing usable yet — fall back to manual entry.
+        // The watch keeps running and can still auto-accept if it improves.
+        _suOpenManualPopup();
+      }
+    }
+  }, 1000);
 }
 
 /* ── Main detect function — called by _onDetectBtnTap (after consent) AND by auto-retry callbacks ─
    thisToken: abort guard passed down so stale async callbacks self-cancel.    */
-function detectSignupLocation(thisToken) {
-  const btn    = document.getElementById('su-loc-btn');
-  const btnTxt = document.getElementById('su-loc-btn-txt');
-
-  if (!navigator.geolocation) {
-    // GPS not supported — open manual card silently, no status message
-    _suShowManualCard();
-    _clearRetryCountdown();
-    setTimeout(() => {
-      const card = document.getElementById('su-manual-card');
-      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => { document.getElementById('su-mf-building')?.focus(); }, 450);
-    }, 200);
-    return;
-  }
-
-  // On a manual tap: start a new session (abort any in-flight stale call)
-  const isManualTap = (thisToken === undefined);
-  if (isManualTap) {
-    _suAbortToken++;           // invalidates all callbacks from previous sessions
-    _suWarmToken++;            // orphan any in-flight prewarm callback — prevents ghost
-                               // write into _suWarmPos while live GPS runs. Without this,
-                               // a slow prewarm can resolve AFTER the user taps Detect
-                               // (shortcut was skipped because warmPos was null), silently
-                               // writing stale coords that get consumed on the next re-tap.
-    _suGpsAttempt = 0;         // reset counter so tap always restarts from attempt 1
-    _suPendingAutoSubmit = false; // clear any pending auto-submit from previous attempt
-    _clearRetryCountdown();
-
-    // ── Reset stale geocode state on every fresh detect tap ──────────────────
-    // BUG FIX: if previous geocode was 'done_err', it stays stuck and blocks doSignup
-    // even when user taps Detect again and GPS also fails. Reset to 'idle' so the
-    // outcome of THIS attempt (GPS or re-geocode) is the only thing that matters.
-    if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
-    _suGeocodeState = 'idle';
-
-    // ── Clear stale coords from previous geocode on fresh detect tap ─────────
-    // BUG FIX: if a previous geocode placed outside-zone coords in su-lat/su-lng
-    // and locMode='2', the isOutside check in doSignup would fire with stale coords
-    // even if GPS is actively running this session and hasn't resolved yet.
-    // Only clear if coords came from geocode (mode='2'), not from a confirmed GPS (mode='1').
-    const prevMode = document.getElementById('su-loc-mode')?.value || '0';
-    if (prevMode !== '1') {
-      const latEl = document.getElementById('su-lat');
-      const lngEl = document.getElementById('su-lng');
-      const okEl  = document.getElementById('su-loc-ok');
-      if (latEl) latEl.value = '';
-      if (lngEl) lngEl.value = '';
-      if (okEl)  okEl.value  = '0';
-      _pendingLat = null; _pendingLng = null;
-      _suClearZoneStatus();
-    }
-  }
-  const myToken = _suAbortToken; // captured — this callback will check it on return
-
-  // Pre-load zone in parallel (idempotent)
-  _loadDeliveryZone();
-
-  // ── Prewarm shortcut ──────────────────────────────────────────────────────
-  // If background acquisition already succeeded while user filled the form,
-  // consume the cached position instantly — no live GPS call needed.
-  if (_suWarmPos && isManualTap) {
-    const { latitude: lat, longitude: lng } = _suWarmPos.coords;
-    _suWarmPos = null;
-    // _suWarmToken already bumped above — prewarm already orphaned
-    _suGpsAttempt = 1; // counts as attempt 1 for state tracking
-    btn.disabled = false;
-    btn.classList.remove('verified', 'rejected');
-    btnTxt.textContent = 'Detect My Location';
-    document.getElementById('su-loc-status').style.display = 'none';
-    document.getElementById('su-retry-bar').style.display  = 'none';
-    // Reset stale geocode state so it can't block doSignup after GPS wins
-    if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
-    _suGeocodeState = 'idle';
-    _evaluateLocation(lat, lng);
-    return;
-  }
-
-  // ── Reset UI for live attempt ─────────────────────────────────────────────
-  if (isManualTap) {
-    // User tapped — disable button and hide any previous status
-    btn.classList.remove('verified', 'rejected');
-    btn.disabled = true;
-    document.getElementById('su-loc-status').style.display = 'none';
-    document.getElementById('su-retry-bar').style.display  = 'none';
-  }
-  // Attempt 2+: button stays enabled (restored in Fix 3 above).
-  // Do NOT disable for background retries — user must be free to tap again.
-
-  // ── Increment attempt and choose timeout ──────────────────────────────────
-  _suGpsAttempt++;
-  const attempt    = _suGpsAttempt; // snapshot — closures below use this, never the live var
-  const isAttempt1 = attempt === 1;
-  const isAttempt2 = attempt === 2;
-  const gpsTimeout = isAttempt1 ? _SU_GPS_T1 : isAttempt2 ? _SU_GPS_T2 : _SU_GPS_T3;
-  // maximumAge=120000 on retry: accept OS-cached position up to 2 min old.
-  // Attempt 1 already tried 30s cache and failed — but during that 20s wait,
-  // OS may have received a position from Maps/WhatsApp (45–90s old). That falls
-  // outside the 30s window but inside 2 min. For a hostel delivery address,
-  // 2-min-old coords are accurate — the room doesn't move. Instant result.
-  const maxAge     = isAttempt1 ? 30000 : 120000;
-
-  // Only show detecting text on attempt 1 (visible to user).
-  // Attempts 2+ are background — restore button to normal immediately so user
-  // doesn't see a "Retrying" label while they type their address.
-  if (isAttempt1) {
-    btnTxt.textContent = 'Detecting… (up to 20s)';
-  } else {
-    btnTxt.textContent = 'Detect My Location';
-    btn.disabled = false; // re-enable during background attempts — user may tap again
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      // Stale-callback guard: abort if a newer session started
-      if (_suAbortToken !== myToken) return;
-
-      btn.disabled = false;
-      btnTxt.textContent = 'Detect My Location';
-      _clearRetryCountdown();
-
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      // ── GPS success — manual card may be open ─────────────────────────
-      const manualCard = document.getElementById('su-manual-card');
-      const manualCardOpen = manualCard && manualCard.style.display !== 'none';
-      if (manualCardOpen) {
-        const modeEl = document.getElementById('su-loc-mode');
-        const okEl   = document.getElementById('su-loc-ok');
-        if (modeEl) modeEl.value = '1';
-        if (okEl)   okEl.value   = '1';
-        // Clear error highlights
-        document.querySelector('.loc-section')?.classList.remove('loc-err');
-        document.getElementById('su-loc-btn')?.classList.remove('loc-btn-required');
-        const locErrEl = document.getElementById('su-loc-err');
-        if (locErrEl) { locErrEl.classList.remove('show'); locErrEl.textContent = ''; }
-        // Store coords
-        document.getElementById('su-lat').value = lat;
-        document.getElementById('su-lng').value = lng;
-        _pendingLat = lat; _pendingLng = lng;
-        try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
-        // Run zone check silently (sets su-loc-ok correctly)
-        _evaluateLocationSilent(lat, lng);
-        // ── Smart Update: show GPS chip + update zone row + hide perm banner ──
-        _suHidePermBanner();
-        // Cancel any pending geocode (GPS is more accurate) and reset state so
-        // doSignup's geocode-state checks don't fire falsely when locMode='1'.
-        if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
-        _suGeocodeState = 'idle';
-        // Show GPS chip prominently
-        const chip = document.getElementById('su-bg-gps-chip');
-        if (chip) { chip.style.display = 'block'; }
-        // Update zone-status row with GPS result
-        const zone = _deliveryZone;
-        if (zone && zone.lat && zone.lng && zone.radiusKm) {
-          const dist = _haversineKm(zone.lat, zone.lng, lat, lng);
-          if (dist <= zone.radiusKm) {
-            _suSetZoneStatus('ok', `✅ GPS confirmed! ${dist.toFixed(1)} km away — within delivery zone.`);
-            // Auto-submit if user tapped Create Account while GPS was in-flight
-            if (_suPendingAutoSubmit) {
-              _suPendingAutoSubmit = false;
-              setTimeout(() => doSignup(), 300);
-            }
-          } else {
-            // GPS confirmed outside — hard block with OZ popup
-            _suPendingAutoSubmit = false; // cancel pending submit — outside zone
-            document.getElementById('su-loc-ok').value = '0';
-            _suSetZoneStatus('err', `❌ GPS: ${dist.toFixed(1)} km away — outside our ${zone.radiusKm} km zone`);
-            const building = (document.getElementById('su-mf-building')?.value || '').trim();
-            const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
-            setTimeout(() => _suShowOzPopup(dist, zone.radiusKm, building, area), 400);
-          }
-        } else {
-          _suSetZoneStatus('ok', `✅ GPS confirmed! Exact location captured.`);
-          // Zone not configured — auto-submit if pending
-          if (_suPendingAutoSubmit) {
-            _suPendingAutoSubmit = false;
-            setTimeout(() => doSignup(), 300);
-          }
-        }
-      } else {
-        // Manual card not open — normal GPS success flow with full UI.
-        // Reset geocode state first so stale 'pending'/'done_err' from a previous
-        // manual-card interaction can't block doSignup when locMode is now '1'.
-        if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
-        _suGeocodeState = 'idle';
-        _evaluateLocation(lat, lng);
-        try { localStorage.setItem('tiffo_warm_coords', JSON.stringify({ lat, lng, ts: Date.now() })); } catch(e) {}
-        // If user tapped Create Account while GPS was in-flight, auto-submit now
-        if (_suPendingAutoSubmit) {
-          _suPendingAutoSubmit = false;
-          setTimeout(() => doSignup(), 300); // brief delay so map renders first
-        }
-      }
-    },
-    err => {
-      // Stale-callback guard
-      if (_suAbortToken !== myToken) return;
-
-      btn.disabled = false;
-      btnTxt.textContent = 'Detect My Location';
-
-      // Permission denied — show yellow banner with browser instructions
-      if (err.code === 1) {
-        _suPendingAutoSubmit = false; // can't auto-submit without location permission
-        _suShowPermBanner();
-        _suShowManualCard();
-        _clearRetryCountdown();
-        setTimeout(() => {
-          const card = document.getElementById('su-manual-card');
-          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          setTimeout(() => {
-            const f = document.getElementById('su-mf-building');
-            if (f && !f.value) f.focus();
-          }, 450);
-        }, 200);
-        // ── Poll every 3s: auto-retry GPS the moment user re-enables in browser settings ──
-        // iOS Safari doesn't support navigator.permissions — polling is no-op there.
-        // On Android Chrome/Firefox this catches the settings change without user
-        // having to find and tap the "Retry Location" button.
-        _suStartPermissionPolling();
-        return;
-      }
-
-      // ── Device location turned OFF mid-flow (err.code 2 = POSITION_UNAVAILABLE) ──
-      // Pre-probe in _onDetectBtnTap already handled code 2 BEFORE attempt 1.
-      // If code 2 fires here it means user turned location OFF after pre-probe passed.
-      // err.code 3 here = weak signal (pre-probe passed = device was ON) — handled by normal retry ladder.
-      if (err.code === 2) {
-        _suPendingAutoSubmit = false;
-        _clearRetryCountdown();
-        _suShowDeviceOffBanner();
-        const locStatus = document.getElementById('su-loc-status');
-        if (locStatus) {
-          locStatus.style.display = 'block';
-          locStatus.style.background = '#fef2f2';
-          locStatus.style.color = '#991b1b';
-          locStatus.textContent = '📵 Location was turned off. Please enable it and tap Retry.';
-        }
-        return; // stop all retries — device polling will auto-resume when location turns ON
-      }
-
-      // ── Schedule next attempt — all retries are 100% silent ────────────────
-      if (isAttempt1) {
-        // Chip ran 20s — fire attempt 2 immediately (chip already warm, no gap needed).
-        // No status message, no bar, no UI change at all.
-        _clearRetryCountdown();
-        setTimeout(() => detectSignupLocation(myToken), 300); // tiny yield for UI paint
-
-      } else if (isAttempt2) {
-        // Attempt 2 failed → open manual card quietly for typing.
-        // No status message shown — page stays clean.
-        _suShowManualCard();
-        _clearRetryCountdown();
-
-        // Scroll so the manual card header is fully visible at top, then open keyboard.
-        setTimeout(() => {
-          const card = document.getElementById('su-manual-card');
-          const f = document.getElementById('su-mf-building');
-          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          setTimeout(() => { if (f && !f.value) f.focus(); }, 450);
-        }, 300);
-
-        // Continue silently in background — no UI at all
-        setTimeout(() => detectSignupLocation(myToken), _SU_COUNTDOWN_M * 1000);
-
-      } else if (attempt < _SU_MAX_ATTEMPTS) {
-        // Attempt 3–4 — 100% silent background retry. No status, no bar, nothing.
-        _clearRetryCountdown();
-        setTimeout(() => detectSignupLocation(myToken), _SU_COUNTDOWN_M * 1000);
-
-      } else {
-        // Final attempt exhausted — silent. Manual card already showing.
-        // User's typed address or text-mode address will be used at signup.
-        _suPendingAutoSubmit = false; // GPS gave up — user must submit manually
-        _clearRetryCountdown();
-        btn.disabled = false;
-        btnTxt.textContent = 'Detect My Location';
-      }
-    },
-    { enableHighAccuracy: true, timeout: gpsTimeout, maximumAge: maxAge }
-  );
-}
-
 /* ── Generic countdown: counts from `secs` to 0, then calls `onDone` ── */
 function _suStartRetryCountdown(secs, onDone) {
   const bar = document.getElementById('su-retry-bar');
@@ -5649,9 +5570,12 @@ function _suStartDeviceLocPolling() {
         _suHideDeviceOffBanner();
         const locStatus = document.getElementById('su-loc-status');
         if (locStatus) locStatus.style.display = 'none';
-        // Consume probe pos as prewarm — detect fires instantly via prewarm shortcut
-        _suWarmPos = pos;
-        detectSignupLocation();
+        // Start the continuous watch now that device location is confirmed ON,
+        // then accept this low-accuracy probe fix as a starting point —
+        // the watch will silently refine it (Phase 4) as accuracy improves.
+        _suStartContinuousWatch();
+        const { latitude: _dpl, longitude: _dplng, accuracy: _dpacc } = pos.coords;
+        _suAcceptDetectedLocation(_dpl, _dplng, (typeof _dpacc === 'number' && !isNaN(_dpacc)) ? _dpacc : 9999);
       },
       (e) => {
         if (e.code === 1) { // Denied — switch banner
@@ -5697,11 +5621,11 @@ function _suStartPermissionPolling() {
       if (result.state === 'granted') {
         _suStopPermissionPolling();
         _suHidePermBanner();
-        detectSignupLocation(); // auto-retry — will likely hit cache or warm chip
+        _suStartDetectSession(); // permission now granted — start 60s GPS session
       }
       // 'denied' → keep polling (user may change their mind)
       // 'prompt'  → browser reset the permission — retry will show dialog, which is fine
-    } catch(e) { _suStopPermissionPolling(); }
+    } catch(e) { /* permissions API error — keep polling, may be transient */ }
   }, 3000);
 }
 function _suStopPermissionPolling() {
@@ -5782,6 +5706,92 @@ function _suOzWhatsApp() {
   window.open('https://wa.me/919889760350?text=' + encodeURIComponent(msg), '_blank');
 }
 
+/* ── Outside-zone post-signup notice — shown after account created but outside zone ── */
+function _suShowOzSignupNotice(waMsg) {
+  // Show a bottom-sheet style toast with WhatsApp button
+  // Remove any existing notice
+  const existing = document.getElementById('oz-signup-notice');
+  if (existing) existing.remove();
+
+  const notice = document.createElement('div');
+  notice.id = 'oz-signup-notice';
+  notice.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#fff;border-radius:22px 22px 0 0;padding:22px 20px 32px;box-shadow:0 -8px 40px rgba(0,0,0,.18);animation:slideUp 300ms cubic-bezier(.34,1.56,.64,1)';
+  notice.innerHTML = `
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
+    <div style="font-family:var(--ff);font-weight:800;font-size:17px;color:#111827;margin-bottom:8px;text-align:center">🚫 Outside Delivery Zone</div>
+    <div style="font-family:var(--fb);font-size:13px;color:#64748b;text-align:center;line-height:1.6;margin-bottom:20px">
+      Your account is active but ordering is currently disabled for your area.<br>
+      Contact us on WhatsApp to request delivery at your location.
+    </div>
+    <button onclick="_suOzSignupWhatsApp('${waMsg.replace(/'/g,"\'")}');this.closest('#oz-signup-notice').remove()"
+      style="width:100%;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 20px rgba(34,197,94,.35);margin-bottom:10px">
+      <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> Request Delivery via WhatsApp
+    </button>
+    <button onclick="this.closest('#oz-signup-notice').remove()"
+      style="width:100%;background:none;border:none;color:#94a3b8;font-family:var(--fb);font-size:13px;cursor:pointer;padding:8px">
+      I'll do it later
+    </button>
+  `;
+  document.body.appendChild(notice);
+}
+
+function _suOzSignupWhatsApp(msg) {
+  window.open('https://wa.me/919889760350?text=' + encodeURIComponent(msg), '_blank');
+}
+
+/* ── Outside-zone order block ─────────────────────────────────────────────────────────────
+   Shown when user taps Place Order but order_allowed = false (outside zone).
+   Bottom-sheet with professional prefilled WA message to request delivery.    */
+function _showOzOrderBlock() {
+  const existing = document.getElementById('oz-order-block');
+  if (existing) { existing.style.display = 'flex'; return; } // already in DOM — just show
+
+  const user = Auth.get();
+  const name  = user?.name  || '';
+  const phone = user?.phone || '';
+  const area  = user?.area  || '';
+  const addr  = user?.address || '';
+
+  const waMsg =
+    `Hello Tiffo Team,
+
+I have created an account on the Tiffo app but I am unable to place orders as my location appears to be outside your current delivery zone.
+
+My details:
+  Name    : ${name}
+  Phone   : ${phone}${area  ? '\n  Area    : ' + area  : ''}${addr  ? '\n  Address : ' + addr  : ''}
+
+Could you please check if delivery is possible to my location? I would really love to order from Tiffo.
+
+Thank you.`;
+
+  const sheet = document.createElement('div');
+  sheet.id = 'oz-order-block';
+  sheet.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center';
+  sheet.innerHTML = `
+    <div style="width:100%;max-width:480px;background:#fff;border-radius:22px 22px 0 0;padding:24px 20px 36px;box-shadow:0 -8px 40px rgba(0,0,0,.18);animation:slideUp 300ms cubic-bezier(.34,1.56,.64,1)">
+      <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
+      <div style="font-family:var(--ff);font-weight:800;font-size:18px;color:#111827;text-align:center;margin-bottom:6px">🛫 Delivery Not Available</div>
+      <div style="font-family:var(--fb);font-size:13px;color:#64748b;text-align:center;line-height:1.65;margin-bottom:22px">
+        Your location is currently outside our delivery zone.<br>
+        Tap below to send us a request on WhatsApp — we’ll check and enable delivery for you.
+      </div>
+      <button onclick="_ozOrderWhatsApp('${encodeURIComponent(waMsg)}');document.getElementById('oz-order-block').style.display='none'"
+        style="width:100%;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:14px;padding:15px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 6px 20px rgba(34,197,94,.35);margin-bottom:10px">
+        <i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Request Delivery via WhatsApp
+      </button>
+      <button onclick="document.getElementById('oz-order-block').style.display='none'"
+        style="width:100%;background:none;border:1px solid #e2e8f0;color:#64748b;border-radius:14px;padding:12px;font-family:var(--fb);font-size:13px;cursor:pointer">
+        Maybe Later
+      </button>
+    </div>`;
+  document.body.appendChild(sheet);
+}
+
+function _ozOrderWhatsApp(encodedMsg) {
+  window.open('https://wa.me/919889760350?text=' + encodedMsg, '_blank');
+}
+
 /* ── Manual structured input handler — debounced geocode ── */
 let _suGeocodeState = 'idle'; // 'idle' | 'pending' | 'done_ok' | 'done_err' | 'done_outside'
 
@@ -5815,10 +5825,10 @@ function _suStructuredInput() {
 /* ── _suManualAddrInput kept as no-op alias for any legacy callers ── */
 function _suManualAddrInput() { _suStructuredInput(); }
 
-/* ── Nominatim forward geocode — strict zone enforcement ─────────────────────
-   OK  in-zone  → allow, green status
-   OK  outside  → OZ popup hard block
-   Fail/unknown → OZ popup (contact owner)
+/* ── Nominatim forward geocode ─────────────────────────────────────────────────
+   OK  in-zone  → green status
+   OK  outside  → neutral (zone block shown at order time, not signup)
+   Fail/unknown → done_err → area fallback
    Pending      → "please wait" inline error                                  */
 async function _suForwardGeocode(text) {
   // Skip if GPS already won while debounce was pending
@@ -5827,10 +5837,17 @@ async function _suForwardGeocode(text) {
   const zone = _deliveryZone;
   const query = /varanasi|banaras|bhu|kashi/i.test(text) ? text : text + ', Varanasi';
   try {
-    const resp = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=in`,
-      { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-Customer/1.0' } }
-    );
+    const _geocodeCtrl = new AbortController();
+    const _geocodeTimeout = setTimeout(() => _geocodeCtrl.abort(), 8000); // 8s hard timeout
+    let resp;
+    try {
+      resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=in`,
+        { headers: { 'Accept-Language': 'en', 'User-Agent': 'Tiffo-Customer/1.0' }, signal: _geocodeCtrl.signal }
+      );
+    } finally {
+      clearTimeout(_geocodeTimeout);
+    }
     const data = await resp.json();
     if (!data || !data.length) throw new Error('no result');
 
@@ -5856,17 +5873,15 @@ async function _suForwardGeocode(text) {
         _suGeocodeState = 'done_ok';
         _suSetZoneStatus('ok', `✅ Within delivery zone (${distStr} km away) — you're covered!`);
       } else {
-        // Outside zone ❌ hard block
+        // Outside zone — Phase 5: allow signup, soft warning only (no hard block popup)
         _pendingLat = lat; _pendingLng = lng;
         document.getElementById('su-lat').value      = lat;
         document.getElementById('su-lng').value      = lng;
         document.getElementById('su-loc-mode').value = '2';
         document.getElementById('su-loc-ok').value   = '0';
         _suGeocodeState = 'done_outside';
-        _suSetZoneStatus('err', `❌ Outside our ${zone.radiusKm} km delivery zone (${distStr} km away)`);
-        const building = (document.getElementById('su-mf-building')?.value || '').trim();
-        const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
-        setTimeout(() => _suShowOzPopup(dist, zone.radiusKm, building, area), 400);
+        _suSetZoneStatus('ok', `✅ Address found — you're all set!`);
+        // Outside zone — no warning at signup; block shown at order time
       }
     } else {
       // Zone not configured — coords saved, allow
@@ -6086,15 +6101,8 @@ async function doSignup() {
     }
     // else: area selected + in delivery list — proceed, server geocodes coordinates async
   } else if (isOutside) {
-    // GPS confirmed outside OR geocode confirmed outside — hard block
-    // (geocode fail case is handled above)
-    const building = mfBuilding;
-    const area     = selectedArea;
-    const dist     = (su_lat && su_lng && _deliveryZone?.lat)
-      ? _haversineKm(_deliveryZone.lat, _deliveryZone.lng, parseFloat(su_lat), parseFloat(su_lng))
-      : null;
-    errors.push({ errId: 'su-loc-err', msg: '🚫 Your location is outside our delivery area. Please contact us via WhatsApp.', inputId: null, scrollTo: 'su-loc-btn' });
-    setTimeout(() => _suShowOzPopup(dist, _deliveryZone?.radiusKm || 5, building, area), 200);
+    // Outside zone — signup allowed. zone_status='outside' sent to server.
+    // Block shown at order time via _showOzOrderBlock(), not here.
   }
 
   // Area
@@ -6138,15 +6146,8 @@ async function doSignup() {
         locBtn.classList.add('loc-btn-required');
         setTimeout(() => locBtn.classList.remove('loc-btn-required'), 2100);
       }
-      // Update loc-status for outside-zone case
-      if (isOutside) {
-        const locStatus = document.getElementById('su-loc-status');
-        if (locStatus) {
-          locStatus.style.display = 'block';
-          locStatus.style.background = '#fee2e2';
-          locStatus.style.color = '#991b1b';
-          locStatus.textContent = '🚫 Sorry! Your location is outside our delivery area.';
-        }
+      // isOutside: no message at signup (block shown at order time)
+      if (false) {
       }
     }
 
@@ -6177,7 +6178,27 @@ async function doSignup() {
     }
     const needsGeocode = _suGeocodeState === 'done_err' && locMode === '2';
     const _signupRef = (() => { try { return sessionStorage.getItem('tiffo_ref'); } catch(_) { return null; } })();
-    const res = await api('signup', { name, phone, email, address, area: selectedArea, password: pw, needs_geocode: needsGeocode, referred_by: _signupRef || null });
+    // Determine zone_status to send to server
+    const _signupLocMode = locMode;
+    const _signupLocOk   = locOk;
+    const _signupSuLat   = su_lat ? parseFloat(su_lat) : null;
+    const _signupSuLng   = su_lng ? parseFloat(su_lng) : null;
+    let _signupZoneStatus = 'unknown';
+    if (_signupLocMode === '1' || (_signupLocMode === '2' && _signupSuLat)) {
+      // Has coordinates
+      if (_signupLocOk === '1') _signupZoneStatus = 'inside';
+      else if (_signupLocOk === '0' && _signupSuLat) _signupZoneStatus = 'outside';
+    } else if (_signupLocMode === '2') {
+      _signupZoneStatus = 'manual_only';
+    }
+
+    const res = await api('signup', {
+      name, phone, email, address, area: selectedArea, password: pw,
+      needs_geocode: needsGeocode, referred_by: _signupRef || null,
+      coord_lat:   _signupSuLat,
+      coord_lng:   _signupSuLng,
+      zone_status: _signupZoneStatus,
+    });
 
     // ── 6. Success ────────────────────────────────────────────────────────
     try { sessionStorage.removeItem('tiffo_ref'); } catch(_) {}
@@ -6187,6 +6208,8 @@ async function doSignup() {
     _walletBal = 0;
     _khataEnabled = false;
     applyKhataVisibility();
+    // Store order_allowed in session for UI to check
+    _session.order_allowed = res.order_allowed !== false;
     SessionCache.save({
       user: res.user, is_subscriber: false, walletBalance: 0,
       pauseMode: 'none', khataEnabled: false, userToken: res.userToken || ''
@@ -6198,10 +6221,14 @@ async function doSignup() {
     startPolling();
     startVersionPolling();
     _doPostLoginRefresh(_initMenuP4, true);
-    // ✅ Premium success toast
+
+    // ── Outside zone: allow signup but show order-blocked notice ──────────
+    // ✅ Normal success toast — no outside-zone notice at signup
     toast('Account created! Welcome to Tiffo 🎉', 4000);
     // Stop any active foreground GPS session — signup is done, no more UI retries needed
     _suStopBgGps();
+    _suStopContinuousWatch(); // v126: signup done — stop the continuous GPS watch for good
+    _suManualSubmitted = true; // belt-and-braces: ensure no stray watch callback does anything post-signup
     _clearRetryCountdown();
     _suStopPermissionPolling(); // stop polling — no longer needed after signup
     _suStopDeviceLocPolling();    // stop device-off polling too
@@ -6471,9 +6498,13 @@ async function loadMenu(bypassCache = false, silent = false) {
 async function _fetchFreshMenu() {
   // Single merged API call replaces 4 separate calls (getMenu + getWeeklySchedule + getOrderCutoff + getKhataEnabled)
   // Cache is written AFTER a successful response — if this throws, old cache is untouched.
-  const homeRes = await api('getHomeData');
+  const homeRes = await api('getHomeData', _session?.phone ? { phone: _session.phone } : {});
   _khataEnabled = homeRes.enabled;
   applyKhataVisibility();
+  // Sync order_allowed into session (returned when phone+userToken sent)
+  if (_session && homeRes.order_allowed !== undefined) {
+    _session.order_allowed = homeRes.order_allowed;
+  }
   // Always update open/close banner — it depends on current time so must always refresh
   updateCutoffBanner(homeRes.schedule, currentISTHour(), homeRes.config);
   // Always render — old equality check caused stale menu when cache matched DB
@@ -7160,6 +7191,14 @@ async function placeOrder() {
     return;
   }
   if (!user.address) { toast('Add delivery address in Account → Edit Address'); return; }
+
+  // ── Outside-zone block ───────────────────────────────────────────────────────
+  // order_allowed=false means user's location is outside delivery zone.
+  // Server also enforces this — client check is just for UX (instant feedback).
+  if (_session.order_allowed === false) {
+    _showOzOrderBlock();
+    return;
+  }
 
   // ── Stale-data guard: block order if menu data is older than 15 minutes ──
   // Prevents morning items being ordered in the evening when menu hasn't refreshed.
@@ -9835,8 +9874,9 @@ document.addEventListener('visibilitychange', () => {
         if (!signupOpen) return;
         const locMode = document.getElementById('su-loc-mode')?.value || '0';
         if (locMode === '1') return; // GPS already confirmed, nothing to do
-        if (_suGpsAttempt > 0 && !_suWarmPos) {
-          detectSignupLocation(undefined); // restart as fresh manual tap
+        if (_suGpsAttempt > 0) {
+          // Session was active when user left — restart 60s GPS detect session
+          _suStartDetectSession();
         }
       }, 500);
     }
@@ -9931,6 +9971,9 @@ function _wipeAndShowLogin() {
   _isGuestMode = false;
   _pendingCartNav = false;
   _sessionExpiredHandled = false;
+  // Reset signup location popup state so the 2.5s popup re-arms on the fresh signup tab
+  if (_suLocPopupTimer) { clearTimeout(_suLocPopupTimer); _suLocPopupTimer = null; }
+  _suLocPopupArmed = false;
   // Hide back btn — this is a forced logout, not guest navigation
   const _authBack = document.getElementById('auth-back-btn');
   if (_authBack) _authBack.style.display = 'none';
@@ -10380,10 +10423,10 @@ function _transitionToGuestHome() {
 
    FLOW:
      1. Guest opens Signup tab → popup appears after 2.5s
-     2. "Allow Location" → fire ONE getCurrentPosition (browser dialog appears)
-        → GPS warms in background while user fills form → Detect tap is instant
+     2. "Allow Location" → starts single continuous watchPosition() (browser dialog appears)
+        → GPS improves in background while user fills form → Detect tap is instant or fast
      3. "Remind Me Later" → close popup, no GPS call, user continues signup
-     4. "Detect My Location" button tap → show popup again (if no GPS yet)
+     4. "Detect My Location" button tap → show popup again (if no GPS yet / prompt state)
      5. "Create Account" without location → scroll to Detect button + message
         (same on repeated attempts — no popup re-shown automatically)
 
@@ -10393,15 +10436,29 @@ function _transitionToGuestHome() {
      'granted' flag in localStorage → silent warm on next visit (no popup)
      'denied'  flag               → skip entirely (area dropdown fallback)     */
 
-// (Legacy guest-loc-popup vars removed — signup popup uses _suLocPopupArmed/_suLocPopupTimer above)
+// ── Signup Location Popup System ─────────────────────────────────────────────
+// _suPopupContext: 'auto' = shown by 2.5s timer on tab open
+//                 'detect' = shown because user tapped Detect My Location
+let _suPopupContext = 'auto';
 
-/* Called by switchTab('signup') — schedules popup, guards on guest mode.
-   Also called when user taps "Detect My Location" if no GPS yet. */
-function _showSignupLocPopup() {
-  if (!_isGuestMode) return; // logged-in users never see this
-  if (_suWarmPos) return;    // GPS already resolved — no need to ask
-  // Don't show if user already hard-denied (they can tap Detect for the deny banner)
-  try { if (localStorage.getItem('tiffo_loc_perm') === 'denied') return; } catch(e) {}
+/* Called by switchTab('signup') — schedules location consent popup.
+   Works for ALL signup paths: new guest, referral link, session-expired/logout. */
+function _showSignupLocPopup(context) {
+  if (_suWarmPos) return; // GPS already resolved — no need to ask
+  // If permission already denied: skip the website popup entirely.
+  // For 'detect' context, route directly to the perm banner + manual card
+  // (same as _routeDetect does). Silently returning would leave user stuck.
+  try {
+    if (localStorage.getItem('tiffo_loc_perm') === 'denied') {
+      if (context === 'detect') {
+        _suShowPermBanner();
+        _suShowManualCard();
+        _suStartPermissionPolling();
+      }
+      return;
+    }
+  } catch(e) {}
+  _suPopupContext = context || 'auto';
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'flex';
 }
@@ -10417,45 +10474,144 @@ function _saveCoordsToStorage(pos) {
   } catch(e) {}
 }
 
-/* "Allow Location" button in popup — only place browser dialog fires */
+/* "Allow Location" button in popup —
+   Option A: fire browser permission dialog immediately (inside user gesture). */
 function _guestLocAllow() {
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
-  if (!navigator.geolocation) return;
-  // Guard: skip if prewarm already in-flight or resolved
-  if (_suWarmPos || _suWarmPending) return;
-  _suWarmPending = true;
-  const myWarmToken = _suWarmToken;
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      _suWarmPending = false;
-      if (_suWarmToken !== myWarmToken) return;
-      _suWarmPos = pos;
-      _saveCoordsToStorage(pos);
-      // Persist grant so future visits skip popup and warm silently
-      try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
-      // Auto-detect and autofill location in background if signup tab is still open
-      const _signupTab = document.getElementById('signup-tab');
-      if (_signupTab && _signupTab.style.display !== 'none') {
-        detectSignupLocation(); // consumes _suWarmPos instantly via prewarm shortcut
-      }
-    },
-    err => {
-      _suWarmPending = false;
-      if (err.code === 1) {
-        // User denied browser dialog — persist so we never ask again
-        try { localStorage.setItem('tiffo_loc_perm', 'denied'); } catch(e) {}
-      }
-    },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 }
-  );
+  if (!navigator.geolocation) {
+    // GPS not available — open manual popup instead
+    _suOpenManualPopup();
+    return;
+  }
+  // Persist grant intent so future visits skip popup
+  try { localStorage.setItem('tiffo_loc_perm', 'granted'); } catch(e) {}
+
+  // v126: this is the ONE place the single continuous watchPosition() starts.
+  // It now runs, never restarted, all the way through to signup completion.
+  _suStartContinuousWatch();
+
+  if (_suPopupContext === 'detect') {
+    // User tapped Detect My Location → start 60s detect session against the watch
+    _suStartDetectSession();
+  }
+  // 'auto' context: watch runs silently in background while user fills the
+  // form. By the time they tap Detect, _suBestPos is already warm/improving.
 }
 
-/* "Remind Me Later" button — close popup, no GPS call, no re-show timer */
+/* "Remind Me Later" in auto popup — close, do nothing. User taps Detect later. */
+/* "Remind Me Later" in detect popup — close, show manual address popup. */
 function _guestLocDismiss() {
   const popup = document.getElementById('guest-loc-popup');
   if (popup) popup.style.display = 'none';
-  // No re-ask timer — user will see Detect button + can tap it to re-show popup
+  if (_suPopupContext === 'detect') {
+    // User declined location on Detect button tap → show manual popup
+    _suOpenManualPopup();
+  }
+  // 'auto' context: do nothing — user fills form, taps Detect if they want
+}
+
+/* ── Manual Address Popup ─────────────────────────────────────────────────── */
+function _suOpenManualPopup() {
+  // Sync area list into popup select
+  const sel = document.getElementById('smp-area');
+  if (sel && _suAreaList.length) {
+    const currentArea = document.getElementById('su-area')?.value || '';
+    sel.innerHTML = '<option value="">Select area…</option>' +
+      _suAreaList.map(a => `<option value="${a}"${a === currentArea ? ' selected' : ''}>${a}</option>`).join('');
+  }
+  // Pre-fill building/room if already typed in inline form
+  const bld = document.getElementById('su-mf-building')?.value || '';
+  const rm  = document.getElementById('su-mf-room')?.value || '';
+  if (bld) { const el = document.getElementById('smp-building'); if(el) el.value = bld; }
+  if (rm)  { const el = document.getElementById('smp-room');     if(el) el.value = rm; }
+  const errEl = document.getElementById('smp-err');
+  if (errEl) errEl.style.display = 'none';
+  document.getElementById('su-manual-popup').style.display = 'flex';
+  setTimeout(() => document.getElementById('smp-building')?.focus(), 300);
+}
+
+function _suCloseManualPopup() {
+  document.getElementById('su-manual-popup').style.display = 'none';
+}
+
+async function _suSaveManualPopup() {
+  const building = (document.getElementById('smp-building')?.value || '').trim();
+  const room     = (document.getElementById('smp-room')?.value     || '').trim();
+  const nearby   = (document.getElementById('smp-nearby')?.value   || '').trim();
+  const area     = (document.getElementById('smp-area')?.value     || '').trim();
+  const pincode  = (document.getElementById('smp-pincode')?.value  || '221005').trim();
+  const errEl    = document.getElementById('smp-err');
+
+  if (!building) {
+    errEl.textContent = '🏠 Hostel / Building Name is required.';
+    errEl.style.display = 'block';
+    document.getElementById('smp-building')?.focus();
+    return;
+  }
+  errEl.style.display = 'none';
+
+  // The continuous watch may have raced and auto-accepted a ≤500m GPS fix
+  // just before this submit fired (popup auto-closes when that happens) —
+  // if so GPS already won; ignore this manual submit entirely.
+  if (document.getElementById('su-loc-mode')?.value === '1') return;
+
+  // ── User submitted first: lock in manual mode, stop the watch for good ──
+  _suManualSubmitted = true;
+  _suStopContinuousWatch();
+
+  // Copy values into inline manual card
+  if (building) { const el = document.getElementById('su-mf-building'); if (el) el.value = building; }
+  if (room)     { const el = document.getElementById('su-mf-room');     if (el) el.value = room; }
+
+  // Set area in main form if selected
+  if (area) {
+    const areaEl = document.getElementById('su-area');
+    const areaSearch = document.getElementById('su-area-search');
+    if (areaEl) areaEl.value = area;
+    if (areaSearch) areaSearch.value = area;
+    // Sync into manual card area field
+    const mfArea = document.getElementById('su-mf-area');
+    if (mfArea) mfArea.value = area;
+  }
+
+  // Close popup
+  _suCloseManualPopup();
+
+  // Show inline manual card with the data
+  _suShowManualCard();
+
+  // Set loc mode to manual BEFORE geocoding
+  const modeEl = document.getElementById('su-loc-mode');
+  if (modeEl) modeEl.value = '2';
+
+  // Update detect button to show address summary
+  const btn    = document.getElementById('su-loc-btn');
+  const btnTxt = document.getElementById('su-loc-btn-txt');
+  if (btn && btnTxt) {
+    btn.classList.remove('verified', 'rejected');
+    btnTxt.textContent = building.substring(0, 22) + (building.length > 22 ? '…' : '');
+  }
+
+  // ── Geocode the typed address immediately (no debounce) ────────────────
+  // Success → _suForwardGeocode fills su-lat/su-lng + sets loc-ok from zone check;
+  //           address + coordinates both get saved at doSignup.
+  // Fail    → su-lat/su-lng stay empty; address-only is saved at doSignup
+  //           (locMode==='2' without coords → no GPS line in the address).
+  if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
+  _suGeocodeState = 'pending';
+  _suSetZoneStatus('checking', '🟡 Checking delivery availability…');
+  document.getElementById('su-loc-ok').value = '0';
+  await _suForwardGeocode(_suBuildStructuredAddr());
+
+  // Scroll to manual card
+  setTimeout(() => {
+    const card = document.getElementById('su-manual-card');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+      if (!room) document.getElementById('su-mf-room')?.focus();
+    }, 450);
+  }, 200);
 }
 
 /* Load warm coords from localStorage (from a previous session / tab) */
@@ -10478,36 +10634,21 @@ function _loadWarmCoordsFromStorage() {
 
 /* ── Prewarm GPS silently when guest shows intent (taps cart/orders/account/avatar).
    Fires ONLY if permission already 'granted' — never triggers browser dialog.
-   By the time user opens signup tab and taps Detect, GPS chip is already warm
-   → detect resolves instantly instead of waiting 20s cold.
-   Idempotent: safe to call multiple times (guards via _suWarmPos/_suWarmPending). ── */
+   v126: if permission is already granted, this starts the SAME continuous
+   watch used post-consent (idempotent, no-op if already running) so accuracy
+   is already improving by the time the user opens signup and taps Detect.
+   On iOS / no-permissions-API, falls back to the cached _suWarmPos seed only. */
 function _suTryPrewarmOnIntent() {
-  if (_suWarmPos || _suWarmPending || !navigator.geolocation) return;
-
-  function _doWarm() {
-    if (_suWarmPos || _suWarmPending) return; // double-guard
-    _suWarmPending = true;
-    const myToken = _suWarmToken;
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        _suWarmPending = false;
-        if (_suWarmToken !== myToken) return;
-        _suWarmPos = pos;
-        _saveCoordsToStorage(pos);
-      },
-      () => { _suWarmPending = false; },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
-    );
-  }
+  if (_suWatchId !== null || _suWarmPos || _suWarmPending || !navigator.geolocation) return;
 
   if (navigator.permissions) {
     navigator.permissions.query({ name: 'geolocation' })
-      .then(r => { if (r.state === 'granted') _doWarm(); })
-      .catch(() => _doWarm()); // permissions API error → just try
+      .then(r => { if (r.state === 'granted') _suStartContinuousWatch(); })
+      .catch(() => _suStartContinuousWatch()); // permissions API error → just try
   } else {
     // iOS Safari — no permissions API, check localStorage flag from prior session
     try {
-      if (localStorage.getItem('tiffo_loc_perm') === 'granted') _doWarm();
+      if (localStorage.getItem('tiffo_loc_perm') === 'granted') _suStartContinuousWatch();
     } catch(e) {}
   }
 }
