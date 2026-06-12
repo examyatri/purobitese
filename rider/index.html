@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v131                                    ║
+     ║  Version : v143                                    ║
      ║  Updated : 2026-06-12                               ║
+     ║  v143: BHU Campus area filter bug fix — o.area     ║
+     ║        fallback added in chip build, renderOrders,  ║
+     ║        PDF export & route filter (6 locations).     ║
      ║  v131: Rider can edit Room No/Area/GPS for any      ║
      ║        customer + GPS coverage banner (Total/       ║
      ║        GPS/No-GPS)                                  ║
@@ -1312,7 +1315,7 @@ async function enrichAreasAndChips() {
 function _rebuildAreaChips() {
   const allOrders = [..._pending, ..._delivered];
   const areas = [...new Set(
-    allOrders.map(o => o._area || '').filter(Boolean)
+    allOrders.map(o => o._area || o.area || '').filter(Boolean)
   )].sort();
 
   const container = document.getElementById('area-chips');
@@ -1323,7 +1326,7 @@ function _rebuildAreaChips() {
   // just became empty (e.g. last order in Lanka was delivered).
   const _areaCounts = {};
   areas.forEach(area => {
-    _areaCounts[area] = _pending.filter(o => (o._area||'') === area).length;
+    _areaCounts[area] = _pending.filter(o => (o._area || o.area || '') === area).length;
   });
   if (_appliedArea !== 'all' && !_areaCounts[_appliedArea]) {
     _appliedArea = 'all';
@@ -1642,8 +1645,9 @@ function renderOrders() {
     // Layer 2: slot/session
     if (!_isSlotMatch(o, _appliedSlot)) return false;
     // Layer 3: area
+    // Fall back to o.area (DB column) if o._area not yet set by enrichAreasAndChips
     if (_appliedArea !== 'all') {
-      const oArea = (o._area || '').toLowerCase();
+      const oArea = (o._area || o.area || '').toLowerCase();
       if (!oArea.includes(_appliedArea.toLowerCase())) return false;
     }
     // Search query — also checks _area so typing area name in search also works
@@ -1653,7 +1657,7 @@ function renderOrders() {
           !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) &&
           !(o.order_id||'').toLowerCase().includes(q) &&
-          !(o._area||'').toLowerCase().includes(q)) return false;
+          !(o._area||o.area||'').toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -1741,14 +1745,14 @@ function generateRiderPDF() {
     if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
     if (!_isSlotMatch(o, _appliedSlot)) return false;
     if (_appliedArea !== 'all') {
-      const oArea = (o._area || '').toLowerCase();
+      const oArea = (o._area || o.area || '').toLowerCase();
       if (!oArea.includes(_appliedArea.toLowerCase())) return false;
     }
     if (_appliedQuery) {
       const q = _appliedQuery;
       if (!(o.name||'').toLowerCase().includes(q) && !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) && !(o.order_id||'').toLowerCase().includes(q) &&
-          !(o._area||'').toLowerCase().includes(q)) return false;
+          !(o._area||o.area||'').toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -1916,7 +1920,7 @@ function _buildFilteredStops() {
     if (_appliedDate === 'day_before' && d !== dayBefore)  return false;
     if (!_isSlotMatch(o, _appliedSlot)) return false;
     if (_appliedArea !== 'all') {
-      const oArea = (o._area || '').toLowerCase();
+      const oArea = (o._area || o.area || '').toLowerCase();
       if (!oArea.includes(_appliedArea.toLowerCase())) return false;
     }
     if (_appliedQuery) {
@@ -1925,7 +1929,7 @@ function _buildFilteredStops() {
           !(o.phone||'').includes(q) &&
           !(o.address||'').toLowerCase().includes(q) &&
           !(o.order_id||'').toLowerCase().includes(q) &&
-          !(o._area||'').toLowerCase().includes(q)) return false;
+          !(o._area||o.area||'').toLowerCase().includes(q)) return false;
     }
     return true;
   });
