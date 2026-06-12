@@ -1,6 +1,10 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v11.2  |  Updated : 2026-06-12
+   Version : v11.3  |  Updated : 2026-06-12
+
+   CHANGES v11.3:
+   - Cache bumped → tiffo-rider-v18 (v145 — BHU Campus area filter
+     fix, Edit button on home card, GPS fix for home screen modal)
 
    CHANGES v11.2:
    - Cache bumped → tiffo-rider-v16 (v131 — rider Set Location +
@@ -29,7 +33,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v17';
+const CACHE      = 'tiffo-rider-v18';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 

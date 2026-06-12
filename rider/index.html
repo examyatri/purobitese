@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v144                                    ║
+     ║  Version : v145                                    ║
      ║  Updated : 2026-06-12                               ║
+     ║  v145: GPS fix for Edit modal on home screen —      ║
+     ║        getCurrentPosition() called when _gpsPos     ║
+     ║        null (GPS watch only runs in route panel).   ║
+     ║        🎯 button now fetches live fix if needed.    ║
      ║  v144: ✏️ Edit button added to home screen order     ║
      ║        card (after WA). openEditFromCard() opens     ║
      ║        setloc modal from _pending, saves via same   ║
@@ -3142,12 +3146,40 @@ async function openEditFromCard(orderId) {
     _setlocMap.setView([start.lat, start.lng], 17);
     _setlocUpdateGpsDot();
   });
+
+  // GPS watch only runs while map modal is open — on home screen we do a
+  // one-time fix so the 🎯 button and blue dot work in the edit modal.
+  if (_gpsWatchId === null && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        _gpsPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        _setlocUpdateGpsDot();
+      },
+      () => { /* silent fail — rider can still drag pin manually */ },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 }
 
 function _setlocUseMyGps() {
-  if (!_gpsPos) { rToast('GPS not available yet — move outdoors and retry'); return; }
-  _setlocCoordTouched = true;
-  if (_setlocMap) _setlocMap.setView([_gpsPos.lat, _gpsPos.lng], 17);
+  if (_gpsPos) {
+    _setlocCoordTouched = true;
+    if (_setlocMap) _setlocMap.setView([_gpsPos.lat, _gpsPos.lng], 17);
+    return;
+  }
+  // _gpsPos not yet set (home screen — GPS watch not running). Try one-time fix.
+  if (!navigator.geolocation) { rToast('GPS not supported on this device'); return; }
+  rToast('📍 Getting your location…');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      _gpsPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      _setlocCoordTouched = true;
+      _setlocUpdateGpsDot();
+      if (_setlocMap) _setlocMap.setView([_gpsPos.lat, _gpsPos.lng], 17);
+    },
+    () => { rToast('GPS unavailable — move outdoors and retry'); },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 async function _saveStopCoords() {
