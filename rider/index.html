@@ -1,8 +1,13 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v143                                    ║
+     ║  Version : v144                                    ║
      ║  Updated : 2026-06-12                               ║
+     ║  v144: ✏️ Edit button added to home screen order     ║
+     ║        card (after WA). openEditFromCard() opens     ║
+     ║        setloc modal from _pending, saves via same   ║
+     ║        riderUpdateUserAddress API. Area chip +      ║
+     ║        home list auto-refresh after save.           ║
      ║  v143: BHU Campus area filter bug fix — o.area     ║
      ║        fallback added in chip build, renderOrders,  ║
      ║        PDF export & route filter (6 locations).     ║
@@ -1417,6 +1422,7 @@ function renderOrderCard(o) {
       <button class="o-btn o-btn-call" onclick="orderCall('${o.order_id}')">📞 Call</button>
       <button class="o-btn o-btn-map"  onclick="orderMap('${o.order_id}')">🗺 Maps</button>
       <button class="o-btn o-btn-wa"   onclick="orderWA('${o.order_id}')">💬 WA</button>
+      <button class="o-btn" style="background:#f97316;color:#fff" onclick="openEditFromCard('${o.order_id}')">✏️ Edit</button>
       ${actionBtns}
     </div>
   </div>`;
@@ -3015,6 +3021,7 @@ function openStreetView(idx) {
 let _setlocMap        = null;
 let _setlocIdx        = null;
 let _setlocCoordTouched = false;   // true once rider intentionally moves the pin
+let _setlocOrder      = null;      // set when opened from home card (not map panel)
 let _setlocAreaList   = [];
 
 async function _setlocLoadAreas() {
@@ -3092,8 +3099,49 @@ function _setlocUpdateGpsDot() {
 
 function closeSetLocationModal() {
   document.getElementById('setloc-modal').classList.remove('open');
-  _setlocIdx = null;
+  _setlocIdx    = null;
+  _setlocOrder  = null;
   if (history.state && history.state.setLoc) history.back();
+}
+/* ─── OPEN EDIT MODAL FROM HOME SCREEN ORDER CARD ───────────────
+   Called via ✏️ Edit button in renderOrderCard(). Populates the
+   existing setloc modal using the order object from _pending.   */
+async function openEditFromCard(orderId) {
+  const o = _pending.find(x => x.order_id === orderId) || _delivered.find(x => x.order_id === orderId);
+  if (!o) { rToast('Order not found'); return; }
+
+  _setlocOrder = o;       // home-card mode
+  _setlocIdx   = null;    // not from map panel
+  _setlocCoordTouched = false;
+
+  document.getElementById('setloc-name').textContent = o.name || 'Customer';
+  document.getElementById('setloc-addr').textContent = _shortAddr(o.address || '');
+  document.getElementById('setloc-modal').classList.add('open');
+  history.pushState({ setLoc: true }, '', location.href);
+
+  const parsed = _parseAddrFields(o.address || '');
+  document.getElementById('setloc-room').value = parsed.room || '';
+
+  const areaSel = document.getElementById('setloc-area');
+  const areas = await _setlocLoadAreas();
+  areaSel.innerHTML = '<option value="">— Select Area —</option>' +
+    areas.map(a => `<option value="${a}"${a === parsed.area ? ' selected' : ''}>${a}</option>`).join('');
+
+  const start = (parsed.lat != null && parsed.lng != null)
+    ? { lat: parsed.lat, lng: parsed.lng }
+    : (_gpsPos || { lat: 25.2677, lng: 82.9913 });
+
+  requestAnimationFrame(() => {
+    if (!_setlocMap) {
+      _setlocMap = L.map('setloc-map', { zoomControl: true, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_setlocMap);
+      _setlocMap.on('dragstart zoomstart', () => { _setlocCoordTouched = true; });
+    } else {
+      _setlocMap.invalidateSize();
+    }
+    _setlocMap.setView([start.lat, start.lng], 17);
+    _setlocUpdateGpsDot();
+  });
 }
 
 function _setlocUseMyGps() {
@@ -3103,17 +3151,22 @@ function _setlocUseMyGps() {
 }
 
 async function _saveStopCoords() {
-  if (_setlocIdx === null) return;
-  const s = _mapStops[_setlocIdx];
-  if (!s || !_setlocMap) return;
+  // Support both map-panel mode (_setlocIdx) and home-card mode (_setlocOrder)
+  const s = (_setlocIdx !== null) ? _mapStops[_setlocIdx] : null;
+  const cardOrder = _setlocOrder; // set by openEditFromCard
+  if (!s && !cardOrder) return;
+  if (!_setlocMap) return;
 
   const room = document.getElementById('setloc-room').value.trim();
   const area = document.getElementById('setloc-area').value.trim();
   if (!area) { rToast('Please select a delivery area'); return; }
 
+  // Resolve the order object (map-panel mode vs home-card mode)
+  const o = s ? s.order : cardOrder;
+
   // Only send coordinates if the rider intentionally moved the pin,
   // OR the customer had no coordinates yet (first-time fix).
-  const parsed = _parseAddrFields(s.order.address || '');
+  const parsed = _parseAddrFields(o.address || '');
   const hadCoords = parsed.lat != null && parsed.lng != null;
   const sendCoords = _setlocCoordTouched || !hadCoords;
 
@@ -3127,21 +3180,24 @@ async function _saveStopCoords() {
 
   try {
     const res = await api('riderUpdateUserAddress', {
-      phone:   s.order.phone,
-      orderId: s.order.order_id,
+      phone:   o.phone,
+      orderId: o.order_id,
       room, area, lat, lng
     });
     if (!res.success) throw new Error(res.error || 'Failed to save');
 
-    // Update local stop from server's rebuilt address so display, markers,
-    // and routing all reflect the change immediately without a re-fetch.
-    s.order.address = res.address;
-    s.coords = (res.lat != null && res.lng != null) ? { lat: res.lat, lng: res.lng } : null;
+    // Update local order object so card re-renders correctly
+    o.address = res.address;
+    if (s) s.coords = (res.lat != null && res.lng != null) ? { lat: res.lat, lng: res.lng } : null;
+
+    // Also update _area so area chip count refreshes
+    o._area = area;
 
     rToast('✅ Address updated!');
     closeSetLocationModal();
-    _placeMarkers();
-    _renderStopList();
+    _setlocOrder = null; // clear home-card ref
+    if (s) { _placeMarkers(); _renderStopList(); } // only if map panel open
+    renderOrders(); // always refresh home list
   } catch (e) {
     rToast('⚠️ ' + (e.message || 'Failed to save address'));
   } finally {
@@ -3918,7 +3974,8 @@ window.addEventListener('popstate', () => {
   // If Set Location picker is open, close it first (without re-pushing state)
   if (document.getElementById('setloc-modal')?.classList.contains('open')) {
     document.getElementById('setloc-modal').classList.remove('open');
-    _setlocIdx = null;
+    _setlocIdx   = null;
+    _setlocOrder = null;
     return;
   }
 
