@@ -34,11 +34,11 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v69'; // v148: geocode fire-and-forget — manual signup unblock — long background reload guard
+const CACHE      = 'tiffo-v70'; // v148: removed help.html from PRECACHE (served via navigate SWR strategy already)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
-const PRECACHE = ['./', './index.html', './help.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
+const PRECACHE = ['./', './index.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
 
 /* CDN origins — fonts & icons cached with long TTL */
 const CDN_ORIGINS = [
