@@ -3,7 +3,7 @@
    Version : v49.0  |  Updated : 2026-06-13
 
    CHANGES v49.0:
-   - Cache bumped → tiffo-v68 (v147 — geocode fire-and-forget:
+   - Cache bumped → tiffo-v69 (v148 — geocode fire-and-forget:
      manual address signup no longer blocks on Nominatim.
      Save Address instant, Create Account never stuck.)
 
@@ -34,7 +34,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v68'; // v147: geocode fire-and-forget — manual signup unblock — long background reload guard
+const CACHE      = 'tiffo-v69'; // v148: geocode fire-and-forget — manual signup unblock — long background reload guard
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
