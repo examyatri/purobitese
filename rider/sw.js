@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v11.3  |  Updated : 2026-06-12
+   Version : v11.4  |  Updated : 2026-06-13
+
+   CHANGES v11.4:
+   - Cache bumped → tiffo-rider-v19 (v145 — cache sync)
 
    CHANGES v11.3:
    - Cache bumped → tiffo-rider-v18 (v145 — BHU Campus area filter
@@ -33,7 +36,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v18';
+const CACHE      = 'tiffo-rider-v19';
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
