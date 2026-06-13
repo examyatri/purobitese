@@ -1,4 +1,4 @@
-<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v145                                     ║\n     ║  Updated : 2026-06-13                               ║\n     ║  CHANGE  : v145 — version header sync (no logic     ║\n     ║            change); see v144/v145 inline notes for  ║\n     ║            address-format, manual popup, GPS        ║\n     ║            freshness-gate fixes.                    ║\n     ║  CHANGE  : v134 — GPS/signup reliability fixes:     ║\n     ║            1) Server geocode fire-and-forget (no    ║\n     ║               more 4s signup block on manual addr). ║\n     ║            2) err.code 2 split: case A=device off,  ║\n     ║               case B=transient loss mid-countdown.  ║\n     ║            3) switchTab(login) stops GPS polls.     ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ╚══════════════════════════════════════════════════════╝ -->
+<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v147                                     ║\n     ║  Updated : 2026-06-13                               ║\n     ║  CHANGE  : v147 — Geocode fire-and-forget background:   ║\n     ║            When user taps "Save Address" in manual  ║\n     ║            popup, su-loc-ok is already set to '1'. ║\n     ║            Geocode (Nominatim) runs in background   ║\n     ║            for coordinate bonus — it must NOT block ║\n     ║            "Create Account". Both pending-geocode   ║\n     ║            guards now check _suManualAddrSaved flag ║\n     ║            and skip blocking when it's true.        ║\n     ║            needs_geocode=true also set when pending ║\n     ║            so backend geocodes coordinates async.   ║\n     ╚══════════════════════════════════════════════════════╝ -->\n     ║  CHANGE  : v134 — GPS/signup reliability fixes:     ║\n     ║            1) Server geocode fire-and-forget (no    ║\n     ║               more 4s signup block on manual addr). ║\n     ║            2) err.code 2 split: case A=device off,  ║\n     ║               case B=transient loss mid-countdown.  ║\n     ║            3) switchTab(login) stops GPS polls.     ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
 <!-- Google tag (gtag.js) -->
@@ -6620,8 +6620,10 @@ async function doSignup() {
     errors.push({ errId: 'su-loc-err', msg: '🏠 Building / Hostel Name is required.', inputId: 'su-mf-building', scrollTo: 'su-mf-building' });
   } else if (locMode === '2' && !mfRoom) {
     errors.push({ errId: 'su-loc-err', msg: '🚪 Room / Flat No. & Landmark is required.', inputId: 'su-mf-room', scrollTo: 'su-mf-room' });
-  } else if ((_suGeocodeState === 'pending' || (_suManualGeocodeTimer !== null)) && locMode !== '1') {
-    // Debounce still in flight — ask user to wait (GPS already confirmed skips this)
+  } else if ((_suGeocodeState === 'pending' || (_suManualGeocodeTimer !== null)) && locMode !== '1' && !_suManualAddrSaved) {
+    // Debounce still in flight AND user hasn't explicitly saved manual address yet — ask to wait.
+    // v146: if _suManualAddrSaved=true (user tapped Save Address), su-loc-ok is already '1'
+    // and geocode is running in background — don't block signup, let it proceed.
     errors.push({ errId: 'su-loc-err', msg: '⏳ Please wait — checking delivery availability for your address…', inputId: null, scrollTo: 'su-zone-status-row' });
     // Also trigger geocode immediately
     if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
@@ -6714,16 +6716,18 @@ async function doSignup() {
 
   try {
     // needs_geocode=true when Nominatim failed client-side — backend will try a richer query
-    // ── Coordinates mandatory — geocode must resolve before signup ──
-    // Manual address path (locMode='2'): if geocode is still pending or failed,
-    // block signup and prompt user to wait or try GPS.
-    if (locMode === '2' && _suGeocodeState === 'pending') {
+    // v146: if user explicitly saved manual address (_suManualAddrSaved=true), su-loc-ok is
+    // already '1' (set in Save Address flow). Geocode is a background bonus for coordinates —
+    // it must NOT block signup. Proceed with needs_geocode=true so backend geocodes async.
+    // Only block if user never saved manual address AND geocode is still in flight (edge case:
+    // user somehow bypasses Save Address button — shouldn't happen in normal flow).
+    if (locMode === '2' && _suGeocodeState === 'pending' && !_suManualAddrSaved) {
       _suSetBtnLoading(false);
       _suInFlight = false;
       toast('🟡 Checking your delivery zone… please wait a moment and try again.', 3000);
       return;
     }
-    const needsGeocode = _suGeocodeState === 'done_err' && locMode === '2';
+    const needsGeocode = ((_suGeocodeState === 'done_err' || _suGeocodeState === 'pending') && locMode === '2');
     const _signupRef = (() => { try { return sessionStorage.getItem('tiffo_ref'); } catch(_) { return null; } })();
     // Determine zone_status to send to server
     const _signupLocMode = locMode;
@@ -11461,37 +11465,37 @@ async function _suSaveManualPopup() {
     if (gpsHint) gpsHint.style.display = _suWatchId !== null ? 'flex' : 'none';
   }
 
-  // ── Geocode the typed address (forward geocode) ────────────────────────
-  // Success in zone  → save coordinates + address
-  // Success out zone → discard coordinates, save address only (still allow order)
-  // Fail             → save address only (still allow order)
+  // ── Geocode the typed address — fire-and-forget (v147) ───────────────
+  // Runs silently in background. User can tap "Create Account" immediately —
+  // no blocking. Dark card status updates quietly when result arrives.
   if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
   _suGeocodeState = 'pending';
-  // Show verifying in the dark card status (zone-status-row is hidden inside inline form)
-  const _macSt = document.getElementById('su-mac-status');
-  if (_macSt) { _macSt.textContent = '🟡 Verifying delivery area…'; _macSt.style.color = '#fde68a'; }
   // Always allow ordering regardless of geocode result
   document.getElementById('su-loc-ok').value = '1';
-  await _suForwardGeocode(_suBuildStructuredAddr());
-  // After geocode: if outside zone, clear coordinates but keep address (still allow order)
-  if (_suGeocodeState === 'done_outside') {
-    document.getElementById('su-lat').value  = '';
-    document.getElementById('su-lng').value  = '';
-    document.getElementById('su-loc-ok').value = '1'; // allow order regardless
+
+  // Fire without awaiting — result updates dark card status silently
+  _suForwardGeocode(_suBuildStructuredAddr()).then(() => {
     const statusEl = document.getElementById('su-mac-status');
-    if (statusEl) { statusEl.textContent = '⚠️ Outside usual zone'; statusEl.style.color = '#fbbf24'; }
-  } else if (_suGeocodeState === 'done_ok') {
+    if (_suGeocodeState === 'done_ok') {
+      if (statusEl) { statusEl.textContent = '\u2713 Within delivery zone'; statusEl.style.color = '#86efac'; }
+      document.getElementById('su-loc-ok').value = '1';
+    } else if (_suGeocodeState === 'done_outside') {
+      document.getElementById('su-lat').value = '';
+      document.getElementById('su-lng').value = '';
+      document.getElementById('su-loc-ok').value = '1';
+      if (statusEl) { statusEl.textContent = '\u26a0\ufe0f Outside usual zone'; statusEl.style.color = '#fbbf24'; }
+    } else {
+      // done_err — Nominatim couldn't find address (common for BHU campus names)
+      document.getElementById('su-lat').value = '';
+      document.getElementById('su-lng').value = '';
+      document.getElementById('su-loc-ok').value = '1';
+      if (statusEl) { statusEl.textContent = '\u2713 Address saved'; statusEl.style.color = '#86efac'; }
+    }
+  }).catch(() => {
+    // Network error — silently allow, backend will retry geocode via needs_geocode flag
     document.getElementById('su-loc-ok').value = '1';
-    const statusEl = document.getElementById('su-mac-status');
-    if (statusEl) { statusEl.textContent = '✓ Within delivery zone'; statusEl.style.color = '#86efac'; }
-  } else if (_suGeocodeState === 'done_err') {
-    // Geocode failed — address only, still allow
-    document.getElementById('su-lat').value  = '';
-    document.getElementById('su-lng').value  = '';
-    document.getElementById('su-loc-ok').value = '1';
-    const statusEl = document.getElementById('su-mac-status');
-    if (statusEl) { statusEl.textContent = '✓ Address saved'; statusEl.style.color = '#86efac'; }
-  }
+    _suGeocodeState = 'done_err';
+  });
 
   // Scroll to address card
   setTimeout(() => {
