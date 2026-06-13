@@ -1,8 +1,11 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v131                                      ║
-// ║  Updated : 2026-06-12                               ║
+// ║  Version : v145                                      ║
+// ║  Updated : 2026-06-13                               ║
+// ║  v145    : Version sync — no backend logic change.  ║
+// ║            Frontend fix: Android WebView freeze     ║
+// ║            guard (long background → reload via SW). ║
 // ║  v131    : Added riderUpdateUserAddress action —    ║
 // ║            rider can edit Room No, Delivery Area,   ║
 // ║            and GPS coords for any customer.         ║
@@ -1201,7 +1204,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v2' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v145' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
