@@ -980,8 +980,30 @@ async function _geocodeAndPatchAsync(phone, address, area) {
     const dlat = lat - 25.3176, dlng = lng - 82.9739;
     if (Math.sqrt(dlat*dlat + dlng*dlng) > 0.5) return; // >~55km off → reject
 
+    // ── Re-check-before-write (v148) ────────────────────────────────────────
+    // This function now runs fully fire-and-forget (no response delay), so by
+    // the time Nominatim replies, the user/rider/admin may have ALREADY set
+    // coordinates manually (e.g. they placed an order in the meantime and a
+    // rider pinned their location). Re-fetch the current row right before
+    // writing — if coordinates are already present, silently no-op. This
+    // guarantees coordinates are written AT MOST ONCE and are NEVER
+    // overwritten by this background safety net.
+    const { data: currentRow } = await supabase.from('users')
+      .select('address, coord_lat, coord_lng, order_allowed').eq('phone', phone).single();
+    if (!currentRow) return; // user deleted in the meantime
+    if (currentRow.coord_lat != null && currentRow.coord_lng != null) return; // already set — never overwrite
+    const currentAddress = currentRow.address || address;
+    if (/Coordinates\s*:/i.test(currentAddress)) return; // already patched by another path
+
+    // If the address TEXT itself changed since signup (user edited it in
+    // Settings, or rider/admin updated it) before Nominatim responded, the
+    // coordinates we just geocoded correspond to the OLD text — do not tag
+    // the new address with them. Let the user's own edit stand untouched;
+    // their next save (or a future signup-like flow) will geocode correctly.
+    if (currentAddress.trim() !== address.trim()) return;
+
     // Patch address: append Coordinates line in v84 format
-    const newAddress = address.trimEnd() + `\nCoordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    const newAddress = currentAddress.trimEnd() + `\nCoordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
     // Also determine zone_status by checking delivery zone radius
     let patchZoneStatus = 'unknown'; // zone config not yet read — will be set below
@@ -1009,6 +1031,11 @@ async function _geocodeAndPatchAsync(phone, address, area) {
     const hasValidArea = !!resolvedArea && resolvedArea !== 'Other';
     if (hasValidArea && !patchOrderAllowed) patchOrderAllowed = true;
     if (patchZoneStatus === 'unknown' && hasValidArea) patchZoneStatus = 'manual_only';
+
+    // Never downgrade order_allowed — if admin/rider already granted access
+    // (e.g. manual exception for an edge-case address) before this
+    // fire-and-forget patch landed, preserve that decision.
+    if (currentRow.order_allowed === true) patchOrderAllowed = true;
 
     // Update address, coords, zone_status, and order_allowed atomically
     await supabase.from('users').update({
@@ -1204,7 +1231,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v145' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v148' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
@@ -1360,21 +1387,18 @@ app.post('/api', async (req, res) => {
         if (insertErr) return res.json({ success: false, error: 'Registration failed. Please try again.' });
         // ── Server-side geocode safety net ─────────────────────────────────────
         // Fires when client Nominatim failed (e.g. BHU hostel names not in OSM).
-        // Uses a richer query with city/campus context. v134: runs async (fire-and-forget).
+        // Uses a richer query with city/campus context.
+        // v148: TRUE fire-and-forget — does NOT delay the signup response at all.
+        // "Create Account" must feel instant regardless of Nominatim speed/outage.
+        // _geocodeAndPatchAsync re-checks the user's row at write-time (not the
+        // stale `address` captured here) — if coordinates were already set by
+        // then (geocode succeeded fast, or rider/admin/user set them manually
+        // in the meantime), it silently no-ops. Coordinates are written AT MOST
+        // ONCE per user and are never overwritten afterwards.
         if (data.needs_geocode && data.address) {
-          // v134: 1.5s timeout — balanced approach.
-          // Old: 4s blocking await — P50 users waited 4s every time (bad UX).
-          // Rejected: pure fire-and-forget — rider map URL depends on the
-          //   "Coordinates:" line _geocodeAndPatchAsync appends to address;
-          //   if we never await, coords may be null when rider gets the order.
-          // This approach: wait 1.5s max (covers ~P75 Nominatim responses from India,
-          // median ~800ms). If Nominatim is slow that day, async patch completes
-          // in background — rider gets coords a few seconds after order is placed,
-          // which is acceptable. Signup feels instant for the majority of users.
-          const _geoP = _geocodeAndPatchAsync(phone, data.address, data.area || '');
-          await Promise.race([_geoP, new Promise(r => setTimeout(r, 1500))]);
-          _geoP.catch(() => {}); // prevent unhandled rejection if it fails after race
+          _geocodeAndPatchAsync(phone, data.address, data.area || '').catch(() => {});
         }
+
         // ── Fire new-user notification so admin can send welcome coupon ──
         try {
           // Build a compact 1-line address summary for notification body (v84 multiline → readable)
@@ -1818,18 +1842,17 @@ app.post('/api', async (req, res) => {
           const nowMins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
           if (d && d.open) {
             // Parse all four window edges from schedule
-            const lsH = parseInt(d.lunchStart    || '10') || 10;
-            const lsM = parseInt(d.lunchStartMin ||  '0') ||  0;
-            const leH = parseInt(d.lunchEnd      || '13') || 13;
-            const leM = parseInt(d.lunchEndMin   ||  '0') ||  0;
-            const dsH = parseInt(d.dinnerStart   || '18') || 18;
-            const dsM = parseInt(d.dinnerStartMin||  '0') ||  0;
-            const deH = parseInt(d.dinnerEnd     || '21') || 21;
-            const deM = parseInt(d.dinnerEndMin  ||  '0') ||  0;
-            const lsTotal = lsH * 60 + lsM;
-            const leTotal = leH * 60 + leM;
-            const dsTotal = dsH * 60 + dsM;
-            const deTotal = deH * 60 + deM;
+            // Times are stored as combined "HH:MM" strings — split, don't look for *Min fields
+            const parseHM = (s, defH, defM) => {
+              const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
+              return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : (defH * 60 + defM);
+            };
+            const lsTotal = parseHM(d.lunchStart,  10, 0);
+            const leTotal = parseHM(d.lunchEnd,    13, 0);
+            const dsTotal = parseHM(d.dinnerStart, 18, 0);
+            const deTotal = parseHM(d.dinnerEnd,   21, 0);
+            const lsH = Math.floor(lsTotal / 60), lsM = lsTotal % 60;
+            const dsH = Math.floor(dsTotal / 60), dsM = dsTotal % 60;
             if (nowMins >= lsTotal && nowMins <= leTotal) {
               autoSlot = 'morning'; _storeOpen = true;
             } else if (nowMins >= dsTotal && nowMins <= deTotal) {
