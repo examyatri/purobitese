@@ -1,6 +1,16 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v46.0  |  Updated : 2026-06-12
+   Version : v48.0  |  Updated : 2026-06-13
+
+   CHANGES v48.0:
+   - Cache bumped → tiffo-v67 (v145 — Android WebView freeze fix:
+     long background >3 min triggers location.reload() via
+     visibilitychange + pageshow; SW cache makes reload instant)
+
+   CHANGES v47.0:
+   - Cache bumped → tiffo-v61 (account/settings location: device
+     location OFF banner — permission granted but GPS toggle off,
+     mirrors signup v134 Case A/B detection)
 
    CHANGES v46.0:
    - Cache bumped → tiffo-v56 (v130 — version alignment release)
@@ -19,7 +29,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v59'; // bumped for v134
+const CACHE      = 'tiffo-v67'; // v145: Android WebView freeze fix — long background reload guard
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

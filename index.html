@@ -1,4 +1,4 @@
-<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v134                                     ║\n     ║  Updated : 2026-06-12                               ║\n     ║  CHANGE  : v134 — GPS/signup reliability fixes:     ║\n     ║            1) Server geocode fire-and-forget (no    ║\n     ║               more 4s signup block on manual addr). ║\n     ║            2) err.code 2 split: case A=device off,  ║\n     ║               case B=transient loss mid-countdown.  ║\n     ║            3) switchTab(login) stops GPS polls.     ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ╚══════════════════════════════════════════════════════╝ -->
+<!DOCTYPE html>\n<!-- ╔══════════════════════════════════════════════════════╗\n     ║  Tiffo — User App (index.html)           ║\n     ║  Version : v145                                     ║\n     ║  Updated : 2026-06-13                               ║\n     ║  CHANGE  : v145 — version header sync (no logic     ║\n     ║            change); see v144/v145 inline notes for  ║\n     ║            address-format, manual popup, GPS        ║\n     ║            freshness-gate fixes.                    ║\n     ║  CHANGE  : v134 — GPS/signup reliability fixes:     ║\n     ║            1) Server geocode fire-and-forget (no    ║\n     ║               more 4s signup block on manual addr). ║\n     ║            2) err.code 2 split: case A=device off,  ║\n     ║               case B=transient loss mid-countdown.  ║\n     ║            3) switchTab(login) stops GPS polls.     ║\n     ║  CHANGE  : v133 — Live GPS accuracy display in      ║\n     ║            signup location status bar. During the   ║\n     ║            60s watchPosition countdown, accuracy    ║\n     ║            shows color-coded live (red>300m,        ║\n     ║            amber>100m, green≤100m). On GPS lock,    ║\n     ║            final accuracy shown in found status.    ║\n     ╚══════════════════════════════════════════════════════╝ -->
 <html lang="en">
 <head>
 <!-- Google tag (gtag.js) -->
@@ -2215,6 +2215,8 @@ input[type=number]{-moz-appearance:textfield}
           <div id="su-mac-line1" style="font-family:var(--ff);font-size:14px;font-weight:700;color:#fff;line-height:1.35;margin-bottom:3px"></div>
           <div id="su-mac-line2" style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.6);line-height:1.5"></div>
           <div id="su-mac-line3" style="font-family:var(--fb);font-size:11.5px;color:rgba(255,255,255,.4);margin-top:5px"></div>
+          <!-- Background GPS hint — shown by JS only when watch is running -->
+          <div id="su-mac-gps-hint" style="margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);display:none;align-items:center;gap:6px;font-family:var(--fb);font-size:10.5px;color:rgba(255,255,255,.35)"><i class="fa fa-spinner fa-spin" style="font-size:9px;color:rgba(134,239,172,.5)"></i>&nbsp;Searching for GPS in background&hellip;</div>
         </div>
 
         <!-- Compat: old detect button (hidden — kept for JS refs) -->
@@ -2779,6 +2781,27 @@ input[type=number]{-moz-appearance:textfield}
               <!-- v133: Status bar with live accuracy -->
               <div class="loc-map-status idle" id="acct-map-status-bar">
                 <span id="acct-map-status-txt">Tap the <b>red button</b> to automatically detect your location</span>
+              </div>
+              <!-- v145: Device Location OFF banner (permission granted, GPS toggle off) -->
+              <div id="acct-dev-off-banner" style="display:none;margin-top:10px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;padding:12px 13px;font-family:var(--fb);font-size:12.5px;color:#7f1d1d;line-height:1.6">
+                <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#991b1b;margin-bottom:5px;display:flex;align-items:center;gap:6px">
+                  &#128245; Device Location is Turned Off
+                </div>
+                <div style="margin-bottom:6px">Please enable Location in device settings, then tap the <b>📍</b> button again.</div>
+                <ul id="adob-steps-android" style="display:none;margin:4px 0 8px 0;padding-left:16px">
+                  <li>Go to <b>Settings &#8594; Location</b> → Turn it <b>ON</b></li>
+                </ul>
+                <ul id="adob-steps-ios" style="display:none;margin:4px 0 8px 0;padding-left:16px">
+                  <li>Go to <b>Settings &#8594; Privacy &#8594; Location Services</b> → Turn <b>ON</b></li>
+                </ul>
+                <ul id="adob-steps-generic" style="display:none;margin:4px 0 8px 0;padding-left:16px">
+                  <li>Open <b>Settings &#8594; Location / Privacy</b> → Turn on <b>Location Services</b></li>
+                </ul>
+                <div style="display:flex;gap:8px;margin-top:6px">
+                  <button onclick="_acctRetryLocation()" style="background:#1e293b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">
+                    <i class="fa fa-rotate"></i> Try Again
+                  </button>
+                </div>
               </div>
             </div>
             <!-- Location chip -->
@@ -4442,6 +4465,15 @@ function switchTab(tab) {
     // and switched back to login (battery + unnecessary navigator API calls).
     _suStopDeviceLocPolling();
     _suStopPermissionPolling();
+    // v144: also stop the 60s GPS "detect" countdown — previously only the
+    // polling intervals were cleared here, so if the user switched to login
+    // mid-countdown the timer kept running in the background and fired
+    // _suOpenManualPopup() afterwards, popping the manual-address modal open
+    // while the user was already on the login tab.
+    if (_suDetectCountdownTimer) { clearInterval(_suDetectCountdownTimer); _suDetectCountdownTimer = null; }
+    _suDetectCountdownSec = 0;
+    // Reset manual-addr-saved flag so a fresh signup attempt starts clean
+    _suManualAddrSaved = false;
     prefillLoginForm();
   } else {
     loginTab.style.display  = 'none';
@@ -4758,6 +4790,7 @@ let _suBestPos         = null;  // { lat, lng, accuracy, ts } — best (lowest-a
 let _suAcceptedAcc     = null;  // accuracy (m) of the currently-accepted/displayed fix — for silent refinement
 let _suWatchAccepted   = false; // true once a location has been accepted at least once
 let _suManualSubmitted = false; // true once the manual popup is submitted — stops the watch permanently
+let _suManualAddrSaved = false; // true once manual address saved — GPS watch still runs silently for upgrade
 
 /* Start the single continuous watch. Idempotent — safe to call from anywhere
    (popup Allow, prewarm-on-intent, device-off-poll recovery, retry, etc). */
@@ -4909,6 +4942,48 @@ function _suOnWatchUpdate(pos) {
     if (latEl) latEl.value = lat;
     if (lngEl) lngEl.value = lng;
     _evaluateLocationSilent(lat, lng);
+  }
+
+  // ── Phase 5: background GPS upgrade after manual address saved ────────────
+  // User saved address manually but watch is still running. If we get a good
+  // fix (≤500m), silently upgrade: replace the dark manual card with the map
+  // + GPS confirmation. This is seamless — user doesn't need to do anything.
+  if (_suManualAddrSaved && !_suWatchAccepted && accuracy <= _SU_MAX_ACCURACY) {
+    _suManualAddrSaved = false; // prevent re-entry
+    _suManualSubmitted = true;  // lock the watch after this upgrade
+    _suWatchAccepted   = true;  // mark as accepted so Phase 4 refinement can fire
+    _suAcceptedAcc     = accuracy;
+    _suStopContinuousWatch();
+    // Write GPS coordinates
+    const latEl = document.getElementById('su-lat');
+    const lngEl = document.getElementById('su-lng');
+    if (latEl) latEl.value = lat;
+    if (lngEl) lngEl.value = lng;
+    document.getElementById('su-loc-mode').value = '2'; // keep as manual-mode (address still used) but now has coords
+    _evaluateLocationSilent(lat, lng);
+    // Show map again with GPS pin — smooth fade in
+    const mapWrap = document.getElementById('su-map-first-wrap');
+    if (mapWrap) {
+      mapWrap.style.display = '';
+      mapWrap.style.opacity = '0';
+      mapWrap.style.transition = 'opacity 0.4s ease';
+      requestAnimationFrame(() => { mapWrap.style.opacity = '1'; });
+      // Resize map after reveal
+      setTimeout(() => { if (_leafletMap) _leafletMap.invalidateSize(); }, 420);
+    }
+    // Update the dark card to show GPS confirmed
+    const macStatus = document.getElementById('su-mac-status');
+    if (macStatus) { macStatus.textContent = '📍 GPS confirmed'; macStatus.style.color = '#86efac'; }
+    const macGpsHint = document.getElementById('su-mac-gps-hint');
+    if (macGpsHint) macGpsHint.style.display = 'none';
+    // Drop a pin on the map and lock it
+    _showMapPin(lat, lng);
+    setTimeout(() => _suLockMap(), 50); // lock after pin drops
+    const accM = Math.round(accuracy);
+    _suMapStatus('found', `✅ GPS confirmed — accuracy ±${accM}m. Your delivery address is saved.`);
+    // Gentle toast — non-intrusive
+    toast('📍 GPS detected! Your exact location has been confirmed.', 3000);
+    return;
   }
 }
 
@@ -5458,7 +5533,7 @@ function _recenterToGPS() {
         _suMapStatus('error', '⚠️ Could not get GPS. Check device location settings and try again.');
       }
     },
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
 }
 
@@ -5749,19 +5824,29 @@ function _onDetectBtnTap() {
       lat: _suWarmPos.coords.latitude,
       lng: _suWarmPos.coords.longitude,
       accuracy: _suWarmPos.coords.accuracy,
-      ts: Date.now()
+      // v144: use the cached fix's own timestamp (if present, e.g. from
+      // localStorage) rather than Date.now() — otherwise a multi-hour-old
+      // cached position bypasses the freshness check below entirely.
+      ts: _suWarmPos.ts || Date.now()
     };
   }
   _suWarmPos = null;
   _suWarmPending = false;
   _suWarmToken++;
 
-  if (_suBestPos && _suBestPos.accuracy <= _SU_GOOD_ACCURACY) {
+  // v145: only instant-accept _suBestPos if it's both accurate AND fresh
+  // (<30s old). Older fixes are stale (user may have physically moved
+  // since opening the page), so fall through to a fresh detect session.
+  const _SU_BESTPOS_MAX_AGE_MS = 30000;
+  if (_suBestPos && _suBestPos.accuracy <= _SU_GOOD_ACCURACY &&
+      (Date.now() - _suBestPos.ts) <= _SU_BESTPOS_MAX_AGE_MS) {
     _suAcceptDetectedLocation(_suBestPos.lat, _suBestPos.lng, _suBestPos.accuracy);
     return;
   }
-
-  // ── 2. Check browser permission and route ──
+  if (_suBestPos && (Date.now() - _suBestPos.ts) > _SU_BESTPOS_MAX_AGE_MS) {
+    _suBestPos = null;
+    _suWatchAccepted = false;
+  }
   function _routeDetect(permState) {
     if (permState === 'granted') {
       // Permission already granted → ensure the continuous watch is running,
@@ -6069,14 +6154,14 @@ function _suSyncAreaToManualField() {
 function _suBuildStructuredAddr() {
   const building = (document.getElementById('su-mf-building')?.value || '').trim();
   const room     = (document.getElementById('su-mf-room')?.value     || '').trim();
-  const nearby   = (document.getElementById('su-mf-nearby')?.value   || '').trim();
+  const nearby   = (document.getElementById('su-mf-nearby')?.value   || '').trim().replace(/^near(by)?\s+/i, '');
   const area     = (document.getElementById('su-mf-area')?.value     || '').trim();
   const district = (document.getElementById('su-mf-district')?.value || 'Varanasi').trim();
   const state    = (document.getElementById('su-mf-state')?.value    || 'Uttar Pradesh').trim();
   const parts = [];
   if (building) parts.push(building);
   if (room)     parts.push('Near ' + room);
-  if (nearby)   parts.push(nearby);
+  if (nearby)   parts.push('Near ' + nearby);
   if (area)     parts.push(area);
   parts.push(district);
   parts.push(state);
@@ -6436,6 +6521,11 @@ async function doSignup() {
   // Structured manual fields
   const mfBuilding = (document.getElementById('su-mf-building')?.value || '').trim();
   const mfRoom     = (document.getElementById('su-mf-room')?.value     || '').trim();
+  // v144: strip any leading "near"/"nearby" the user already typed in the
+  // landmark field (e.g. "Near viral hostel") — we prefix our own "Near "
+  // when building the address, so without this it became "Near Near viral
+  // hostel" (double Near) in the saved address and admin/rider display.
+  const mfNearby   = (document.getElementById('su-mf-nearby')?.value   || '').trim().replace(/^near(by)?\s+/i, '');
   const manualText = [mfRoom, mfBuilding, selectedArea].filter(Boolean).join(', ');
 
   // Build address depending on mode
@@ -6449,13 +6539,22 @@ async function doSignup() {
     address = _buildSignupAddress(lat || null, lng || null, selectedArea, _suPc);
     // Always prepend building+room using the standard "Room No:" prefix so
     // rider PDF, admin panel, _waAddr(), and _renderSavedAddrDisplay() all parse it correctly
-    if (mfBuilding || mfRoom) {
-      const roomLine = [mfRoom, mfBuilding].filter(Boolean).join(', ');
+    // v144 FIX: mfBuilding ("Hostel/Building Name") must come FIRST — it's the
+    // primary identifier riders/admin need. mfRoom ("NEAR" field — nearest
+    // marker/gate/road) and mfNearby ("Famous Landmark") are both appended as
+    // "near <value>" fragments in the SAME Room No line, comma-separated.
+    // This flat comma-separated format (no separate "Near"/bracket lines) is
+    // what geocoders (Google Maps, Nominatim) parse most reliably — a
+    // standalone "Near X" line after Coordinates/Area looked like a stray
+    // address component and confused both display and geocoding.
+    if (mfBuilding || mfRoom || mfNearby) {
+      const roomLine = [mfBuilding, mfRoom && `near ${mfRoom}`, mfNearby && `near ${mfNearby}`].filter(Boolean).join(', ');
       address = `Room No: ${roomLine}\n` + address;
     }
   } else if (locMode === '2' && manualText) {
     // Manual text only — no coords captured. Use standard v84 multiline format.
-    const roomLine = [mfRoom, mfBuilding].filter(Boolean).join(', ');
+    // v144: same merge as above — building + both "near" fragments in one Room No line.
+    const roomLine = [mfBuilding, mfRoom && `near ${mfRoom}`, mfNearby && `near ${mfNearby}`].filter(Boolean).join(', ');
     const parts = [];
     if (roomLine) parts.push(`Room No: ${roomLine}`);
     if (selectedArea) parts.push(`Area: ${selectedArea}`);
@@ -9237,6 +9336,33 @@ function _acctStartContinuousWatch() {
         if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
         _acctFabState('idle');
         _acctMapStatus('error', '🔒 Location access blocked. Allow location in browser settings and try again.');
+      } else if (err.code === 2) {
+        // v145: mirrors signup Case A/B (v134) — permission granted but
+        // POSITION_UNAVAILABLE. No fix ever received → device GPS toggle is
+        // almost certainly OFF; surface the dedicated banner immediately
+        // instead of waiting out the 60s countdown.
+        if (!_acctBestPos) {
+          const banner = document.getElementById('acct-dev-off-banner');
+          if (banner && banner.style.display !== 'block') {
+            if (_acctDetectCountdownTimer) {
+              clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null;
+            }
+            _acctFabState('idle');
+            _acctMapStatus('error', '📡 Device location is OFF — turn on GPS to continue.');
+            _acctShowDeviceOffBanner();
+          }
+        } else if (_acctDetectCountdownTimer) {
+          // Transient signal loss mid-countdown — cancel countdown, retry prompt
+          clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null;
+          _acctFabState('idle');
+          if (_acctBestPos.accuracy <= _ACCT_MAX_ACCURACY) {
+            _acctAcceptLocation(_acctBestPos.lat, _acctBestPos.lng, _acctBestPos.accuracy);
+          } else {
+            _acctMapStatus('error', '📡 GPS signal lost. Move to an open area and tap Detect again.');
+          }
+        }
+        // Case B with countdown already finished: continuous watch will
+        // self-recover silently when signal returns — no UI change needed.
       }
     },
     { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
@@ -9247,6 +9373,61 @@ function _acctStopContinuousWatch() {
   _acctWatchId = null;
 }
 
+/* ── v145: Show / hide device location OFF banner (err.code 2, perm granted) ── */
+function _acctShowDeviceOffBanner() {
+  const banner = document.getElementById('acct-dev-off-banner');
+  if (!banner) return;
+  banner.style.display = 'block';
+  const ua = navigator.userAgent || '';
+  const isIOS     = /iP(hone|ad|od)/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  document.getElementById('adob-steps-ios').style.display     = isIOS ? 'block' : 'none';
+  document.getElementById('adob-steps-android').style.display = (!isIOS && isAndroid) ? 'block' : 'none';
+  document.getElementById('adob-steps-generic').style.display = (!isIOS && !isAndroid) ? 'block' : 'none';
+  _acctStartDeviceLocPolling(); // auto-resume GPS when user turns location on
+}
+function _acctHideDeviceOffBanner() {
+  const banner = document.getElementById('acct-dev-off-banner');
+  if (banner) banner.style.display = 'none';
+  _acctStopDeviceLocPolling();
+}
+
+/* Probes getCurrentPosition every 3s while the device-off banner is shown.
+   Success → device ON, hide banner, restart a proper detect session. */
+let _acctDeviceLocPollTimer = null;
+function _acctStartDeviceLocPolling() {
+  if (_acctDeviceLocPollTimer) return;
+  _acctDeviceLocPollTimer = setInterval(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => { // Device turned ON — probe succeeded
+        _acctStopDeviceLocPolling();
+        _acctHideDeviceOffBanner();
+        detectAcctLocation(); // run a proper detect session for a real GPS fix
+      },
+      (e) => {
+        if (e.code === 1) { // Permission revoked while banner was up
+          _acctStopDeviceLocPolling();
+          _acctHideDeviceOffBanner();
+          _acctMapStatus('error', '🔒 Location access blocked. Allow location in browser settings and try again.');
+        }
+        // code 2/3 = still off, keep polling silently
+      },
+      { timeout: 2500, maximumAge: 0, enableHighAccuracy: false }
+    );
+  }, 3000);
+}
+function _acctStopDeviceLocPolling() {
+  if (_acctDeviceLocPollTimer) { clearInterval(_acctDeviceLocPollTimer); _acctDeviceLocPollTimer = null; }
+}
+
+/* ── Retry button on the device-off banner ── */
+function _acctRetryLocation() {
+  _acctStopDeviceLocPolling();
+  _acctHideDeviceOffBanner();
+  detectAcctLocation();
+}
+
 /* Every fix from the watch flows here */
 function _acctOnWatchUpdate(pos) {
   const { latitude: lat, longitude: lng, accuracy } = pos.coords;
@@ -9254,6 +9435,9 @@ function _acctOnWatchUpdate(pos) {
   if (!_acctBestPos || accuracy < _acctBestPos.accuracy) {
     _acctBestPos = { lat, lng, accuracy };
   }
+  // v145: Device location came back ON — drop the "turn on GPS" banner if shown.
+  const devOffBanner = document.getElementById('acct-dev-off-banner');
+  if (devOffBanner && devOffBanner.style.display === 'block') _acctHideDeviceOffBanner();
   // During active 60s countdown — live accuracy display + instant accept if good
   if (_acctDetectCountdownTimer) {
     const accM = Math.round(accuracy);
@@ -9314,6 +9498,7 @@ function detectAcctLocation() {
   }
   // Reset state
   _acctBestPos = null;
+  _acctHideDeviceOffBanner();
   if (_acctDetectCountdownTimer) { clearInterval(_acctDetectCountdownTimer); _acctDetectCountdownTimer = null; }
   _acctFabState('searching');
   _acctMapStatus('searching', '<i class="fa fa-spinner fa-spin" style="color:#3b82f6"></i> &nbsp;Finding your location…');
@@ -10423,9 +10608,18 @@ document.addEventListener('visibilitychange', () => {
     stopVersionPolling();
     _hiddenAt = Date.now(); // record when app went to background
   } else {
-    scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
-    const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : Infinity;
+    const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : 0;
     _hiddenAt = 0;
+
+    // ── LONG BACKGROUND → force clean reload (SW cache makes this instant) ────
+    // Android can freeze the WebView after long background time, leaving JS in a
+    // dead state. A reload from SW cache is instant and self-heals the frozen app.
+    if (awayMs > 3 * 60 * 1000) {
+      location.reload();
+      return; // skip the rest — page is reloading anyway
+    }
+
+    scheduleSlotTransitions(); // re-arm in case timers fired while app was hidden
 
     // ── GUEST: WhatsApp FREE tiffin return nudge ──────────────────────────────
     // If guest tapped the "पहला Tiffin FREE" btn, went to WhatsApp, and returned
@@ -10484,6 +10678,7 @@ document.addEventListener('visibilitychange', () => {
         if (!signupOpen) return;
         const locMode = document.getElementById('su-loc-mode')?.value || '0';
         if (locMode === '1') return; // GPS already confirmed, nothing to do
+        if (_suManualAddrSaved) return; // manual address saved, background watch handles upgrade silently
         if (_suGpsAttempt > 0) {
           // Session was active when user left — restart 60s GPS detect session
           _suStartDetectSession();
@@ -11074,12 +11269,16 @@ function _showSignupLocPopup(context) {
   if (popup) popup.style.display = 'flex';
 }
 
-/* Save coords to localStorage — used by allow handler and intent prewarm */
+/* Save coords to localStorage — used by allow handler and intent prewarm.
+   v144: store the real accuracy + original fix timestamp too (previously
+   only lat/lng/ts-at-save were stored, and _loadWarmCoordsFromStorage faked
+   accuracy:50 + a fresh ts on load — see that function for why this matters). */
 function _saveCoordsToStorage(pos) {
   try {
     localStorage.setItem('tiffo_warm_coords', JSON.stringify({
       lat: pos.coords.latitude,
       lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
       ts: Date.now()
     }));
   } catch(e) {}
@@ -11201,9 +11400,10 @@ async function _suSaveManualPopup() {
   // The continuous watch may have raced and auto-accepted a GPS fix
   if (document.getElementById('su-loc-mode')?.value === '1') return;
 
-  // ── User submitted first: lock in manual mode, stop the watch for good ──
-  _suManualSubmitted = true;
-  _suStopContinuousWatch();
+  // ── User submitted manual address — keep GPS watch running silently for upgrade ──
+  _suManualAddrSaved = true;
+  // NOTE: _suManualSubmitted stays false so the continuous watch can still
+  // detect a good GPS fix and silently upgrade from manual → GPS mode.
 
   // Copy values into inline manual card fields
   if (building) { const el = document.getElementById('su-mf-building'); if (el) el.value = building; }
@@ -11225,8 +11425,20 @@ async function _suSaveManualPopup() {
   // Close popup
   _suCloseManualPopup();
 
-  // Show inline manual card
-  _suShowManualCard();
+  // ── Hide the map — user saved manually, no need for map until GPS upgrades ──
+  const mapWrap = document.getElementById('su-map-first-wrap');
+  if (mapWrap) {
+    mapWrap.style.transition = 'opacity 0.35s ease, max-height 0.4s ease';
+    mapWrap.style.overflow = 'hidden';
+    mapWrap.style.opacity = '0';
+    setTimeout(() => { mapWrap.style.display = 'none'; mapWrap.style.opacity = ''; }, 380);
+  }
+  // Also hide the inline manual address form (it's redundant — dark card shows all info)
+  const inlineCard = document.getElementById('su-manual-card');
+  if (inlineCard) inlineCard.style.display = 'none';
+  // Hide addr chip, retry bar etc.
+  const addrChip = document.getElementById('su-addr-chip');
+  if (addrChip) addrChip.style.display = 'none';
 
   // ── Hide detect button, show premium address card ──
   const btn = document.getElementById('su-loc-btn');
@@ -11244,6 +11456,9 @@ async function _suSaveManualPopup() {
     const line3 = document.getElementById('su-mac-line3');
     if (line3) line3.textContent = [area, 'Varanasi', pincode].filter(Boolean).join(', ') + ', UP';
     addrCard.style.display = 'block';
+    // Show GPS hint only if watch is actually running (permission granted + watch active)
+    const gpsHint = document.getElementById('su-mac-gps-hint');
+    if (gpsHint) gpsHint.style.display = _suWatchId !== null ? 'flex' : 'none';
   }
 
   // ── Geocode the typed address (forward geocode) ────────────────────────
@@ -11252,7 +11467,9 @@ async function _suSaveManualPopup() {
   // Fail             → save address only (still allow order)
   if (_suManualGeocodeTimer) { clearTimeout(_suManualGeocodeTimer); _suManualGeocodeTimer = null; }
   _suGeocodeState = 'pending';
-  _suSetZoneStatus('checking', '\uD83D\uDFE1 Verifying delivery area\u2026');
+  // Show verifying in the dark card status (zone-status-row is hidden inside inline form)
+  const _macSt = document.getElementById('su-mac-status');
+  if (_macSt) { _macSt.textContent = '🟡 Verifying delivery area…'; _macSt.style.color = '#fde68a'; }
   // Always allow ordering regardless of geocode result
   document.getElementById('su-loc-ok').value = '1';
   await _suForwardGeocode(_suBuildStructuredAddr());
@@ -11261,21 +11478,19 @@ async function _suSaveManualPopup() {
     document.getElementById('su-lat').value  = '';
     document.getElementById('su-lng').value  = '';
     document.getElementById('su-loc-ok').value = '1'; // allow order regardless
-    _suSetZoneStatus('warn', '\u26A0\uFE0F Outside our usual delivery zone \u2014 we\'ll do our best to reach you!');
     const statusEl = document.getElementById('su-mac-status');
-    if (statusEl) { statusEl.textContent = '\u26A0\uFE0F Outside usual zone'; statusEl.style.color = '#fbbf24'; }
+    if (statusEl) { statusEl.textContent = '⚠️ Outside usual zone'; statusEl.style.color = '#fbbf24'; }
   } else if (_suGeocodeState === 'done_ok') {
     document.getElementById('su-loc-ok').value = '1';
     const statusEl = document.getElementById('su-mac-status');
-    if (statusEl) { statusEl.textContent = '\u2713 Within delivery zone'; statusEl.style.color = '#86efac'; }
+    if (statusEl) { statusEl.textContent = '✓ Within delivery zone'; statusEl.style.color = '#86efac'; }
   } else if (_suGeocodeState === 'done_err') {
     // Geocode failed — address only, still allow
     document.getElementById('su-lat').value  = '';
     document.getElementById('su-lng').value  = '';
     document.getElementById('su-loc-ok').value = '1';
-    _suClearZoneStatus();
     const statusEl = document.getElementById('su-mac-status');
-    if (statusEl) { statusEl.textContent = '\u2713 Address saved'; statusEl.style.color = '#86efac'; }
+    if (statusEl) { statusEl.textContent = '✓ Address saved'; statusEl.style.color = '#86efac'; }
   }
 
   // Scroll to address card
@@ -11292,6 +11507,16 @@ function _suEditManualAddr() {
   const addrCard = document.getElementById('su-manual-addr-card');
   if (btn) btn.style.display = '';
   if (addrCard) addrCard.style.display = 'none';
+  // Restore map visibility
+  const mapWrap = document.getElementById('su-map-first-wrap');
+  if (mapWrap) {
+    mapWrap.style.display = '';
+    mapWrap.style.opacity = '1';
+    mapWrap.style.transition = '';
+    setTimeout(() => { if (_leafletMap) _leafletMap.invalidateSize(); }, 100);
+  }
+  // Reset manual saved flag — allow GPS watch to race again if watch is still running
+  _suManualAddrSaved = false;
   // Re-open the popup with current values
   _suOpenManualPopup();
 }
@@ -11301,14 +11526,22 @@ function _loadWarmCoordsFromStorage() {
   try {
     const raw = localStorage.getItem('tiffo_warm_coords');
     if (!raw) return;
-    const { lat, lng, ts } = JSON.parse(raw);
+    const { lat, lng, accuracy, ts } = JSON.parse(raw);
     // Use if less than 4 hours old. BHU hostel students order from the same room
     // all day — location doesn't change in 4 hours. 10 min was too short to be
     // useful across page reloads or revisits within the same day.
     if (Date.now() - ts < 4 * 60 * 60 * 1000 && lat && lng) {
       if (!_suWarmPos) {
-        // Construct a mock position object matching GeolocationPosition shape
-        _suWarmPos = { coords: { latitude: lat, longitude: lng, accuracy: 50 } };
+        // v144: carry through the REAL accuracy and ORIGINAL fix timestamp.
+        // Previously this hardcoded accuracy:50 with no ts, and the consumer
+        // (_onDetectBtnTap) stamped ts:Date.now() on use — so a stale fix
+        // from up to 4 hours ago was laundered as a fresh, "±50m accurate"
+        // fix and could instant-accept the user onto an old location.
+        // Now the real freshness/accuracy is preserved, so the existing
+        // 30s-freshness + 100m-accuracy instant-accept gate works correctly:
+        // an old cached fix falls through to a normal fresh detect session
+        // instead of silently confirming a possibly-wrong location.
+        _suWarmPos = { coords: { latitude: lat, longitude: lng, accuracy: (typeof accuracy === 'number' ? accuracy : 9999) }, ts };
       }
     }
   } catch(e) {}
@@ -11532,6 +11765,11 @@ setTimeout(() => {
 // Just restart background activity that was stopped when the tab was hidden.
 window.addEventListener('pageshow', e => {
   if (!e.persisted) return;
+  const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : 0;
+  if (awayMs > 3 * 60 * 1000) {
+    location.reload();
+    return;
+  }
   if (_session || _isGuestMode) {
     _checkMenuVersion();
     startPolling();
