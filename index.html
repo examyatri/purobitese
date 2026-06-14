@@ -4235,6 +4235,9 @@ function updateWalletUI(bal) {
   if (balCard) balCard.style.background = _walletBal >= 200 ? 'linear-gradient(135deg,#2a9d8f,#3ab5a5)' : 'linear-gradient(135deg,#c1121f,#e63946)';
 }
 
+let _khataWasVisible = false; // tracks previous applyKhataVisibility() state — used to
+                                // detect hidden→visible transitions (see applyKhataVisibility)
+
 function applyKhataVisibility() {
   const show = _khataEnabled && !!_session?.is_subscriber;
   document.querySelectorAll('.khata-gated').forEach(el => {
@@ -4243,6 +4246,12 @@ function applyKhataVisibility() {
   // Special: pg-khata is a .pg element which uses display:flex (flex-direction:column)
   const kpg = document.getElementById('pg-khata');
   if (kpg) kpg.style.display = show ? 'flex' : 'none';
+  // FIX: wallet elements are hardcoded "₹0" in markup and only get the real balance
+  // via updateWalletUI(), which earlier code paths skip if _lastBalance is unchanged.
+  // If khata just became visible (e.g. admin enables it globally mid-session), force
+  // a render of the already-known _walletBal so the UI isn't stuck showing ₹0.
+  if (show && !_khataWasVisible) updateWalletUI(_walletBal);
+  _khataWasVisible = show;
 }
 
 // ── Helper: compute the display mode to pass to applyPauseState ──────────────
@@ -4295,7 +4304,7 @@ function applyPauseState(mode) {
       _pauseMode === 'lunch-tomorrow'        ? '● Morning Off (Tomorrow)' :
       _pauseMode === 'dinner-tomorrow'       ? '● Evening Off (Tomorrow)' :
       _pauseMode === 'both-tomorrow'         ? '● Both Off (Tomorrow)' :
-      _pauseMode === 'dinner+lunch-tomorrow' ? '● Eve Off + Morn Off (Tomorrow)' : '● All Active';
+      _pauseMode === 'dinner+lunch-tomorrow' ? '● Eve Off (Today) + Morn Off (Tmrw)' : '● All Active';
   }
   if (sub) sub.textContent =
     _pauseMode === 'none'                  ? 'Tap to manage tiffin sessions' :
@@ -5725,7 +5734,7 @@ function _suAreaRenderDropdown(filter) {
     dd.style.display = 'block';
     return;
   }
-  const list = [..._suAreaList.filter(a => a !== 'Other'), 'Other'];
+  const list = _suAreaList.filter(a => a !== 'Other');
   const filtered = filter ? list.filter(a => a.toLowerCase().includes(filter)) : list;
   if (!filtered.length) {
     dd.innerHTML = `<div style="padding:12px 14px;color:#94a3b8;font-size:13px">No area found</div>`;
@@ -6565,7 +6574,6 @@ async function doSignup() {
     const parts = [];
     if (roomLine) parts.push(`Room No: ${roomLine}`);
     if (selectedArea) parts.push(`Area: ${selectedArea}`);
-    parts.push('Varanasi, Uttar Pradesh, India');
     address = parts.join('\n');
   }
 
@@ -6862,7 +6870,7 @@ function hideMenuSkeletons() {
 ─────────────────────────────────────────────────────────────────────────── */
 function startVersionPolling() {
   if (_versionPollTimer) clearInterval(_versionPollTimer);
-  // Stagger first check by 5s so it doesn't race with initial loadMenu
+  // First tick fires after _VERSION_POLL_INTERVAL (60s) — enough stagger vs initial loadMenu.
   _versionPollTimer = setInterval(_checkMenuVersion, _VERSION_POLL_INTERVAL);
 }
 
@@ -8616,6 +8624,12 @@ async function confirmInsufOrder() {
     // Use e.code (set by api() from json.errorCode) — reliable, no false positives
     if (e.code === 'STORE_CLOSED') {
       showClosedPopup(e.message);
+    } else if (e.message === 'OUTSIDE_ZONE') {
+      // Mirrors placeOrder(): server rejected because order_allowed=false —
+      // session may have gone stale between popup open and confirm tap
+      _session.order_allowed = false;
+      closeInsufPopup();
+      _showOzOrderBlock();
     } else {
       toast(e.message || 'Order failed. Try again.');
     }
@@ -10248,6 +10262,9 @@ async function confirmPause() {
     const displayMode = _computeDisplayMode(effectiveToday, pendingTmrw);
     applyPauseState(displayMode);
     _lastPauseMode = displayMode;
+    // Keep _pauseMode (server-effective-today value) in sync with what was just saved,
+    // so onPauseToggle's branch decision is correct on the very next tap.
+    _pauseMode = effectiveToday;
     closePauseSheet();
 
     const toastMsg =
@@ -10264,6 +10281,7 @@ async function resumeDelivery() {
     await api('updatePauseDelivery', { phone: Auth.get()?.phone, pauseMode: 'none' });
     applyPauseState('none');
     _lastPauseMode = 'none';
+    _pauseMode = 'none';
     closePauseSheet();
     toast('All tiffins resumed ✓');
   } catch(e) { toast(e.message || 'Failed'); }
@@ -10277,6 +10295,7 @@ async function loadPauseState() {
     const displayMode = _computeDisplayMode(res.pauseMode, res.pendingTomorrow);
     applyPauseState(displayMode);
     _lastPauseMode = displayMode;
+    _pauseMode     = res.pauseMode || 'none';
     _pauseFreshTs  = Date.now();
   } catch {}
 }
@@ -10602,6 +10621,9 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
       _lastPauseMode = mergedDisplayMode;
       applyPauseState(mergedDisplayMode);
     }
+    // Keep _pauseMode (server-effective-today value) in sync so onPauseToggle's
+    // _pauseMode === 'none' branch decision matches what the badge is showing.
+    _pauseMode = res.pauseMode || 'none';
     // Sync plan to session (same as loadPauseState does)
     if (res.plan) Auth.patch({ plan: res.plan });
     _pauseFreshTs  = Date.now();
@@ -10668,9 +10690,13 @@ document.addEventListener('visibilitychange', () => {
       }
     }
 
-    // Always restart background timers
-    startPolling();
-    startVersionPolling();
+    // Restart background timers only when a session or guest context exists.
+    // No guard was needed before because _runPollTick self-guards via _session checks,
+    // but starting timers on the login screen is wasteful — they fire every 360s doing nothing.
+    if (_session || _isGuestMode) {
+      startPolling();
+      startVersionPolling();
+    }
 
     // ── SIGNUP GPS RE-ATTEMPT ON TAB RETURN ──────────────────────────────────
     // If user left the tab while signup GPS was in-flight (e.g. checked hostel room
@@ -10733,6 +10759,14 @@ function _applySubscriberUI() {
    No stale state, no confusion. Like a top-class app.
 ─────────────────────────────────────────────────────────────────── */
 function _wipeAndShowLogin() {
+  // Stop all background timers — polling must not continue after a forced logout.
+  // Call site 1 (401 mid-session): polling is running; without this, _pollTimer
+  // keeps firing every 360s making doomed api() calls that re-trigger 401 forever.
+  // Call sites 2/3 (boot): polling hasn't started yet — stopPolling() is a safe no-op.
+  // Call site 4 (background verify): already calls stopPolling() before _wipeAndShowLogin(),
+  // so this is a safe redundant guard there too.
+  stopPolling();
+  stopVersionPolling();
   // Stop cooldown timer if running
   _clearCooldownBanner();
   // Stop slot transition timers
@@ -10772,6 +10806,7 @@ function _wipeAndShowLogin() {
   _lastBalance     = null;
   _lastKhataStr    = null;
   _lastPauseMode   = null;
+  _khataWasVisible = false; // reset so next login's applyKhataVisibility() force-renders wallet if needed
   _ordersFreshTs   = 0;
   _khataFreshTs    = 0;
   _pauseFreshTs    = 0;
@@ -11334,16 +11369,15 @@ function _guestLocDismiss() {
 
 /* ── Manual Address Popup ─────────────────────────────────────────────────── */
 function _suOpenManualPopup() {
-  // Sync area list into popup select (always include "Other" option)
+  // Sync area list into popup select
   const sel = document.getElementById('smp-area');
   if (sel) {
     const currentArea = document.getElementById('su-area')?.value || '';
     const areas = _suAreaList.length ? _suAreaList : [];
-    // Build options: loaded areas + "Other" always at end
+    // Build options: loaded areas only (no Other)
     const areaOpts = areas.filter(a => a !== 'Other');
     sel.innerHTML = '<option value="">Select area…</option>' +
-      areaOpts.map(a => `<option value="${a}"${a === currentArea ? ' selected' : ''}>${a}</option>`).join('') +
-      `<option value="Other"${'Other' === currentArea ? ' selected' : ''}>Other (outside listed areas)</option>`;
+      areaOpts.map(a => `<option value="${a}"${a === currentArea ? ' selected' : ''}>${a}</option>`).join('');
     // If currentArea was pre-set, ensure it's selected
     if (currentArea) sel.value = currentArea;
   }
@@ -11655,6 +11689,7 @@ function doLogout() {
   _lastBalance     = null;
   _lastKhataStr    = null;
   _lastPauseMode   = null;
+  _khataWasVisible = false; // reset so next login's applyKhataVisibility() force-renders wallet if needed
   _ordersFreshTs   = 0;
   _khataFreshTs    = 0;
   _menuLoading     = false;
@@ -11845,9 +11880,13 @@ window.addEventListener('popstate', (e) => {
   const sheet = document.querySelector('.sheet.open');
   if (sheet) {
     history.pushState({ pg: 'pg-home', stackLen: 1 }, '', location.href);
-    // Close whichever sheet is open
-    const backdrop = document.querySelector('.sheet-backdrop.show, #guest-auth-backdrop.show');
-    if (backdrop) backdrop.click();
+    // FIX: previous selector ('.sheet-backdrop.show, #guest-auth-backdrop.show')
+    // never matched any element (#sheet-backdrop has class="backdrop", not
+    // "sheet-backdrop"; #guest-auth-backdrop is legacy/unused), so backdrop.click()
+    // never fired and the open sheet stayed stuck on hardware back.
+    // closeAllSheets() is the existing helper (already used by the backdrop's
+    // own onclick) that correctly closes both pause-sheet and account-panel.
+    closeAllSheets();
     return;
   }
 

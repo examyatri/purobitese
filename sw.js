@@ -34,7 +34,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v70'; // v148: removed help.html from PRECACHE (served via navigate SWR strategy already)
+const CACHE      = 'tiffo-v71'; // v151: popstate handler — fixed dead backdrop selector, now calls closeAllSheets() directly so hardware back closes open sheets (pause-sheet/account-panel)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
