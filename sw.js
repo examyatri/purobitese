@@ -1,8 +1,11 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v49.0  |  Updated : 2026-06-13
+   Version : v50.0  |  Updated : 2026-06-14
 
-   CHANGES v49.0:
+   CHANGES v50.0:
+   - Cache bumped → tiffo-v72 (v154 — wallet-low nudge card
+     redesigned: matches monthly plan card style, explains
+     ₹20 UPI delivery charge, green theme + blinking button)
    - Cache bumped → tiffo-v69 (v148 — geocode fire-and-forget:
      manual address signup no longer blocks on Nominatim.
      Save Address instant, Create Account never stuck.)
@@ -34,7 +37,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v71'; // v151: popstate handler — fixed dead backdrop selector, now calls closeAllSheets() directly so hardware back closes open sheets (pause-sheet/account-panel)
+const CACHE      = 'tiffo-v72'; // v154: wallet-low nudge card — matches monthly plan card style, explains ₹20 UPI delivery charge, green theme + blinking Recharge button
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
