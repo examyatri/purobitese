@@ -1,9 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.3  |  Updated : 2026-06-13
+   Version : v12.4  |  Updated : 2026-06-14
 
-   CHANGES v12.3:
-   - Cache bumped → tiffo-admin-v22 (v145 deploy — cache sync)
+   CHANGES v12.4:
+   - Cache bumped → tiffo-admin-v23 (v154 deploy — cache sync)
 
    CHANGES v12.2:
    - Cache bumped → tiffo-admin-v20 (v130 — version alignment release)
@@ -41,7 +41,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v22';
+const CACHE      = 'tiffo-admin-v23';
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */

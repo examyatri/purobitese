@@ -1554,7 +1554,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
         </div>
         <div class="page-header">
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">All Users</h2>
-          <button class="btn btn-p" onclick="openAddUserModal()"><i class="fa fa-plus"></i> Add User</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-p" onclick="openAddUserModal()"><i class="fa fa-plus"></i> Add User</button>
+            <button class="btn" onclick="downloadUsersPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;padding:9px 16px;border-radius:9px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(239,68,68,.30)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><i class="fa fa-file-pdf"></i> PDF</button>
+          </div>
         </div>
         <!-- Smart Search Bar -->
         <div style="position:relative;margin-bottom:12px">
@@ -5292,6 +5295,69 @@ function renderUsersTable(users) {
     '<tr><td colspan="11" style="text-align:center;padding:50px;color:#94a3b8"><i class="fa fa-users" style="font-size:28px;margin-bottom:10px;display:block;opacity:.3"></i>No users found</td></tr>';
 }
 
+// ── Download Users PDF ────────────────────────────────────
+function downloadUsersPDF() {
+  const q      = (document.getElementById('users-search')?.value || '').toLowerCase().trim();
+  const sort   = document.getElementById('users-sort')?.value || 'default';
+
+  // Build the same filtered list filterUsers() would show
+  let list = [..._allUsers];
+  if (_userFilter === 'subscriber')     list = list.filter(u => u.is_subscriber);
+  if (_userFilter === 'non-subscriber') list = list.filter(u => !u.is_subscriber);
+  if (_userFilter === 'outside_zone')   list = list.filter(u => u.order_allowed === false || u.zone_status === 'outside' || u.zone_status === 'manual_only');
+  if (_userFilter === 'no_coords')      list = list.filter(u => !u.coord_lat && !u.coord_lng);
+  if (q) list = list.filter(u =>
+    (u.name||'').toLowerCase().includes(q) ||
+    (u.phone||'').includes(q) ||
+    (u.user_id||'').toLowerCase().includes(q)
+  );
+  if (sort === 'az')          list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'za')          list.sort((a,b) => (b.name||'').localeCompare(a.name||''));
+  if (sort === 'oldest')      list.sort((a,b) => new Date(a.created_at||0) - new Date(b.created_at||0));
+  if (sort === 'most_orders') list.sort((a,b) => (b.total_orders||0) - (a.total_orders||0));
+  if (sort === 'top_rating')  list.sort((a,b) => (b.rating||0) - (a.rating||0));
+  if (sort === 'low_rating')  list.sort((a,b) => (a.rating||0) - (b.rating||0));
+
+  if (!list.length) { aToast('No users to export'); return; }
+
+  const rows = list.map((u, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${(u.name || '—').replace(/</g,'&lt;')}</td>
+      <td>${u.phone || '—'}</td>
+      <td>${(u.area || u.address || '—').replace(/</g,'&lt;').replace(/\n/g,', ')}</td>
+    </tr>`).join('');
+
+  const now = new Date().toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' });
+  const filterLabel = { all:'All Users', subscriber:'Subscribers', 'non-subscriber':'Non-Subscribers', outside_zone:'Orders Blocked', no_coords:'No Coords' }[_userFilter] || 'All Users';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Tiffo Users</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+    h1   { font-size: 20px; margin: 0 0 4px; }
+    .meta{ font-size: 12px; color: #64748b; margin-bottom: 16px; }
+    table{ width: 100%; border-collapse: collapse; font-size: 13px; }
+    th   { background: #dc2626; color: #fff; padding: 8px 10px; text-align: left; }
+    td   { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+    tr:nth-child(even) td { background: #fef2f2; }
+    @media print { body { margin: 10px; } }
+  </style></head><body>
+  <h1>🍱 Tiffo — User List</h1>
+  <div class="meta">Filter: ${filterLabel} &nbsp;|&nbsp; ${list.length} user${list.length !== 1 ? 's' : ''} &nbsp;|&nbsp; Generated: ${now}</div>
+  <table>
+    <thead><tr><th>#</th><th>Name</th><th>Mobile</th><th>Area</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { aToast('Allow popups to generate PDF'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
+}
+
 // ── Delete User from All Users Tab ───────────────────────
 /* ── Allow outside-zone user to place orders ── */
 async function adminAllowUserOrder(phone, name) {
@@ -7418,6 +7484,11 @@ function renderDeliveryAreasPanel(container) {
         </div>
       </div>
 
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button onclick="_daSortAZ()" style="flex:1;padding:7px 10px;border:1.5px solid #e9d5ff;border-radius:9px;background:#fdf4ff;color:#7e22ce;font-family:var(--fb);font-size:12px;font-weight:600;cursor:pointer">A → Z</button>
+        <button onclick="_daSortZA()" style="flex:1;padding:7px 10px;border:1.5px solid #e9d5ff;border-radius:9px;background:#fdf4ff;color:#7e22ce;font-family:var(--fb);font-size:12px;font-weight:600;cursor:pointer">Z → A</button>
+      </div>
+
       <div id="da-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
         <div style="color:#94a3b8;font-size:13px;padding:10px 0">Loading…</div>
       </div>
@@ -7491,6 +7562,16 @@ function _daMoveArea(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= _daCurrentAreas.length) return;
   [_daCurrentAreas[i], _daCurrentAreas[j]] = [_daCurrentAreas[j], _daCurrentAreas[i]];
+  _daRenderList();
+}
+
+function _daSortAZ() {
+  _daCurrentAreas.sort((a, b) => a.localeCompare(b));
+  _daRenderList();
+}
+
+function _daSortZA() {
+  _daCurrentAreas.sort((a, b) => b.localeCompare(a));
   _daRenderList();
 }
 
