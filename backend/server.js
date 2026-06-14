@@ -1431,7 +1431,7 @@ app.post('/api', async (req, res) => {
         const referredBy = typeof data.referred_by === 'string'
           ? data.referred_by.replace(/\D/g, '').slice(-10)
           : null;
-        if (referredBy && referredBy.length === 10) {
+        if (referredBy && referredBy !== phone && referredBy.length === 10) {
           try {
             // Verify referrer actually exists
             const { data: referrer } = await supabase
@@ -1969,6 +1969,7 @@ app.post('/api', async (req, res) => {
         if (normalizedStatus === 'delivered') {
           await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
         }
+        _bumpMenuVersion();
         return res.json({ success: true });
       }
 
@@ -2202,7 +2203,7 @@ app.post('/api', async (req, res) => {
 
         // ── Rollback lifetime_spend in user_ratings (non-fatal) ──
         _upsertUserRating(order.phone, -(order.final_amount || 0), null).catch(() => {});
-
+        _bumpMenuVersion();
         return res.json({ success: true, refundType, isSubscriber, newBalance: refundNewBal });
       }
 
@@ -2678,6 +2679,7 @@ app.post('/api', async (req, res) => {
 
       case 'deleteCoupon': {
         await supabase.from('coupons').delete().eq('id', data.id);
+        _bumpMenuVersion();
         return res.json({ success: true });
       }
 
@@ -3134,13 +3136,13 @@ app.post('/api', async (req, res) => {
 
       case 'setOrderCutoff': {
         await supabase.from('admin_settings').upsert({ key: 'order_cutoff_config', value: JSON.stringify(data.config), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        _invalidateSettingsCache(); _analyticsCache = null;
+        _invalidateSettingsCache(); _analyticsCache = null; _bumpMenuVersion();
         return res.json({ success: true });
       }
 
       case 'setWeeklySchedule': {
         await supabase.from('admin_settings').upsert({ key: 'weekly_schedule', value: JSON.stringify(data.schedule), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        _invalidateSettingsCache(); _analyticsCache = null;
+        _invalidateSettingsCache(); _analyticsCache = null; _bumpMenuVersion();
         return res.json({ success: true });
       }
 
@@ -3151,13 +3153,13 @@ app.post('/api', async (req, res) => {
         if (!timeRe.test(cfg.morning) || !timeRe.test(cfg.evening))
           return res.json({ success: false, error: 'Invalid time format. Use HH:MM' });
         await supabase.from('admin_settings').upsert({ key: 'auto_tiffin_cutoff', value: JSON.stringify(cfg), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        _invalidateSettingsCache();
+        _invalidateSettingsCache(); _bumpMenuVersion();
         return res.json({ success: true });
       }
 
       case 'setKhataEnabled': {
         await supabase.from('admin_settings').upsert({ key: 'khata_enabled', value: JSON.stringify(!!data.enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        _invalidateSettingsCache(); _analyticsCache = null;
+        _invalidateSettingsCache(); _analyticsCache = null; _bumpMenuVersion();
         return res.json({ success: true });
       }
 
@@ -3167,7 +3169,7 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Invalid zone data' });
         }
         await supabase.from('admin_settings').upsert({ key: 'delivery_zone', value: JSON.stringify(zone), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        _invalidateSettingsCache();
+        _invalidateSettingsCache(); _bumpMenuVersion();
         return res.json({ success: true });
       }
 
@@ -3389,6 +3391,7 @@ app.post('/api', async (req, res) => {
             pause_morning_from: pmFrom,
             pause_evening_from: peFrom
           }).eq('phone', cleanPhone(data.phone));
+          _bumpMenuVersion();
           return res.json({ success: true, pauseMode: mode }); }
 
       case 'changePassword':
@@ -3558,6 +3561,7 @@ app.post('/api', async (req, res) => {
             used_by:           '[]',
             created_at:        new Date().toISOString()
           });
+          _bumpMenuVersion();
           return res.json({ success: true }); }
 
       case 'updateCoupon': {
@@ -3569,6 +3573,7 @@ app.post('/api', async (req, res) => {
         for (const k of COUPON_EDITABLE) { if (data[k] !== undefined) updates[k] = data[k]; }
         if (!Object.keys(updates).length) return res.json({ success: false, error: 'Nothing to update' });
         await supabase.from('coupons').update(updates).eq('id', data.id);
+        _bumpMenuVersion();
         return res.json({ success: true }); }
 
       case 'getAllKhata': {
@@ -3650,7 +3655,7 @@ app.post('/api', async (req, res) => {
         if (!Array.isArray(areas) || areas.length === 0) return res.json({ success: false, error: 'At least one area required' });
         const cleaned = areas.map(a => String(a).trim()).filter(Boolean);
         await supabase.from('admin_settings').upsert({ key: 'delivery_areas', value: JSON.stringify(cleaned), updated_at: new Date().toISOString() }, { onConflict: 'key' });
-        _invalidateSettingsCache();
+        _invalidateSettingsCache(); _bumpMenuVersion();
         return res.json({ success: true });
       }
 
@@ -4591,6 +4596,7 @@ app.post('/api', async (req, res) => {
         // Clear cached values so next read picks up new values
         delete _settingsCache['referral_referrer_pct'];
         delete _settingsCache['referral_new_user_pct'];
+        _bumpMenuVersion();
         return res.json({ success: true });
       }
 
