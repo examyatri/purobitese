@@ -1,17 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v50.1  |  Updated : 2026-06-15
-
-   CHANGES v50.1:
-   - Cache bumped → tiffo-v74 (v157 final — real Mappls SDK
-     onerror flag + post-init tile-presence check on both
-     signup and account maps; adds L.tileLayer OSM fallback
-     only if Mappls produced no tile layer within 1.8s)
+   Version : v50.0  |  Updated : 2026-06-14
 
    CHANGES v50.0:
-   - Cache bumped → tiffo-v73 (v157 — Mappls MapmyIndia tiles with OSM fallback:
-     signup map + account map now use Mappls raster tiles for India detail;
-     tileerror auto-switches to OSM if Mappls limit reached or fails)
+   - Cache bumped → tiffo-v72 (v154 — wallet-low nudge card
      redesigned: matches monthly plan card style, explains
      ₹20 UPI delivery charge, green theme + blinking button)
    - Cache bumped → tiffo-v69 (v148 — geocode fire-and-forget:
@@ -45,7 +37,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v74'; // v157 final: Mappls onerror + tile-presence OSM fallback
+const CACHE      = 'tiffo-v72'; // v154: wallet-low nudge card — matches monthly plan card style, explains ₹20 UPI delivery charge, green theme + blinking Recharge button
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */

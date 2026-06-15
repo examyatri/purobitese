@@ -1,19 +1,8 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v158                                     ║
-     ║  Updated : 2026-06-15                               ║
-     ║  CHANGE  : v158 — Mappls SDK tile fallback hardening:║
-     ║            Mappls map_sdk script tag now sets        ║
-     ║            window._mapplsLoadFailed on script-level  ║
-     ║            load error. New shared _addMapTiles(map)  ║
-     ║            helper called after both L.map() inits    ║
-     ║            (signup map + account map): if Mappls     ║
-     ║            failed to load OR added no tile layer      ║
-     ║            within 1.8s (quota/limit reached), adds   ║
-     ║            OSM raster tiles as fallback so map never ║
-     ║            renders blank. Cache bumped → tiffo-v74.  ║
-     ╚══════════════════════════════════════════════════════╝
+     ║  Version : v148                                     ║
+     ║  Updated : 2026-06-13                               ║
      ║  CHANGE  : v148 — Fix broken HTML comment causing raw code flash on PWA open:   ║
      ║            When user taps "Save Address" in manual  ║
      ║            popup, su-loc-ok is already set to '1'. ║
@@ -678,8 +667,9 @@
 <!-- ── Font Awesome: non-blocking ── -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-<!-- Mappls Web Maps SDK — Leaflet compatible, India detail maps. OSM tile fallback if this fails/limits out (see _addMapTiles) -->
-<script src="https://apis.mappls.com/advancedmaps/api/painsgooptyizwyfarwkfvhydqenutpnnsky/map_sdk?v=3.0&layer=vector" defer onerror="window._mapplsLoadFailed=true"></script>
+<!-- Leaflet — free, no API key, unlimited usage -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" async></script>
 <!-- qr-creator — lightweight, sharp, correct QR codes -->
 <script src="https://cdn.jsdelivr.net/npm/qr-creator@1.0.0/dist/qr-creator.min.js"></script>
 <style>
@@ -5370,38 +5360,6 @@ const _SU_MAP_DEFAULT_LAT = 25.2677;
 const _SU_MAP_DEFAULT_LNG = 82.9930;
 const _SU_MAP_DEFAULT_ZOOM = 15;
 
-/* ══════════════════════════════════════════════════════════════════════
-   Mappls SDK loads its own vector tiles automatically once initialised.
-   If the script fails to load (network/CORS) or the SDK loads but its
-   tile/style limit is exhausted (so no Mappls layer gets attached to
-   the map), fall back to plain OSM raster tiles so the map never shows
-   blank. Safe to call right after every L.map(...) — adds nothing if
-   Mappls is already rendering tiles.
-   ══════════════════════════════════════════════════════════════════════ */
-function _addMapTiles(map) {
-  function osmFallback() {
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: ''
-    }).addTo(map);
-  }
-
-  // Script tag failed to load entirely (network/CORS) — fall back now.
-  if (window._mapplsLoadFailed) { osmFallback(); return; }
-
-  // Give the Mappls SDK a moment to attach its own tile layer to this
-  // map after init. If it hasn't added any tile layer by then (e.g. the
-  // map_sdk script loaded but the account's tile/style quota is
-  // exhausted), add the OSM fallback ourselves.
-  setTimeout(() => {
-    let hasTiles = false;
-    map.eachLayer(l => {
-      if (l instanceof L.TileLayer || (l._url && typeof l._url === 'string')) hasTiles = true;
-    });
-    if (!hasTiles) osmFallback();
-  }, 1800);
-}
-
 /* Map status bar helper */
 function _suMapStatus(state, txt) {
   const bar = document.getElementById('su-map-status-bar');
@@ -5455,8 +5413,10 @@ function _suInitIdleMap() {
       attributionControl: false
     });
 
-    /* ── Mappls SDK (head) handles tiles; OSM fallback if it fails/limits out ── */
-    _addMapTiles(_leafletMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      crossOrigin: true
+    }).addTo(_leafletMap);
 
     // Build red drop pin icon
     const _suPinIcon = L.divIcon({
@@ -9386,8 +9346,7 @@ function _acctInitIdleMap() {
       iconSize: [32, 42], iconAnchor: [16, 42]
     });
     _acctMap = L.map('acct-leaflet-map', { center: [25.2677, 82.9930], zoom: 15, zoomControl: true, attributionControl: false });
-    /* ── Mappls SDK (head) handles tiles; OSM fallback if it fails/limits out ── */
-    _addMapTiles(_acctMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_acctMap);
     _acctMarker = L.marker([25.2677, 82.9930], { draggable: false, icon: redIcon, autoPan: true, opacity: 0 }).addTo(_acctMap);
     _acctMarker.on('dragend', async e => {
       if (_acctMapLocked) return;
