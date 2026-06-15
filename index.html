@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v148                                     ║
+     ║  Version : v157                                     ║
      ║  Updated : 2026-06-13                               ║
      ║  CHANGE  : v148 — Fix broken HTML comment causing raw code flash on PWA open:   ║
      ║            When user taps "Save Address" in manual  ║
@@ -667,8 +667,9 @@
 <!-- ── Font Awesome: non-blocking ── -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-<!-- Leaflet — free, no API key, unlimited usage -->
+<!-- Leaflet + Mappls raster tiles (India detail, no extra SDK needed) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"></noscript>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" async></script>
 <!-- qr-creator — lightweight, sharp, correct QR codes -->
 <script src="https://cdn.jsdelivr.net/npm/qr-creator@1.0.0/dist/qr-creator.min.js"></script>
@@ -5413,10 +5414,20 @@ function _suInitIdleMap() {
       attributionControl: false
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      crossOrigin: true
-    }).addTo(_leafletMap);
+    /* ── Mappls tiles with OSM fallback ── */
+    const _suOsmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    let _suMapplsFailed = false;
+    const _suMapplsLayer = L.tileLayer(
+      'https://apis.mappls.com/advancedmaps/v1/painsgooptyizwyfarwkfvhydqenutpnnsky/still_map/{z}/{x}/{y}.png',
+      { maxZoom: 18, attribution: '&copy; Mappls MapmyIndia' }
+    );
+    _suMapplsLayer.on('tileerror', function() {
+      if (_suMapplsFailed) return;
+      _suMapplsFailed = true;
+      _leafletMap.removeLayer(_suMapplsLayer);
+      _suOsmLayer.addTo(_leafletMap);
+    });
+    _suMapplsLayer.addTo(_leafletMap);
 
     // Build red drop pin icon
     const _suPinIcon = L.divIcon({
@@ -9346,7 +9357,20 @@ function _acctInitIdleMap() {
       iconSize: [32, 42], iconAnchor: [16, 42]
     });
     _acctMap = L.map('acct-leaflet-map', { center: [25.2677, 82.9930], zoom: 15, zoomControl: true, attributionControl: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_acctMap);
+    /* ── Mappls tiles with OSM fallback ── */
+    const _acctOsmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    let _acctMapplsFailed = false;
+    const _acctMapplsLayer = L.tileLayer(
+      'https://apis.mappls.com/advancedmaps/v1/painsgooptyizwyfarwkfvhydqenutpnnsky/still_map/{z}/{x}/{y}.png',
+      { maxZoom: 18, attribution: '&copy; Mappls MapmyIndia' }
+    );
+    _acctMapplsLayer.on('tileerror', function() {
+      if (_acctMapplsFailed) return;
+      _acctMapplsFailed = true;
+      _acctMap.removeLayer(_acctMapplsLayer);
+      _acctOsmLayer.addTo(_acctMap);
+    });
+    _acctMapplsLayer.addTo(_acctMap);
     _acctMarker = L.marker([25.2677, 82.9930], { draggable: false, icon: redIcon, autoPan: true, opacity: 0 }).addTo(_acctMap);
     _acctMarker.on('dragend', async e => {
       if (_acctMapLocked) return;

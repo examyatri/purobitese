@@ -3,7 +3,9 @@
    Version : v50.0  |  Updated : 2026-06-14
 
    CHANGES v50.0:
-   - Cache bumped → tiffo-v72 (v154 — wallet-low nudge card
+   - Cache bumped → tiffo-v73 (v157 — Mappls MapmyIndia tiles with OSM fallback:
+     signup map + account map now use Mappls raster tiles for India detail;
+     tileerror auto-switches to OSM if Mappls limit reached or fails)
      redesigned: matches monthly plan card style, explains
      ₹20 UPI delivery charge, green theme + blinking button)
    - Cache bumped → tiffo-v69 (v148 — geocode fire-and-forget:
@@ -37,7 +39,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v72'; // v154: wallet-low nudge card — matches monthly plan card style, explains ₹20 UPI delivery charge, green theme + blinking Recharge button
+const CACHE      = 'tiffo-v73'; // v157: Mappls tiles with OSM fallback
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
