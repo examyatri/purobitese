@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v50.0  |  Updated : 2026-06-14
+   Version : v50.1  |  Updated : 2026-06-15
+
+   CHANGES v50.1:
+   - Cache bumped → tiffo-v74 (v157 final — real Mappls SDK
+     onerror flag + post-init tile-presence check on both
+     signup and account maps; adds L.tileLayer OSM fallback
+     only if Mappls produced no tile layer within 1.8s)
 
    CHANGES v50.0:
    - Cache bumped → tiffo-v73 (v157 — Mappls MapmyIndia tiles with OSM fallback:
@@ -39,7 +45,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v73'; // v157: Mappls tiles with OSM fallback
+const CACHE      = 'tiffo-v74'; // v157 final: Mappls onerror + tile-presence OSM fallback
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
