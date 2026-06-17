@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>🍱 Tiffin Manager — Tiffo v18.2</title>
+<title>🍱 Tiffin Manager — Tiffo v18.5</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -471,6 +471,47 @@ select.inp { cursor: pointer; }
   </div>
 </div>
 
+
+<!-- ─── ENGINE PARAMS MODAL (⚙ Your Rates) ─── -->
+<div class="modal-overlay" id="ep-modal-overlay" onclick="closeEngineParamsModal(event)">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">⚙ Your Actual Rates</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+      Set your <strong style="color:var(--teal);">real local rates</strong> here once.<br>
+      Every projection — 5 students, 50 students, 100 students — auto-recalculates using these values.<br>
+      <span style="color:var(--amber);">Different from locking a row</span>: locking fixes one row at current scale. These rates affect the entire engine across all scales.
+    </div>
+
+    <div class="form-row">
+      <label class="inp-label">Gas Cylinder Price (₹) <span style="font-size:10px;color:var(--muted);">14kg cylinder</span></label>
+      <input class="inp" id="ep-gas-price" type="number" min="100" placeholder="e.g. 1500"/>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;">Default: ₹1,500 · Change if your area rate differs</div>
+    </div>
+
+    <div class="form-row">
+      <label class="inp-label">Electricity Rate (₹/unit) <span style="font-size:10px;color:var(--muted);">per kWh</span></label>
+      <input class="inp" id="ep-elec-rate" type="number" min="1" step="0.5" placeholder="e.g. 10"/>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;">Default: ₹10/unit (UP Bijli 2026)</div>
+    </div>
+
+    <div class="form-row">
+      <label class="inp-label">Helper Salary (₹/month) <span style="font-size:10px;color:var(--muted);">per worker</span></label>
+      <input class="inp" id="ep-salary" type="number" min="1000" placeholder="e.g. 11000"/>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;">Default: ₹11,000 · All scale projections use this</div>
+    </div>
+
+    <div style="margin-top:6px;padding:10px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--muted);">
+      💡 <strong>Projection impact:</strong> If you set salary ₹13,000 and scale shows 3 helpers needed → cost = ₹39,000 (not ₹33,000). All scales update immediately.
+    </div>
+
+    <div class="form-actions" style="margin-top:16px;">
+      <button class="btn-primary" onclick="saveEngineParams()">Save Rates</button>
+      <button class="btn-secondary" onclick="resetEngineParams()">↺ Reset to Defaults</button>
+      <button class="btn-secondary" onclick="closeEngineParamsModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ─── CONFIRM MODAL ─── -->
 <div class="modal-overlay" id="confirm-overlay" onclick="closeConfirm(event)">
   <div class="confirm-modal">
@@ -490,7 +531,7 @@ select.inp { cursor: pointer; }
       <span style="font-size:24px;">🍱</span>
       <div>
         <div class="logo-title">Tiffo</div>
-        <div class="logo-sub">Tiffin Business Portal v17</div>
+        <div class="logo-sub">Tiffin Business Portal v18.5</div>
       </div>
     </div>
     <div class="global-params">
@@ -666,6 +707,15 @@ select.inp { cursor: pointer; }
       <div id="expense-analytics"></div>
       <div id="expense-grand-total"></div>
     </div>
+
+    <!-- Scale Projection -->
+    <div class="card mt16" style="border-color:var(--teal)22;">
+      <div class="flex-between mb16">
+        <div class="card-title" style="color:var(--teal);margin-bottom:0;">📈 Scale Projection — Cost/Tiffin As You Grow</div>
+        <span style="font-size:11px;color:var(--muted);">at your current markup</span>
+      </div>
+      <div id="scale-projection"></div>
+    </div>
   </div>
 
   <!-- ═══ PRICING ═══ -->
@@ -780,14 +830,56 @@ select.inp { cursor: pointer; }
 // DATA STORE
 // ═══════════════════════════════════════════════════════
 
-const STORAGE_KEY = 'tiffin_mgr_v10';
+const STORAGE_KEY = 'tiffin_mgr_v14';
 
 // ═══════════════════════════════════════════════════════
-// AUTO OVERRIDES — admin can override individual auto rows
-// Key: expense id (e.g. 'a1'), Value: { amount, notes }
-// Overridden rows show amber "override" badge + Reset button
-// ═══════════════════════════════════════════════════════
-let autoOverrides = {}; // { 'a1': { amount: 6000, notes: 'Higher rent area' }, ... }
+// ════════════════════════════════════════════════════════════════════
+// OVERRIDE SYSTEM — Industry-level, 2 clean concepts
+// ════════════════════════════════════════════════════════════════════
+//
+//  1. ENGINE PARAMS — Your actual local rates (affect ALL scale projections)
+//     engineParams = {
+//       gas_cyl_price:      1500,   // your actual cylinder cost
+//       elec_rate_per_unit: 10,     // your actual per-unit rate
+//       labour_per_helper:  11000,  // your actual salary paid
+//     }
+//     → Change once → every projection (5 students, 50 students) recalculates
+//     → These replace AUTO_BASE defaults globally
+//     → Shown in Settings panel with "Your Rate" label
+//
+//  2. ROW LOCK — Actual amount for a specific auto row at current scale
+//     autoOverrides[rowId] = { amount: 9500, notes: 'actual rent this month' }
+//     → Locks THAT ROW at THAT amount for current scale view
+//     → Other scale levels: engine still auto-calculates (no lock there)
+//     → Shows amber "locked" badge + auto-calculated value in grey alongside
+//     → Reset button removes lock, row goes back to auto
+//
+//  WHAT THIS MEANS PRACTICALLY:
+//  ─────────────────────────────
+//  "Mere area mein gas ₹1800 hai"
+//    → Engine Param: gas_cyl_price = 1800
+//    → Every projection now uses ₹1800. Done.
+//
+//  "Is mahine rent ₹9500 diya, auto ₹8000 dikha raha hai"
+//    → Row Lock: rent row = ₹9500
+//    → Current view shows ₹9500 (your actual)
+//    → 50-student projection still auto-calculates ₹12000 (correct)
+//    → No false anchoring on projections
+//
+//  WHAT IS NOT HERE (intentionally removed):
+//  → No "snapshot" type (use manual mode for one-off actuals)
+//  → No "floor" concept (lock + engine params cover this cleanly)
+// ════════════════════════════════════════════════════════════════════
+
+// Engine params — your actual local rates, replace AUTO_BASE defaults
+let engineParams = {
+  gas_cyl_price:      1500,
+  elec_rate_per_unit: 10,
+  labour_per_helper:  11000,
+};
+
+// Row locks — locked amounts for specific auto rows at current scale view
+let autoOverrides = {}; // { rowId: { amount, notes } }
 
 // Expenses added via "+ Add" WHILE in Auto mode — stored separately
 // so they appear alongside auto rows without polluting manual mode
@@ -870,7 +962,7 @@ function setMode(m) {
 */
 
 const AUTO_BASE = {
-  working_days: 26,
+  working_days: 26,   // reference only — live calc now uses getWd() (your actual input) directly
 
   // RENT — step-fixed by student count [min_students, monthly_rent]
   // Base room rate: ₹8,000 (Varanasi 2026 market rate)
@@ -899,7 +991,7 @@ const AUTO_BASE = {
   gas_tiers: [
     [15,  55],          // small batch  : ≤15 tiffins/day (home pressure cooker)
     [60,  45],          // medium batch : 16–60 tiffins/day (large pressure cooker)
-    [Infinity, 35],     // large deg    : 61+ tiffins/day (commercial deg)
+    [9999, 35],         // large deg    : 61+ tiffins/day (commercial deg)
   ],
 
   // ELECTRICITY — step-fixed [min_students, monthly_units]
@@ -942,8 +1034,14 @@ const AUTO_BASE = {
  * v17 — Ground reality formulas, Varanasi Tier-2 tiffin context.
  */
 function autoCalcExpenses(students, tiffinsPerMonth) {
+  // Use engineParams as seed values (your actual local rates).
+  // These replace AUTO_BASE defaults and affect ALL scale projections.
+  const gasCylPrice     = engineParams.gas_cyl_price      || AUTO_BASE.gas_cyl_price;
+  const elecRate        = engineParams.elec_rate_per_unit  || AUTO_BASE.elec_rate_per_unit;
+  const salaryPerHelper = engineParams.labour_per_helper   || 11000;
   const s   = Math.max(0, students);
-  const wd  = AUTO_BASE.working_days;
+  const wd  = getWd();   // Bug fix: was hardcoded AUTO_BASE.working_days (26) — caused gas-tier &
+                          // packaging-tier mismatch vs rest of app whenever working days ≠ 26
   const tpd = tiffinsPerMonth / wd;   // tiffins per working day
 
   // ── 1. RENT — step-fixed by kitchen size needed ──
@@ -955,14 +1053,16 @@ function autoCalcExpenses(students, tiffinsPerMonth) {
   if      (s >= 71) rentNote = 'commercial kitchen';
   else if (s >= 36) rentNote = 'large room / 2 rooms';
   else              rentNote = '1-room home kitchen';
+  // Rent uses auto step table only — admin can row-lock specific scale if actual differs
 
   // ── 2. LABOUR — step-based by student count ──
   let labour = 0, helpers = 0, labourNote = 'owner only (no helpers)';
-  AUTO_BASE.labour_steps.forEach(([minS, h, cost]) => {
-    if (s >= minS) { labour = cost; helpers = h; }
+  AUTO_BASE.labour_steps.forEach(([minS, h]) => {
+    if (s >= minS) { helpers = h; }
   });
+  labour = helpers * salaryPerHelper;
   if (helpers === 0) labourNote = 'owner manages alone';
-  else labourNote = `${helpers} helper${helpers > 1 ? 's' : ''} @ ₹11,000/helper`;
+  else labourNote = `${helpers} helper${helpers > 1 ? 's' : ''} @ ₹${salaryPerHelper.toLocaleString('en-IN')}/helper${engineParams.labour_per_helper !== 11000 ? ' ★ your rate' : ''}`;
 
   // ── 3. GAS / LPG — measured cooking load, cylinder based ──
   // Step 1: pick LPG consumption rate by batch size (daily volume determines efficiency)
@@ -974,8 +1074,8 @@ function autoCalcExpenses(students, tiffinsPerMonth) {
   const lpgMonthG  = tiffinsPerMonth * lpgPerTiffin;
   // Step 3: cylinders needed (14 kg cylinder = 14,000 g each)
   const cylCount   = Math.max(1, Math.ceil(lpgMonthG / (AUTO_BASE.gas_cyl_kg * 1000)));
-  const gas        = cylCount * AUTO_BASE.gas_cyl_price;
-  const gasNote    = `${cylCount} cyl × ₹${AUTO_BASE.gas_cyl_price} · ${lpgPerTiffin}g LPG/tiffin · ${Math.round(lpgMonthG/1000)}kg/month (14kg cyl)`;
+  const gas        = cylCount * gasCylPrice;
+  const gasNote    = `${cylCount} cyl × ₹${gasCylPrice} · ${lpgPerTiffin}g LPG/tiffin · ${Math.round(lpgMonthG/1000)}kg/month (14kg cyl)`;
 
   // ── 4. ELECTRICITY — step-fixed by equipment tier, ₹10/unit ──
   let elecUnits = AUTO_BASE.elec_steps[0][1];
@@ -987,8 +1087,8 @@ function autoCalcExpenses(students, tiffinsPerMonth) {
   else if (s >= 51) elecNote = 'medium: 2 mixers, large fridge';
   else if (s >= 26) elecNote = 'moderate: larger setup';
   else              elecNote = 'basic: mixer, fridge, lighting';
-  const electricity = elecUnits * AUTO_BASE.elec_rate_per_unit;
-  elecNote = `${elecUnits} units × ₹${AUTO_BASE.elec_rate_per_unit}/unit · ${elecNote}`;
+  const electricity = elecUnits * elecRate;
+  elecNote = `${elecUnits} units × ₹${elecRate}/unit · ${elecNote}${engineParams.elec_rate_per_unit !== 10 ? ' ★ your rate' : ''}`;
 
   // ── 5. PETROL / DELIVERY — zone-based step scaling ──
   let petrol = AUTO_BASE.petrol_steps[0][1];
@@ -1098,16 +1198,16 @@ let menuItems = [
 ];
 
 let monthlyExpenses = [
-  { id:1, name:"Room / Rent",      amount:8000  },
-  { id:2, name:"Worker (Labour)",  amount:11000 },
-  { id:3, name:"Petrol / Bike",    amount:1500  },
-  { id:4, name:"Gas / LPG",        amount:1500  },
-  { id:5, name:"Electricity",      amount:800   },
-  { id:6, name:"Miscellaneous",    amount:1000  },
+  { id:'e1', name:"Room / Rent",      amount:8000  },
+  { id:'e2', name:"Worker (Labour)",  amount:11000 },
+  { id:'e3', name:"Petrol / Bike",    amount:1500  },
+  { id:'e4', name:"Gas / LPG",        amount:1500  },
+  { id:'e5', name:"Electricity",      amount:800   },
+  { id:'e6', name:"Miscellaneous",    amount:1000  },
 ];
 
 let dailyExpenses = [
-  { id:7, name:"Packaging / Containers", amount:10, type:'pertiffin' },
+  { id:'e7', name:"Packaging / Containers", amount:10, type:'pertiffin' },
 ];
 // Each daily expense now has a 'type': 'fixed' (per day regardless of tiffins, e.g. gas/petrol)
 //                                   or 'pertiffin' (scales with tiffin count, e.g. packaging per box)
@@ -1130,7 +1230,7 @@ function saveData() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       menuItems, monthlyExpenses, dailyExpenses, selectedItems, profitTarget,
-      appMode, autoOverrides, autoAddedMonthly, autoAddedDaily,
+      appMode, autoOverrides, autoAddedMonthly, autoAddedDaily, engineParams,
       tpm:         document.getElementById('tiffins-per-month')?.value || 600,
       studentsPd:  document.getElementById('students-per-day')?.value || '',
       workingDays: document.getElementById('working-days')?.value || 26,
@@ -1157,11 +1257,20 @@ function loadData() {
     if (d.monthlyExpenses) monthlyExpenses = d.monthlyExpenses.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
     if (d.dailyExpenses)   dailyExpenses   = d.dailyExpenses.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
     if (d.autoOverrides)   autoOverrides   = d.autoOverrides;
+    if (d.engineParams)    engineParams    = { ...engineParams, ...d.engineParams };
     if (d.autoAddedMonthly) autoAddedMonthly = d.autoAddedMonthly.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
     if (d.autoAddedDaily)   autoAddedDaily   = d.autoAddedDaily.map(e => ({ ...e, id: +e.id, amount: +e.amount }));
     if (d.selectedItems)   selectedItems   = d.selectedItems.map(x => +x);
     if (d.profitTarget !== undefined) profitTarget = d.profitTarget;
     if (d.appMode) { appMode = d.appMode; setMode(appMode); }
+    // Restore _studentsManuallySet: if saved studentsPd differs from what tpm would derive,
+    // the user had set it manually — so re-arm the flag so getActiveStudents() uses it.
+    if (d.studentsPd) {
+      const derivedStudents = Math.round(((d.tpm || 600) / (d.workingDays || 26)) / 2);
+      if (parseInt(d.studentsPd) !== derivedStudents) {
+        _studentsManuallySet = true;
+      }
+    }
     const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
     set('tiffins-per-month', d.tpm);
     set('working-days', d.workingDays);
@@ -1239,6 +1348,26 @@ function totalRawMaterial(items) {
   const raw = items.reduce((s,i) => s + costPerTiffin(i), 0);
   const wp  = getWastagePct();
   return raw * (1 + wp / 100);
+}
+
+// Raw selection, no fallback — Pricing tab needs to know if selection is genuinely
+// empty so it can show its own "select items above" prompt.
+function getSelectedItems() {
+  // eslint-disable-next-line eqeqeq
+  return menuItems.filter(i => selectedItems.some(x => x == i.id));
+}
+
+// Single source of truth for "what's actually in today's tiffin", for every
+// calculator that does NOT have its own item-selection UI (Dashboard, Health,
+// BEP, Target Income, Mix, Wastage). They must read items through this function,
+// never through the raw `menuItems` catalog directly, otherwise cost/tiffin
+// silently disagrees between tabs (Bug: was using all 24 master items instead of
+// the selected subset everywhere except the Pricing tab).
+// Falls back to the full catalog if selection is ever empty, so a calculator
+// without a "select items" prompt of its own never silently shows ₹0 raw material.
+function getActiveItems() {
+  const active = getSelectedItems();
+  return active.length ? active : menuItems;
 }
 
 // Monthly fixed overhead per tiffin = total monthly ÷ tiffins/month
@@ -1402,8 +1531,9 @@ function renderDashboard() {
   const tpm  = getTpm();
   const wd   = getWd();
   const tpd  = getTpd();
-  const rm   = totalRawMaterial(menuItems);   // already includes wastage
-  const rmBase = menuItems.reduce((s,i) => s + costPerTiffin(i), 0);
+  const activeItems = getActiveItems();        // Bug fix: was menuItems (all 24) — now respects Pricing tab selection
+  const rm   = totalRawMaterial(activeItems);   // already includes wastage
+  const rmBase = activeItems.reduce((s,i) => s + costPerTiffin(i), 0);
   const wastageAmt = rm - rmBase;
   const wp = getWastagePct();
   const oh   = overheadPerTiffin();
@@ -1429,7 +1559,7 @@ function renderDashboard() {
     <div class="card stat-tile" style="border-color:var(--blue)33;">
       <div class="stat-label">Raw Material / Tiffin</div>
       <div class="stat-num" style="color:var(--blue);">${rup(rm)}</div>
-      <div class="stat-sub">${menuItems.length} items${wp > 0 ? ` + ${wp}% wastage` : ''}</div>
+      <div class="stat-sub">${activeItems.length} items${wp > 0 ? ` + ${wp}% wastage` : ''}</div>
     </div>
     <div class="card stat-tile" style="border-color:var(--amber)33;">
       <div class="stat-label">Total Monthly Spend</div>
@@ -1522,7 +1652,7 @@ function renderDashboard() {
 
   // ─── Ingredient bars ───
   let mcs = '';
-  menuItems.forEach(item => {
+  activeItems.forEach(item => {
     const c   = costPerTiffin(item);
     const pct = rm > 0 ? (c/rm)*100 : 0;
     const col = CAT_COLOR[item.category] || '#6b7280';
@@ -1571,7 +1701,7 @@ function renderHealth() {
   }
   const tpm   = getTpm();
   const wd    = getWd();
-  const rm    = totalRawMaterial(menuItems);
+  const rm    = totalRawMaterial(getActiveItems());
   const oh    = overheadPerTiffin();
   const dv    = dailyPerTiffin();
   const cost  = rm + oh + dv;
@@ -1642,12 +1772,15 @@ function renderExpenses() {
     if (appMode === 'auto') {
       const meta = autoCalcExpenses(students, tpm)._meta;
       const overrideCount = Object.keys(autoOverrides).length;
+      const lockCount = Object.keys(autoOverrides).length;
+      const epChanged = (engineParams.gas_cyl_price !== 1500 || engineParams.elec_rate_per_unit !== 10 || engineParams.labour_per_helper !== 11000);
       bannerEl.innerHTML = `<div class="auto-banner">
         <span class="auto-banner-dot"></span>
         <span style="font-size:12px;color:var(--green);font-weight:600;">AUTO MODE</span>
-        <span style="font-size:12px;color:var(--muted);">All expenses auto-calculated · <strong style="color:var(--text);">${students} students</strong> · ${tpm} tiffins/mo · <strong style="color:var(--text);">${meta.helpers === 0 ? 'owner only' : meta.helpers + ' helper' + (meta.helpers>1?'s':'')}</strong> · ${meta.cylCount} gas cyl · ${meta.pkgRate === 0 ? 'steel dabba' : '₹'+meta.pkgRate+'/pkg'}</span>
-        ${overrideCount > 0 ? `<span style="font-size:11px;color:var(--amber);font-weight:600;">${overrideCount} override${overrideCount>1?'s':''} active</span>` : ''}
-        <span style="font-size:11px;color:var(--muted);margin-left:auto;">Click <strong style="color:var(--amber);">Override</strong> on any row to customize · <strong style="color:var(--green);">+ Add</strong> to add extra expenses</span>
+        <span style="font-size:12px;color:var(--muted);">Auto-scaled · <strong style="color:var(--text);">${students} students</strong> · ${tpm} tiffins/mo · <strong style="color:var(--text);">${meta.helpers === 0 ? 'owner only' : meta.helpers + ' helper' + (meta.helpers>1?'s':'')}</strong> · ${meta.cylCount} gas cyl</span>
+        ${lockCount > 0 ? `<span style="font-size:11px;color:var(--amber);font-weight:600;margin-left:6px;">🔒 ${lockCount} row${lockCount>1?'s':''} locked</span>` : ''}
+        ${epChanged ? `<span style="font-size:11px;color:var(--teal);font-weight:600;margin-left:6px;">★ custom rates active</span>` : ''}
+        <span style="font-size:11px;color:var(--muted);margin-left:auto;"><strong style="color:var(--amber);">Lock</strong> a row to fix it · <button onclick="openEngineParamsModal()" style="background:none;border:none;color:var(--teal);font-size:11px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;">⚙ Your Rates</button> · <strong style="color:var(--green);">+ Add</strong> extras</span>
       </div>`;
     } else {
       bannerEl.innerHTML = `<div class="manual-banner">
@@ -1708,6 +1841,7 @@ function renderExpenses() {
   renderExpenseList('monthly-expense-list', getMonthlyExpenses(), 'var(--amber)', 'monthly');
   renderExpenseList('daily-expense-list',   getDailyExpenses(),   'var(--blue)',  'daily');
   renderExpenseAnalytics();
+  renderScaleProjection();
 }
 
 // ─── Expense Analytics ───
@@ -1787,6 +1921,104 @@ function renderExpenseAnalytics() {
   </div>`;
 }
 
+// ─── Scale Projection — "what happens to my cost/tiffin as I grow?" ───
+// Only meaningful in Auto mode: auto-engine rows are formulas tied to student
+// count (rent/labour steps, gas tiers, packaging tiers), so they can be
+// re-evaluated at a hypothetical scale. Manual mode expenses are just numbers
+// you typed in — there's no formula to project them with, so the table can't
+// be shown there.
+//
+// This is the feature the "⚙ Your Rates" modal copy promises ("every
+// projection — 5 students, 50 students, 100 students — auto-recalculates")
+// but which previously had no actual UI anywhere in the app.
+function renderScaleProjection() {
+  const el = document.getElementById('scale-projection');
+  if (!el) return;
+
+  if (appMode !== 'auto') {
+    el.innerHTML = `<p class="text-muted text-sm">Scale projection sirf <strong style="color:var(--green);">Auto mode</strong> mein dikhta hai — Manual mode ke expenses fixed numbers hain, unke liye koi scaling formula nahi hai. Top bar se Auto mode select karo.</p>`;
+    return;
+  }
+
+  const wd = getWd();
+  const rm = totalRawMaterial(getActiveItems());   // raw material/tiffin doesn't change with scale
+  const currentStudents = getActiveStudents();
+
+  // Standard milestones + current scale, deduped & sorted, capped at 7 rows for mobile
+  const milestones = [10, 25, 50, 75, 100];
+  const points = Array.from(new Set([...milestones, currentStudents])).sort((a,b) => a-b).slice(0, 7);
+
+  const rows = points.map(students => {
+    const isCurrent = students === currentStudents;
+    // Bug fix: current row must use actual getTpm() (e.g. 600), NOT students*2*wd (e.g. 624).
+    // Mismatch happens whenever getTpm() is not exactly divisible by (students*2),
+    // which makes the ◀ now row show different cost/tiffin and profit vs Dashboard.
+    const tpm = isCurrent ? getTpm() : Math.max(1, students * 2 * wd);
+    const tpd = tpm / wd;
+
+    let monthlyFixed, dailyVarPerTiffin, helpers;
+    if (isCurrent) {
+      // Real current numbers — includes any 🔒 row locks + admin-added extras
+      monthlyFixed      = totalMonthly();
+      dailyVarPerTiffin = totalPerTiffinDaily() + (tpd > 0 ? totalDailyPerDay() / tpd : 0);
+      helpers = autoCalcExpenses(students, tpm)._meta.helpers;
+    } else {
+      // Hypothetical scale — pure engine formula + your ⚙ Your Rates, no row locks.
+      // (Per design: a lock is "what I'm actually paying right now", not a forecast
+      // for a different scale — see ⚙ Your Rates modal explanation.)
+      const auto = autoCalcExpenses(students, tpm);
+      const autoMonthly  = auto.monthly.reduce((s,e) => s + (+e.amount||0), 0);
+      const extraMonthly = autoAddedMonthly.reduce((s,e) => s + (+e.amount||0), 0);
+      monthlyFixed = autoMonthly + extraMonthly;
+
+      const autoDailyFixed  = auto.daily.filter(e => (e.type||'fixed')==='fixed').reduce((s,e) => s + (+e.amount||0), 0);
+      const autoDailyPT     = auto.daily.filter(e => e.type==='pertiffin').reduce((s,e) => s + (+e.amount||0), 0);
+      const extraDailyFixed = autoAddedDaily.filter(e => (e.type||'fixed')==='fixed').reduce((s,e) => s + (+e.amount||0), 0);
+      const extraDailyPT    = autoAddedDaily.filter(e => e.type==='pertiffin').reduce((s,e) => s + (+e.amount||0), 0);
+      dailyVarPerTiffin = (tpd > 0 ? (autoDailyFixed + extraDailyFixed) / tpd : 0) + (autoDailyPT + extraDailyPT);
+      helpers = auto._meta.helpers;
+    }
+
+    const overheadPT     = tpm > 0 ? monthlyFixed / tpm : 0;
+    const cost            = rm + overheadPT + dailyVarPerTiffin;
+    const price            = cost * (1 + profitTarget / 100);
+    const monthlyProfit    = (price - cost) * tpm;
+
+    return { students, tpm, helpers, monthlyFixed, cost, price, monthlyProfit, isCurrent };
+  });
+
+  const first = rows[0], last = rows[rows.length - 1];
+  const costDelta = first.cost > 0 ? ((first.cost - last.cost) / first.cost * 100) : 0;
+
+  el.innerHTML = `
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Students/Day</th><th>Tiffins/Mo</th><th>Helpers</th>
+          <th>Fixed Cost/Mo</th><th>Cost/Tiffin</th><th>Price @ ${profitTarget}%</th><th>Monthly Profit</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const col = r.isCurrent ? 'var(--green)' : (r.students > currentStudents ? 'var(--teal)' : 'var(--amber)');
+            return `<tr>
+              <td class="mono" style="color:${col};font-weight:${r.isCurrent?'700':'400'};">${r.students}${r.isCurrent ? ' ◀ now' : ''}</td>
+              <td class="mono">${r.tpm.toLocaleString('en-IN')}</td>
+              <td class="mono">${r.helpers === 0 ? 'owner' : r.helpers}</td>
+              <td class="mono">${rupInt(r.monthlyFixed)}</td>
+              <td class="mono fw7" style="color:${col};">${rup(r.cost)}</td>
+              <td class="mono" style="color:var(--green);">${rup(r.price)}</td>
+              <td class="mono" style="color:${r.monthlyProfit>0?'var(--green)':'var(--red)'};">${rupInt(r.monthlyProfit)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="info-box mt8">
+      ${last.students !== first.students ? `<span class="hl">${first.students} → ${last.students} students</span> tak scale karne par, fixed cost zyada tiffins mein split hota hai — cost/tiffin ${costDelta > 0 ? `<span class="mono-sm">${costDelta.toFixed(1)}%</span> girta hai` : `<span class="mono-sm">${Math.abs(costDelta).toFixed(1)}%</span> badhta hai`} (₹${first.cost.toFixed(2)} → ₹${last.cost.toFixed(2)}).<br/>` : ''}
+      <span class="hl">◀ now</span> wala row tera real current expense use karta hai (🔒 locks included). Baaki rows sirf engine formula + <strong>⚙ Your Rates</strong> use karte hain — current-scale ke locks unme nahi lagte, kyunki lock matlab "abhi main actually itna de raha hoon", future scale ka forecast nahi.
+    </div>`;
+}
+
 function renderExpenseList(containerId, list, color, type) {
   const el = document.getElementById(containerId);
   if (!list.length) {
@@ -1805,7 +2037,7 @@ function renderExpenseList(containerId, list, color, type) {
       : '';
 
     let statusBadge = '';
-    if (isOverridden)       statusBadge = `<span class="override-badge">override</span>`;
+    if (isOverridden)       statusBadge = `<span class="override-badge">🔒 locked</span>`;
     else if (isAuto)        statusBadge = `<span class="auto-badge">auto</span>`;
 
     const amtLabel = type === 'daily' && e.type === 'pertiffin'
@@ -1813,8 +2045,8 @@ function renderExpenseList(containerId, list, color, type) {
       : `₹${(+e.amount).toLocaleString('en-IN')}`;
 
     const overrideHint = isOverridden
-      ? `<span style="font-size:10px;color:var(--muted);text-decoration:line-through;margin-left:4px;">auto: ₹${(+e._autoAmount).toLocaleString('en-IN')}</span>`
-      : '';
+        ? ` <span style="font-size:10px;color:var(--muted);font-style:italic;">(auto: ₹${(e._autoAmount||0).toLocaleString('en-IN')})</span>`
+        : '';
 
     const userNotes = e._notes || e.notes;
     const noteHtml = isAuto && !isOverridden && e._note
@@ -1831,11 +2063,11 @@ function renderExpenseList(containerId, list, color, type) {
       actions = `<div class="exp-actions" style="flex-direction:column;gap:4px;align-items:flex-end;">
         <div style="display:flex;gap:4px;">
           <button class="btn-edit" onclick="editAutoOverride('${type}','${e.id}')">Edit</button>
-          <button class="btn-reset" onclick="resetAutoOverride('${e.id}')" title="Reset to auto-calculated value">↺ Auto</button>
+          <button class="btn-reset" onclick="resetAutoOverride('${e.id}')" title="Remove lock — go back to auto">↺ Unlock</button>
         </div>
       </div>`;
     } else {
-      actions = `<button class="btn-edit" style="font-size:11px;color:var(--amber);border-color:var(--amber)44;" onclick="startAutoOverride('${type}','${e.id}')">Override</button>`;
+      actions = `<button class="btn-edit" style="font-size:11px;color:var(--amber);border-color:var(--amber)44;" onclick="startAutoOverride('${type}','${e.id}')">🔒 Lock</button>`;
     }
 
     return `
@@ -1853,7 +2085,7 @@ let _expModal = { mode:null, type:null, id:null };
 function openExpModal({ mode, type, id, name, amount, expType, notes, isOverride, autoId }) {
   _expModal = { mode, type, id, isOverride: !!isOverride, autoId: autoId || null };
   document.getElementById('exp-modal-title').textContent =
-    isOverride ? `✏️ Override: ${name}`
+    isOverride ? `🔒 Lock Row: ${name}`
     : mode==='add' ? (type==='monthly' ? '+ Monthly Expense' : '+ Daily Expense')
     : 'Edit Expense';
   document.getElementById('exp-modal-name').value   = name   || '';
@@ -2016,6 +2248,52 @@ function editAutoOverride(type, autoId) {
 function resetAutoOverride(autoId) {
   delete autoOverrides[autoId];
   refreshAll();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// ENGINE PARAMS MODAL — ⚙ Your Rates
+// ═══════════════════════════════════════════════════════
+
+function openEngineParamsModal() {
+  document.getElementById('ep-gas-price').value  = engineParams.gas_cyl_price      || 1500;
+  document.getElementById('ep-elec-rate').value  = engineParams.elec_rate_per_unit  || 10;
+  document.getElementById('ep-salary').value      = engineParams.labour_per_helper   || 11000;
+  document.getElementById('ep-modal-overlay').classList.add('open');
+}
+
+function closeEngineParamsModal(e) {
+  if (e && e.target !== document.getElementById('ep-modal-overlay')) return;
+  document.getElementById('ep-modal-overlay').classList.remove('open');
+}
+
+function saveEngineParams() {
+  const gas    = parseFloat(document.getElementById('ep-gas-price').value);
+  const elec   = parseFloat(document.getElementById('ep-elec-rate').value);
+  const salary = parseFloat(document.getElementById('ep-salary').value);
+  if (isNaN(gas) || gas <= 0 || isNaN(elec) || elec <= 0 || isNaN(salary) || salary <= 0) {
+    alert('Please enter valid values for all fields.');
+    return;
+  }
+  engineParams.gas_cyl_price      = gas;
+  engineParams.elec_rate_per_unit = elec;
+  engineParams.labour_per_helper  = salary;
+  document.getElementById('ep-modal-overlay').classList.remove('open');
+  saveData();
+  refreshAll();
+  showRefreshFlash();
+}
+
+function resetEngineParams() {
+  if (!confirm('Reset all rates to default values?')) return;
+  engineParams = { gas_cyl_price: 1500, elec_rate_per_unit: 10, labour_per_helper: 11000 };
+  document.getElementById('ep-gas-price').value  = 1500;
+  document.getElementById('ep-elec-rate').value  = 10;
+  document.getElementById('ep-salary').value     = 11000;
+  saveData();
+  refreshAll();
+  showRefreshFlash();
+  document.getElementById('ep-modal-overlay').classList.remove('open');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2310,8 +2588,7 @@ function renderPricing() {
     ).join('');
   }
 
-  // eslint-disable-next-line eqeqeq
-  const activeItems = menuItems.filter(i => selectedItems.some(x => x == i.id));
+  const activeItems = getSelectedItems();
   const tpm  = getTpm();
   const tpd  = getTpd();
   const wp   = getWastagePct();
@@ -2378,6 +2655,8 @@ function renderPricing() {
 // BEP & GOALS
 // ═══════════════════════════════════════════════════════
 
+// Canonical total monthly spend helper — use this everywhere instead of inline formula.
+// = monthlyFixed + dailyFixed×wd + perTiffin×tpm
 function getTotalMonthlyCost() {
   const tpm  = getTpm();
   const wd   = getWd();
@@ -2401,7 +2680,7 @@ function renderBEP() {
   const wd        = getWd();
 
   // Cost components
-  const varCostPerTiffin = totalRawMaterial(menuItems) + totalPerTiffinDaily();
+  const varCostPerTiffin = totalRawMaterial(getActiveItems()) + totalPerTiffinDaily();
   const fixedMonthly     = totalMonthly() + totalDailyPerDay() * wd;
 
   if (!sellPrice || sellPrice <= 0) {
@@ -2494,7 +2773,7 @@ function renderTargetIncome() {
   const customVol    = parseFloat(document.getElementById('ti-volume')?.value);
   const tpm          = customVol > 0 ? customVol : getTpm();
 
-  const varCostPerTiffin = totalRawMaterial(menuItems) + totalPerTiffinDaily();
+  const varCostPerTiffin = totalRawMaterial(getActiveItems()) + totalPerTiffinDaily();
   const fixedMonthly     = totalMonthly() + totalDailyPerDay() * getWd();
   const totalCostAtVol   = fixedMonthly + varCostPerTiffin * tpm;
   const costPerT         = tpm > 0 ? totalCostAtVol / tpm : 0;
@@ -2564,7 +2843,7 @@ function renderMix() {
   const costPerT    = (() => {
     const tpm = Math.max(1, totalVol);
     const fixedMonthly = totalMonthly() + totalDailyPerDay() * getWd();
-    const varCpt = totalRawMaterial(menuItems) + totalPerTiffinDaily();
+    const varCpt = totalRawMaterial(getActiveItems()) + totalPerTiffinDaily();
     return (fixedMonthly + varCpt * tpm) / tpm;
   })();
 
@@ -2612,7 +2891,7 @@ function renderWastageSummary() {
   const wp       = getWastagePct();
   const tpm      = getTpm();
   const wd       = getWd();
-  const rmBase   = menuItems.reduce((s,i) => s + costPerTiffin(i), 0);
+  const rmBase   = getActiveItems().reduce((s,i) => s + costPerTiffin(i), 0);
   const wastePT  = rmBase * (wp / 100);            // wastage per tiffin
   const wasteDay = wastePT * (tpm / wd);           // wastage per working day
   const wasteMo  = wastePT * tpm;                  // wastage per month
