@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>🍱 Tiffin Manager — Tiffo v17</title>
+<title>🍱 Tiffin Manager — Tiffo v18.2</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -780,7 +780,7 @@ select.inp { cursor: pointer; }
 // DATA STORE
 // ═══════════════════════════════════════════════════════
 
-const STORAGE_KEY = 'tiffin_mgr_v6';
+const STORAGE_KEY = 'tiffin_mgr_v10';
 
 // ═══════════════════════════════════════════════════════
 // AUTO OVERRIDES — admin can override individual auto rows
@@ -810,85 +810,62 @@ function setMode(m) {
 
 /*
   ═══════════════════════════════════════════════════════════════════
-  AUTO-SCALING ENGINE — v17 (Ground Reality, Varanasi Tier-2 context)
+  AUTO-SCALING ENGINE — v17 (Ground Reality, Varanasi 2026 rates)
   ═══════════════════════════════════════════════════════════════════
 
   EXPENSE-BY-EXPENSE DERIVATION (all anchored to 10 students / 20 tpd base)
   ──────────────────────────────────────────────────────────────────────────
 
   1. RENT — Step-fixed
-     Small kitchen (1 room) fits ~35 students comfortably.
-     Beyond that a bigger space or 2nd room is needed.
+     Base room rate ₹8,000 (Varanasi 2026 market rate).
      Steps:
-       1–35  students → ₹5,000  (1 room / home kitchen)
-       36–70 students → ₹8,000  (larger room or 2 rooms)
-       71+   students → ₹12,000 (proper commercial kitchen)
+       1–35  students → ₹8,000  (1 room home kitchen)
+       36–70 students → ₹12,000 (larger room or 2 rooms)
+       71+   students → ₹18,000 (proper commercial kitchen)
 
   2. LABOUR — Step-based on students
-     Varanasi helper salary: ₹8,000–10,000/month entry level.
+     Employee salary: ₹11,000/month (Varanasi 2026 standard rate).
      Owner themselves typically handles up to ~10 students solo.
        0–10  → 0 helpers (owner only)           ₹0
-       11–25 → 1 helper                         ₹9,000
-       26–45 → 2 helpers                        ₹18,000
-       46–70 → 3 helpers                        ₹26,000
-       71–100→ 4 helpers                        ₹34,000
-       101+  → 5 helpers                        ₹42,000
+       11–25 → 1 helper                         ₹11,000
+       26–45 → 2 helpers                        ₹22,000
+       46–70 → 3 helpers                        ₹33,000
+       71–100→ 4 helpers                        ₹44,000
+       101+  → 5 helpers                        ₹55,000
 
   3. GAS / LPG — Cylinder count based on actual cooking load
      ──────────────────────────────────────────────────────
-     Measured reality: cooking 1 tiffin (rice+dal+sabji+roti) requires
-     ~55g of LPG on a pressure cooker + tawa setup.
-     In bulk (large deg/pressure cooker) efficiency improves: ~40g/tiffin.
-
-     Commercial LPG cylinder (19 kg) = 19,000g
+     Cylinder: 14 kg @ ₹1,500 (Varanasi 2026 rate)
+     Measured reality: cooking 1 tiffin requires ~55g LPG small batch,
+     ~45g medium batch (pressure cooker), ~35g large deg.
 
      Formula:
        LPG per month (g)  = tiffins/month × lpg_per_tiffin_g
-       Cylinders needed   = ceil(lpg_per_month / 19000)
-       Cost               = cylinders × cylinder_price
+       Cylinders needed   = ceil(lpg_per_month / 14000)
+       Cost               = cylinders × ₹1,500
 
-     lpg_per_tiffin_g:
-       tpm ≤ 300  → 55g  (small batch, inefficient)
-       tpm ≤ 800  → 45g  (medium batch, pressure cooker)
-       tpm > 800  → 35g  (large deg, highly efficient)
-
-     cylinder_price: ₹900 (domestic, Varanasi 2025 rate)
-     Note: Commercial cylinder = ₹1,800 but most small operators use
-     domestic cylinders. At >60 tpd, commercial connection more likely.
-
-  4. ELECTRICITY — Step-fixed by equipment tier
-     Small: 1 mixer, fridge, lighting → ₹600–900/month
-     Medium: 2 mixers, large fridge, extra lighting → ₹1,200–1,600/month
-     Large: commercial equipment → ₹2,000–2,800/month
-       1–25  students → ₹700
-       26–50 students → ₹1,200
-       51–80 students → ₹1,800
-       81+   students → ₹2,500
+  4. ELECTRICITY — Unit-based calculation
+     Rate: ₹10/unit (UP Bijli 2026 Varanasi rate)
+     Units consumed by scale:
+       1–25  students → 80 units  → ₹800
+       26–50 students → 140 units → ₹1,400
+       51–80 students → 200 units → ₹2,000
+       81+   students → 280 units → ₹2,800
 
   5. PETROL / DELIVERY — Zone-based step scaling
      Varanasi delivery radius: mostly 2–5 km.
      1 bike handles ~15–20 drops per trip.
-     Petrol cost per km: ~₹4–5 at ₹100/litre, 20–25 km/l bike.
        1–20  students → ₹800   (1 trip, 1 bike)
        21–40 students → ₹1,400 (2 trips or wider zone)
        41–65 students → ₹2,000 (2 bikes or long routes)
        66+   students → ₹2,800 (3 bikes / multiple zones)
 
   6. MISCELLANEOUS — Semi-fixed with soft cap
-     Cleaning, repairs, small sundries, mobile recharge, etc.
-     Base ₹500, grows slowly, caps at ₹1,800 for large ops.
-       Uses: base=500, power=0.40, hardcap=1800
-     This means: 10 students→₹500, 50 students→₹797, 100→₹999, 200→₹1,259.
+     Cleaning, repairs, sundries, mobile recharge, etc.
+     Base ₹500, grows slowly, caps at ₹1,800.
 
   7. PACKAGING — Per-tiffin with bulk discount
-     Steel/reusable dabba: owner's own investment, no recurring cost.
-     Disposable (common for new customers / walk-ins):
-       ≤ 20 tpd → ₹9/tiffin   (small volumes, no discount)
-       21–60 tpd → ₹7.50       (medium bulk from supplier)
-       61–100 tpd → ₹6.50      (good volume discount)
-       101+ tpd → ₹5.50        (wholesale price)
-     Most subscription ops use steel dabbas = ₹0 recurring.
-     Default set to ₹0 (steel dabba assumption) with option to override.
+     Default ₹0 (steel dabba subscription model).
   ═══════════════════════════════════════════════════════════════════
 */
 
@@ -896,39 +873,44 @@ const AUTO_BASE = {
   working_days: 26,
 
   // RENT — step-fixed by student count [min_students, monthly_rent]
+  // Base room rate: ₹8,000 (Varanasi 2026 market rate)
   rent_steps: [
-    [0,   5000],   // home kitchen / 1 room
-    [36,  8000],   // bigger space
-    [71, 12000],   // commercial kitchen
+    [0,   8000],   // home kitchen / 1 room @ ₹8,000
+    [36,  12000],  // bigger space / 2 rooms
+    [71,  18000],  // commercial kitchen
   ],
 
   // LABOUR — [min_students, helpers_count, monthly_cost]
+  // Employee salary: ₹11,000/helper (Varanasi 2026 rate)
   labour_steps: [
     [0,   0,  0],     // owner only
-    [11,  1,  9000],  // 1 helper
-    [26,  2,  18000], // 2 helpers
-    [46,  3,  26000], // 3 helpers
-    [71,  4,  34000], // 4 helpers
-    [101, 5,  42000], // 5 helpers
+    [11,  1,  11000], // 1 helper @ ₹11,000
+    [26,  2,  22000], // 2 helpers @ ₹11,000 each
+    [46,  3,  33000], // 3 helpers @ ₹11,000 each
+    [71,  4,  44000], // 4 helpers @ ₹11,000 each
+    [101, 5,  55000], // 5 helpers @ ₹11,000 each
   ],
 
   // GAS — LPG consumption per tiffin (grams) by batch size
-  // cylinder = 19kg domestic = ₹900 each
-  gas_cyl_kg:    19,
-  gas_cyl_price: 900,
-  // [max_tpm, lpg_g_per_tiffin]
+  // Cylinder: 14kg @ ₹1,500 (Varanasi 2026 rate)
+  gas_cyl_kg:    14,
+  gas_cyl_price: 1500,
+  // [max_tpd (tiffins/day), lpg_g_per_tiffin] — batch size = daily volume
   gas_tiers: [
-    [300,  55],   // small batch
-    [800,  45],   // medium batch
-    [Infinity, 35], // large deg
+    [15,  55],          // small batch  : ≤15 tiffins/day (home pressure cooker)
+    [60,  45],          // medium batch : 16–60 tiffins/day (large pressure cooker)
+    [Infinity, 35],     // large deg    : 61+ tiffins/day (commercial deg)
   ],
 
-  // ELECTRICITY — step-fixed [min_students, monthly_bill]
+  // ELECTRICITY — step-fixed [min_students, monthly_units]
+  // Rate: ₹10/unit (Varanasi UP Bijli 2026)
+  // Units consumed: small=80u, medium=140u, large=200u, heavy=280u
+  elec_rate_per_unit: 10,
   elec_steps: [
-    [0,   700],
-    [26,  1200],
-    [51,  1800],
-    [81,  2500],
+    [0,   80],   // basic: mixer, fridge, lighting → 80 units → ₹800
+    [26,  140],  // moderate: larger setup → 140 units → ₹1,400
+    [51,  200],  // medium: 2 mixers, large fridge → 200 units → ₹2,000
+    [81,  280],  // heavy: commercial equipment → 280 units → ₹2,800
   ],
 
   // PETROL — step-fixed [min_students, monthly_petrol]
@@ -980,31 +962,33 @@ function autoCalcExpenses(students, tiffinsPerMonth) {
     if (s >= minS) { labour = cost; helpers = h; }
   });
   if (helpers === 0) labourNote = 'owner manages alone';
-  else labourNote = `${helpers} helper${helpers > 1 ? 's' : ''} @ ₹${Math.round(labour/helpers).toLocaleString('en-IN')}/helper`;
+  else labourNote = `${helpers} helper${helpers > 1 ? 's' : ''} @ ₹11,000/helper`;
 
   // ── 3. GAS / LPG — measured cooking load, cylinder based ──
-  // Step 1: pick LPG consumption rate by batch size
+  // Step 1: pick LPG consumption rate by batch size (daily volume determines efficiency)
   let lpgPerTiffin = AUTO_BASE.gas_tiers[AUTO_BASE.gas_tiers.length - 1][1];
-  for (const [maxTpm, g] of AUTO_BASE.gas_tiers) {
-    if (tiffinsPerMonth <= maxTpm) { lpgPerTiffin = g; break; }
+  for (const [maxTpd, g] of AUTO_BASE.gas_tiers) {
+    if (tpd <= maxTpd) { lpgPerTiffin = g; break; }
   }
   // Step 2: total LPG in grams for the month
   const lpgMonthG  = tiffinsPerMonth * lpgPerTiffin;
-  // Step 3: cylinders needed (19 kg domestic = 19,000 g each)
+  // Step 3: cylinders needed (14 kg cylinder = 14,000 g each)
   const cylCount   = Math.max(1, Math.ceil(lpgMonthG / (AUTO_BASE.gas_cyl_kg * 1000)));
   const gas        = cylCount * AUTO_BASE.gas_cyl_price;
-  const gasNote    = `${cylCount} cyl × ₹${AUTO_BASE.gas_cyl_price} · ${lpgPerTiffin}g LPG/tiffin · ${Math.round(lpgMonthG/1000)}kg/month`;
+  const gasNote    = `${cylCount} cyl × ₹${AUTO_BASE.gas_cyl_price} · ${lpgPerTiffin}g LPG/tiffin · ${Math.round(lpgMonthG/1000)}kg/month (14kg cyl)`;
 
-  // ── 4. ELECTRICITY — step-fixed by equipment tier ──
-  let electricity = AUTO_BASE.elec_steps[0][1];
+  // ── 4. ELECTRICITY — step-fixed by equipment tier, ₹10/unit ──
+  let elecUnits = AUTO_BASE.elec_steps[0][1];
   let elecNote = 'basic: mixer, fridge, lighting';
-  AUTO_BASE.elec_steps.forEach(([minS, cost]) => {
-    if (s >= minS) electricity = cost;
+  AUTO_BASE.elec_steps.forEach(([minS, units]) => {
+    if (s >= minS) elecUnits = units;
   });
   if      (s >= 81) elecNote = 'heavy: commercial equipment';
   else if (s >= 51) elecNote = 'medium: 2 mixers, large fridge';
   else if (s >= 26) elecNote = 'moderate: larger setup';
   else              elecNote = 'basic: mixer, fridge, lighting';
+  const electricity = elecUnits * AUTO_BASE.elec_rate_per_unit;
+  elecNote = `${elecUnits} units × ₹${AUTO_BASE.elec_rate_per_unit}/unit · ${elecNote}`;
 
   // ── 5. PETROL / DELIVERY — zone-based step scaling ──
   let petrol = AUTO_BASE.petrol_steps[0][1];
@@ -1076,22 +1060,49 @@ function autoCalcExpenses(students, tiffinsPerMonth) {
 }
 
 let menuItems = [
-  { id:1, name:"Chawal (Rice)",   unit:"g",      servingG:45,  costPerKg:60,  category:"grain"  },
-  { id:2, name:"Dal (Pulses)",    unit:"g",      servingG:42,  costPerKg:120, category:"pulse"  },
-  { id:3, name:"Sabji",           unit:"g",      servingG:175, costPerKg:80,  category:"veggie" },
-  { id:4, name:"Roti (Aata)",     unit:"g",      servingG:127, costPerKg:50,  category:"grain"  },
-  { id:5, name:"Salad",           unit:"g",      servingG:55,  costPerKg:30,  category:"veggie" },
-  { id:6, name:"Achar (Pickle)",  unit:"g",      servingG:15,  costPerKg:300, category:"extra"  },
-  { id:7, name:"Papad",           unit:"pieces", servingG:1,   costPerKg:250, category:"extra"  },
-  { id:8, name:"Meetha (Sweet)",  unit:"g",      servingG:50,  costPerKg:200, category:"extra"  },
+  // ── ROTI ──
+  { id:1,  name:"Atta (Chakki)",           unit:"g",  servingG:175, costPerKg:42,   category:"grain"  },
+  { id:2,  name:"Ghee (Roti brushing)",    unit:"g",  servingG:5,   costPerKg:650,  category:"extra"  },
+  { id:3,  name:"Tel (Tawa/roti)",         unit:"ml", servingG:5,   costPerKg:135,  category:"extra"  },
+
+  // ── CHAWAL ──
+  { id:4,  name:"Chawal (Sona Masoori)",   unit:"g",  servingG:110, costPerKg:55,   category:"grain"  },
+
+  // ── DAL ──
+  { id:5,  name:"Dal (Arhar/Toor)",        unit:"g",  servingG:45,  costPerKg:125,  category:"pulse"  },
+  { id:6,  name:"Pyaj (Dal tadka)",        unit:"g",  servingG:20,  costPerKg:21,   category:"veggie" },
+  { id:7,  name:"Tamatar (Dal)",           unit:"g",  servingG:20,  costPerKg:29,   category:"veggie" },
+  { id:8,  name:"Adrak-Lahsun paste",      unit:"g",  servingG:5,   costPerKg:120,  category:"extra"  },
+  { id:9,  name:"Hari Mirch+Dhaniya (Dal)",unit:"g",  servingG:5,   costPerKg:100,  category:"extra"  },
+
+  // ── SABJI ──
+  { id:10, name:"Aalu (Sabji base)",       unit:"g",  servingG:100, costPerKg:22,   category:"veggie" },
+  { id:11, name:"Sabji (Bhindi/Karela)",   unit:"g",  servingG:100, costPerKg:80,   category:"veggie" },
+  { id:12, name:"Pyaj+Tamatar (Sabji)",    unit:"g",  servingG:40,  costPerKg:25,   category:"veggie" },
+  { id:13, name:"Adrak+Mirch (Sabji)",     unit:"g",  servingG:5,   costPerKg:120,  category:"extra"  },
+
+  // ── MASALE + TEL ──
+  { id:14, name:"Mustard/Refined Tel",     unit:"ml", servingG:30,  costPerKg:135,  category:"extra"  },
+  { id:15, name:"Jeera",                   unit:"g",  servingG:2,   costPerKg:300,  category:"extra"  },
+  { id:16, name:"Haldi",                   unit:"g",  servingG:3,   costPerKg:200,  category:"extra"  },
+  { id:17, name:"Dhaniya Powder",          unit:"g",  servingG:3,   costPerKg:180,  category:"extra"  },
+  { id:18, name:"Lal Mirch Powder",        unit:"g",  servingG:2,   costPerKg:250,  category:"extra"  },
+  { id:19, name:"Garam Masala",            unit:"g",  servingG:1,   costPerKg:400,  category:"extra"  },
+  { id:20, name:"Hing (Asafoetida)",       unit:"g",  servingG:0.2, costPerKg:1500, category:"extra"  },
+  { id:21, name:"Kasuri Methi",            unit:"g",  servingG:0.5, costPerKg:800,  category:"extra"  },
+  { id:22, name:"Namak (Salt)",            unit:"g",  servingG:5,   costPerKg:20,   category:"extra"  },
+
+  // ── EXTRAS ──
+  { id:23, name:"Achar (Pickle)",          unit:"g",  servingG:10,  costPerKg:150,  category:"extra"  },
+  { id:24, name:"Salad (Kheera/Pyaj)",     unit:"g",  servingG:50,  costPerKg:25,   category:"veggie" },
 ];
 
 let monthlyExpenses = [
-  { id:1, name:"Room / Rent",      amount:5000  },
-  { id:2, name:"Worker (Labour)",  amount:10000 },
+  { id:1, name:"Room / Rent",      amount:8000  },
+  { id:2, name:"Worker (Labour)",  amount:11000 },
   { id:3, name:"Petrol / Bike",    amount:1500  },
-  { id:4, name:"Gas / LPG",        amount:2000  },
-  { id:5, name:"Electricity",      amount:1000  },
+  { id:4, name:"Gas / LPG",        amount:1500  },
+  { id:5, name:"Electricity",      amount:800   },
   { id:6, name:"Miscellaneous",    amount:1000  },
 ];
 
