@@ -1375,7 +1375,7 @@ function renderOrderCard(o) {
   const status    = (o.order_status || 'pending').toLowerCase();
   const isDone    = status === 'delivered';
   const isOut     = status === 'out for delivery' || status === 'out_for_delivery';
-  const items     = (o.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
+  const items     = (o.items || []).map(i => `${_esc(i.name)}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
   const payClass  = o.payment_mode === 'upi_insuf' ? 'pay-cash' : o.user_type === 'subscriber' ? 'pay-wallet' : 'pay-cash';
   const payLabel  = o.payment_mode === 'upi_insuf' ? '💳 UPI'    : o.user_type === 'subscriber' ? '💳 Wallet'  : '💵 Cash';
   const safePhone = o.phone || '';
@@ -1414,10 +1414,10 @@ function renderOrderCard(o) {
       <span class="${payClass}">${payLabel}</span>
     </div>
     <div style="margin-bottom:6px">
-      <span class="o-name">👤 ${o.name || '—'}</span>
+      <span class="o-name">👤 ${_esc(o.name) || '—'}</span>
       <a href="tel:${safePhone}" class="o-phone" style="margin-left:10px">📞 ${safePhone}</a>
     </div>
-    <div class="o-addr" style="margin-bottom:6px">📍 ${_shortAddr(o.address) || 'No address'}</div>
+    <div class="o-addr" style="margin-bottom:6px">📍 ${_esc(_shortAddr(o.address)) || 'No address'}</div>
     <div class="o-card-row">
       <div class="o-items" style="flex:1">${items || '—'}</div>
       
@@ -1774,7 +1774,7 @@ function generateRiderPDF() {
   const tabLabel  = _activeTab === 'pending' ? 'Pending' : 'Delivered';
 
   const rows = filtered.map((o,i) => {
-    const items = (o.items||[]).map(it=>`${it.name}${it.qty>1?` ×${it.qty}`:''}`).join(', ');
+    const items = (o.items||[]).map(it=>`${_esc(it.name)}${it.qty>1?` ×${it.qty}`:''}`).join(', ');
     const slot  = o.slot ? (o.slot==='morning'?'☀️ Morning':'🌙 Evening') : (_isSlotMatch(o,'morning')?'☀️ Morning':'🌙 Evening');
     const pay   = o.payment_mode === 'upi_insuf' ? '💳 UPI' : o.user_type==='subscriber' ? '💳 Wallet' : '💵 Cash';
     const status= (o.order_status||'pending').replace(/_/g,' ');
@@ -1786,14 +1786,14 @@ function generateRiderPDF() {
       : _pc
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(_pc)}`
         : (o.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(_shortAddr(o.address))}` : '');
-    const _dispAddr = _shortAddr(o.address) || '—';
+    const _dispAddr = _esc(_shortAddr(o.address)) || '—';
     const mapCell = _mapUrl
       ? `<a href="${_mapUrl}" target="_blank" style="display:inline-block;background:#1a73e8;color:#fff;text-decoration:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;white-space:nowrap">🗺 Map</a>`
       : `<span style="color:#94a3b8;font-size:11px">—</span>`;
     return `<tr style="background:${i%2===0?'#fff':'#f9fafb'}">
       <td>${i+1}</td>
       <td style="font-family:monospace;font-size:11px">${o.order_id}</td>
-      <td><b>${o.name||'—'}</b><br><a href="tel:${o.phone||''}" style="color:#1a73e8;text-decoration:none;font-weight:600">${o.phone||''}</a></td>
+      <td><b>${_esc(o.name)||'—'}</b><br><a href="tel:${o.phone||''}" style="color:#1a73e8;text-decoration:none;font-weight:600">${o.phone||''}</a></td>
       <td style="font-size:11px;color:#334155">${_dispAddr}</td>
       <td style="font-size:12px">${items||'—'}</td>
       <td></td>
@@ -1824,7 +1824,7 @@ function generateRiderPDF() {
     @media print{.summary-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}.total-row td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>
   <h1>🛵 Tiffo Rider — ${tabLabel} Orders</h1>
-  <div class="meta">Rider: ${_rider?.name||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_appliedQuery+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
+  <div class="meta">Rider: ${_esc(_rider?.name)||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_esc(_appliedQuery)+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
   <div class="summary-bar">
     <div class="s-item"><div class="s-val">${filtered.length}</div><div class="s-lbl">Orders</div></div>
 
@@ -2210,14 +2210,14 @@ function _renderStopList() {
       <div class="stop-num ${numColor}">${numLabel}</div>
       <div class="stop-info">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-          <div class="${nameClass}">${s.order.name || '—'}</div>
+          <div class="${nameClass}">${_esc(s.order.name) || '—'}</div>
           <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
             ${nearestBadge}
             ${amount}
             <span class="stop-slot ${slotClass}" style="font-size:12px">${slotLabel}</span>
           </div>
         </div>
-        <div class="stop-addr">${_shortAddr(s.order.address)}</div>
+        <div class="stop-addr">${_esc(_shortAddr(s.order.address))}</div>
         <div class="stop-meta">
           ${dist ? `<span class="stop-dist">${dist}</span>` : ''}
           ${statusBadge}${noCoordsBadge}
@@ -2285,8 +2285,8 @@ function _placeMarkers() {
     })
       .addTo(_map)
       .bindPopup(
-        `<b style="font-size:13px">${s.order.name || '—'}</b>${distLabel}${batchBadge}` +
-        `<br><span style="font-size:11px;color:#475569">${_shortAddr(s.order.address)}</span>` +
+        `<b style="font-size:13px">${_esc(s.order.name) || '—'}</b>${distLabel}${batchBadge}` +
+        `<br><span style="font-size:11px;color:#475569">${_esc(_shortAddr(s.order.address))}</span>` +
         `<br><span style="font-size:10px;color:#94a3b8">${s.order.order_id || ''}</span>`
       );
     marker.on('click', () => { _scrollToCard(i); });
@@ -2829,12 +2829,12 @@ function _showCelebration() {
   // ── Delivered list rows ──
   const deliveredRows = delivered.map((s, i) => {
     const o = s.order;
-    const items = (o.items||[]).map(i => i.name).join(', ') || '—';
+    const items = (o.items||[]).map(i => _esc(i.name)).join(', ') || '—';
     const pay = o.payment_mode === 'upi_insuf' ? '💳 UPI' : o.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
     return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)">
       <div style="width:26px;height:26px;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;color:white">${i+1}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px;color:#f1f5f9">${o.name||'—'}</div>
+        <div style="font-weight:700;font-size:13px;color:#f1f5f9">${_esc(o.name)||'—'}</div>
         <div style="font-size:11px;color:#94a3b8;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${items}</div>
       </div>
       <div style="font-size:11px;color:#6ee7b7;font-weight:600;white-space:nowrap">${pay}</div>
@@ -2846,7 +2846,7 @@ function _showCelebration() {
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)">
       <div style="width:26px;height:26px;background:#f59e0b;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⏭</div>
       <div style="flex:1">
-        <div style="font-weight:600;font-size:13px;color:#fbbf24">${o.name||'—'}</div>
+        <div style="font-weight:600;font-size:13px;color:#fbbf24">${_esc(o.name)||'—'}</div>
         <div style="font-size:11px;color:#94a3b8">${o.phone||''}</div>
       </div>
     </div>`;
@@ -4107,6 +4107,38 @@ window.addEventListener('popstate', () => {
 </script>
 
 <script>
+// ── XSS sanitizer ────────────────────────────────────────────────────────────
+// Use _esc(userValue) whenever putting user-supplied data (customer name,
+// address, order item names, etc.) into innerHTML. Converts < > " ' & to safe
+// HTML entities so a name like <img src=x onerror=alert(1)> renders as text,
+// not as executable HTML.
+function _esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Use _escAttr(userValue) whenever embedding user-supplied data inside an
+// onclick="fn('...')" style inline handler. This value crosses TWO parsing
+// boundaries: the browser first parses the HTML attribute (decoding entities),
+// THEN runs the resulting string as JS, so HTML-escaping alone is not enough —
+// JS-escape first, then HTML-escape.
+function _escAttr(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, '\\n')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 /* ── Service Worker registration — auto-reload on new Vercel deploy ── */
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js', { scope: '/rider/' }).then(reg => {
