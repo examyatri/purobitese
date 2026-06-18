@@ -1,6 +1,9 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.4  |  Updated : 2026-06-14
+   Version : v12.5  |  Updated : 2026-06-18
+
+   CHANGES v12.5:
+   - Cache bumped → tiffo-admin-v24 (v157 — CSP header + SIGTERM + credentials hint removed)
 
    CHANGES v12.4:
    - Cache bumped → tiffo-admin-v23 (v154 deploy — cache sync)
@@ -41,7 +44,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v23';
+const CACHE      = 'tiffo-admin-v24'; // v157: CSP header + SIGTERM + credentials hint removed
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */

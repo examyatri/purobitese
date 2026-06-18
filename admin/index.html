@@ -1012,7 +1012,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     <div class="field"><label>Username</label><input id="a-username" type="text" placeholder="admin" autocomplete="username"></div>
     <div class="field"><label>Password</label><input id="a-password" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
     <button class="btn btn-p" style="width:100%;justify-content:center;padding:12px 18px;font-size:14px;margin-top:4px" onclick="doAdminLogin()"><i class="fa fa-right-to-bracket"></i> Sign In</button>
-    <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:14px;background:#f8fafc;border-radius:8px;padding:8px">Default: admin / admin123</p>
+
   </div>
 </div>
 
@@ -2176,6 +2176,41 @@ async function doAdminLogin() {
   } catch(e) { npDone(); aToast(e.message || 'Login failed'); }
 }
 
+// ── XSS sanitizer ────────────────────────────────────────────────────────────
+// Use _esc(userValue) whenever putting user-supplied data into innerHTML.
+// Converts < > " ' & to safe HTML entities so a name like
+// <img src=x onerror=alert(1)> renders as text, not as executable HTML.
+function _esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Use _escAttr(userValue) whenever embedding user-supplied data inside an
+// onclick="fn('...')" style inline handler. This value crosses TWO parsing
+// boundaries: the browser first parses the HTML attribute (decoding entities),
+// THEN runs the resulting string as JS. HTML-escaping alone is NOT enough here —
+// once the browser decodes &#39; back to ' during attribute parsing, the raw
+// quote character lands inside the JS source and can still break out of the
+// single-quoted string. So: first JS-escape (so the decoded JS source sees a
+// literal, harmless quote), THEN HTML-escape (so the value can't break out of
+// the double-quoted attribute itself via a literal " or &).
+function _escAttr(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')   // escape backslashes first
+    .replace(/'/g, "\\'")      // escape single quotes for the JS string literal
+    .replace(/\r?\n/g, '\\n')  // literal newlines would break the JS string
+    .replace(/&/g, '&amp;')    // now make the result safe as an HTML attribute
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function applyRoleRestrictions(role) {
   const isStaff = role === 'staff';
   document.querySelectorAll('.admin-only').forEach(el => {
@@ -2944,7 +2979,7 @@ async function loadDashboard() {
       ro.innerHTML = `<table><thead><tr><th>Order ID</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
         <tbody>${orders.slice(0,10).map(o=>`<tr>
           <td><code style="font-size:11px">${o.order_id}</code></td>
-          <td>${o.name||'—'}</td>
+          <td>${_esc(o.name)||'—'}</td>
           <td>₹${o.final_amount||0}</td>
           <td>${statusBadge(o.order_status)}</td>
           <td style="font-size:12px">${fmtDate(o.date)}</td>
@@ -2996,7 +3031,7 @@ async function _loadStatDetail(type) {
         </tr></thead>
         <tbody>${orders.map(o=>`<tr style="border-bottom:1px solid #f1f5f9">
           <td style="padding:7px 6px"><code style="font-size:11px">${o.order_id}</code></td>
-          <td style="padding:7px 6px">${o.name||'—'}<br><small style="color:#94a3b8">${o.phone||''}</small></td>
+          <td style="padding:7px 6px">${_esc(o.name)||'—'}<br><small style="color:#94a3b8">${o.phone||''}</small></td>
           <td style="padding:7px 6px;text-align:right">₹${o.final_amount||0}</td>
           <td style="padding:7px 6px">${statusBadge(o.order_status)}</td>
         </tr>`).join('')}</tbody></table></div>`;
@@ -3191,7 +3226,7 @@ function renderOrdersTable(orders) {
   const cntBadge = document.getElementById('ord-count-badge');
   if (cntBadge) cntBadge.textContent = `${filtered.length} order${filtered.length!==1?'s':''}`;
 
-  const riderOpts = _ridersCache.map(r=>`<option value="${r.rider_id}">${r.name}</option>`).join('');
+  const riderOpts = _ridersCache.map(r=>`<option value="${r.rider_id}">${_esc(r.name)}</option>`).join('');
 
   const tbody = document.getElementById('orders-tbody');
   if (!tbody) return;
@@ -3249,7 +3284,7 @@ function renderOrdersTable(orders) {
 
     // ── Rider ──
     const riderHtml = o.rider_name
-      ? `<div class="rider-cell"><div style="font-weight:600">${o.rider_name}</div><div class="rider-id">${o.rider_id||''}</div></div>`
+      ? `<div class="rider-cell"><div style="font-weight:600">${_esc(o.rider_name)}</div><div class="rider-id">${o.rider_id||''}</div></div>`
       : `<span style="color:#94a3b8;font-size:12px">Unassigned</span>`;
 
     // ── Date ──
@@ -3268,7 +3303,7 @@ function renderOrdersTable(orders) {
         </div>
       </td>
       <td>
-        <div style="font-weight:600;font-size:13px;color:#0f172a">${o.name||'—'}</div>
+        <div style="font-weight:600;font-size:13px;color:#0f172a">${_esc(o.name)||'—'}</div>
         <div style="font-size:11.5px;color:#64748b;margin-top:2px">${o.phone||''}</div>
       </td>
       <td style="max-width:160px">${itemsHtml}</td>
@@ -3286,11 +3321,11 @@ function renderOrdersTable(orders) {
         <div style="display:flex;flex-direction:column;gap:5px;min-width:160px">
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <a href="https://wa.me/91${o.phone}?text=${encodeURIComponent('Hello sir, aapne items order kiye hain, mujhe iske regarding aapse kuch information chahiye thi.')}" target="_blank" class="act-btn act-btn-wa"><i class="fa-brands fa-whatsapp"></i> WA</a>
-            <button class="act-btn" style="background:#eff6ff;color:#1d4ed8" onclick="openWalletHistory('${o.phone}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-wallet"></i> Wallet</button>
+            <button class="act-btn" style="background:#eff6ff;color:#1d4ed8" onclick="openWalletHistory('${o.phone}','${_escAttr(o.name)}')"><i class="fa fa-wallet"></i> Wallet</button>
           </div>
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <button class="act-btn act-btn-update" onclick="openUpdateModal('${o.order_id}','${o.rider_id||''}','${o.order_status||'pending'}','${o.payment_status||'pending'}')"><i class="fa fa-pen-to-square"></i> Update</button>
-            <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${(o.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-ban"></i> Reject</button>
+            <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${_escAttr(o.name)}')"><i class="fa fa-ban"></i> Reject</button>
           </div>
         </div>
       </td>
@@ -3300,7 +3335,7 @@ function renderOrdersTable(orders) {
 
 // ── Assign Rider Modal ──
 function openAssignRiderModal(orderId, currentRiderId) {
-  const opts = _ridersCache.map(r=>`<button onclick="assignRider('${orderId}','${r.rider_id}');closeMo()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border:2px solid ${r.rider_id===currentRiderId?'var(--p)':'#e2e8f0'};border-radius:10px;background:${r.rider_id===currentRiderId?'#fff8f8':'white'};cursor:pointer;font-family:var(--ff);font-size:13px;font-weight:600;color:#0f172a;transition:all 160ms;margin-bottom:7px" onmouseover="this.style.borderColor='var(--p)'" onmouseout="this.style.borderColor='${r.rider_id===currentRiderId?'var(--p)':'#e2e8f0'}'"><i class="fa fa-motorcycle" style="color:var(--p)"></i>${r.name}<span style="margin-left:auto;font-size:11px;color:#64748b">#${r.rider_id}</span></button>`).join('');
+  const opts = _ridersCache.map(r=>`<button onclick="assignRider('${orderId}','${r.rider_id}');closeMo()" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border:2px solid ${r.rider_id===currentRiderId?'var(--p)':'#e2e8f0'};border-radius:10px;background:${r.rider_id===currentRiderId?'#fff8f8':'white'};cursor:pointer;font-family:var(--ff);font-size:13px;font-weight:600;color:#0f172a;transition:all 160ms;margin-bottom:7px" onmouseover="this.style.borderColor='var(--p)'" onmouseout="this.style.borderColor='${r.rider_id===currentRiderId?'var(--p)':'#e2e8f0'}'"><i class="fa fa-motorcycle" style="color:var(--p)"></i>${_esc(r.name)}<span style="margin-left:auto;font-size:11px;color:#64748b">#${r.rider_id}</span></button>`).join('');
   openMo(`<div class="mo-title"><i class="fa fa-motorcycle" style="color:var(--p)"></i> Assign Rider</div>
     <p style="color:#64748b;font-size:13px;margin-bottom:16px">Select rider for order <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code></p>
     ${opts||'<p style="color:#94a3b8;text-align:center;padding:20px">No riders available</p>'}
@@ -3398,7 +3433,7 @@ async function openWalletHistory(phone, customerName) {
                 <div style="font-family:var(--ff);font-size:13px;font-weight:700;color:#0f172a">${typeLabel(e.type)}</div>
                 <div style="font-family:var(--ff);font-size:14px;font-weight:800;color:${amtColor};white-space:nowrap">${amtSign}₹${Math.abs(amt)}</div>
               </div>
-              <div style="font-size:11.5px;color:#64748b;margin-top:2px">${e.note||'—'}</div>
+              <div style="font-size:11.5px;color:#64748b;margin-top:2px">${_esc(e.note)||'—'}</div>
               <div style="display:flex;gap:10px;margin-top:3px;font-size:10.5px;color:#94a3b8">
                 <span>${e.date||''} ${e.time||''}</span>
                 ${e.order_id?`<span>· ${e.order_id}</span>`:''}
@@ -3533,7 +3568,7 @@ async function assignRider(orderId, riderId) {
 // ── Update Modal (Bulk: Rider + Status + Payment) ──
 function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment) {
   const riderOpts = _ridersCache.map(r =>
-    `<option value="${r.rider_id}" ${r.rider_id === currentRiderId ? 'selected' : ''}>${r.name} (#${r.rider_id})</option>`
+    `<option value="${r.rider_id}" ${r.rider_id === currentRiderId ? 'selected' : ''}>${_esc(r.name)} (#${r.rider_id})</option>`
   ).join('');
 
   const statusOpts = ['pending','preparing','out for delivery','delivered'].map(s =>
@@ -3750,11 +3785,11 @@ function renderBulkSubsList() {
     const planLabel = s.plan_end ? s.plan_end.slice(5).replace('-','/') : '—';
     return `<div class="bulk-sub-row${checked?' selected':''}${!s.eligible&&!s._manual?' ineligible':''}" onclick="bulkToggleRow('${s.phone}',this)">
       <div><input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();bulkToggleRow('${s.phone}',this.closest('.bulk-sub-row'))"></div>
-      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name}</div>
+      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(s.name)}</div>
       <div style="color:#64748b">${planLabel}</div>
       <div style="font-weight:700;color:${balColor}">₹${bal.toFixed(0)}</div>
       <div>${statusTag}</div>
-      <div style="color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${_adminShortAddr(s.address)||'—'}</div>
+      <div style="color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${_esc(_adminShortAddr(s.address))||'—'}</div>
     </div>`;
   }).join('');
   updateBulkSelectedCount();
@@ -3839,7 +3874,7 @@ async function bulkAddManual() {
 
     // ── Hard block: already has an order for this slot today ──────────────
     if (u.already_ordered) {
-      if (infoEl) infoEl.innerHTML = `<span style="color:#dc2626;font-weight:600">⚠ ${u.name||ph} already has an order for <b>${slot}</b> slot today — skipped.</span>`;
+      if (infoEl) infoEl.innerHTML = `<span style="color:#dc2626;font-weight:600">⚠ ${_esc(u.name||ph)} already has an order for <b>${slot}</b> slot today — skipped.</span>`;
       return;
     }
 
@@ -3847,7 +3882,7 @@ async function bulkAddManual() {
     if (u.slot_paused) {
       const pauseLabel = u.pause_delivery !== 'none' ? u.pause_delivery : 'this slot';
       if (!confirm(`${u.name||ph} has paused delivery (${pauseLabel}). Add order anyway?`)) {
-        if (infoEl) infoEl.innerHTML = `<span style="color:#92400e;font-weight:600">↩ Cancelled — ${u.name||ph} is paused for ${slot}.</span>`;
+        if (infoEl) infoEl.innerHTML = `<span style="color:#92400e;font-weight:600">↩ Cancelled — ${_esc(u.name||ph)} is paused for ${slot}.</span>`;
         return;
       }
     }
@@ -3876,14 +3911,14 @@ async function bulkAddManual() {
     // Show appropriate info message
     const balStr = `₹${bal.toFixed(0)}`;
     if (isUdhar) {
-      if (infoEl) infoEl.innerHTML = `<span style="color:#b45309;font-weight:600">⚠ Added: ${u.name||ph} — Low balance (${balStr}), will be treated as <b>Udhar</b>.</span>`;
+      if (infoEl) infoEl.innerHTML = `<span style="color:#b45309;font-weight:600">⚠ Added: ${_esc(u.name||ph)} — Low balance (${balStr}), will be treated as <b>Udhar</b>.</span>`;
     } else if (u.slot_paused) {
-      if (infoEl) infoEl.innerHTML = `<span style="color:#7c3aed;font-weight:600">✓ Added: ${u.name||ph} (paused — admin override). Balance: ${balStr}</span>`;
+      if (infoEl) infoEl.innerHTML = `<span style="color:#7c3aed;font-weight:600">✓ Added: ${_esc(u.name||ph)} (paused — admin override). Balance: ${balStr}</span>`;
     } else {
-      if (infoEl) infoEl.innerHTML = `<span style="color:#166534;font-weight:600">✓ Added: ${u.name||ph}${u.is_subscriber ? '' : ' (non-subscriber)'}. Balance: ${balStr}</span>`;
+      if (infoEl) infoEl.innerHTML = `<span style="color:#166534;font-weight:600">✓ Added: ${_esc(u.name||ph)}${u.is_subscriber ? '' : ' (non-subscriber)'}. Balance: ${balStr}</span>`;
     }
     document.getElementById('bulk-manual-phone').value = '';
-  } catch(e) { npDone(); if (infoEl) infoEl.innerHTML = `<span style="color:#ef4444">${e.message||'User not found'}</span>`; }
+  } catch(e) { npDone(); if (infoEl) infoEl.innerHTML = `<span style="color:#ef4444">${_esc(e.message||'User not found')}</span>`; }
 }
 
 // ── Bulk multi-item state ────────────────────────────────────────────────────
@@ -4897,18 +4932,18 @@ function renderSubsTable() {
     return `
     <tr class="${rowCls}">
       <td style="font-size:13px">${s.phone||'—'}</td>
-      <td><b style="font-size:13.5px">${s.name||'—'}</b></td>
+      <td><b style="font-size:13.5px">${_esc(s.name)||'—'}</b></td>
       <td>${getPlanBadge(s)}</td>
       <td>${getStatusBadge(s)}</td>
-      <td style="font-size:12px;max-width:130px;color:#64748b" title="${s.address||''}">${addr}</td>
+      <td style="font-size:12px;max-width:130px;color:#64748b" title="${_esc(s.address)}">${_esc(addr)}</td>
       <td><b style="color:${balColor}">₹${bal}</b>${lowWarn}</td>
       <td style="font-size:12px;color:#64748b">${fmtDate(s.plan_start)}</td>
       <td>
         <div style="display:flex;gap:5px;flex-wrap:wrap;min-width:200px">
           <button class="btn btn-outline" style="padding:5px 9px;font-size:11px" title="Edit" onclick="openSubEditModal('${s.phone}')"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-g" style="padding:5px 9px;font-size:11px" title="Recharge Wallet" onclick="openRechargeModal('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-wallet"></i> ₹+</button>
-          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px" title="Remove Subscription" onclick="removeSub('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-user-minus"></i></button>
-          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px;background:#3b0a0a;color:white;border-color:#3b0a0a" title="Delete User Completely" onclick="deleteSubUserCompletely('${s.phone}','${(s.name||'').replace(/'/g,"\\'")}')"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-g" style="padding:5px 9px;font-size:11px" title="Recharge Wallet" onclick="openRechargeModal('${s.phone}','${_escAttr(s.name)}')"><i class="fa fa-wallet"></i> ₹+</button>
+          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px" title="Remove Subscription" onclick="removeSub('${s.phone}','${_escAttr(s.name)}')"><i class="fa fa-user-minus"></i></button>
+          <button class="btn btn-danger" style="padding:5px 9px;font-size:11px;background:#3b0a0a;color:white;border-color:#3b0a0a" title="Delete User Completely" onclick="deleteSubUserCompletely('${s.phone}','${_escAttr(s.name)}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`;
@@ -4937,8 +4972,8 @@ async function findUserForPromote() {
     const u = res.user;
     document.getElementById('promote-user-info').innerHTML = `
       <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
-        <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--blue),#6366f1);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px">${(u.name||'?')[0].toUpperCase()}</div>
-        <div><div style="font-weight:700;font-size:14px">${u.name||'—'}</div><div style="font-size:12px;color:#64748b">${u.phone}</div></div>
+        <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--blue),#6366f1);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px">${_esc((u.name||'?')[0].toUpperCase())}</div>
+        <div><div style="font-weight:700;font-size:14px">${_esc(u.name)||'—'}</div><div style="font-size:12px;color:#64748b">${u.phone}</div></div>
       </div>
       <div class="field"><label>Plan</label>
         <select id="promo-plan">
@@ -5012,7 +5047,7 @@ function openSubEditModal(phone) {
   const s = _subs.find(x => x.phone === phone);
   if (!s) return;
   openMo(`
-    <div class="mo-title"><i class="fa fa-edit" style="color:var(--blue)"></i> Edit Subscriber — ${s.name}</div>
+    <div class="mo-title"><i class="fa fa-edit" style="color:var(--blue)"></i> Edit Subscriber — ${_esc(s.name)}</div>
     <div class="field"><label>Plan</label>
       <select id="se-plan">
         <option value="morning" ${getSubsPlan(s)==='day'?'selected':''}>Morning Tiffin (Day)</option>
@@ -5021,7 +5056,7 @@ function openSubEditModal(phone) {
       </select>
     </div>
     <div class="field"><label>Plan Start Date</label><input id="se-start" type="date" value="${s.plan_start||''}"></div>
-    <div class="field"><label>Notes</label><textarea id="se-notes" rows="3">${s.notes||''}</textarea></div>
+    <div class="field"><label>Notes</label><textarea id="se-notes" rows="3">${_esc(s.notes)}</textarea></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
       <button class="btn btn-p" onclick="saveSubEdit('${phone}')">Save Changes</button>
@@ -5044,7 +5079,7 @@ async function saveSubEdit(phone) {
 // ── Recharge Modal ────────────────────────────────────────
 function openRechargeModal(phone, name) {
   openMo(`
-    <div class="mo-title"><i class="fa fa-wallet" style="color:var(--g)"></i> Recharge Wallet — ${name}</div>
+    <div class="mo-title"><i class="fa fa-wallet" style="color:var(--g)"></i> Recharge Wallet — ${_esc(name)}</div>
     <div class="field"><label>Amount (₹)</label><input id="rch-amt" type="number" min="1" placeholder="Enter amount to add" style="font-size:18px;font-weight:700"></div>
     <div class="field">
       <label>Payment Mode</label>
@@ -5066,7 +5101,7 @@ function openRechargeModal(phone, name) {
     <div class="field"><label>Notes <span style="color:#94a3b8;font-weight:400">optional</span></label><input id="rch-note" placeholder="e.g. Monthly recharge, cash collected"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-g" onclick="doRecharge('${phone}','${name}')"><i class="fa fa-plus"></i> Recharge</button>
+      <button class="btn btn-g" onclick="doRecharge('${phone}','${_escAttr(name)}')"><i class="fa fa-plus"></i> Recharge</button>
     </div>`);
 }
 
@@ -5095,7 +5130,7 @@ async function doRecharge(phone, name) {
 
 // ── Remove Subscriber (keep user account) ─────────────────
 async function removeSub(phone, name) {
-  confirmAction(`Remove <b>${name}</b> from subscribers?<br><small style="color:#64748b">User account will remain. Only subscription is removed.</small>`, async function() {
+  confirmAction(`Remove <b>${_esc(name)}</b> from subscribers?<br><small style="color:#64748b">User account will remain. Only subscription is removed.</small>`, async function() {
     try { await api('removeSubscriber', { phone }); loadSubscribers(); aToast('Removed from subscribers'); }
     catch(e) { aToast(e.message); }
   });
@@ -5103,7 +5138,7 @@ async function removeSub(phone, name) {
 
 // ── Delete User Completely ────────────────────────────────
 async function deleteSubUserCompletely(phone, name) {
-  confirmAction(`⚠️ Permanently delete user <b>${name}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all data. Cannot be undone.</small>`, async function() {
+  confirmAction(`⚠️ Permanently delete user <b>${_esc(name)}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all data. Cannot be undone.</small>`, async function() {
     try {
       await api('removeSubscriber', { phone });
       await api('adminDeleteUser', { phone });
@@ -5239,17 +5274,17 @@ function renderUsersTable(users) {
       <td>
         <div style="display:flex;align-items:center;gap:9px">
           <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--p),#f97316);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0">
-            ${(u.name||'U')[0].toUpperCase()}
+            ${_esc((u.name||'U')[0].toUpperCase())}
           </div>
           <div>
-            <div style="font-weight:700;font-size:13px;color:#0f172a">${u.name||'\u2014'}</div>
+            <div style="font-weight:700;font-size:13px;color:#0f172a">${_esc(u.name)||'\u2014'}</div>
             <div style="font-size:10px;color:#94a3b8;font-family:monospace">${(u.user_id||'').substring(0,10)}</div>
           </div>
         </div>
       </td>
       <td style="font-size:13px;font-weight:600">${u.phone||'\u2014'}</td>
       <td style="font-size:12px;color:#475569">${_ratingBadge(u.rating)}</td>
-      <td style="font-size:12px;color:#475569;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${u.address||''}">${_adminShortAddr(u.address)||'<span style="color:#cbd5e1">\u2014</span>'}</td>
+      <td style="font-size:12px;color:#475569;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${_esc(u.address)}">${_esc(_adminShortAddr(u.address))||'<span style="color:#cbd5e1">\u2014</span>'}</td>
       <td>${subBadge(u)}</td>
       <td style="white-space:nowrap">${zoneBadge(u)}</td>
       <td style="white-space:nowrap">${coordBadge(u)}</td>
@@ -5259,7 +5294,7 @@ function renderUsersTable(users) {
       <td>
         <div style="display:flex;flex-direction:column;gap:5px;min-width:136px">
           <div style="display:flex;gap:4px">
-            <button onclick="viewUserOrders('${u.phone}','${u.name}')" title="View Orders"
+            <button onclick="viewUserOrders('${u.phone}','${_escAttr(u.name)}')" title="View Orders"
               style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;box-shadow:0 2px 6px rgba(59,130,246,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
               <i class="fa fa-receipt" style="font-size:10px"></i> Orders
             </button>
@@ -5269,26 +5304,26 @@ function renderUsersTable(users) {
             </a>
           </div>
           <div style="display:flex;gap:4px">
-            <button onclick="openUserRatingModal('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}',${u.manual_score||0},${u.rating||0})" title="Update Rating"
+            <button onclick="openUserRatingModal('${u.phone}','${_escAttr(u.name)}',${u.manual_score||0},${u.rating||0})" title="Update Rating"
               style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
               <i class="fa fa-star" style="font-size:10px"></i> Rating
             </button>
-            <button class="btn btn-danger" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 2px 6px rgba(239,68,68,.30);transition:opacity .15s" onclick="deleteUserFromAllTab('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}') " title="Delete User" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+            <button class="btn btn-danger" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 2px;font-size:11px;font-weight:600;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 2px 6px rgba(239,68,68,.30);transition:opacity .15s" onclick="deleteUserFromAllTab('${u.phone}','${_escAttr(u.name)}') " title="Delete User" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
               <i class="fa fa-trash" style="font-size:10px"></i> Delete
             </button>
           </div>
-          <button onclick="resetUserPw('${u.phone}','${u.name}')" title="Reset Password"
+          <button onclick="resetUserPw('${u.phone}','${_escAttr(u.name)}')" title="Reset Password"
             style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#64748b,#475569);color:#fff;box-shadow:0 2px 6px rgba(100,116,139,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
             <i class="fa fa-key" style="font-size:10px"></i> Reset Password
           </button>
-          <button onclick="openEditUserAddress('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}','${(u.address||'').replace(/\n/g,'\\n').replace(/'/g,"\\'")}','${(u.area||'').replace(/'/g,"\\'")}' )" title="Edit Delivery Address"
+          <button onclick="openEditUserAddress('${u.phone}','${_escAttr(u.name)}','${_escAttr(u.address)}','${_escAttr(u.area)}' )" title="Edit Delivery Address"
             style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 2px 6px rgba(14,165,233,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
             <i class="fa fa-location-dot" style="font-size:10px"></i> Edit Address
           </button>
           ${!u.is_subscriber ? `<button onclick="promoteUserFromAllTab('${u.phone}')" title="Promote to Subscriber" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.35);letter-spacing:.2px;transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-arrow-up" style="font-size:10px"></i> Promote to Subscriber</button>` : `<div style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border-radius:7px;background:#dcfce7;color:#16a34a;"><i class="fa fa-crown" style="font-size:10px"></i> Subscribed</div>`}
           ${u.order_allowed === false
-            ? `<button onclick="adminAllowUserOrder('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}')" title="Allow this user to place orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-unlock" style="font-size:10px"></i> Allow Orders</button>`
-            : `<button onclick="adminBlockUserOrder('${u.phone}','${(u.name||'').replace(/'/g,"\\'")}')" title="Block this user from placing orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff;box-shadow:0 2px 6px rgba(100,116,139,.25);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-lock" style="font-size:10px"></i> Block Orders</button>`}
+            ? `<button onclick="adminAllowUserOrder('${u.phone}','${_escAttr(u.name)}')" title="Allow this user to place orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-unlock" style="font-size:10px"></i> Allow Orders</button>`
+            : `<button onclick="adminBlockUserOrder('${u.phone}','${_escAttr(u.name)}')" title="Block this user from placing orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff;box-shadow:0 2px 6px rgba(100,116,139,.25);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-lock" style="font-size:10px"></i> Block Orders</button>`}
         </div>
       </td>
     </tr>`).join('') :
@@ -5323,9 +5358,9 @@ function downloadUsersPDF() {
   const rows = list.map((u, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td>${(u.name || '—').replace(/</g,'&lt;')}</td>
+      <td>${_esc(u.name) || '—'}</td>
       <td>${u.phone || '—'}</td>
-      <td>${(u.area || u.address || '—').replace(/</g,'&lt;').replace(/\n/g,', ')}</td>
+      <td>${_esc((u.area || u.address || '—').replace(/\n/g,', '))}</td>
     </tr>`).join('');
 
   const now = new Date().toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' });
@@ -5362,7 +5397,7 @@ function downloadUsersPDF() {
 /* ── Allow outside-zone user to place orders ── */
 async function adminAllowUserOrder(phone, name) {
   confirmAction(
-    `Allow <b>${name || phone}</b> to place orders even though they are outside the delivery zone?`,
+    `Allow <b>${_esc(name) || phone}</b> to place orders even though they are outside the delivery zone?`,
     async function() {
       try {
         await api('adminAllowOrder', { phone });
@@ -5378,7 +5413,7 @@ async function adminAllowUserOrder(phone, name) {
 /* ── Block a user from placing orders (reverse of adminAllowUserOrder) ── */
 async function adminBlockUserOrder(phone, name) {
   confirmAction(
-    `Block <b>${name || phone}</b> from placing orders?`,
+    `Block <b>${_esc(name) || phone}</b> from placing orders?`,
     async function() {
       try {
         await api('adminBlockOrder', { phone });
@@ -5393,7 +5428,7 @@ async function adminBlockUserOrder(phone, name) {
 
 async function deleteUserFromAllTab(phone, name) {
   confirmAction(
-    `⚠️ Permanently delete user <b>${name || phone}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all related data. This action cannot be undone.</small>`,
+    `⚠️ Permanently delete user <b>${_esc(name) || phone}</b>?<br><small style="color:#be123c">This removes the user account, subscription, wallet & all related data. This action cannot be undone.</small>`,
     async function() {
       try {
         await api('adminDeleteUser', { phone });
@@ -5441,12 +5476,12 @@ async function openEditUserAddress(phone, name, currentAddr, currentArea) {
   const existingLng = _uRow.coord_lng ? String(_uRow.coord_lng) : '';
 
   openMo(`
-    <div class="mo-title"><i class="fa fa-location-dot" style="color:#0284c7"></i> Edit Address — ${name || phone}</div>
+    <div class="mo-title"><i class="fa fa-location-dot" style="color:#0284c7"></i> Edit Address — ${_esc(name) || phone}</div>
 
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;font-family:var(--ff);color:#0369a1;line-height:1.7">
       ${hasCoords
-        ? `<div><i class="fa fa-crosshairs" style="width:14px"></i> <strong>${coordLine}</strong></div>
-           ${plusLine ? `<div><i class="fa fa-qrcode" style="width:14px"></i> Plus Code: ${plusLine}</div>` : ''}`
+        ? `<div><i class="fa fa-crosshairs" style="width:14px"></i> <strong>${_esc(coordLine)}</strong></div>
+           ${plusLine ? `<div><i class="fa fa-qrcode" style="width:14px"></i> Plus Code: ${_esc(plusLine)}</div>` : ''}`
         : `<div style="color:#b45309"><i class="fa fa-triangle-exclamation"></i> No GPS coordinates saved</div>`
       }
     </div>
@@ -5455,7 +5490,7 @@ async function openEditUserAddress(phone, name, currentAddr, currentArea) {
       <label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">
         Room / Flat <span style="font-weight:400;color:#94a3b8">(optional)</span>
       </label>
-      <input id="eua-room" type="text" value="${roomLine.replace(/"/g,'&quot;')}" placeholder="e.g. Room 12, Flat B-4"
+      <input id="eua-room" type="text" value="${_esc(roomLine)}" placeholder="e.g. Room 12, Flat B-4"
         style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:var(--ff);color:#1e293b;outline:none;box-sizing:border-box"
         oninput="_euaRebuild()" onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e2e8f0'">
     </div>
@@ -5499,7 +5534,7 @@ async function openEditUserAddress(phone, name, currentAddr, currentArea) {
       <textarea id="eua-addr" rows="5"
         style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:12px;font-family:monospace;color:#374151;outline:none;resize:vertical;line-height:1.7;box-sizing:border-box"
         onfocus="this.style.borderColor='#0ea5e9'" onblur="this.style.borderColor='#e2e8f0'"
-        placeholder="Address will appear here…">${addrLines.replace(/</g,'&lt;')}</textarea>
+        placeholder="Address will appear here…">${_esc(addrLines)}</textarea>
       <div style="font-size:11px;color:#94a3b8;margin-top:4px;font-family:var(--ff)">
         Changing Room or Area above auto-rebuilds this. You can also type directly.
       </div>
@@ -5608,10 +5643,10 @@ function promoteUserFromAllTab(phone) {
   openMo(`
     <div class="mo-title"><i class="fa fa-arrow-up" style="color:#6366f1"></i> Promote to Subscriber</div>
     <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
-      <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;flex-shrink:0">${(name||'?')[0].toUpperCase()}</div>
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;flex-shrink:0">${_esc((name||'?')[0].toUpperCase())}</div>
       <div>
-        <div style="font-weight:700;font-size:14px;color:#0f172a">${name||'—'}</div>
-        <div style="font-size:12px;color:#64748b">${phone}${address ? ' · ' + (_adminShortAddr(address)||address.split('\n')[0]).substring(0,35) : ''}</div>
+        <div style="font-weight:700;font-size:14px;color:#0f172a">${_esc(name)||'—'}</div>
+        <div style="font-size:12px;color:#64748b">${phone}${address ? ' · ' + _esc((_adminShortAddr(address)||address.split('\n')[0]).substring(0,35)) : ''}</div>
       </div>
     </div>
     <div class="field"><label>Plan</label>
@@ -5673,7 +5708,7 @@ function openUserRatingModal(phone, name, manualScore, currentRating) {
   }
 
   openMo(`
-    <div class="mo-title"><i class="fa fa-star" style="color:#f59e0b"></i> User Rating — ${name}</div>
+    <div class="mo-title"><i class="fa fa-star" style="color:#f59e0b"></i> User Rating — ${_esc(name)}</div>
 
     <!-- Current Rating Display -->
     <div style="background:linear-gradient(135deg,#fefce8,#fef3c7);border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:14px;text-align:center">
@@ -5798,17 +5833,17 @@ async function createUser() {
 }
 
 async function viewUserOrders(phone, name) {
-  openMo(`<div class="mo-title">Orders — ${name}</div><div style="text-align:center;padding:20px;color:#94a3b8">Loading…</div>`);
+  openMo(`<div class="mo-title">Orders — ${_esc(name)}</div><div style="text-align:center;padding:20px;color:#94a3b8">Loading…</div>`);
   try {
     const res = await api('getUserOrders', { phone });
     const orders = res.orders || [];
     document.getElementById('mo-box').innerHTML = `
-      <div class="mo-title">Orders — ${name}</div>
+      <div class="mo-title">Orders — ${_esc(name)}</div>
       <div class="tbl-wrap" style="max-height:55vh;overflow-y:auto">
         <table><thead><tr><th>Order ID</th><th>Items</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
         <tbody>${orders.length ? orders.map(o=>`<tr>
           <td><code style="font-size:11px">${o.order_id}</code></td>
-          <td style="font-size:12px">${(o.items||[]).map(i=>`${i.name}×${i.qty}`).join(', ')}</td>
+          <td style="font-size:12px">${(o.items||[]).map(i=>`${_esc(i.name)}×${i.qty}`).join(', ')}</td>
           <td>₹${o.final_amount||0}</td>
           <td>${statusBadge(o.order_status)}</td>
           <td style="font-size:12px">${fmtDate(o.date)}</td>
@@ -5824,7 +5859,7 @@ async function viewUserOrders(phone, name) {
 
 async function resetUserPw(phone, name) {
   openMo(`
-    <div class="mo-title">Reset Password — ${name}</div>
+    <div class="mo-title">Reset Password — ${_esc(name)}</div>
     <div class="field"><label>New Password</label><input id="rpw-new" type="password"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
@@ -5866,7 +5901,7 @@ function renderRidersTable() {
   tbody.innerHTML = _riders.length ? _riders.map(r => `
     <tr>
       <td><code style="font-size:11px">${r.rider_id||r.id}</code></td>
-      <td><b>${r.name}</b></td>
+      <td><b>${_esc(r.name)}</b></td>
       <td>${r.phone}</td>
       <td>${r.vehicle||'—'}</td>
       <td>${r.zone||'—'}</td>
@@ -5885,7 +5920,7 @@ function openRiderModal(editId = null) {
   const r = editId ? _riders.find(x => x.rider_id === editId) : null;
   openMo(`
     <div class="mo-title">${r ? 'Edit Rider' : 'Add Rider'}</div>
-    <div class="field"><label>Name</label><input id="rf-name" value="${r?.name||''}"></div>
+    <div class="field"><label>Name</label><input id="rf-name" value="${_esc(r?.name)}"></div>
     <div class="field"><label>Phone</label><input id="rf-phone" type="tel" value="${r?.phone||''}"></div>
     <div class="field"><label>Vehicle</label>
       <select id="rf-vehicle">
@@ -6031,10 +6066,11 @@ function renderKhataTable() {
 
   tbody.innerHTML = list.length ? list.map(k => {
     const bal = k.balance || 0;
-    const safeName = (k.name||'').replace(/'/g,"\\'");
+    const safeName = _escAttr(k.name);       // for onclick(...) JS-string attributes
+    const safeNameHtml = _esc(k.name);        // for plain HTML attributes/text (title, display)
     return `<tr>
       <td>
-        <div style="font-weight:700;font-size:13px;color:#0f172a">${k.name || '<span style="color:#94a3b8">—</span>'}</div>
+        <div style="font-weight:700;font-size:13px;color:#0f172a">${safeNameHtml || '<span style="color:#94a3b8">—</span>'}</div>
         <div style="font-size:11px;color:#64748b;margin-top:1px">${k.phone}</div>
       </td>
       <td><b style="font-size:15px;color:${balColor(bal)}">₹${bal.toLocaleString('en-IN')}</b></td>
@@ -6045,8 +6081,8 @@ function renderKhataTable() {
         <div style="display:flex;gap:6px;justify-content:center">
           <button class="btn btn-g" style="padding:5px 11px;font-size:12px;white-space:nowrap" onclick="openRechargeModal('${k.phone}','${safeName}')"><i class="fa fa-plus"></i> Recharge</button>
           <button class="btn btn-outline" style="padding:5px 11px;font-size:12px;white-space:nowrap" onclick="openKhataDetail('${k.phone}','${safeName}')"><i class="fa fa-clock-rotate-left"></i> History</button>
-          <a href="tel:${k.phone}" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:12px;white-space:nowrap;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;font-weight:600;text-decoration:none" title="Call ${safeName}"><i class="fa fa-phone"></i> Call</a>
-          <a href="https://wa.me/91${k.phone}?text=${encodeURIComponent('Hi '+safeName+', Tiffo se baat kar rahe hain.')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:12px;white-space:nowrap;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:8px;font-weight:600;text-decoration:none" title="WhatsApp ${safeName}"><i class="fa-brands fa-whatsapp"></i> WA</a>
+          <a href="tel:${k.phone}" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:12px;white-space:nowrap;background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;border-radius:8px;font-weight:600;text-decoration:none" title="Call ${safeNameHtml}"><i class="fa fa-phone"></i> Call</a>
+          <a href="https://wa.me/91${k.phone}?text=${encodeURIComponent('Hi '+(k.name||'')+', Tiffo se baat kar rahe hain.')}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:12px;white-space:nowrap;background:#f0fdf4;color:#15803d;border:1.5px solid #bbf7d0;border-radius:8px;font-weight:600;text-decoration:none" title="WhatsApp ${safeNameHtml}"><i class="fa-brands fa-whatsapp"></i> WA</a>
         </div>
       </td>
     </tr>`;
@@ -6055,13 +6091,13 @@ function renderKhataTable() {
 }
 
 async function openKhataDetail(phone, name) {
-  openMo(`<div class="mo-title">Khata — ${name}</div><div style="text-align:center;padding:20px;color:#94a3b8">Loading…</div>`);
+  openMo(`<div class="mo-title">Khata — ${_esc(name)}</div><div style="text-align:center;padding:20px;color:#94a3b8">Loading…</div>`);
   try {
     const res = await api('getKhata', { phone });
     const txns = res.entries || [];
     const bal  = res.balance || 0;
     document.getElementById('mo-box').innerHTML = `
-      <div class="mo-title">Khata — ${name} (${phone})</div>
+      <div class="mo-title">Khata — ${_esc(name)} (${phone})</div>
       <div style="background:${bal>=0?'#dcfce7':'#fee2e2'};border-radius:10px;padding:14px 20px;margin-bottom:16px;text-align:center">
         <div style="font-size:12px;color:${bal>=0?'#166534':'#991b1b'}">Current Balance</div>
         <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:${bal>=0?'var(--g)':'var(--p)'}">₹${bal}</div>
@@ -6072,14 +6108,14 @@ async function openKhataDetail(phone, name) {
           <td style="font-size:11px">${fmtDate(t.created_at)}</td>
           <td><span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${t.type==='credit'?'#dcfce7':'#fee2e2'};color:${t.type==='credit'?'#166534':'#991b1b'}">${t.type}</span></td>
           <td style="font-weight:600;color:${t.amount>=0?'var(--g)':'var(--p)'}">₹${Math.abs(t.amount)}</td>
-          <td style="font-size:12px">${t.note||'—'}</td>
+          <td style="font-size:12px">${_esc(t.note)||'—'}</td>
           <td style="font-size:12px">₹${t.running_balance??'—'}</td>
         </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">No transactions</td></tr>'}</tbody>
         </table>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-        <button class="btn btn-g" onclick="closeMo();openRechargeModal('${phone}','${name}')">₹ Recharge</button>
-        <button class="btn btn-outline" onclick="openAdjModal('${phone}','${name}')">Manual Adjust</button>
+        <button class="btn btn-g" onclick="closeMo();openRechargeModal('${phone}','${_escAttr(name)}')">₹ Recharge</button>
+        <button class="btn btn-outline" onclick="openAdjModal('${phone}','${_escAttr(name)}')">Manual Adjust</button>
         <button class="btn btn-outline" onclick="closeMo()">Close</button>
       </div>`;
     // Re-inject close button since innerHTML was replaced
@@ -6090,12 +6126,12 @@ async function openKhataDetail(phone, name) {
 
 function openAdjModal(phone, name) {
   openMo(`
-    <div class="mo-title">Manual Adjustment — ${name}</div>
+    <div class="mo-title">Manual Adjustment — ${_esc(name)}</div>
     <div class="field"><label>Amount (use negative for debit)</label><input id="adj-amt" type="number" placeholder="e.g. -50 or 100"></div>
     <div class="field"><label>Note</label><input id="adj-note" placeholder="Reason"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-p" onclick="doAdjustment('${phone}','${name}')">Apply</button>
+      <button class="btn btn-p" onclick="doAdjustment('${phone}','${_escAttr(name)}')">Apply</button>
     </div>`);
 }
 
@@ -6135,14 +6171,14 @@ function renderStaffTable() {
   if (!tbody) return;
   tbody.innerHTML = _staff.length ? _staff.map(s => `
     <tr>
-      <td><code>${s.username}</code></td>
-      <td>${s.name||'—'}</td>
+      <td><code>${_esc(s.username)}</code></td>
+      <td>${_esc(s.name)||'—'}</td>
       <td><span style="font-size:12px;padding:3px 10px;border-radius:20px;background:${s.role==='admin'?'#fde8ea':'#dbeafe'};color:${s.role==='admin'?'var(--pd)':'#1e40af'}">${s.role}</span></td>
       <td style="font-size:12px">${fmtDate(s.created_at)}</td>
       <td>
         <div style="display:flex;gap:6px">
           <button class="btn btn-outline" style="padding:5px 10px;font-size:12px" onclick="openStaffModal('${s.id}')"><i class="fa fa-edit"></i></button>
-          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteStaff('${s.id}','${s.username}')"><i class="fa fa-trash"></i></button>
+          <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="deleteStaff('${s.id}','${_escAttr(s.username)}')"><i class="fa fa-trash"></i></button>
         </div>
       </td>
     </tr>`).join('') :
@@ -6153,8 +6189,8 @@ function openStaffModal(editId = null) {
   const s = editId ? _staff.find(x => x.id === editId) : null;
   openMo(`
     <div class="mo-title">${s ? 'Edit Staff' : 'Add Staff'}</div>
-    <div class="field"><label>Username</label><input id="sf-user" value="${s?.username||''}" ${s?'readonly':''}></div>
-    <div class="field"><label>Name</label><input id="sf-name" value="${s?.name||''}"></div>
+    <div class="field"><label>Username</label><input id="sf-user" value="${_esc(s?.username)}" ${s?'readonly':''}></div>
+    <div class="field"><label>Name</label><input id="sf-name" value="${_esc(s?.name)}"></div>
     <div class="field"><label>Role</label>
       <select id="sf-role">
         <option value="staff" ${s?.role==='staff'?'selected':''}>Staff</option>
@@ -6186,7 +6222,7 @@ async function saveStaff(isEdit, editId) {
 }
 
 async function deleteStaff(id, username) {
-  confirmAction(`Delete staff <b>${username}</b>?`, async function() {
+  confirmAction(`Delete staff <b>${_esc(username)}</b>?`, async function() {
     try { await api('deleteStaff', { id }); loadStaff(); aToast('Deleted'); }
     catch(e) { aToast(e.message); }
   });
@@ -6410,9 +6446,9 @@ async function lookupUserForPwReset() {
     res_el.innerHTML = `
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-top:8px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-          <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--p),#f97316);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">${(user.name||'U')[0].toUpperCase()}</div>
+          <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--p),#f97316);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px">${_esc((user.name||'U')[0].toUpperCase())}</div>
           <div>
-            <div style="font-weight:700;font-size:14px;color:#0f172a">${user.name}</div>
+            <div style="font-weight:700;font-size:14px;color:#0f172a">${_esc(user.name)}</div>
             <div style="font-size:12px;color:#16a34a"><i class="fa fa-check-circle"></i> User found</div>
           </div>
         </div>
@@ -6420,7 +6456,7 @@ async function lookupUserForPwReset() {
         <div class="field" style="margin-bottom:14px"><label>Confirm Password</label><input id="rup-cnfpw" type="password" placeholder="Re-enter password"></div>
         <div style="display:flex;gap:10px;justify-content:flex-end">
           <button class="btn btn-outline" onclick="document.getElementById('rup-result').innerHTML='';document.getElementById('rup-phone').value=''">Cancel</button>
-          <button class="btn btn-p" onclick="doResetUserPwFromSettings('${user.phone}','${user.name}')"><i class="fa fa-key"></i> Reset Password</button>
+          <button class="btn btn-p" onclick="doResetUserPwFromSettings('${user.phone}','${_escAttr(user.name)}')"><i class="fa fa-key"></i> Reset Password</button>
         </div>
       </div>`;
   } catch(e) { res_el.innerHTML = `<div style="color:#be123c;font-size:13px;margin-top:8px">${e.message}</div>`; }
@@ -6430,10 +6466,11 @@ async function doResetUserPwFromSettings(phone, name) {
   const pw  = document.getElementById('rup-newpw')?.value;
   const cnf = document.getElementById('rup-cnfpw')?.value;
   if (!pw || pw.length < 6) { aToast('Password must be at least 6 characters'); return; }
+  if (pw.length > 72) { aToast('Password too long (max 72 characters)'); return; }
   if (pw !== cnf) { aToast('Passwords do not match'); return; }
   try {
     await api('adminResetUserPassword', { phone, newPassword: pw });
-    document.getElementById('rup-result').innerHTML = `<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:13px;margin-top:8px;color:#16a34a;font-weight:600"><i class="fa fa-check-circle"></i> Password reset successfully for ${name}</div>`;
+    document.getElementById('rup-result').innerHTML = `<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:12px;font-size:13px;margin-top:8px;color:#16a34a;font-weight:600"><i class="fa fa-check-circle"></i> Password reset successfully for ${_esc(name)}</div>`;
     document.getElementById('rup-phone').value = '';
     aToast('Password reset \u2705');
   } catch(e) { aToast(e.message); }
@@ -8519,9 +8556,13 @@ function renderNotifCard(n) {
 
   if (isUser) {
     // Card Type 2 — New User: single button → directly open coupon creation modal
-    // Use &#39; escaping for HTML onclick attribute context (not \' which breaks HTML parser)
-    const safeName    = (n.meta?.name || n.title || '').replace(/[\r\n]/g,' ').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
-    const safeAddress = (n.meta?.address || '').replace(/[\r\n]/g,' ').replace(/&/g,'&amp;').replace(/'/g,'&#39;');
+    // _escAttr() correctly escapes for embedding inside onclick="fn('...')" —
+    // JS-string-escape THEN HTML-attribute-escape (a quote-entity-only escape
+    // is NOT sufficient here: the browser decodes &#39; back to a literal quote
+    // during attribute parsing, before the JS engine sees it, so it can still
+    // break out of the single-quoted string in the handler).
+    const safeName    = _escAttr(n.meta?.name || n.title || '');
+    const safeAddress = _escAttr(n.meta?.address || '');
     actionBtns = `
       <button style="padding:5px 12px;font-size:11px;white-space:nowrap;background:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px" onclick="openCouponWorkflow('${n.id}','${phone}','${safeName}','${safeAddress}')">
         <i class="fa fa-ticket"></i> Send Coupon
@@ -8573,7 +8614,7 @@ function renderNotifCard(n) {
           <div style="flex:1;min-width:0">
             <div style="font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:.5px;margin-bottom:3px">TRANSACTION</div>
             <div style="font-size:12px;font-weight:700;color:#0f172a;font-family:monospace;word-break:break-all">${txnId}</div>
-            <div style="font-size:11px;color:#64748b;margin-top:2px">Wallet debit · ${userName}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px">Wallet debit · ${_esc(userName)}</div>
           </div>
           <button style="padding:5px 11px;font-size:11px;white-space:nowrap;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer;font-family:var(--ff);font-weight:600;display:flex;align-items:center;gap:5px;flex-shrink:0"
                   onclick="${trackTxn}gotoKhataForPhone('${phone}')">
@@ -8601,7 +8642,7 @@ function renderNotifCard(n) {
     // Card Type — Referral: two coupon buttons (one for referrer, one for new user)
     const referrerPhone = n.meta?.referrer_phone || '';
     const newPhone      = n.meta?.new_phone      || '';
-    const newName       = (n.meta?.new_name || 'New User').replace(/'/g, "&#39;");
+    const newName       = _escAttr(n.meta?.new_name || 'New User');
     // Show buttons only if we have both phones
     if (referrerPhone && newPhone) {
       actionBtns = `
@@ -8654,8 +8695,8 @@ function renderNotifCard(n) {
               <span style="background:${labelBg};color:${labelColor};padding:2px 8px;border-radius:10px;font-size:10px;font-family:var(--ff);font-weight:700">${labelText}</span>
               ${dotHtml}
             </div>
-            <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'};margin-bottom:2px">${n.title || 'Notification'}</div>
-            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'}">${n.body || n.message || ''}</div>
+            <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'};margin-bottom:2px">${_esc(n.title) || 'Notification'}</div>
+            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'}">${_esc(n.body || n.message)}</div>
             ${phone ? `<div style="font-size:11px;color:#94a3b8;margin-top:3px"><i class="fa fa-phone" style="font-size:10px"></i> ${phone}</div>` : ''}
             <div style="font-size:11px;color:#cbd5e1;margin-top:3px">${ts}</div>
           </div>
@@ -8680,8 +8721,8 @@ function renderNotifCard(n) {
               <span style="background:${labelBg};color:${labelColor};padding:2px 8px;border-radius:10px;font-size:10px;font-family:var(--ff);font-weight:700">${labelText}</span>
               ${dotHtml}
             </div>
-            <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'};margin-bottom:2px">${n.title || 'Notification'}</div>
-            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'}">${n.body || n.message || ''}</div>
+            <div style="font-weight:700;font-size:13.5px;color:${n.is_read ? '#64748b' : '#0f172a'};margin-bottom:2px">${_esc(n.title) || 'Notification'}</div>
+            <div style="font-size:12.5px;color:${n.is_read ? '#94a3b8' : '#374151'}">${_esc(n.body || n.message)}</div>
             ${phone ? `<div style="font-size:11px;color:#94a3b8;margin-top:4px"><i class="fa fa-phone" style="font-size:10px"></i> ${phone}</div>` : ''}
             <div style="font-size:11px;color:#cbd5e1;margin-top:4px">${ts}</div>
           </div>
@@ -8857,15 +8898,16 @@ function nuCapToggle() {
 }
 
 async function openCouponWorkflow(notifId, phone, name, address) {
-  const safeNotifId = (notifId||'').toString();
-  const safePhone   = (phone||'').toString();
-  const safeName    = (name||'').replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+  const safeNotifId = _escAttr((notifId||'').toString());
+  const safePhone   = _escAttr((phone||'').toString());
+  const safeName    = _escAttr(name);   // for onclick(...) JS-string attributes
+  const safeNameHtml = _esc(name);       // for plain HTML text/attributes
 
   openMo(`
-    <div class="mo-title"><span style="font-size:22px">🎟️</span> Welcome Coupon — ${name||'User'}</div>
+    <div class="mo-title"><span style="font-size:22px">🎟️</span> Welcome Coupon — ${safeNameHtml||'User'}</div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#166534;display:flex;gap:8px;align-items:flex-start">
       <i class="fa fa-circle-info" style="margin-top:2px;flex-shrink:0"></i>
-      <span>Coupon for <b>${name||phone}</b> · <code style="font-size:11px;background:#dcfce7;padding:1px 5px;border-radius:4px">${phone}</code><br>
+      <span>Coupon for <b>${safeNameHtml||phone}</b> · <code style="font-size:11px;background:#dcfce7;padding:1px 5px;border-radius:4px">${phone}</code><br>
       <span style="font-size:11px;color:#16a34a;font-weight:600"><i class="fa fa-lock" style="font-size:10px"></i> 1-time use · auto-deletes after use · locked to this number</span></span>
     </div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:11.5px;color:#166534">
@@ -9145,18 +9187,18 @@ async function loadNuCoupons(type, btn) {
           <i class="fa fa-user" style="color:${type==='pending'?'#f59e0b':'#10b981'};font-size:14px"></i>
         </div>
         <div style="flex:1">
-          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${u.name||'—'}</div>
+          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${_esc(u.name)||'—'}</div>
           <div style="font-size:12px;color:#64748b;margin-top:2px"><i class="fa fa-phone" style="font-size:10px"></i> ${u.phone}</div>
-          ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${_adminShortAddr(u.address)}</div>`:''}
+          ${u.address?`<div style="font-size:11px;color:#94a3b8;margin-top:2px"><i class="fa fa-location-dot" style="font-size:10px"></i> ${_esc(_adminShortAddr(u.address))}</div>`:''}
           ${type==='sent' && u.sent_at
             ? `<div style="font-size:10px;color:#10b981;margin-top:3px;font-weight:600"><i class="fa fa-check-circle" style="font-size:9px"></i> Sent ${relTime(u.sent_at)}</div>
-               ${u.coupon_code ? `<div style="font-size:10px;color:#64748b;margin-top:2px"><i class="fa fa-tag" style="font-size:9px"></i> Code: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${u.coupon_code}</code></div>` : ''}`
+               ${u.coupon_code ? `<div style="font-size:10px;color:#64748b;margin-top:2px"><i class="fa fa-tag" style="font-size:9px"></i> Code: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${_esc(u.coupon_code)}</code></div>` : ''}`
             : (u.created_at ? `<div style="font-size:10px;color:#cbd5e1;margin-top:3px">Joined ${relTime(u.created_at)}</div>` : '')
           }
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           ${type==='pending'
-            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openCouponWorkflow('${u.notif_id||''}','${u.phone}','${(u.name||'').replace(/[\r\n]/g,' ').replace(/'/g,'&#39;').replace(/&(?!amp;|#)/g,'&amp;')}','${(u.address||'').replace(/[\r\n]/g,' ').replace(/'/g,'&#39;').replace(/&(?!amp;|#)/g,'&amp;')}') "><i class="fa fa-ticket"></i> Create Coupon</button>`
+            ? `<button class="btn btn-g" style="padding:6px 13px;font-size:12px;white-space:nowrap" onclick="openCouponWorkflow('${u.notif_id||''}','${u.phone}','${_escAttr(u.name)}','${_escAttr(u.address)}') "><i class="fa fa-ticket"></i> Create Coupon</button>`
             : `<span style="background:#f0fdf4;color:#16a34a;padding:4px 10px;border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700"><i class="fa fa-check"></i> Sent</span>`
           }
         </div>
@@ -9171,10 +9213,10 @@ async function loadNuCoupons(type, btn) {
 function openWaPopup(phone, name, notifId) {
   const defaultMsg = `Hi ${name}! 🎉 Welcome to Tiffo – Ghar ka Khana delivered fresh!\n\nAs a thank-you for joining, here's your welcome coupon:\n\n🏷️ Code: WELCOME10\n💰 10% OFF your first order\n\nOrder now and enjoy your first meal! 🍱\n— Tiffo Team`;
   openMo(`
-    <div class="mo-title"><i class="fab fa-whatsapp" style="color:#25D366"></i> Send WhatsApp to ${name||phone}</div>
+    <div class="mo-title"><i class="fab fa-whatsapp" style="color:#25D366"></i> Send WhatsApp to ${_esc(name)||phone}</div>
     <div class="field">
       <label>Message <span style="font-size:10px;color:#94a3b8">(editable before sending)</span></label>
-      <textarea id="wa-popup-msg" rows="7" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);resize:vertical;outline:none">${defaultMsg}</textarea>
+      <textarea id="wa-popup-msg" rows="7" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:var(--fb);resize:vertical;outline:none">${_esc(defaultMsg)}</textarea>
     </div>
     <div style="font-size:11px;color:#94a3b8;margin-bottom:14px"><i class="fa fa-circle-info"></i> After clicking Send, this user will automatically move to <b>Sent</b> and the notification will be marked as Read.</div>
     <div style="display:flex;gap:10px">
@@ -9474,7 +9516,7 @@ function _renderWalletRecharges(res) {
       return `
         <tr style="border-top:1px solid #f0fdf4">
           <td style="padding:9px 12px">
-            <div style="font-size:13px;font-weight:600;color:#0f172a">${e.name}</div>
+            <div style="font-size:13px;font-weight:600;color:#0f172a">${_esc(e.name)}</div>
             <div style="font-size:11px;color:#94a3b8;font-family:monospace">${e.phone}</div>
           </td>
           <td style="padding:9px 12px">
@@ -9783,7 +9825,7 @@ function _renderUdharPanel(res) {
     const waMsg = encodeURIComponent(`Namaste ${c.name||''}! Aapka Tiffo udhar \u20b9${Math.round(c.total)} pending hai. Please wallet recharge karein. \ud83d\ude4f`);
     return `
     <tr style="border-top:1px solid #fef2f2">
-      <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#0f172a">${c.name||'—'}</td>
+      <td style="padding:8px 12px;font-size:13px;font-weight:600;color:#0f172a">${_esc(c.name)||'—'}</td>
       <td style="padding:8px 12px;font-size:12px;color:#64748b;font-family:monospace">${c.phone}</td>
       <td style="padding:8px 12px;font-size:12px;color:#64748b;text-align:center">${c.orders}</td>
       <td style="padding:8px 12px;font-size:13px;font-weight:800;color:#ef4444;text-align:right">${_earnFmt(c.total)}</td>
@@ -9867,11 +9909,11 @@ function _earnExportPDF(res) {
         <th>Items</th><th style="text-align:right">Amount</th><th>Payment</th><th>In Earnings</th>
       </tr></thead><tbody>`;
       for (const o of dayOrders) {
-        const items = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} x${i.qty||1}`).join(', ');
+        const items = (o.items||[]).map(i=>`${_esc(i.name)}${i.variantLabel?' '+_esc(i.variantLabel):''} x${i.qty||1}`).join(', ');
         const isPaid = o.mode === 'wallet' || o.payment_status === 'paid';
         const earnColor = isPaid ? '#059669' : '#dc2626';
         dayRowsHtml += `<tr>
-          <td><strong>${o.name||'—'}</strong></td>
+          <td><strong>${_esc(o.name)||'—'}</strong></td>
           <td style="font-family:monospace;font-size:10px">${o.phone||'—'}</td>
           <td>${o.slot||'—'}</td>
           <td style="color:${modeColors[o.mode]||'#334155'};font-weight:600">${modeLabels[o.mode]||o.mode}</td>
@@ -10129,13 +10171,13 @@ function _renderEarnings(res) {
         if (!mdata) return '';
         const mId = slId + '-' + mode;
         const orderRows = mdata.orders.map(o => {
-          const itemSummary = (o.items||[]).map(i=>`${i.name||''}${i.variantLabel?' '+i.variantLabel:''} ×${i.qty||1}`).join(', ');
+          const itemSummary = (o.items||[]).map(i=>`${_esc(i.name)}${i.variantLabel?' '+_esc(i.variantLabel):''} ×${i.qty||1}`).join(', ');
           const statusColor = o.order_status==='delivered'?'#10b981':o.order_status==='pending'?'#f59e0b':'#64748b';
           const isPaid = o.payment_status === 'paid';
           const payColor = isPaid ? '#10b981' : '#f59e0b';
           const payLabel = isPaid ? '✓ Paid' : (o.payment_status || 'pending');
           return `<tr style="border-top:1px solid #f1f5f9">
-            <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a">${o.name||'—'}</td>
+            <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a">${_esc(o.name)||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#64748b;font-family:monospace">${o.phone||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#334155">${itemSummary||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#64748b">${o.time||'—'}</td>
@@ -10758,19 +10800,19 @@ async function viewCookingSession(sessionId, label, dt, orderCount, idsJson) {
     const summaryRows = summary.map((it, i) => `
       <tr style="border-bottom:1px solid #f1f5f9">
         <td style="padding:8px 10px;color:#94a3b8;font-weight:700;font-size:12px">${i+1}</td>
-        <td style="padding:8px 10px;font-weight:700;color:#0f172a;font-size:13px">${it.name}${it.variant ? `<span style="font-size:11px;color:#64748b;font-weight:400;margin-left:4px">${it.variant}</span>` : ''}</td>
+        <td style="padding:8px 10px;font-weight:700;color:#0f172a;font-size:13px">${_esc(it.name)}${it.variant ? `<span style="font-size:11px;color:#64748b;font-weight:400;margin-left:4px">${_esc(it.variant)}</span>` : ''}</td>
         <td style="padding:8px 10px;font-weight:800;color:#1e40af;font-size:15px;text-align:right">${Number.isInteger(it.qty) ? it.qty : parseFloat(it.qty.toFixed(2))}</td>
         <td style="padding:8px 10px;color:#94a3b8;font-size:11px;text-align:right">${it.orders} order${it.orders!==1?'s':''}</td>
       </tr>`).join('');
 
     // Build orders list
     const orderRows = orders.map(o => {
-      const itemList = (o.items||[]).map(i => `${i.name}${i.variant?' ('+i.variant+')':''} ×${i.qty}`).join(', ');
+      const itemList = (o.items||[]).map(i => `${_esc(i.name)}${i.variant?' ('+_esc(i.variant)+')':''} ×${i.qty}`).join(', ');
       return `
         <div style="padding:10px 0;border-bottom:1px solid #f8fafc">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
-              <div style="font-weight:700;font-size:13px;color:#0f172a">${o.name || 'Customer'}</div>
+              <div style="font-weight:700;font-size:13px;color:#0f172a">${_esc(o.name) || 'Customer'}</div>
               <div style="font-size:11px;color:#64748b;margin-top:2px">${o.phone || ''} · ${o.slot||''}</div>
               <div style="font-size:12px;color:#475569;margin-top:4px">${itemList}</div>
             </div>
@@ -10829,8 +10871,8 @@ function kitchenExportPDF() {
   const rows = _kitchenSummary.map((item, i) =>
     `<tr>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#64748b;font-weight:700">${i + 1}</td>
-      <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f172a">${item.name}</td>
-      <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:800;color:#1e40af;font-size:16px">${Number.isInteger(item.totalQty) ? item.totalQty : parseFloat(item.totalQty.toFixed(2))}${item.unit ? ' <span style="font-size:11px;color:#94a3b8">' + item.unit + '</span>' : ''}</td>
+      <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:700;color:#0f172a">${_esc(item.name)}</td>
+      <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;font-weight:800;color:#1e40af;font-size:16px">${Number.isInteger(item.totalQty) ? item.totalQty : parseFloat(item.totalQty.toFixed(2))}${item.unit ? ' <span style="font-size:11px;color:#94a3b8">' + _esc(item.unit) + '</span>' : ''}</td>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#64748b">${item.orders} order${item.orders !== 1 ? 's' : ''}</td>
       <td style="padding:8px 14px;border-bottom:1px solid #f1f5f9;color:#22c55e;font-size:18px">☐</td>
     </tr>`
