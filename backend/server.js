@@ -1,8 +1,17 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v145                                      ║
-// ║  Updated : 2026-06-13                               ║
+// ║  Version : v151                                      ║
+// ║  Updated : 2026-06-14                               ║
+// ║  v151    : SECURITY FIX — getRiderOrders ownership   ║
+// ║            check. riderLogin issues role:'staff' to ║
+// ║            every rider, so the old isAdmin check     ║
+// ║            (role==='admin'||'staff') let ANY rider   ║
+// ║            fetch ANY other rider's order list (PII:  ║
+// ║            customer name/phone/address) by passing a ║
+// ║            different riderId. Now only role==='admin'║
+// ║            bypasses; riders must match their own     ║
+// ║            rider_id (isOwner check).                 ║
 // ║  v145    : Version sync — no backend logic change.  ║
 // ║            Frontend fix: Android WebView freeze     ║
 // ║            guard (long background → reload via SW). ║
@@ -14,6 +23,7 @@
 // ║            v117/v118/v122/v130 features (ratings,   ║
 // ║            referrals, atomic coupons, zone backfill).║
 // ╚══════════════════════════════════════════════════════╝
+
 
 // ─── DEPENDENCIES ────────────────────────────────────────────────────────────
 const express     = require('express');
@@ -45,6 +55,53 @@ const _generalRateLimit = rateLimit({
   legacyHeaders: false,
   handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
 });
+
+// ─── PHONE-BASED BRUTE FORCE PROTECTION ──────────────────────────────────────
+// express-rate-limit is IP-based — useless when 100,000 BHU students share one IP.
+// This tracks failed login attempts per phone number instead.
+// Logic: 5 failed attempts → 15 min lockout for that phone only.
+// Successful login resets the counter so legitimate users are never locked out.
+// In-memory Map is fine: at Tiffo's scale (few hundred users) it stays tiny,
+// and a server restart clears it (acceptable — lockout is temporary by design).
+const _loginAttempts = new Map(); // phone → { count, lockedUntil }
+const _LOGIN_MAX_ATTEMPTS = 5;
+const _LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutes
+
+function _checkLoginAttempt(phone) {
+  // Returns null if allowed, or error string if locked out
+  const now = Date.now();
+  const entry = _loginAttempts.get(phone);
+  if (!entry) return null;
+  if (entry.lockedUntil && now < entry.lockedUntil) {
+    const minsLeft = Math.ceil((entry.lockedUntil - now) / 60000);
+    return `Too many failed attempts. Try again in ${minsLeft} minute${minsLeft > 1 ? 's' : ''}.`;
+  }
+  // Lockout expired — reset
+  if (entry.lockedUntil && now >= entry.lockedUntil) {
+    _loginAttempts.delete(phone);
+  }
+  return null;
+}
+
+function _recordLoginFailure(phone) {
+  const now = Date.now();
+  const entry = _loginAttempts.get(phone) || { count: 0, lockedUntil: null };
+  entry.count += 1;
+  if (entry.count >= _LOGIN_MAX_ATTEMPTS) {
+    entry.lockedUntil = now + _LOGIN_LOCKOUT_MS;
+  }
+  _loginAttempts.set(phone, entry);
+  // Lazy cleanup: remove expired entries when map grows large
+  if (_loginAttempts.size > 1000) {
+    for (const [p, e] of _loginAttempts) {
+      if (!e.lockedUntil || now >= e.lockedUntil) _loginAttempts.delete(p);
+    }
+  }
+}
+
+function _resetLoginAttempts(phone) {
+  _loginAttempts.delete(phone);
+}
 
 // Auth actions that get the tighter limit
 const _AUTH_ACTIONS = new Set([
@@ -85,6 +142,35 @@ app.use((req, res, next) => {
 
 app.use(compression()); // gzip all responses — 60–80% smaller payloads
 app.use(express.json({ limit: '512kb' })); // guard against oversized payloads
+
+// ─── SECURITY HEADERS ─────────────────────────────────────────────────────────
+// Applied to every response. These are cheap, standard browser protections.
+// X-Content-Type-Options : prevents MIME-sniffing attacks (browser treats response
+//                          as declared content-type only, not executable script).
+// X-Frame-Options        : blocks clickjacking — nobody can embed tiffo in an iframe.
+// Referrer-Policy        : hides full URL from third-party requests (privacy + leak prevention).
+// Content-Security-Policy: whitelists exactly which origins can load scripts, styles, fonts,
+//                          images and make API connections — blocks injected malicious scripts.
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    // 'unsafe-inline' needed because all JS/CSS is inline in single-file HTML panels
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://purobitese-api.onrender.com https://www.googletagmanager.com https://www.google-analytics.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+    // data: for QR code canvas export; blob: for PDF generation; https: for map tiles
+    "img-src 'self' data: blob: https:",
+    // API calls + Supabase realtime + map geocoding + GA
+    "connect-src 'self' https://purobitese-api.onrender.com https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://www.google-analytics.com",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+  ].join('; '));
+  next();
+});
 
 // ─── NO-CACHE HEADER for all /api responses (data must always be fresh) ──────
 app.use('/api', (_req, res, next) => {
@@ -612,7 +698,7 @@ function formatOrder(o) {
     ...o,
     date:  normOrderDate(o.date),
     time:  normOrderTime(o.time),
-    items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []),
+    items: typeof o.items === 'string' ? _safeJsonParse(o.items, []) : (o.items || []),
     source: o.source || 'user'  // consistent with khata_entries.source
   };
 }
@@ -643,7 +729,7 @@ async function resolveRiderNames(orders) {
 function formatMenuItem(i) {
   return {
     ...i,
-    variants: typeof i.variants === 'string' ? JSON.parse(i.variants) : (i.variants || [])
+    variants: typeof i.variants === 'string' ? _safeJsonParse(i.variants, []) : (i.variants || [])
   };
 }
 
@@ -694,8 +780,26 @@ function _resolveKitchenUnit(parsedUnit, itemName, menuUnitMap, cartItem) {
 
 // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
+// ── Password length guard (bcrypt DoS prevention) ────────────────────────────
+// bcrypt is intentionally slow. Sending a 1MB password forces ~seconds of CPU per request,
+// allowing a single attacker to saturate the server. Capping at 72 chars is safe because
+// bcrypt silently truncates beyond 72 bytes anyway — longer passwords add zero security.
+// Safe JSON parse — never throws. Returns fallback on any parse error.
+// Used wherever DB values are parsed (corrupted DB value won't crash the server).
+function _safeJsonParse(str, fallback) {
+  try { return JSON.parse(str); } catch (_) { return fallback; }
+}
+
+function _validatePassword(pw) {
+  if (!pw || String(pw).length < 6) return 'Password must be at least 6 characters';
+  if (String(pw).length > 72)       return 'Password too long (max 72 characters)';
+  return null; // valid
+}
+
 // Shared user auth — used by both 'login' and 'checkSession' (were 100% identical)
 async function _authenticateUser(phone, password) {
+  // bcrypt.compare is also slow on very long input — guard before ANY bcrypt call
+  if (!password || String(password).length > 72) return { success: false, error: 'Session invalid' };
   const { data: user } = await supabase.from('users').select('*').eq('phone', phone).single();
   if (!user) return { success: false, error: 'Session invalid' };
   const valid = await bcrypt.compare(password, user.password_hash);
@@ -719,6 +823,7 @@ async function _authenticateUser(phone, password) {
 
 // Shared staff auth — used by both 'adminLogin' and 'staffLogin' (were 100% identical)
 async function _authenticateStaff(username, password) {
+  if (!password || String(password).length > 72) return { success: false, error: 'Invalid credentials' };
   const { data: staff } = await supabase.from('staff').select('*').eq('username', username).single();
   if (!staff) return { success: false, error: 'Invalid credentials' };
   const valid = await bcrypt.compare(password, staff.password_hash);
@@ -1340,7 +1445,16 @@ app.post('/api', async (req, res) => {
 
       case 'checkSession':
       case 'login': {
-        const result = await _authenticateUser(cleanPhone(data.phone), data.password);
+        const loginPhone = cleanPhone(data.phone);
+        // Phone-based brute force check — IP-independent (BHU 100k students share one IP)
+        const lockErr = _checkLoginAttempt(loginPhone);
+        if (lockErr) return res.json({ success: false, error: lockErr });
+        const result = await _authenticateUser(loginPhone, data.password);
+        if (result.success) {
+          _resetLoginAttempts(loginPhone); // successful login — clear counter
+        } else {
+          _recordLoginFailure(loginPhone); // failed — increment counter
+        }
         return res.json(result);
       }
 
@@ -1349,10 +1463,18 @@ app.post('/api', async (req, res) => {
         // Server-side validation
         if (!data.name || String(data.name).trim().length < 2)
           return res.json({ success: false, error: 'Name is required' });
+        if (String(data.name).trim().length > 100)
+          return res.json({ success: false, error: 'Name too long (max 100 characters)' });
         if (!data.password || String(data.password).length < 6)
           return res.json({ success: false, error: 'Password must be at least 6 characters' });
+        if (String(data.password).length > 72)
+          return res.json({ success: false, error: 'Password too long (max 72 characters)' });
         if (!phone || phone.length !== 10 || !/^[6-9]/.test(phone))
           return res.json({ success: false, error: 'Invalid phone number' });
+        if (data.email && String(data.email).length > 254)
+          return res.json({ success: false, error: 'Email too long' });
+        if (data.address && String(data.address).length > 1000)
+          return res.json({ success: false, error: 'Address too long (max 1000 characters)' });
         const { data: existing } = await supabase.from('users').select('phone').eq('phone', phone).single();
         if (existing) return res.json({ success: false, error: 'Phone already registered' });
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
@@ -1473,28 +1595,44 @@ app.post('/api', async (req, res) => {
       }
 
       case 'adminLogin': {
+        const adminKey = 'admin:' + (data.username || '');
+        const adminLockErr = _checkLoginAttempt(adminKey);
+        if (adminLockErr) return res.json({ success: false, error: adminLockErr });
         const result = await _authenticateStaff(data.username, data.password);
-        if (!result.success) return res.json(result);
-        const sessionToken = _signToken({
-          role:     result.staff.role,
-          username: result.staff.username,
-          exp:      Date.now() + SESSION_TTL_MS,
-        });
-        return res.json({ success: true, staff: result.staff, sessionToken });
+        if (result.success) {
+          _resetLoginAttempts(adminKey);
+          const sessionToken = _signToken({
+            role:     result.staff.role,
+            username: result.staff.username,
+            exp:      Date.now() + SESSION_TTL_MS,
+          });
+          return res.json({ success: true, staff: result.staff, sessionToken });
+        } else {
+          _recordLoginFailure(adminKey);
+          return res.json(result);
+        }
       }
 
       case 'updateProfile': {
         const phone = cleanPhone(data.phone);
         // FIX #8: Require password verification — prevent unauthenticated profile updates
         if (!data.password) return res.json({ success: false, error: 'Password required to update profile' });
+        if (String(data.password).length > 72) return res.json({ success: false, error: 'Password too long (max 72 characters)' });
         const { data: userRow } = await supabase.from('users').select('password_hash').eq('phone', phone).single();
         if (!userRow) return res.json({ success: false, error: 'User not found' });
         const validPw = await bcrypt.compare(data.password, userRow.password_hash);
         if (!validPw) return res.json({ success: false, error: 'Incorrect password' });
         const updates = {};
-        if (data.name    !== undefined) updates.name    = data.name;
-        if (data.email   !== undefined) updates.email   = data.email;
+        if (data.name !== undefined) {
+          if (String(data.name).trim().length > 100) return res.json({ success: false, error: 'Name too long (max 100 characters)' });
+          updates.name = data.name;
+        }
+        if (data.email !== undefined) {
+          if (data.email && String(data.email).length > 254) return res.json({ success: false, error: 'Email too long' });
+          updates.email = data.email;
+        }
         if (data.address !== undefined) {
+          if (data.address && String(data.address).length > 1000) return res.json({ success: false, error: 'Address too long (max 1000 characters)' });
           updates.address = data.address;
           updates.area    = data.area || _extractArea(data.address || '');
           // If new address contains GPS coordinates, update coord_lat/coord_lng + re-check zone
@@ -1551,6 +1689,11 @@ app.post('/api', async (req, res) => {
       }
 
       case 'resetAdminPassword': {
+        // bcrypt DoS prevention — cap both passwords before any bcrypt call
+        if (String(data.oldPassword || '').length > 72)
+          return res.json({ success: false, error: 'Password too long (max 72 characters)' });
+        const pwErr2 = _validatePassword(data.newPassword);
+        if (pwErr2) return res.json({ success: false, error: pwErr2 });
         const { data: staff } = await supabase.from('staff').select('*').eq('username', data.username).single();
         if (!staff) return res.json({ success: false, error: 'User not found' });
         const valid = await bcrypt.compare(data.oldPassword, staff.password_hash);
@@ -1725,7 +1868,7 @@ app.post('/api', async (req, res) => {
           getCachedSetting('weekly_schedule')
         ]);
 
-        const khataEnabled = JSON.parse(khataEnabledRaw || 'false');
+        const khataEnabled = _safeJsonParse(khataEnabledRaw || 'false', false);
         const { data: subRow } = subResult;
         user.is_subscriber = !!subRow;
         user.address = address;
@@ -1737,44 +1880,61 @@ app.post('/api', async (req, res) => {
         //      or first variant as safe default (never fall back to base item price)
         //   3. Item has NO variants in DB → use base item price
         let verifiedItems = data.items;
-        const dbMenuItems = menuResult.data;
-        if (dbMenuItems && dbMenuItems.length > 0) {
-          const dbItemMap = {};
-          for (const m of dbMenuItems) dbItemMap[m.item_id] = m;
-          verifiedItems = data.items.map(i => {
-            const dbItem = dbItemMap[i.item_id];
-            if (!dbItem) return i; // item not in DB — pass through as-is
-
-            // Parse DB variants
-            let dbVariants = [];
-            try { dbVariants = typeof dbItem.variants === 'string' ? JSON.parse(dbItem.variants) : (Array.isArray(dbItem.variants) ? dbItem.variants : []); } catch(_) {}
-            // Filter out any malformed variant entries
-            dbVariants = dbVariants.filter(v => v && v.label && v.price != null);
-
-            if (dbVariants.length > 0) {
-              // Item has variants — NEVER use base item price
-              // Step 1: exact label match (normal happy path)
-              if (i.variantLabel) {
-                const exact = dbVariants.find(v => v.label === i.variantLabel);
-                if (exact) return { ...i, price: exact.price };
-                // Step 2: case-insensitive match (handles minor label casing differences)
-                const loose = dbVariants.find(v => v.label.toLowerCase() === i.variantLabel.toLowerCase());
-                if (loose) return { ...i, price: loose.price, variantLabel: loose.label };
-              }
-              // Step 3: client sent a price — find the closest variant price in DB
-              // This prevents price manipulation while gracefully handling label mismatches
-              if (i.price != null) {
-                const byPrice = dbVariants.find(v => v.price === i.price);
-                if (byPrice) return { ...i, price: byPrice.price, variantLabel: byPrice.label };
-              }
-              // Step 4: safe fallback — use first (cheapest or default) variant
-              return { ...i, price: dbVariants[0].price, variantLabel: dbVariants[0].label };
-            }
-
-            // Item has no variants — use DB base price
-            return { ...i, price: dbItem.price != null ? dbItem.price : i.price };
-          });
+        const dbMenuItems = menuResult.data || [];
+        const dbItemMap = {};
+        for (const m of dbMenuItems) dbItemMap[m.item_id] = m;
+        // FIX: reject items not in DB — prevents phantom items with attacker-set prices.
+        // IMPORTANT: this check runs UNCONDITIONALLY for every order (it used to be
+        // nested inside `if (dbMenuItems.length > 0)`. If an attacker sent ONLY
+        // fake/unknown item_ids, the Supabase `.in()` query matched nothing and
+        // returned an EMPTY array — dbMenuItems.length was 0, so the whole
+        // verification block was skipped and the raw client-supplied prices were
+        // used as-is. That was the exact price-injection bug this fix was meant to
+        // close, just reachable via "all items fake" instead of "some items fake".
+        const unknownItems = data.items.filter(i => !dbItemMap[i.item_id]);
+        if (unknownItems.length > 0) {
+          return res.json({ success: false, error: 'One or more items are no longer available. Please refresh and try again.' });
         }
+        verifiedItems = data.items.map(i => {
+          const dbItem = dbItemMap[i.item_id];
+          if (!dbItem) return i; // unreachable after above guard, kept for safety
+          // SECURITY: always use the server's name for this item, never the client's.
+          // Previously only `price` was overridden here — `name` passed through
+          // from the client untouched, so a forged cart item (valid item_id, but
+          // a malicious `name` string) would flow into the order record and later
+          // render unescaped in admin/rider order views. Item name must never be
+          // attacker-controlled.
+          const safeName = dbItem.name;
+
+          // Parse DB variants
+          let dbVariants = [];
+          try { dbVariants = typeof dbItem.variants === 'string' ? JSON.parse(dbItem.variants) : (Array.isArray(dbItem.variants) ? dbItem.variants : []); } catch(_) {}
+          // Filter out any malformed variant entries
+          dbVariants = dbVariants.filter(v => v && v.label && v.price != null);
+
+          if (dbVariants.length > 0) {
+            // Item has variants — NEVER use base item price
+            // Step 1: exact label match (normal happy path)
+            if (i.variantLabel) {
+              const exact = dbVariants.find(v => v.label === i.variantLabel);
+              if (exact) return { ...i, name: safeName, price: exact.price };
+              // Step 2: case-insensitive match (handles minor label casing differences)
+              const loose = dbVariants.find(v => v.label.toLowerCase() === i.variantLabel.toLowerCase());
+              if (loose) return { ...i, name: safeName, price: loose.price, variantLabel: loose.label };
+            }
+            // Step 3: client sent a price — find the closest variant price in DB
+            // This prevents price manipulation while gracefully handling label mismatches
+            if (i.price != null) {
+              const byPrice = dbVariants.find(v => v.price === i.price);
+              if (byPrice) return { ...i, name: safeName, price: byPrice.price, variantLabel: byPrice.label };
+            }
+            // Step 4: safe fallback — use first (cheapest or default) variant
+            return { ...i, name: safeName, price: dbVariants[0].price, variantLabel: dbVariants[0].label };
+          }
+
+          // Item has no variants — use DB base price
+          return { ...i, name: safeName, price: dbItem.price != null ? dbItem.price : i.price };
+        });
 
         // ── FIX #4: Coupon already fetched in parallel above — verify from that result ──
         let verifiedCoupon = null;
@@ -2235,7 +2395,7 @@ app.post('/api', async (req, res) => {
 
         // Fetch khata setting to know if balance matters for eligibility
         const khataSettingRawForBulk = await getCachedSetting('khata_enabled');
-        const khataEnabledForBulk = JSON.parse(khataSettingRawForBulk || 'false');
+        const khataEnabledForBulk = _safeJsonParse(khataSettingRawForBulk || 'false', false);
         const bulkPrice = parseFloat(data.price) || 0;  // price for balance eligibility check
 
         // Fetch all subscribers (no expiry — subscriptions are now infinite)
@@ -2331,7 +2491,7 @@ app.post('/api', async (req, res) => {
           supabase.from('subscribers').select('phone, pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off, plan').in('phone', cleanPhones)
         ]);
 
-        const bulkKhataEnabled = JSON.parse(khataSettingVal || 'false');
+        const bulkKhataEnabled = _safeJsonParse(khataSettingVal || 'false', false);
         const alreadyOrderedSet = new Set((existingOrders || []).map(o => o.phone));
         const bulkUserMap = {};
         for (const u of (bulkUserRows || [])) bulkUserMap[u.phone] = u;
@@ -2846,6 +3006,8 @@ app.post('/api', async (req, res) => {
 
       case 'adminCreateUser': {
         const phone = cleanPhone(data.phone);
+        const pwErrACU = _validatePassword(data.password);
+        if (pwErrACU) return res.json({ success: false, error: pwErrACU });
         const hash  = await bcrypt.hash(data.password, SALT_ROUNDS);
         await supabase.from('users').insert({
           user_id:       phone,
@@ -2909,6 +3071,8 @@ app.post('/api', async (req, res) => {
       }
       case 'createRider': {
         const rider_id = await generateRiderId(ist);
+        const pwErrCR = _validatePassword(data.password);
+        if (pwErrCR) return res.json({ success: false, error: pwErrCR });
         const hash     = await bcrypt.hash(data.password, SALT_ROUNDS);
         await supabase.from('riders').insert({
           rider_id,
@@ -2930,6 +3094,8 @@ app.post('/api', async (req, res) => {
         delete updates.id;
         delete updates.password_hash; // never allow direct hash overwrite
         if (data.password) {
+          const pwErrUR = _validatePassword(data.password);
+          if (pwErrUR) return res.json({ success: false, error: pwErrUR });
           updates.password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
           delete updates.password;
         }
@@ -2946,10 +3112,16 @@ app.post('/api', async (req, res) => {
       }
 
       case 'riderLogin': {
+        if (!data.password || String(data.password).length > 72)
+          return res.json({ success: false, error: 'Invalid credentials' });
+        const riderKey = 'rider:' + (data.riderId || '');
+        const riderLockErr = _checkLoginAttempt(riderKey);
+        if (riderLockErr) return res.json({ success: false, error: riderLockErr });
         const { data: rider } = await supabase.from('riders').select('*').eq('rider_id', data.riderId).single();
-        if (!rider) return res.json({ success: false, error: 'Invalid credentials' });
+        if (!rider) { _recordLoginFailure(riderKey); return res.json({ success: false, error: 'Invalid credentials' }); }
         const valid = await bcrypt.compare(data.password, rider.password_hash);
-        if (!valid) return res.json({ success: false, error: 'Invalid credentials' });
+        if (!valid) { _recordLoginFailure(riderKey); return res.json({ success: false, error: 'Invalid credentials' }); }
+        _resetLoginAttempts(riderKey);
         const { password_hash, ...safe } = rider;
         // Issue a signed session token so rider can call staff-gated actions (e.g. updateOrderStatus)
         const sessionToken = _signToken({
@@ -2961,9 +3133,14 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getRiderOrders': {
-        // Verify the sessionToken belongs to this rider (or is an admin)
+        // Verify the sessionToken belongs to this rider (or is a true admin)
+        // FIX: riderLogin issues role:'staff' to every rider, so checking
+        // role==='staff' here let ANY rider fetch ANY other rider's order
+        // list (PII: customer names/phones/addresses) by passing a different
+        // riderId. Only role==='admin' should bypass the ownership check —
+        // riders (role==='staff') must always match their own rider_id.
         const riderSession = _verifyToken(req.body.sessionToken);
-        const isAdmin = riderSession && (riderSession.role === 'admin' || riderSession.role === 'staff');
+        const isAdmin = riderSession && riderSession.role === 'admin';
         const isOwner = riderSession && riderSession.username === data.riderId;
         if (!isAdmin && !isOwner) {
           return res.status(401).json({ success: false, error: 'Rider auth required' });
@@ -2984,6 +3161,8 @@ app.post('/api', async (req, res) => {
         return res.json({ success: true, riders: safe });
       }
       case 'createStaff': {
+        const pwErrCS = _validatePassword(data.password);
+        if (pwErrCS) return res.json({ success: false, error: pwErrCS });
         const hash = await bcrypt.hash(data.password, SALT_ROUNDS);
         await supabase.from('staff').insert({
           id:            generateId('STF', ist),
@@ -3001,6 +3180,8 @@ app.post('/api', async (req, res) => {
         delete updates.id;
         delete updates.password_hash; // never allow direct hash overwrite
         if (data.password) {
+          const pwErrUS = _validatePassword(data.password);
+          if (pwErrUS) return res.json({ success: false, error: pwErrUS });
           updates.password_hash = await bcrypt.hash(data.password, SALT_ROUNDS);
           delete updates.password;
         }
@@ -3396,6 +3577,11 @@ app.post('/api', async (req, res) => {
 
       case 'changePassword':
         { const phone = cleanPhone(data.phone);
+          // Guard both passwords — bcrypt DoS prevention
+          if (String(data.currentPassword || '').length > 72)
+            return res.json({ success: false, error: 'Password too long (max 72 characters)' });
+          const pwErr = _validatePassword(data.newPassword);
+          if (pwErr) return res.json({ success: false, error: pwErr });
           const { data: user } = await supabase.from('users').select('password_hash').eq('phone', phone).single();
           if (!user) return res.json({ success: false, error: 'User not found' });
           const valid = await bcrypt.compare(data.currentPassword, user.password_hash);
@@ -3660,7 +3846,9 @@ app.post('/api', async (req, res) => {
       }
 
       case 'adminResetUserPassword':
-        { const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+        { const pwErr3 = _validatePassword(data.newPassword);
+          if (pwErr3) return res.json({ success: false, error: pwErr3 });
+          const hash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
           await supabase.from('users').update({ password_hash: hash }).eq('phone', cleanPhone(data.phone));
           return res.json({ success: true }); }
 
@@ -4080,7 +4268,7 @@ app.post('/api', async (req, res) => {
 
         const orders = (rows || []).map(o => ({
           ...o,
-          items: typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
+          items: typeof o.items === 'string' ? _safeJsonParse(o.items, []) : (o.items || [])
         }));
 
         // Aggregate item quantities using shared unit helpers.
@@ -4302,7 +4490,7 @@ app.post('/api', async (req, res) => {
             slot:           o.slot || 'morning',
             time:           o.time || '',
             source:         o.source || 'user',
-            items:          typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
+            items:          typeof o.items === 'string' ? _safeJsonParse(o.items, []) : (o.items || [])
           });
         }
 
@@ -4672,10 +4860,30 @@ app.post('/api', async (req, res) => {
     }
   } catch (err) {
     console.error(`[${action}] ERROR:`, err.message);
-    return res.json({ success: false, error: err.message });
+    // Never expose raw internal error details to client — Supabase messages can
+    // contain table names, column names, or query fragments useful to attackers.
+    const safeMsg = (err.message || '').includes('duplicate') ? 'Already exists' : 'Something went wrong. Please try again.';
+    return res.json({ success: false, error: safeMsg });
   }
 });
 
 // ─── LISTEN ───────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`[Tiffo API] running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`[Tiffo API] running on port ${PORT}`));
+
+// ─── GRACEFUL SHUTDOWN (Render sends SIGTERM before killing the process) ──────
+// Without this, Render kills the process abruptly mid-request.
+// server.close() stops accepting new connections, lets in-flight requests finish,
+// then exits cleanly — no dropped orders, no corrupted DB writes.
+process.on('SIGTERM', () => {
+  console.log('[Tiffo API] SIGTERM received — shutting down gracefully');
+  server.close(() => {
+    console.log('[Tiffo API] Server closed');
+    process.exit(0);
+  });
+  // Force exit after 10s if requests don't finish (safety net)
+  setTimeout(() => {
+    console.error('[Tiffo API] Forced exit after 10s timeout');
+    process.exit(1);
+  }, 10000);
+});
