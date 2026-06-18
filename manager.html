@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>🍱 Tiffin Manager — Tiffo v18.5</title>
+<title>🍱 Tiffin Manager — Tiffo v19</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -515,10 +515,10 @@ select.inp { cursor: pointer; }
 <!-- ─── CONFIRM MODAL ─── -->
 <div class="modal-overlay" id="confirm-overlay" onclick="closeConfirm(event)">
   <div class="confirm-modal">
-    <div class="confirm-title">Delete this item?</div>
+    <div class="confirm-title" id="confirm-title-text">Are you sure?</div>
     <div class="confirm-sub" id="confirm-sub-text">This cannot be undone.</div>
     <div class="confirm-actions">
-      <button class="btn-delete" style="padding:8px 20px;font-size:13px;" onclick="confirmDeleteYes()">Delete</button>
+      <button id="confirm-yes-btn" style="padding:8px 20px;font-size:13px;background:var(--red);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;" onclick="confirmDeleteYes()">Delete</button>
       <button class="btn-secondary" onclick="closeConfirm()">Cancel</button>
     </div>
   </div>
@@ -531,7 +531,7 @@ select.inp { cursor: pointer; }
       <span style="font-size:24px;">🍱</span>
       <div>
         <div class="logo-title">Tiffo</div>
-        <div class="logo-sub">Tiffin Business Portal v18.5</div>
+        <div class="logo-sub">Tiffin Business Portal v19</div>
       </div>
     </div>
     <div class="global-params">
@@ -620,7 +620,7 @@ select.inp { cursor: pointer; }
       <div class="health-input-row">
         <div>
           <label class="inp-label">Your selling price (₹ / tiffin)</label>
-          <input type="number" id="health-price" class="inp" style="width:min(140px,100%);" placeholder="e.g. 120" oninput="renderHealth(); saveData();"/>
+          <input type="number" id="health-price" class="inp" style="width:min(140px,100%);" placeholder="e.g. 120" oninput="debouncedRefresh(); saveData();"/>
         </div>
         <span class="text-muted text-sm" style="padding-top:16px;">Enter what you actually charge →</span>
       </div>
@@ -635,7 +635,10 @@ select.inp { cursor: pointer; }
 
     <div class="flex-between mb16" style="flex-wrap:wrap;gap:10px;">
       <span class="text-muted text-sm">Formula: <span class="mono" style="color:var(--green);">45g ÷ 1000 × ₹60/kg = ₹2.70/tiffin</span></span>
-      <button class="btn-primary" onclick="startAddItem()">+ Add Item</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-secondary" onclick="askResetMenu()" style="color:var(--amber);border-color:var(--amber)44;" title="Restore all 24 default Tiffo menu items">↺ Reset to Default</button>
+        <button class="btn-primary" onclick="startAddItem()">+ Add Item</button>
+      </div>
     </div>
 
     <div id="add-item-form" style="display:none;border-color:var(--green)44;" class="card mb16">
@@ -830,7 +833,7 @@ select.inp { cursor: pointer; }
 // DATA STORE
 // ═══════════════════════════════════════════════════════
 
-const STORAGE_KEY = 'tiffin_mgr_v14';
+const STORAGE_KEY = 'tiffin_mgr_v19';
 
 // ═══════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════════
@@ -1197,6 +1200,9 @@ let menuItems = [
   { id:24, name:"Salad (Kheera/Pyaj)",     unit:"g",  servingG:50,  costPerKg:25,   category:"veggie" },
 ];
 
+// Frozen copy of defaults — used by Reset to Default button
+const DEFAULT_MENU_ITEMS = menuItems.map(i => ({ ...i }));
+
 let monthlyExpenses = [
   { id:'e1', name:"Room / Rent",      amount:8000  },
   { id:'e2', name:"Worker (Labour)",  amount:11000 },
@@ -1466,9 +1472,10 @@ function activeTab() {
 function refreshAll() {
   updateDerivedLabel();
   // Always render all tabs so every panel stays in sync with global params
-  renderDashboard();
+  renderDashboard();   // renderDashboard() internally calls renderHealth()
   renderExpenses();
   renderPricing();
+  // BEP tab: render only when active (heavy render, not needed otherwise)
   if (activeTab() === 'bep') { renderBEP(); renderTargetIncome(); renderMix(); renderWastageSummary(); }
   if (!editingItemId && document.getElementById('add-item-form')?.style.display === 'none') {
     renderMenu();
@@ -2302,9 +2309,16 @@ function resetEngineParams() {
 
 let _confirmCb = null;
 
-function showConfirm(msg, cb) {
+function showConfirm(msg, cb, title, btnLabel, btnColor) {
   _confirmCb = cb;
+  const titleEl = document.getElementById('confirm-title-text');
+  if (titleEl) titleEl.textContent = title || 'Are you sure?';
   document.getElementById('confirm-sub-text').textContent = msg || 'This cannot be undone.';
+  const yesBtn = document.getElementById('confirm-yes-btn');
+  if (yesBtn) {
+    yesBtn.textContent = btnLabel || 'Delete';
+    yesBtn.style.background = btnColor || 'var(--red)';
+  }
   document.getElementById('confirm-overlay').classList.add('open');
 }
 
@@ -2320,13 +2334,13 @@ function confirmDeleteYes() {
 }
 
 function askDeleteItem(id, name) {
-  showConfirm(`Delete "${name}" from menu?`, () => {
+  showConfirm(`"${name}" will be permanently removed from the menu.`, () => {
     // eslint-disable-next-line eqeqeq
     menuItems     = menuItems.filter(i => i.id != id);
     // eslint-disable-next-line eqeqeq
     selectedItems = selectedItems.filter(x => x != id);
     refreshAll();
-  });
+  }, 'Delete Menu Item?');
 }
 
 function askDeleteExpense(type, id, name) {
@@ -2345,6 +2359,25 @@ function askDeleteExpense(type, id, name) {
     }
     refreshAll();
   });
+}
+
+// Reset menu to Tiffo defaults — confirms before wiping custom items
+function askResetMenu() {
+  showConfirm(
+    'All custom items and edits will be removed. The 24 default Tiffo items will be restored.',
+    () => {
+      menuItems     = DEFAULT_MENU_ITEMS.map(i => ({ ...i }));
+      selectedItems = menuItems.map(i => i.id);
+      editingItemId = null;
+      const form = document.getElementById('add-item-form');
+      if (form) form.style.display = 'none';
+      refreshAll();
+      showRefreshFlash();
+    },
+    '↺ Reset Menu to Default?',
+    '↺ Reset',
+    'var(--amber)'
+  );
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2458,8 +2491,10 @@ function saveNewItem() {
   if (!name)      { document.getElementById('if-name').style.borderColor    = 'var(--red)'; document.getElementById('if-name').focus(); return; }
   if (serving<=0) { document.getElementById('if-serving').style.borderColor = 'var(--red)'; document.getElementById('if-serving').focus(); return; }
   if (cpkg<=0)    { document.getElementById('if-cpkg').style.borderColor    = 'var(--red)'; document.getElementById('if-cpkg').focus(); return; }
-  menuItems.push({ id: Date.now(), name, unit, servingG: +serving, costPerKg: +cpkg, category: cat });
-  selectedItems = menuItems.map(i => i.id);
+  const newId = Date.now();
+  menuItems.push({ id: newId, name, unit, servingG: +serving, costPerKg: +cpkg, category: cat });
+  // Add only the new item to selection — preserve existing deselections
+  selectedItems.push(newId);
   cancelAddItem();
   refreshAll();
 }
