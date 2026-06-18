@@ -1,6 +1,14 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v50.0  |  Updated : 2026-06-14
+   Version : v51.1  |  Updated : 2026-06-18
+
+   CHANGES v51.1:
+   - SW install timeout guard (10s) — prevents infinite hang on slow network
+   - reg.update() delayed 4s — app boots before SW update check
+   - controllerchange reload 800ms delay — SW fully activates before page reload
+
+   CHANGES v51.0:
+   - Cache bumped → tiffo-v73 (v157 — CSP header + SIGTERM handler + security hardening)
 
    CHANGES v50.0:
    - Cache bumped → tiffo-v72 (v154 — wallet-low nudge card
@@ -37,7 +45,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v72'; // v154: wallet-low nudge card — matches monthly plan card style, explains ₹20 UPI delivery charge, green theme + blinking Recharge button
+const CACHE      = 'tiffo-v75'; // v158: install no longer auto-activates — prevents mid-boot controllerchange hang
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
@@ -101,10 +109,23 @@ self.addEventListener('message', e => {
 
 /* ─── INSTALL ────────────────────────────────────────────────────────────── */
 self.addEventListener('install', e => {
+  // Pre-cache the app shell with a 10s timeout guard (GitHub Pages can be slow).
+  // IMPORTANT: Do NOT call self.skipWaiting() here.
+  //
+  // Old behaviour: auto-skipWaiting() in install → new SW activated the moment
+  // install finished. If that happened during bootApp() (e.g. config.js fetch /
+  // getHomeData in-flight), controllerchange fired → location.reload() mid-boot
+  // → blank screen hang for 5-10 min. User had to close + reopen to recover.
+  //
+  // New behaviour: new SW sits in 'waiting' state after install. The page sends
+  // SKIP_WAITING (via the message handler below) only after bootApp() is fully
+  // settled — so controllerchange + reload always happen at a safe moment.
   e.waitUntil(
-    caches.open(CACHE)
-      .then(cache => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting()) // activate immediately — faster PWA launch
+    Promise.race([
+      caches.open(CACHE).then(cache => cache.addAll(PRECACHE)),
+      new Promise(resolve => setTimeout(resolve, 10000)) // 10s guard — don't block forever
+    ])
+    // No .then(skipWaiting) — activation is deferred to page's explicit signal.
   );
 });
 
@@ -184,10 +205,18 @@ self.addEventListener('fetch', e => {
       const cache = await caches.open(CACHE);
       const cached = await cache.match(request);
 
-      // Race: network vs 3s timeout
+      // Race: network vs 3s timeout — with AbortController so the fetch is
+      // truly cancelled after timeout, not just ignored. Without abort, the
+      // fetch keeps running in the background and its cache.put() can race
+      // with a subsequent navigate (e.g. location.reload() on app-resume),
+      // causing a concurrent write to the same cache key → SW hang.
+      const abortCtrl = new AbortController();
       const networkWithTimeout = new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('timeout')), NAVIGATE_NETWORK_TIMEOUT_MS);
-        fetch(request, { cache: 'no-cache' })
+        const timer = setTimeout(() => {
+          abortCtrl.abort();           // cancel the in-flight fetch immediately
+          reject(new Error('timeout'));
+        }, NAVIGATE_NETWORK_TIMEOUT_MS);
+        fetch(request, { cache: 'no-cache', signal: abortCtrl.signal })
           .then(res => { clearTimeout(timer); resolve(res); })
           .catch(err => { clearTimeout(timer); reject(err); });
       });
@@ -222,7 +251,7 @@ self.addEventListener('fetch', e => {
         }
         return res;
       } catch {
-        // Network failed and no cache — show offline page
+        // Network failed / timed out (abort) and no cache — show offline page
         return new Response(OFFLINE_HTML, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' }
         });
@@ -235,7 +264,10 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(request);
-      const fetchPromise = fetch(request)
+      // AbortController so background revalidation fetch doesn't dangle if SW
+      // is terminated mid-flight (e.g. browser kills idle SW after ~30s).
+      const bgAbort   = new AbortController();
+      const fetchPromise = fetch(request, { signal: bgAbort.signal })
         .then(res => {
           if (res && res.status === 200 && res.type !== 'opaque') {
             cache.put(request, res.clone());

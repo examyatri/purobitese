@@ -1847,7 +1847,7 @@ input[type=number]{-moz-appearance:textfield}
 }
 /* ── END RESPONSIVE ── */
 </style>
-<script src="https://purobitese-api.onrender.com/config.js" async></script>
+<script src="https://purobitese-api.onrender.com/config.js" defer></script>
 </head>
 <body class="auth-mode">
 
@@ -2050,7 +2050,7 @@ input[type=number]{-moz-appearance:textfield}
       <div class="form-group" style="margin-top:16px">
         <label>Password <span style="color:#dc2626;font-size:11px">*</span></label>
         <div class="pw-wrap">
-          <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password">
+          <input type="password" id="su-pw" placeholder="Create a password (min 6 characters)" autocomplete="new-password" maxlength="72">
           <button class="pw-toggle" onclick="togglePw('su-pw',this)" tabindex="-1"><i class="fa-regular fa-eye"></i></button>
         </div>
         <div class="field-error" id="su-pw-err"></div>
@@ -2882,11 +2882,11 @@ input[type=number]{-moz-appearance:textfield}
         <div class="acct-section-title">🔒 Change Password</div>
         <div class="form-group">
           <label>Current Password</label>
-          <input type="password" id="pw-cur" placeholder="Current password">
+          <input type="password" id="pw-cur" placeholder="Current password" maxlength="72">
         </div>
         <div class="form-group">
           <label>New Password</label>
-          <input type="password" id="pw-new" placeholder="New password (min 6 chars)">
+          <input type="password" id="pw-new" placeholder="New password (min 6 chars)" maxlength="72">
         </div>
         <button class="btn-primary" onclick="changePassword()">Change Password</button>
       </div>
@@ -3536,7 +3536,10 @@ const _DATA_FRESH_TTL = 12000; // 12s — if data was fetched within this window
 let _pollTimer   = null;
 
 let _khataAllEntries = [];
-let _hiddenAt    = 0; // timestamp when app went to background — for smart revisit refresh
+let _hiddenAt    = 0; // timestamp when app went to background — cleared on visibilitychange visible
+let _bgHiddenAt  = 0; // same hide-timestamp but NEVER cleared — read by pageshow (bfcache restore)
+                      // visibilitychange clears _hiddenAt before pageshow fires on Chrome Android,
+                      // so pageshow must use its own non-clearing copy to compute awayMs correctly.
 let _ftfTappedAt = 0; // timestamp when guest tapped "पहला Tiffin FREE" btn → show signup nudge on return
 const _POLL_NORMAL = 360000;  // 360s — normal background polling (was 240s; PTR available for manual refresh)
 // _POLL_ACTIVE_ORDERS removed — active orders now handled by the normal 360s _pollTimer
@@ -6267,7 +6270,7 @@ function _suShowOzSignupNotice(waMsg) {
       Your account is active but ordering is currently disabled for your area.<br>
       Contact us on WhatsApp to request delivery at your location.
     </div>
-    <button onclick="_suOzSignupWhatsApp('${waMsg.replace(/'/g,"\'")}');this.closest('#oz-signup-notice').remove()"
+    <button onclick="_suOzSignupWhatsApp('${encodeURIComponent(waMsg).replace(/'/g,'%27')}');this.closest('#oz-signup-notice').remove()"
       style="width:100%;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:14px;padding:14px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 20px rgba(34,197,94,.35);margin-bottom:10px">
       <i class="fa-brands fa-whatsapp" style="font-size:18px"></i> Request Delivery via WhatsApp
     </button>
@@ -6279,8 +6282,8 @@ function _suShowOzSignupNotice(waMsg) {
   document.body.appendChild(notice);
 }
 
-function _suOzSignupWhatsApp(msg) {
-  window.open('https://wa.me/919889760350?text=' + encodeURIComponent(msg), '_blank');
+function _suOzSignupWhatsApp(encodedMsg) {
+  window.open('https://wa.me/919889760350?text=' + encodedMsg, '_blank');
 }
 
 /* ── Outside-zone order block ─────────────────────────────────────────────────────────────
@@ -6332,7 +6335,7 @@ function _showOzOrderBlock() {
       <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
       <div style="font-family:var(--ff);font-weight:800;font-size:18px;color:#111827;text-align:center;margin-bottom:6px">${title}</div>
       <div style="font-family:var(--fb);font-size:13px;color:#64748b;text-align:center;line-height:1.65;margin-bottom:22px">${subtitle}</div>
-      <button onclick="_ozOrderWhatsApp('${encodeURIComponent(waMsg)}');document.getElementById('oz-order-block').style.display='none'"
+      <button onclick="_ozOrderWhatsApp('${encodeURIComponent(waMsg).replace(/'/g,'%27')}');document.getElementById('oz-order-block').style.display='none'"
         style="width:100%;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:14px;padding:15px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 6px 20px rgba(34,197,94,.35);margin-bottom:10px">
         <i class="fa-brands fa-whatsapp" style="font-size:20px"></i> Contact Tiffo on WhatsApp
       </button>
@@ -10671,7 +10674,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopPolling();
     stopVersionPolling();
-    _hiddenAt = Date.now(); // record when app went to background
+    _hiddenAt   = Date.now(); // record when app went to background
+    _bgHiddenAt = _hiddenAt;  // pageshow-safe copy (never cleared by visibilitychange)
   } else {
     const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : 0;
     _hiddenAt = 0;
@@ -10877,7 +10881,7 @@ function _showUpdateBanner() {
     + 'box-shadow:0 6px 28px rgba(0,0,0,.35);white-space:nowrap;pointer-events:all;'
     + 'font-family:var(--ff);font-size:13px;font-weight:600;';
   el.innerHTML = '<span>App updated — refresh to get latest</span>'
-    + '<button onclick="window.location.reload()" style="background:#e63946;border:none;'
+    + '<button onclick="_triggerSwUpdate()" style="background:#e63946;border:none;'
     + 'color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;'
     + 'cursor:pointer;font-family:var(--ff)">Refresh</button>';
   document.body.appendChild(el);
@@ -10932,31 +10936,81 @@ async function bootApp() {
       // Force-check for a new SW on every page load.
       // updateViaCache:'none' bypasses the browser's HTTP cache for sw.js so
       // a new deploy is detected immediately, not after the 24h cache window.
-      reg.update().catch(() => {});
-      // sw.js calls self.skipWaiting() in its own install handler — the new
-      // worker activates immediately without needing a message from us.
-      // controllerchange listener below handles the page reload.
+      //
+      // Delay reg.update() by 30s — ensures bootApp() + getHomeData are fully
+      // complete before any SW installation begins. At 4s the app was still in
+      // the middle of config.js fetch / getHomeData, so a fast SW install would
+      // fire controllerchange → reload mid-boot → 5-10 min blank screen hang.
+      // 30s is conservative: home screen is fully rendered well within 10s.
+      //
+      // Note: sw.js no longer auto-calls skipWaiting() in install. Instead, the
+      // new SW waits in 'waiting' state; the controllerchange listener below
+      // sends SKIP_WAITING at the right moment (after checking busy-page state).
+      setTimeout(() => reg.update().catch(() => {}), 30000);
+
+      // If a new SW was already waiting when this page loaded (installed by
+      // a previous tab), trigger update at the safe moment — same deferred path.
+      if (reg.waiting) {
+        _triggerSwUpdate();
+      }
+
+      // Watch for new SW installs triggered by the reg.update() above.
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          // 'installed' = precache done, SW is now in 'waiting' state.
+          // Only trigger if there's an existing controller (not first install).
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            _triggerSwUpdate();
+          }
+        });
+      });
     }).catch(() => {});
 
     // Reload once when a new SW takes control (= SW update deployed).
-    // _swHadController guards against reloading on first install.
+    // _swHadController guards against reloading on first install (clients.claim).
     // _swReloading guards against a second reload if the event fires twice.
+    //
+    // With deferred activation (sw.js no longer auto-skipWaiting), this event
+    // only fires AFTER _triggerSwUpdate() sends SKIP_WAITING — always at a safe
+    // moment, never mid-bootApp(). The 800ms pause is kept as a safety buffer.
     window._swReloading = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!window._swHadController) return; // first install — skip
+      if (!window._swHadController) return; // first install (clients.claim) — skip
       if (window._swReloading) return;      // already reloading
       window._swReloading = true;
-      // Don't force-reload mid-session — check if user is in a critical flow.
-      // If idle on a safe page: silent reload (user won't notice).
-      // If mid-payment or mid-cart: show update banner so user controls when to reload.
-      const busyPages = ['pg-cart','pg-recharge','pg-success','pg-success-sub','pg-success-insuf'];
-      const onBusyPage = busyPages.some(id => document.getElementById(id)?.classList.contains('here'));
-      if (onBusyPage) {
-        _showUpdateBanner();
-      } else {
-        window.location.reload();
-      }
+      setTimeout(() => window.location.reload(), 800);
     });
+
+    // ── SW UPDATE TRIGGER ──────────────────────────────────────────────────────
+    // Called when a new SW is detected in 'waiting' state (via updatefound/statechange
+    // or reg.waiting check). Sends SKIP_WAITING only when it's safe to do so:
+    //   • Not mid-payment or mid-cart → activate immediately, silent reload follows.
+    //   • Mid-payment/cart → show banner; user taps Refresh to trigger activation.
+    // Deduplication: _swUpdateScheduled prevents multiple timers stacking.
+    window._swUpdateScheduled = false;
+    function _triggerSwUpdate() {
+      if (window._swUpdateScheduled || window._swReloading) return;
+      window._swUpdateScheduled = true;
+      const busyPages = ['pg-cart','pg-recharge','pg-success','pg-success-sub','pg-success-insuf'];
+      const doActivate = () => {
+        window._swUpdateScheduled = false;
+        if (window._swReloading) return;
+        const onBusyPage = busyPages.some(id => document.getElementById(id)?.classList.contains('here'));
+        if (onBusyPage) {
+          _showUpdateBanner();
+          // Banner's Refresh button calls _triggerSwUpdate() again (see _showUpdateBanner).
+          // Reset flag so it can re-enter.
+          window._swUpdateScheduled = false;
+        } else {
+          // Safe to activate — send SKIP_WAITING → SW activates → controllerchange → reload.
+          navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+        }
+      };
+      // Small delay so updatefound/statechange bookkeeping settles before we activate.
+      setTimeout(doActivate, 500);
+    }
 
     // SW background HTML update notification (sw.js Strategy 3 revalidation).
     // When SW refreshes index.html in cache, it posts SW_HTML_UPDATED so we
@@ -11843,7 +11897,12 @@ setTimeout(() => {
 // Just restart background activity that was stopped when the tab was hidden.
 window.addEventListener('pageshow', e => {
   if (!e.persisted) return;
-  const awayMs = _hiddenAt > 0 ? Date.now() - _hiddenAt : 0;
+  // Use _bgHiddenAt (never cleared by visibilitychange) instead of _hiddenAt.
+  // Chrome Android fires visibilitychange(visible) BEFORE pageshow, which zeros
+  // _hiddenAt — making awayMs always 0 and the 3-min reload check silently fail.
+  // _bgHiddenAt is set on hide and only reset here, after we've read it.
+  const awayMs = _bgHiddenAt > 0 ? Date.now() - _bgHiddenAt : 0;
+  _bgHiddenAt = 0; // consumed — reset for next hide/restore cycle
   if (awayMs > 3 * 60 * 1000) {
     location.reload();
     return;
@@ -11960,6 +12019,67 @@ document.addEventListener('DOMContentLoaded', () => {
   bootApp();
   initPullToRefresh();
 });
+
+// ── Global JS error handler ───────────────────────────────────────────────────
+// Catches uncaught JS exceptions + unhandled Promise rejections.
+// On dev: logs to console with full detail.
+// On prod: silently swallows noisy third-party / extension errors; surfaces only
+// real app crashes via a localStorage ring-buffer (last 10 errors) so you can
+// inspect them from DevTools without needing Sentry.
+// Pattern: industry-standard "silent capture, inspect later" for small-scale apps.
+(function () {
+  const _MAX_ERRORS = 10;
+  const _KEY        = 'tf_errors';
+
+  function _saveError(entry) {
+    try {
+      const log = JSON.parse(localStorage.getItem(_KEY) || '[]');
+      log.push(entry);
+      if (log.length > _MAX_ERRORS) log.splice(0, log.length - _MAX_ERRORS);
+      localStorage.setItem(_KEY, JSON.stringify(log));
+    } catch (_) {} // localStorage full / private mode — ignore
+  }
+
+  function _isNoise(src, msg) {
+    // Filter out known-noisy sources that are not Tiffo code
+    if (!src) return false;
+    const noisy = ['chrome-extension://', 'moz-extension://', 'extensions::'];
+    return noisy.some(n => src.includes(n));
+  }
+
+  window.onerror = function (msg, src, line, col, err) {
+    if (_isNoise(src, msg)) return false; // let browser handle extension errors
+    const entry = {
+      ts:  new Date().toISOString(),
+      msg: String(msg).slice(0, 300),
+      src: src ? String(src).replace(location.origin, '') : '',
+      line, col,
+      stack: err?.stack ? String(err.stack).slice(0, 600) : ''
+    };
+    _saveError(entry);
+    // In dev (localhost) — also print clearly
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      console.error('[Tiffo onerror]', entry);
+    }
+    return false; // don't suppress default browser error handling
+  };
+
+  window.addEventListener('unhandledrejection', function (e) {
+    const reason = e.reason;
+    const entry  = {
+      ts:    new Date().toISOString(),
+      type:  'unhandledrejection',
+      msg:   reason instanceof Error ? String(reason.message).slice(0, 300)
+                                     : String(reason).slice(0, 300),
+      stack: reason instanceof Error && reason.stack
+               ? String(reason.stack).slice(0, 600) : ''
+    };
+    _saveError(entry);
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      console.error('[Tiffo unhandledrejection]', entry);
+    }
+  });
+})();
 
 // ── Offline / Online banner ────────────────────────────────────────
 (function() {
