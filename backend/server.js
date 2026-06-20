@@ -1,8 +1,37 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v151                                      ║
-// ║  Updated : 2026-06-14                               ║
+// ║  Version : v158                                      ║
+// ║  Updated : 2026-06-20                               ║
+// ║  v158    : Opt-in auto-tiffin default fix —          ║
+// ║            addAsSubscriber and promoteToSubscriber   ║
+// ║            both created new subscriber rows with     ║
+// ║            pause_delivery:'none' (auto-tiffin ON by  ║
+// ║            default), contradicting the opt-in policy ║
+// ║            shipped elsewhere. Both now correctly      ║
+// ║            default to pause_delivery:'both' (paused), ║
+// ║            requiring explicit opt-in.                 ║
+// ║  v157    : SECURITY FIX — wallet race condition in   ║
+// ║            createOrder. Old flow read balance once   ║
+// ║            (createOrder handler), then deducted it   ║
+// ║            separately (_atomicWalletUpdate, a blind   ║
+// ║            increment) inside _createSingleOrder.     ║
+// ║            Concurrent requests with different carts  ║
+// ║            could each read the SAME pre-deduction    ║
+// ║            balance and each pass the check before    ║
+// ║            any of them had deducted — draining the   ║
+// ║            wallet past ₹0. Fixed by a new Postgres   ║
+// ║            RPC, decrement_if_sufficient() (see        ║
+// ║            database.sql), which checks balance >=    ║
+// ║            amount AND deducts in ONE atomic           ║
+// ║            statement. Wired in via the new            ║
+// ║            _atomicWalletDeductIfSufficient() helper,  ║
+// ║            called inside _createSingleOrder BEFORE    ║
+// ║            the coupon is marked used or stock is      ║
+// ║            touched, so a failed/insufficient order    ║
+// ║            now has zero side effects. The old         ║
+// ║            duplicate pre-check in the createOrder     ║
+// ║            handler was removed entirely.              ║
 // ║  v151    : SECURITY FIX — getRiderOrders ownership   ║
 // ║            check. riderLogin issues role:'staff' to ║
 // ║            every rider, so the old isAdmin check     ║
@@ -227,6 +256,24 @@ const _ADMIN_ONLY_ACTIONS = new Set([
   'adminDeleteUser',  // permanently deletes a user + all their data — admin-only
   'getEarningReport',  // detailed payment-mode breakdown — admin-only financial report
   'getWalletRechargeReport' // wallet recharges (real cash-in) — admin-only
+]);
+
+// ─── RIDER ROLE (separate from staff) ──────────────────────────────────────────
+// SECURITY FIX: riderLogin used to issue role:'staff', which is the SAME role
+// used by real human staff/admin-panel users. Since _STAFF_ACTIONS accepts any
+// role==='staff'||'admin' token, every rider's session token was accepted for
+// ALL 60+ _STAFF_ACTIONS — including rechargeWallet, manualRefund, deleteRider,
+// adminResetUserPassword, updateCoupon, getAllKhata, etc. The rider frontend
+// never called these, but nothing stopped a rider from calling them directly
+// (e.g. via dev tools) using their own legitimately-issued token.
+// Fix: riderLogin now issues role:'rider' (see riderLogin handler), and riders
+// are restricted to ONLY the 3 actions the rider panel actually uses — listed
+// here explicitly. Anything not in this list is rejected for role==='rider',
+// even if it's in _STAFF_ACTIONS.
+const _RIDER_ACTIONS = new Set([
+  'getRiderOrders',
+  'updateOrderStatus',
+  'riderUpdateUserAddress',
 ]);
 
 // Actions that require any valid staff session token (role = 'admin' OR 'staff')
@@ -856,6 +903,33 @@ async function _atomicWalletUpdate(phone, delta) {
   return newBalance;
 }
 
+// ─── SECURITY FIX v157: atomic "check balance AND deduct" wallet debit ───────
+// Closes a race condition in order placement. The old flow was:
+//   1. SELECT balance, compare to order total (in the createOrder handler)
+//   2. _atomicWalletUpdate(-amount) — a blind increment, no balance gate
+// Steps 1 and 2 were two separate round-trips. Several concurrent createOrder
+// requests (different carts, so they don't collide on the idempotency key)
+// could all execute step 1 against the SAME pre-deduction balance, all pass
+// the check, then all execute step 2 — draining the wallet well past ₹0 and
+// letting a customer get tiffins beyond what they actually paid for.
+// decrement_if_sufficient() (see database.sql) does the check AND the
+// deduction in ONE atomic Postgres statement (`UPDATE ... WHERE balance >=
+// amount`), so only as many concurrent orders as the balance truly supports
+// can ever succeed. Returns the new balance on success, or null if the
+// balance was insufficient (or the phone has no wallet row) — callers MUST
+// treat null as a hard failure and not create the order.
+async function _atomicWalletDeductIfSufficient(phone, amount) {
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc('decrement_if_sufficient', {
+    p_phone:  phone,
+    p_amount: amount
+  });
+  if (rpcErr) {
+    console.error('[_atomicWalletDeductIfSufficient] RPC error:', rpcErr.message);
+    return null; // fail closed — never let an order through if we can't verify balance
+  }
+  return (rpcResult === null || rpcResult === undefined) ? null : Number(rpcResult);
+}
+
 async function _createTxnEntry(phone, orderId, amount, newBalance, type, source, ist) {
   const txnId = generateTxnId(ist);
   await supabase.from('khata_entries').insert({
@@ -1198,6 +1272,33 @@ async function _createSingleOrder(
       discount = coupon.discount_value;
     }
   }
+  const finalAmount = Math.max(0, subtotal + deliveryCharge - discount); // FIX #5: never negative
+  const orderId  = generateOrderId(ist);
+  const dateStr  = istDateStr(ist);
+  const timeStr  = istTimeStr(ist);
+  let newBal = null;
+  let txnId  = null;
+
+  // ── SECURITY FIX v157: atomic check-and-deduct, moved BEFORE coupon-use ──
+  // Runs first (before the coupon is marked used and before stock is
+  // touched) so an order that fails for insufficient balance has caused
+  // ZERO side effects — no coupon burned, no stock deducted, nothing to
+  // roll back. decrement_if_sufficient() checks balance >= finalAmount AND
+  // deducts in one atomic Postgres statement, closing the race condition
+  // where concurrent requests could previously all pass a separate,
+  // stale balance check before any of them had actually deducted.
+  if (khataEnabled && user.is_subscriber && paymentMode !== 'upi_insuf') {
+    newBal = await _atomicWalletDeductIfSufficient(user.phone, finalAmount);
+    if (newBal === null) {
+      const insufErr = new Error('Insufficient wallet balance');
+      insufErr.code = 'INSUFFICIENT_BALANCE';
+      throw insufErr;
+    }
+    // newBal is always >= 0 now (decrement_if_sufficient guarantees this),
+    // so this is always a normal debit, never an 'udhar' (credit/negative) entry.
+    txnId = await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, 'tiffin_given', source, ist);
+  }
+
   // Mark coupon used — atomic RPC prevents double-use in simultaneous orders (v122 fix)
   if (coupon && coupon.code) {
     try {
@@ -1217,18 +1318,6 @@ async function _createSingleOrder(
         }
       }
     } catch(_) {}
-  }
-  const finalAmount = Math.max(0, subtotal + deliveryCharge - discount); // FIX #5: never negative
-  const orderId  = generateOrderId(ist);
-  const dateStr  = istDateStr(ist);
-  const timeStr  = istTimeStr(ist);
-  let newBal = null;
-  let txnId  = null;
-
-  if (khataEnabled && user.is_subscriber && paymentMode !== 'upi_insuf') {
-    newBal = await _atomicWalletUpdate(user.phone, -finalAmount);
-    const txnType = newBal < 0 ? 'tiffin_udhar' : 'tiffin_given';
-    txnId = await _createTxnEntry(user.phone, orderId, -finalAmount, newBal, txnType, source, ist);
   }
 
   // Stock deduction: ONLY for normal user orders.
@@ -1336,7 +1425,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v148' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v157' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
@@ -1384,9 +1473,20 @@ app.post('/api', async (req, res) => {
   }
 
   // ── SESSION TOKEN CHECK ────────────────────────────────────────────────────
-  // Admin-only and staff actions require a valid signed session token issued at login.
-  // This is enforced server-side — the API key alone is NOT enough for these actions.
+  // Admin-only, rider, and staff actions require a valid signed session token
+  // issued at login. The API key alone is NOT enough for these actions.
+  //
+  // IMPORTANT: these three checks are independent (not else-if branches).
+  // Some actions (e.g. updateOrderStatus) are legitimately callable by BOTH
+  // a rider (their own assigned orders, enforced inside the handler) AND
+  // real staff/admin (any order, e.g. manual override from the admin panel).
+  // An earlier mutually-exclusive if/else-if chain caused updateOrderStatus
+  // — which is in both _RIDER_ACTIONS and _STAFF_ACTIONS — to silently fall
+  // into the rider-only branch for everyone, incorrectly 403-ing real
+  // staff-role admin-panel users. Each set is now checked on its own, and a
+  // request only needs to pass the check(s) for the set(s) its action is in.
   const { sessionToken } = req.body;
+
   if (_ADMIN_ONLY_ACTIONS.has(action)) {
     const session = _verifyToken(sessionToken);
     if (!session) {
@@ -1395,11 +1495,36 @@ app.post('/api', async (req, res) => {
     if (session.role !== 'admin') {
       return res.status(403).json({ success: false, error: 'Admin access required.' });
     }
+  }
+
+  if (_RIDER_ACTIONS.has(action) && _STAFF_ACTIONS.has(action)) {
+    // Action is shared by riders AND staff/admin — accept any of the three roles.
+    // Per-order/per-rider ownership (if any) is enforced inside the handler itself.
+    const session = _verifyToken(sessionToken);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+    }
+    if (session.role !== 'admin' && session.role !== 'rider' && session.role !== 'staff') {
+      return res.status(403).json({ success: false, error: 'Staff or rider access required.' });
+    }
+  } else if (_RIDER_ACTIONS.has(action)) {
+    // Rider-only action (not shared with staff). Riders get their own narrow
+    // allowlist (see _RIDER_ACTIONS above) — a rider token must never reach
+    // the broader staff permission set for actions outside this list.
+    const session = _verifyToken(sessionToken);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
+    }
+    if (session.role !== 'admin' && session.role !== 'rider') {
+      return res.status(403).json({ success: false, error: 'Rider access required.' });
+    }
   } else if (_STAFF_ACTIONS.has(action)) {
     const session = _verifyToken(sessionToken);
     if (!session) {
       return res.status(401).json({ success: false, error: 'Session expired. Please log in again.' });
     }
+    // role==='rider' is intentionally excluded here — riders only reach this
+    // branch for actions NOT in _RIDER_ACTIONS, which they must never call.
     if (session.role !== 'admin' && session.role !== 'staff') {
       return res.status(403).json({ success: false, error: 'Staff access required.' });
     }
@@ -2059,29 +2184,33 @@ app.post('/api', async (req, res) => {
         // daily:     non-subscriber — always ₹20 delivery
         const serverDeliveryCharge = (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') ? 0 : 20;
 
-        // Skip balance check for upi_insuf orders — subscriber chose to pay via UPI instead
-        if (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') {
-          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-          const currentBal = balRow?.balance || 0;
-          const subtotal   = verifiedItems.reduce((s, i) => s + i.price * i.qty, 0);
-          let disc = 0;
-          if (verifiedCoupon) {
-            if (verifiedCoupon.discount_type === 'percent' || verifiedCoupon.discount_type === 'percent_cap') {
-              disc = Math.round(subtotal * verifiedCoupon.discount_value / 100);
-              if (verifiedCoupon.cap_amount != null && disc > verifiedCoupon.cap_amount) disc = verifiedCoupon.cap_amount;
-            } else {
-              disc = verifiedCoupon.discount_value;
-            }
+        // ── SECURITY FIX v157 (race condition) ──────────────────────────────
+        // REMOVED: the old separate SELECT-then-compare balance check that
+        // used to live here. It read khata_summary.balance, compared it to
+        // an estimated total, and returned early if insufficient — but that
+        // read happened BEFORE _createSingleOrder's (also separate) wallet
+        // deduction. Two or more concurrent createOrder requests could each
+        // read the SAME pre-deduction balance, each pass this check, and
+        // each then deduct — draining the wallet past ₹0 (free tiffin via
+        // concurrent requests). It was also duplicate logic: this block
+        // recomputed its own discount/finalEst independently of the real
+        // discount/finalAmount computed inside _createSingleOrder, which is
+        // a maintenance hazard (the two calculations could silently drift).
+        // The balance check is now done ONCE, atomically, inside
+        // _createSingleOrder via decrement_if_sufficient() — see there.
+        let result;
+        try {
+          result = await _createSingleOrder({
+            user, items: verifiedItems, deliveryCharge: serverDeliveryCharge,
+            khataEnabled, ist, coupon: verifiedCoupon, _rawCouponRow, source: 'user',
+            paymentMode: data.paymentMode || null, slot: autoSlot
+          });
+        } catch (e) {
+          if (e.code === 'INSUFFICIENT_BALANCE') {
+            return res.json({ success: false, error: 'Insufficient wallet balance' });
           }
-          const finalEst = Math.max(0, subtotal + serverDeliveryCharge - disc);
-          if (currentBal < finalEst) return res.json({ success: false, error: 'Insufficient wallet balance' });
+          throw e; // anything else (e.g. order insert failure) — let the outer catch-all handle it
         }
-
-        const result = await _createSingleOrder({
-          user, items: verifiedItems, deliveryCharge: serverDeliveryCharge,
-          khataEnabled, ist, coupon: verifiedCoupon, _rawCouponRow, source: 'user',
-          paymentMode: data.paymentMode || null, slot: autoSlot
-        });
         return res.json({ success: true, orderId: result.orderId, finalAmount: result.finalAmount, walletBalance: result.walletBalance });
       }
 
@@ -2123,6 +2252,32 @@ app.post('/api', async (req, res) => {
         if (!normalizedStatus) {
           return res.json({ success: false, error: 'Invalid order status: ' + rawStatus });
         }
+
+        // ── OWNERSHIP CHECK (same pattern as getRiderOrders) ──────────────────
+        // The outer gate only proves "a valid rider/staff/admin is logged
+        // in" — it does NOT prove a RIDER owns this specific order. Without
+        // this check, any rider could mark/reject ANY order in the system,
+        // not just the ones assigned to them.
+        // role==='admin' and role==='staff' both bypass — staff/admin manage
+        // orders system-wide via the admin panel and are not scoped to a
+        // single rider's deliveries. Only role==='rider' is restricted to
+        // orders.rider_id matching their own session username.
+        const orderSession = _verifyToken(req.body.sessionToken);
+        const isOrderStaffOrAdmin = orderSession && (orderSession.role === 'admin' || orderSession.role === 'staff');
+        if (!isOrderStaffOrAdmin) {
+          const { data: ownerCheck, error: ownerErr } = await supabase
+            .from('orders').select('rider_id').eq('order_id', data.orderId).single();
+          if (ownerErr || !ownerCheck) {
+            return res.json({ success: false, error: 'Order not found' });
+          }
+          // Orders with no rider_id yet haven't been assigned (assignRider
+          // sets this) — only admin should be able to touch those here.
+          const isOrderOwner = orderSession && ownerCheck.rider_id && orderSession.username === ownerCheck.rider_id;
+          if (!isOrderOwner) {
+            return res.status(403).json({ success: false, error: 'You are not assigned to this order' });
+          }
+        }
+
         const updates = { order_status: normalizedStatus };
         // rider_id is set ONLY by admin via assignRider — never overwritten here
         await supabase.from('orders').update(updates).eq('order_id', data.orderId);
@@ -2140,7 +2295,11 @@ app.post('/api', async (req, res) => {
       // AND the current order's address snapshot for immediate display.
       case 'riderUpdateUserAddress': {
         const riderSession = _verifyToken(req.body.sessionToken);
-        if (!riderSession || !(riderSession.role === 'admin' || riderSession.role === 'staff')) {
+        // role==='rider' is the rider's own role (see riderLogin). 'staff' is
+        // kept here too for genuine human staff/ops accounts using the admin
+        // panel's equivalent flow, if any — but riders themselves now carry
+        // 'rider', not 'staff'.
+        if (!riderSession || !(riderSession.role === 'admin' || riderSession.role === 'staff' || riderSession.role === 'rider')) {
           return res.status(401).json({ success: false, error: 'Rider auth required' });
         }
         const phone = cleanPhone(data.phone);
@@ -2750,6 +2909,24 @@ app.post('/api', async (req, res) => {
 
         if (data.orderStatus) {
           const rawStatus = (data.orderStatus || '').toLowerCase().trim();
+
+          // ── SAFETY NET: 'rejected' must go through rejectOrder, never here ──
+          // bulkUpdateOrder is a plain field-setter with no refund logic. The
+          // admin panel's bulk-update UI never offers "rejected" as an option
+          // (only pending/preparing/out for delivery/delivered), so this path
+          // isn't reachable through normal product use — but a direct API
+          // call with orderStatus:'rejected' would silently mark a
+          // subscriber's order rejected WITHOUT crediting their wallet,
+          // since the refund logic only lives in the 'rejectOrder' handler.
+          // Blocked explicitly (rather than silently dropped) so any caller
+          // gets a clear, actionable error instead of a confusing no-op.
+          if (rawStatus === 'rejected') {
+            return res.json({
+              success: false,
+              error: "Use the 'rejectOrder' action to reject an order — it handles the wallet refund. bulkUpdateOrder does not."
+            });
+          }
+
           const statusMap = {
             'out for delivery': 'out for delivery',
             'out_for_delivery': 'out for delivery',
@@ -2757,7 +2934,6 @@ app.post('/api', async (req, res) => {
             'confirmed': 'confirmed',
             'preparing': 'preparing',
             'delivered': 'delivered',
-            'rejected':  'rejected',
             'cancelled': 'cancelled'
           };
           const normalizedStatus = statusMap[rawStatus];
@@ -3030,9 +3206,12 @@ app.post('/api', async (req, res) => {
             plan:           data.plan || 'morning',
             plan_start:     data.plan_start || istDateStr(ist),
             notes:          data.notes      || '',
-            pause_delivery: 'none',
-            pause_morning:  false,
-            pause_evening:  false,
+            // Opt-in auto-tiffin: new subscribers start PAUSED ('both') and must
+            // explicitly opt in. (Previously defaulted to 'none' = opt-out, i.e.
+            // auto-tiffin ON by default — contradicted the opt-in policy.)
+            pause_delivery: 'both',
+            pause_morning:  true,
+            pause_evening:  true,
             pause_morning_from: null,
             pause_evening_from: null,
             is_delivery_off: false,
@@ -3053,9 +3232,10 @@ app.post('/api', async (req, res) => {
           plan:           data.plan || 'morning',
           plan_start:     data.plan_start || istDateStr(getIST()),
           notes:          data.notes || '',
-          pause_delivery: 'none',
-          pause_morning:  false,
-          pause_evening:  false,
+          // Opt-in auto-tiffin: see matching note in addAsSubscriber above.
+          pause_delivery: 'both',
+          pause_morning:  true,
+          pause_evening:  true,
           pause_morning_from: null,
           pause_evening_from: null,
           is_delivery_off: false,
@@ -3123,9 +3303,14 @@ app.post('/api', async (req, res) => {
         if (!valid) { _recordLoginFailure(riderKey); return res.json({ success: false, error: 'Invalid credentials' }); }
         _resetLoginAttempts(riderKey);
         const { password_hash, ...safe } = rider;
-        // Issue a signed session token so rider can call staff-gated actions (e.g. updateOrderStatus)
+        // SECURITY FIX: role is 'rider', NOT 'staff'. Riders previously got
+        // role:'staff', the same role real human staff/admin-panel accounts
+        // use — which let a rider's token pass every _STAFF_ACTIONS check
+        // (rechargeWallet, manualRefund, deleteRider, etc.), not just the
+        // 3 rider-panel actions. 'rider' tokens are now restricted to
+        // _RIDER_ACTIONS only — see the main /api gate above.
         const sessionToken = _signToken({
-          role:     'staff',
+          role:     'rider',
           username: rider.rider_id,
           exp:      Date.now() + SESSION_TTL_MS,
         });
@@ -3133,12 +3318,14 @@ app.post('/api', async (req, res) => {
       }
 
       case 'getRiderOrders': {
-        // Verify the sessionToken belongs to this rider (or is a true admin)
-        // FIX: riderLogin issues role:'staff' to every rider, so checking
-        // role==='staff' here let ANY rider fetch ANY other rider's order
-        // list (PII: customer names/phones/addresses) by passing a different
-        // riderId. Only role==='admin' should bypass the ownership check —
-        // riders (role==='staff') must always match their own rider_id.
+        // Verify the sessionToken belongs to this rider (or is a true admin).
+        // HISTORICAL FIX (v151): riderLogin used to issue role:'staff' to
+        // every rider, so checking role==='staff' here let ANY rider fetch
+        // ANY other rider's order list (PII: customer names/phones/
+        // addresses) by passing a different riderId. riderLogin now issues
+        // role:'rider' (its own distinct role — see riderLogin handler), and
+        // only role==='admin' bypasses the ownership check below — riders
+        // must always match their own rider_id via the username field.
         const riderSession = _verifyToken(req.body.sessionToken);
         const isAdmin = riderSession && riderSession.role === 'admin';
         const isOwner = riderSession && riderSession.username === data.riderId;
