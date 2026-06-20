@@ -1,6 +1,11 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v51.1  |  Updated : 2026-06-18
+   Version : v52.0  |  Updated : 2026-06-20
+
+   CHANGES v52.0:
+   - Cache bumped → tiffo-v76 (v158 release — no customer-panel
+     code changes this release; bumped only to keep cache version
+     aligned with backend/admin/rider v158 release)
 
    CHANGES v51.1:
    - SW install timeout guard (10s) — prevents infinite hang on slow network
@@ -45,7 +50,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v75'; // v158: install no longer auto-activates — prevents mid-boot controllerchange hang
+const CACHE      = 'tiffo-v76'; // v158: unified release version (no customer-panel code changes)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
