@@ -1,6 +1,13 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v11.6  |  Updated : 2026-06-18
+   Version : v11.7  |  Updated : 2026-06-20
+
+   CHANGES v11.7:
+   - Cache bumped → tiffo-rider-v22 (v158 release — no rider-panel
+     UI code changes this release; bumped to stay aligned with the
+     unified v158 backend/admin/rider release. Backend fix this
+     release: new-subscriber rows now default to opt-in/paused
+     auto-tiffin instead of opt-out — see server.js v158 notes.)
 
    CHANGES v11.6:
    - Cache bumped → tiffo-rider-v21 (v157 — CSP header + SIGTERM + security hardening)
@@ -39,7 +46,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v21'; // v157: CSP header + SIGTERM + security hardening
+const CACHE      = 'tiffo-rider-v22'; // v158: unified release version
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
