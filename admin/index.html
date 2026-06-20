@@ -3345,7 +3345,7 @@ function openAssignRiderModal(orderId, currentRiderId) {
 // ── Reject Modal ──
 function openRejectModal(orderId, customerName) {
   openMo(`<div class="mo-title"><i class="fa fa-ban" style="color:#be123c"></i> Reject Order</div>
-    <p style="color:#64748b;font-size:13px;margin-bottom:18px">Rejecting order for <b>${customerName||orderId}</b>. Choose refund method:</p>
+    <p style="color:#64748b;font-size:13px;margin-bottom:18px">Rejecting order for <b>${_esc(customerName)||orderId}</b>. Choose refund method:</p>
     <div class="refund-opt" onclick="doRejectOrder('${orderId}','wallet');closeMo()">
       <div class="refund-opt-icon" style="background:#dcfce7">💰</div>
       <div><div style="font-family:var(--ff);font-weight:700;font-size:14px;color:#0f172a">Refund to Wallet</div><div style="font-size:12px;color:#64748b;margin-top:1px">Amount added back to customer's Tiffo wallet</div></div>
@@ -3397,7 +3397,7 @@ async function doRejectOrder(orderId, refundType) {
 // ── Wallet Transaction History Modal ──
 async function openWalletHistory(phone, customerName) {
   openMo(`<div class="mo-title"><i class="fa fa-wallet" style="color:#3b82f6"></i> Wallet Transactions</div>
-    <div style="font-size:13px;color:#64748b;margin-bottom:16px">Last 30 transactions for <b>${customerName||phone}</b> · <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${phone}</code></div>
+    <div style="font-size:13px;color:#64748b;margin-bottom:16px">Last 30 transactions for <b>${_esc(customerName)||phone}</b> · <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${phone}</code></div>
     <div id="txn-history-body" style="min-height:80px;display:flex;align-items:center;justify-content:center"><div style="color:#94a3b8;font-size:13px"><i class="fa fa-spinner fa-spin"></i> Loading…</div></div>
     <button class="btn btn-outline" style="margin-top:16px;width:100%" onclick="closeMo()">Close</button>`);
   try {

@@ -1,6 +1,13 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.5  |  Updated : 2026-06-18
+   Version : v12.6  |  Updated : 2026-06-20
+
+   CHANGES v12.6:
+   - Cache bumped → tiffo-admin-v26 (v158 release — no admin-panel
+     UI code changes this release; bumped to stay aligned with the
+     unified v158 backend/admin/rider release. Backend fix this
+     release: new-subscriber rows now default to opt-in/paused
+     auto-tiffin instead of opt-out — see server.js v158 notes.)
 
    CHANGES v12.5:
    - Cache bumped → tiffo-admin-v24 (v157 — CSP header + SIGTERM + credentials hint removed)
@@ -44,7 +51,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v24'; // v157: CSP header + SIGTERM + credentials hint removed
+const CACHE      = 'tiffo-admin-v26'; // v158: unified release version
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
