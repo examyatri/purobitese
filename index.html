@@ -7579,6 +7579,15 @@ function showRefreshIndicator() {}
 function hideRefreshIndicator() {}
 
 async function manualIndexRefresh() {
+  // If a SW update is pending (banner visible), treat pull-to-refresh as the
+  // user's explicit "get me current" signal — same as tapping the banner's
+  // Refresh button. This reloads the page, so the data refresh below never
+  // actually has to run in that case; the early return just makes that explicit
+  // rather than leaving the data calls to race a reload.
+  if (document.getElementById('sw-update-banner') && window._triggerSwUpdate) {
+    window._triggerSwUpdate({ userInitiated: true });
+    return;
+  }
   try {
     // Home PTR — bypass ALL cache, force fresh DB fetch for everything
     // menu, pause status, subscriber status, wallet balance — all hit DB directly
@@ -10881,7 +10890,7 @@ function _showUpdateBanner() {
     + 'box-shadow:0 6px 28px rgba(0,0,0,.35);white-space:nowrap;pointer-events:all;'
     + 'font-family:var(--ff);font-size:13px;font-weight:600;';
   el.innerHTML = '<span>App updated — refresh to get latest</span>'
-    + '<button onclick="_triggerSwUpdate()" style="background:#e63946;border:none;'
+    + '<button onclick="_triggerSwUpdate({userInitiated:true});this.disabled=true;this.textContent=\'Refreshing…\'" style="background:#e63946;border:none;'
     + 'color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;'
     + 'cursor:pointer;font-family:var(--ff)">Refresh</button>';
   document.body.appendChild(el);
@@ -10989,28 +10998,61 @@ async function bootApp() {
     //   • Not mid-payment or mid-cart → activate immediately, silent reload follows.
     //   • Mid-payment/cart → show banner; user taps Refresh to trigger activation.
     // Deduplication: _swUpdateScheduled prevents multiple timers stacking.
+    //
+    // GLOBAL by design: assigned to window.* (not just a local function) because
+    // the update banner's "Refresh" button (#sw-update-banner) is built via
+    // innerHTML with an inline onclick="_triggerSwUpdate()" — inline handlers can
+    // only resolve GLOBAL names. A plain `function _triggerSwUpdate(){}` declared
+    // in this closure is invisible to that onclick, so the button silently did
+    // nothing (no error shown to the user) on tap. Fixed in v158.1.
     window._swUpdateScheduled = false;
-    function _triggerSwUpdate() {
-      if (window._swUpdateScheduled || window._swReloading) return;
+    window._swUserRefreshInFlight = false; // guards against stacked taps/pulls (banner button + PTR can both call this)
+    window._triggerSwUpdate = function _triggerSwUpdate(opts) {
+      const userInitiated = !!(opts && opts.userInitiated);
+      if (userInitiated) {
+        // Already handling a user-initiated refresh (e.g. they pulled-to-refresh
+        // multiple times, or tapped the banner then immediately pulled-to-refresh)
+        // — don't stack a second SKIP_WAITING + fallback timer for the same intent.
+        if (window._swUserRefreshInFlight || window._swReloading) return;
+        window._swUserRefreshInFlight = true;
+      } else if (window._swUpdateScheduled || window._swReloading) {
+        return;
+      }
       window._swUpdateScheduled = true;
       const busyPages = ['pg-cart','pg-recharge','pg-success','pg-success-sub','pg-success-insuf'];
       const doActivate = () => {
         window._swUpdateScheduled = false;
         if (window._swReloading) return;
-        const onBusyPage = busyPages.some(id => document.getElementById(id)?.classList.contains('here'));
+        const onBusyPage = !userInitiated && busyPages.some(id => document.getElementById(id)?.classList.contains('here'));
         if (onBusyPage) {
           _showUpdateBanner();
-          // Banner's Refresh button calls _triggerSwUpdate() again (see _showUpdateBanner).
+          // Banner's Refresh button calls _triggerSwUpdate({userInitiated:true}) again.
           // Reset flag so it can re-enter.
           window._swUpdateScheduled = false;
-        } else {
-          // Safe to activate — send SKIP_WAITING → SW activates → controllerchange → reload.
-          navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+          return;
+        }
+        // Safe to activate — send SKIP_WAITING → SW activates → controllerchange → reload.
+        navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+        // RELIABILITY FALLBACK: controllerchange is supposed to fire after
+        // skipWaiting() and the listener below reloads 800ms after that — but
+        // this event has been flaky on some Android WebView/PWA combinations
+        // in the field. A user who explicitly tapped "Refresh" must never be
+        // left staring at a banner that does nothing, so this is a genuine
+        // fallback: it shares the same _swReloading guard as the normal
+        // controllerchange listener, so whichever path wins the race reloads
+        // exactly once, and the other becomes a no-op.
+        if (userInitiated) {
+          setTimeout(() => {
+            if (window._swReloading) return; // controllerchange already won the race
+            window._swReloading = true;
+            window.location.reload();
+          }, 2500);
         }
       };
       // Small delay so updatefound/statechange bookkeeping settles before we activate.
-      setTimeout(doActivate, 500);
-    }
+      // Skip the delay entirely for a user tap — they're already waiting on us.
+      setTimeout(doActivate, userInitiated ? 0 : 500);
+    };
 
     // SW background HTML update notification (sw.js Strategy 3 revalidation).
     // When SW refreshes index.html in cache, it posts SW_HTML_UPDATED so we

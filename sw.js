@@ -1,6 +1,29 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v52.0  |  Updated : 2026-06-20
+   Version : v52.2  |  Updated : 2026-06-20
+
+   CHANGES v52.2:
+   - Cache bumped → tiffo-v78 (v158.2 — hardened the v158.1 update-
+     banner fix: repeated user-initiated triggers (e.g. tapping
+     Refresh, then pulling-to-refresh before the reload lands) no
+     longer stack multiple SKIP_WAITING messages / fallback reload
+     timers. New window._swUserRefreshInFlight guard, separate from
+     the existing non-user-initiated _swUpdateScheduled guard so a
+     user's explicit tap is never silently dropped by the other
+     guard, but also never stacks against itself.)
+
+   CHANGES v52.1:
+   - Cache bumped → tiffo-v77 (v158.1 — fixed broken "App updated,
+     refresh" banner: Refresh button called _triggerSwUpdate() via
+     inline onclick, but the function was declared locally inside
+     bootApp(), never attached to window — inline handlers can only
+     resolve global names, so the button silently did nothing. Now
+     exposed as window._triggerSwUpdate with a userInitiated flag:
+     skips the busy-page check, skips the dedupe delay, and adds a
+     2.5s hard-reload fallback in case controllerchange never fires
+     (seen on some Android WebView/PWA combos). Pull-to-refresh on
+     Home now also detects a pending update banner and routes
+     through the same reload path instead of ignoring it.)
 
    CHANGES v52.0:
    - Cache bumped → tiffo-v76 (v158 release — no customer-panel
@@ -50,7 +73,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v76'; // v158: unified release version (no customer-panel code changes)
+const CACHE      = 'tiffo-v78'; // v158.2: hardened update-banner fix against repeated-tap stacking
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
