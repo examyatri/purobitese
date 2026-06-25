@@ -281,6 +281,7 @@ const _RIDER_ACTIONS = new Set([
 const _STAFF_ACTIONS = new Set([
   'adminGetOrders',
   'adminGetUsers',
+  'getUserAnalytics',
   'adminAllowOrder',
   'adminBlockOrder',
   'adminSetUserCoords',
@@ -1425,7 +1426,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v157' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v160' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
@@ -3833,6 +3834,55 @@ app.post('/api', async (req, res) => {
             };
           });
           return res.json({ success: true, users: safe }); }
+
+      // ── USER ANALYTICS (for Analytics modal in All Users tab) ──────────────
+      // Returns per-phone order stats for last 90 days + lifetime spend + last_order_date.
+      // Two DB calls only — heavy segmentation logic runs on the frontend.
+      case 'getUserAnalytics': {
+        const days = Math.min(parseInt(data.days) || 90, 180); // cap at 180d
+        const fromDate = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+        const [ordersRes, ratingsRes] = await Promise.all([
+          supabase.from('orders')
+            .select('phone, date, final_amount, order_status, slot')
+            .gte('date', fromDate)
+            .neq('order_status', 'cancelled')
+            .neq('order_status', 'rejected'),
+          supabase.from('user_ratings')
+            .select('phone, lifetime_spend, last_order_date, manual_score')
+        ]);
+        // Aggregate per phone
+        const statsMap = {};
+        for (const o of (ordersRes.data || [])) {
+          const p = o.phone;
+          if (!statsMap[p]) statsMap[p] = { orderCount: 0, totalSpend: 0, dates: [], morningCount: 0, eveningCount: 0 };
+          statsMap[p].orderCount++;
+          statsMap[p].totalSpend += (o.final_amount || 0);
+          statsMap[p].dates.push(o.date);
+          if (o.slot === 'morning') statsMap[p].morningCount++;
+          if (o.slot === 'evening') statsMap[p].eveningCount++;
+        }
+        // Merge ratings
+        const ratingsMap = {};
+        for (const r of (ratingsRes.data || [])) ratingsMap[r.phone] = r;
+        // Build final array
+        const result = Object.entries(statsMap).map(([phone, s]) => {
+          const r = ratingsMap[phone] || {};
+          const sortedDates = [...s.dates].sort();
+          return {
+            phone,
+            orderCount:     s.orderCount,
+            totalSpend:     Math.round(s.totalSpend),
+            morningCount:   s.morningCount,
+            eveningCount:   s.eveningCount,
+            firstOrderDate: sortedDates[0] || null,
+            lastOrderDate:  sortedDates[sortedDates.length - 1] || null,
+            lifetimeSpend:  Math.round(parseFloat(r.lifetime_spend) || 0),
+            ratingLastDate: r.last_order_date || null,
+            manualScore:    r.manual_score || 5,
+          };
+        });
+        return res.json({ success: true, stats: result, fromDate, days });
+      }
 
       case 'adminAllowOrder': {
         // Admin enables order placement for outside-zone or manual_only users
