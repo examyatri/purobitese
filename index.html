@@ -906,7 +906,7 @@ textarea{resize:vertical;min-height:80px}
 .loc-btn:disabled{opacity:.55;cursor:not-allowed}
 .loc-btn.verified{background:#166534}
 .loc-btn.rejected{background:#991b1b}
-.loc-status{margin-top:10px;font-size:12.5px;font-family:var(--fb);padding:11px 13px;border-radius:10px;display:none;line-height:1.55;font-weight:500}
+.loc-status{margin-top:10px;font-size:12.5px;font-family:var(--fb);padding:11px 13px;border-radius:10px;display:none!important;line-height:1.55;font-weight:500}
 .loc-map-wrap{margin-top:12px;border-radius:12px;overflow:hidden;border:1.5px solid #cbd5e1}
 .loc-map-hdr{background:#0f172a;color:#fff;padding:8px 12px;font-size:11.5px;font-weight:600;font-family:var(--ff);display:flex;align-items:center;gap:6px}
 .loc-map-hint{padding:8px 12px;font-size:11.5px;color:#64748b;background:#f8fafc;font-family:var(--fb);line-height:1.5}
@@ -4788,10 +4788,7 @@ async function _loadDeliveryZone() {
 
 /* Called after GPS detects a position — evaluates distance against zone */
 function _evaluateLocation(lat, lng, accuracy) {
-  // v133: build accuracy suffix for status bar (accuracy is optional, from GPS fix)
-  const _accSuffix = (typeof accuracy === 'number' && !isNaN(accuracy))
-    ? ` <span style="color:#15803d;font-weight:600">(GPS accuracy: ~${Math.round(accuracy)}m)</span>`
-    : '';
+  const _accSuffix = ''; // accuracy shown inline in chip, not in status bar
   const zone    = _deliveryZone;
   const status  = document.getElementById('su-loc-status');
   const btnTxt  = document.getElementById('su-loc-btn-txt');
@@ -4828,27 +4825,24 @@ function _evaluateLocation(lat, lng, accuracy) {
     document.getElementById('su-loc-ok').value = '1';
     if (btnTxt) btnTxt.textContent = '✅ Location Captured';
     if (btn) btn.classList.add('verified');
-    showStatus('✅ Location captured. Delivery zone not configured by admin yet — proceeding.', false, true);
-    _suMapStatus('found', '✅ GPS location captured — pin locked on your position.' + _accSuffix);
+    _suMapStatus('found', '📍 Location pinned successfully.');
     _showMapPin(lat, lng);
     return;
   }
 
   const dist    = _haversineKm(zone.lat, zone.lng, lat, lng);
-  const distStr = dist.toFixed(2);
+  const distStr = dist.toFixed(1);
 
   if (dist <= zone.radiusKm) {
     document.getElementById('su-loc-ok').value = '1';
     if (btnTxt) btnTxt.textContent = '✅ Within Delivery Area';
     if (btn) btn.classList.add('verified');
-    showStatus(`✅ You're ${distStr} km away — within our ${zone.radiusKm} km delivery area!`, true, false);
-    _suMapStatus('found', `✅ Within delivery area — ${distStr} km from us. Pin locked.` + _accSuffix);
+    _suMapStatus('found', `✅ Within delivery area · ${distStr} km away`);
   } else {
     document.getElementById('su-loc-ok').value = '0';
     if (btnTxt) btnTxt.textContent = '✅ Location Captured';
     if (btn) btn.classList.add('verified');
-    showStatus('✅ Location captured successfully.', true, false);
-    _suMapStatus('found', '📍 Location pinned — tap <b>Recenter</b> if the pin is slightly off.' + _accSuffix);
+    _suMapStatus('found', '📍 Pin locked — drag to adjust, then tap Save Location');
   }
   _showMapPin(lat, lng);
 }
@@ -5088,10 +5082,7 @@ function _suOnWatchUpdate(pos) {
     // Drop a pin on the map and lock it
     _showMapPin(lat, lng);
     setTimeout(() => _suLockMap(), 50); // lock after pin drops
-    const accM = Math.round(accuracy);
-    _suMapStatus('found', `✅ GPS confirmed — accuracy ±${accM}m. Your delivery address is saved.`);
-    // Gentle toast — non-intrusive
-    toast('📍 GPS detected! Your exact location has been confirmed.', 3000);
+    _suMapStatus('found', '✅ GPS location confirmed');
     return;
   }
 }
@@ -5175,12 +5166,15 @@ async function _suSavePinLocation() {
   }
   _suLockMap();
   // Update status bar to saved state
-  _suMapStatus('saved', '✅ Location saved — coordinates confirmed for delivery.');
+  _suMapStatus('saved', '✅ Location saved');
   // Show green chip below map
   const chip = document.getElementById('su-addr-chip');
   const chipTxt = document.getElementById('su-addr-chip-text');
   if (chip) chip.className = 'loc-chip ok';
-  if (chipTxt) chipTxt.textContent = '✅ Location saved — your delivery coordinates are confirmed.';
+  if (chipTxt) {
+    const _cl = _pendingLat !== null ? `📍 ${_pendingLat.toFixed(6)}, ${_pendingLng.toFixed(6)}` : '✅ Location saved';
+    chipTxt.textContent = _cl;
+  }
   // Restore Save button
   if (sav) { sav.disabled = false; sav.innerHTML = '<i class="fa fa-check"></i> Saved ✓'; sav.classList.add('saved-state'); }
 }
@@ -5335,7 +5329,7 @@ async function _updateAddressFromPin(lat, lng) {
   const chip     = document.getElementById('su-addr-chip');
   const chipText = document.getElementById('su-addr-chip-text');
   if (chip && chipText) {
-    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}`;
+    chipText.innerHTML = `📍 ${latStr}, ${lngStr}`;
     chip.style.display = 'block';
   }
   const hint = document.getElementById('su-geocode-hint');
@@ -5356,7 +5350,7 @@ async function _updateAddressFromPin(lat, lng) {
   const plusCode = await _getPlusCode(lat, lng);
 
   if (chip && chipText) {
-    chipText.innerHTML = `✅ GPS pinned — ${latStr}, ${lngStr}${plusCode ? ` · <b>${plusCode}</b>` : ''}`;
+    chipText.innerHTML = plusCode ? `📍 ${latStr}, ${lngStr} · <b>${plusCode}</b>` : `📍 ${latStr}, ${lngStr}`;
   }
   if (hint) {
     hint.innerHTML = `<span style="color:#166534;font-weight:600">✅ Coordinates saved</span>
@@ -9264,7 +9258,7 @@ async function _acctSavePinLocation() {
   const sBtn = document.getElementById('acct-save-pin-btn');
   if (rBtn) rBtn.style.display = 'flex';
   if (sBtn) sBtn.style.display = 'none';
-  _acctMapStatus('saved', '✅ Location saved — coordinates confirmed for delivery.');
+  _acctMapStatus('saved', '✅ Location saved');
 }
 
 function toggleAddrUpdateForm() {
