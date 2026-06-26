@@ -5250,32 +5250,91 @@ function setUserFilter(type, el) {
   filterUsers();
 }
 
-let _ratingsRecomputedThisSession = false;
+// ── Rating Sort Sync ─────────────────────────────────────────────────────────
+// Recomputes all Tiffo Scores when admin sorts by Top/Low Rating.
+// Throttled to once every 6 hours using localStorage — persists across refreshes.
+// Only fires when sort value actually changes TO a rating sort (not on every call).
+const _RATING_SYNC_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
+let _ratingSyncInProgress = false;
+let _lastSortValue = null; // track previous sort value to detect real changes
+
+function _showRatingSyncBanner(msg) {
+  let el = document.getElementById('rating-sync-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rating-sync-banner';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#1e40af;color:#fff;text-align:center;padding:11px 16px;font-size:13px;font-weight:700;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = msg;
+  el.style.display = 'flex';
+}
+
+function _hideRatingSyncBanner() {
+  const el = document.getElementById('rating-sync-banner');
+  if (el) el.style.display = 'none';
+}
+
+function _needsRatingSync() {
+  try {
+    const last = parseInt(localStorage.getItem('tiffo_ratings_synced_at') || '0');
+    return (Date.now() - last) > _RATING_SYNC_COOLDOWN_MS;
+  } catch(_) { return true; }
+}
+
+function _markRatingsSynced() {
+  try { localStorage.setItem('tiffo_ratings_synced_at', String(Date.now())); } catch(_) {}
+}
+
+async function _syncRatingsIfNeeded() {
+  if (_ratingSyncInProgress) return;
+  if (!_needsRatingSync()) return; // synced <6h ago — skip
+
+  _ratingSyncInProgress = true;
+  const sortEl = document.getElementById('users-sort');
+  if (sortEl) sortEl.disabled = true;
+
+  _showRatingSyncBanner('<i class="fa fa-spinner fa-spin" style="font-size:14px"></i> Syncing Tiffo Scores — please wait, this takes a few seconds…');
+
+  try {
+    const res = await api('adminRecomputeAllRatings', {});
+    if (res.success) {
+      _markRatingsSynced();
+      // Refresh _allUsers with newly computed ratings
+      const fresh = await api('adminGetUsers', {});
+      if (fresh.success && fresh.users) _allUsers = fresh.users;
+      _showRatingSyncBanner('✅ Tiffo Scores synced successfully!');
+      setTimeout(_hideRatingSyncBanner, 2500);
+    } else {
+      _showRatingSyncBanner('⚠️ Score sync failed — showing cached values');
+      setTimeout(_hideRatingSyncBanner, 3000);
+    }
+  } catch(_) {
+    _showRatingSyncBanner('⚠️ Score sync failed — showing cached values');
+    setTimeout(_hideRatingSyncBanner, 3000);
+  } finally {
+    _ratingSyncInProgress = false;
+    if (sortEl) sortEl.disabled = false;
+    // Re-render with fresh data after sync
+    filterUsers();
+  }
+}
 
 async function filterUsers() {
   const q    = (document.getElementById('users-search')?.value || '').toLowerCase().trim();
   const sort = document.getElementById('users-sort')?.value || 'default';
 
-  // When sorting by rating, recompute all scores once per session so values are fresh.
-  // Lazy approach: no dedicated button needed — admin naturally triggers this by sorting.
-  if ((sort === 'top_rating' || sort === 'low_rating') && !_ratingsRecomputedThisSession) {
-    const sortEl = document.getElementById('users-sort');
-    if (sortEl) sortEl.disabled = true;
-    aToast('Syncing ratings… please wait');
-    try {
-      const res = await api('adminRecomputeAllRatings', {});
-      if (res.success) {
-        _ratingsRecomputedThisSession = true;
-        // Patch _allUsers with fresh rating values from the recompute
-        // Re-fetch users so the in-memory list has updated ratings
-        const fresh = await api('adminGetUsers', {});
-        if (fresh.success && fresh.users) {
-          _allUsers = fresh.users;
-          aToast('Ratings synced ✅');
-        }
-      }
-    } catch(_) { /* non-fatal — show stale data rather than crashing */ }
-    if (sortEl) sortEl.disabled = false;
+  // Only trigger sync when sort value actually CHANGES TO a rating sort.
+  // Opening the dropdown and re-selecting the same value won't fire onchange,
+  // but guard with _lastSortValue anyway to be safe.
+  const isRatingSort = (sort === 'top_rating' || sort === 'low_rating');
+  const sortChanged  = (sort !== _lastSortValue);
+  _lastSortValue = sort;
+
+  if (isRatingSort && sortChanged && !_ratingSyncInProgress) {
+    // Fire async — don't await here so the list renders immediately with cached values
+    // while sync runs in background. Re-render fires again inside _syncRatingsIfNeeded.
+    _syncRatingsIfNeeded();
   }
 
   let filtered = [..._allUsers];
@@ -9187,9 +9246,12 @@ async function saveAndSendCoupon(notifId, phone, name) {
 }
 
 async function markCouponSentAndNotifRead(phone, notifId, name, couponCode) {
-  try { await api('markNuCouponSent', { phone, name: name||null, coupon_code: couponCode||null }); } catch(_) {}
+  // Both writes are independent — run in parallel, then refresh UI
+  await Promise.allSettled([
+    api('markNuCouponSent', { phone, name: name||null, coupon_code: couponCode||null }),
+    api('markNotificationRead', { id: notifId })
+  ]);
   try {
-    await api('markNotificationRead', { id: notifId });
     _lastNotifsStr = '';
     await loadNotifications();
     if (_nuPanelOpen) loadNuCoupons('sent', document.getElementById('nu-tab-sent'));
