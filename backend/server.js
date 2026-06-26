@@ -1,8 +1,17 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v163                                      ║
+// ║  Version : v164                                      ║
 // ║  Updated : 2026-06-26                               ║
+// ║  v164    : Audit fix — explicit startup warning if    ║
+// ║            SUPABASE_SERVICE_KEY is missing. RLS is    ║
+// ║            enabled on every table with zero policies  ║
+// ║            (deny-all by default); only the service    ║
+// ║            key bypasses it. Previously a missing/     ║
+// ║            typo'd key silently fell back to the anon  ║
+// ║            key — app stayed up but every query was    ║
+// ║            blocked, with no error surfaced anywhere.  ║
+// ║            No behavior change — log only.             ║
 // ║  v163    : Rating fix — orders.select('id') →        ║
 // ║            select('order_id') in all 3 rating funcs  ║
 // ║            (_recomputeAndSyncRating, adminGet-        ║
@@ -220,6 +229,18 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY
 );
+
+// FATAL CHECK — SUPABASE_SERVICE_KEY specifically (not just any key present).
+// Every table has RLS enabled with ZERO policies defined (see database.sql) —
+// by Postgres default this means "deny all" to any non-service-role connection.
+// The service key bypasses RLS entirely; the anon key does NOT. So if this var
+// is ever missing/typo'd, the app does NOT crash — it silently falls back to
+// the anon key, RLS blocks every query, and every endpoint starts returning
+// empty/null data with no visible error. This log is the only signal you'd get.
+if (!process.env.SUPABASE_SERVICE_KEY) {
+  console.error('[FATAL] SUPABASE_SERVICE_KEY env var not set — falling back to ANON key. ' +
+    'RLS is enabled with no policies, so ALL Supabase queries will silently fail/return empty. Fix immediately.');
+}
 
 const SECURE_API_KEY = process.env.API_KEY;
 if (!SECURE_API_KEY) console.error('[FATAL] API_KEY env var not set');
@@ -1917,24 +1938,26 @@ app.post('/api', async (req, res) => {
           _menuItemsCacheTs = _now;
         }
 
-        const [scheduleVal, cutoffVal, khataVal] = await Promise.all([
+        // Determine if we need to fetch order_allowed for this user
+        const cleanedPhone = data.phone ? cleanPhone(data.phone) : null;
+        const needsUserCheck = !!(cleanedPhone && _verifyUserToken(req.body.userToken, cleanedPhone));
+
+        // Settings + optional order_allowed all in one round-trip (was sequential after settings)
+        const [scheduleVal, cutoffVal, khataVal, uRow] = await Promise.all([
           getCachedSetting('weekly_schedule'),
           getCachedSetting('order_cutoff_config'),
-          getCachedSetting('khata_enabled')
+          getCachedSetting('khata_enabled'),
+          needsUserCheck
+            ? supabase.from('users').select('order_allowed').eq('phone', cleanedPhone).single()
+            : Promise.resolve({ data: null })
         ]);
         let schedule = null, config = null;
         if (scheduleVal)  { try { schedule = JSON.parse(scheduleVal); } catch { schedule = null; } }
         if (cutoffVal)    { try { config   = JSON.parse(cutoffVal);   } catch { config   = null; } }
         const enabled = JSON.parse(khataVal || 'false') === true;
-        // If phone + userToken supplied, append user-specific order_allowed
-        let orderAllowed = true; // default — guests and unknown users can proceed
-        if (data.phone) {
-          const cleanedPhone = cleanPhone(data.phone);
-          if (cleanedPhone && _verifyUserToken(req.body.userToken, cleanedPhone)) {
-            const { data: uRow } = await supabase.from('users').select('order_allowed').eq('phone', cleanedPhone).single();
-            if (uRow) orderAllowed = uRow.order_allowed !== false;
-          }
-        }
+        // order_allowed: default true for guests; use DB value for verified logged-in users
+        let orderAllowed = true;
+        if (needsUserCheck && uRow?.data) orderAllowed = uRow.data.order_allowed !== false;
         return res.json({ success: true, items: menuItems, schedule, config, enabled, version: _menuContentVersion, order_allowed: orderAllowed });
       }
 
@@ -2598,14 +2621,20 @@ app.post('/api', async (req, res) => {
 
       case 'getOrderTransactions': {
         // Returns last 30 khata_entries for a given phone
+        // All 3 reads are independent — run in parallel (was 3 sequential round-trips)
         const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('name').eq('phone', phone).single();
-        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
-        const { data: entries } = await supabase
-          .from('khata_entries').select('*')
-          .eq('phone', phone)
-          .order('created_at', { ascending: false })
-          .limit(30);
+        const [
+          { data: user },
+          { data: balRow },
+          { data: entries }
+        ] = await Promise.all([
+          supabase.from('users').select('name').eq('phone', phone).single(),
+          supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
+          supabase.from('khata_entries').select('*')
+            .eq('phone', phone)
+            .order('created_at', { ascending: false })
+            .limit(30)
+        ]);
         return res.json({
           success: true,
           name: user?.name || phone,
@@ -3217,18 +3246,18 @@ app.post('/api', async (req, res) => {
         }
         if (!user) return res.json({ success: false, error: 'User not found' });
         const { password_hash, ...safe } = user;
-        // Fetch wallet balance
-        const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', safe.phone).single();
-        safe.balance = balRow?.balance ?? 0;
         const bulkPriceCheck = parseFloat(data.price) || 0;  // 0 = no price check
-        safe.insufficient_balance = bulkPriceCheck > 0 && safe.balance < bulkPriceCheck;
 
-        // If slot provided, also check: already ordered this slot today + pause status
+        // If slot provided: balance + orders + subscriber all parallel (3 → 1 round-trip)
+        // If no slot: balance standalone (was already a single call, kept same)
         if (checkSlot) {
-          const [{ data: existOrd }, { data: subRow }] = await Promise.all([
+          const [{ data: balRow }, { data: existOrd }, { data: subRow }] = await Promise.all([
+            supabase.from('khata_summary').select('balance').eq('phone', safe.phone).single(),
             supabase.from('orders').select('order_id').eq('phone', safe.phone).eq('date', checkDate).eq('slot', checkSlot).not('order_status', 'eq', 'cancelled').limit(1),
             supabase.from('subscribers').select('pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off').eq('phone', safe.phone).single()
           ]);
+          safe.balance = balRow?.balance ?? 0;
+          safe.insufficient_balance = bulkPriceCheck > 0 && safe.balance < bulkPriceCheck;
           safe.already_ordered = !!(existOrd && existOrd.length);
           // Compute pause status for this slot — granular fields take priority when set;
           // _from date ensures a "tomorrow" pause does not mark today's preview row as paused.
@@ -3246,6 +3275,11 @@ app.post('/api', async (req, res) => {
             || (checkSlot === 'evening' && pe);
           safe.is_subscriber = !!subRow;
           safe.pause_delivery = sub.pause_delivery || 'none';
+        } else {
+          // No slot check — just need balance (single call, was already correct)
+          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', safe.phone).single();
+          safe.balance = balRow?.balance ?? 0;
+          safe.insufficient_balance = bulkPriceCheck > 0 && safe.balance < bulkPriceCheck;
         }
         return res.json({ success: true, user: safe });
       }
@@ -3293,9 +3327,12 @@ app.post('/api', async (req, res) => {
 
       case 'promoteToSubscriber': {
         const phone = cleanPhone(data.phone);
-        const { data: user } = await supabase.from('users').select('phone').eq('phone', phone).single();
+        // Validate user exists + not already subscriber in parallel (was 2 sequential selects)
+        const [{ data: user }, { data: existing }] = await Promise.all([
+          supabase.from('users').select('phone').eq('phone', phone).single(),
+          supabase.from('subscribers').select('phone').eq('phone', phone).single()
+        ]);
         if (!user) return res.json({ success: false, error: 'User not found' });
-        const { data: existing } = await supabase.from('subscribers').select('phone').eq('phone', phone).single();
         if (existing) return res.json({ success: false, error: 'Already a subscriber' });
         await supabase.from('subscribers').insert({
           phone,
@@ -4220,14 +4257,13 @@ app.post('/api', async (req, res) => {
           .replace(/^_+|_+$/g, '')
           .slice(0, 40);
         if (!slug) return res.json({ success: false, error: 'Invalid label — use letters/numbers' });
-        // Check duplicate slug
-        const { data: existing } = await supabase
-          .from('help_video_categories').select('id').eq('slug', slug).maybeSingle();
+        // Check duplicate slug + get max sort_order in parallel (was 2 sequential reads)
+        const [{ data: existing }, { data: maxRow }] = await Promise.all([
+          supabase.from('help_video_categories').select('id').eq('slug', slug).maybeSingle(),
+          supabase.from('help_video_categories').select('sort_order')
+            .order('sort_order', { ascending: false }).limit(1).maybeSingle()
+        ]);
         if (existing) return res.json({ success: false, error: `Category "${slug}" already exists` });
-        // Get max sort_order
-        const { data: maxRow } = await supabase
-          .from('help_video_categories').select('sort_order')
-          .order('sort_order', { ascending: false }).limit(1).maybeSingle();
         const nextOrder = (maxRow?.sort_order ?? -1) + 1;
         const { error } = await supabase.from('help_video_categories').insert({
           slug,
@@ -4368,20 +4404,55 @@ app.post('/api', async (req, res) => {
       }
 
       case 'adminRecomputeAllRatings': {
-        // One-time backfill: recompute Tiffo Score for ALL users and sync to users.rating.
-        // Also backfills user_ratings rows (lifetime_spend + last_order_date) from orders
-        // for any user whose row is missing — caused by the select('id') bug now fixed.
-        const { data: allUsers } = await supabase.from('users').select('phone').order('created_at', { ascending: false });
+        // Efficient bulk recompute — 6 DB round-trips total regardless of user count.
+        // Triggered by admin sorting All Users by Top/Low Rating (max once per 6h via client throttle).
+        //
+        // Strategy: fetch all data in parallel, compute scores in JS, write back in bulk.
+        // No per-user DB calls — O(1) DB round-trips instead of O(n).
+        const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        const now = new Date().toISOString();
+
+        // ── Round-trip 1: fetch all source data in parallel ──────────────────
+        const [
+          { data: allUsers },
+          { data: allRatings },
+          { data: allWallets },
+          { data: allSubs },
+          { data: recentOrders30 }
+        ] = await Promise.all([
+          supabase.from('users').select('phone'),
+          supabase.from('user_ratings').select('phone, lifetime_spend, last_order_date, manual_score'),
+          supabase.from('khata_summary').select('phone, balance'),
+          supabase.from('subscribers').select('phone, created_at'),
+          supabase.from('orders')
+            .select('phone, final_amount, date')
+            .neq('order_status', 'cancelled')
+            .neq('order_status', 'rejected')
+            .gte('date', today30ago)
+        ]);
+
         if (!allUsers || allUsers.length === 0) return res.json({ success: true, updated: 0 });
 
-        // Step 1: For users missing a user_ratings row, backfill lifetime_spend from orders
-        const { data: existingRatings } = await supabase.from('user_ratings').select('phone');
-        const ratedPhones = new Set((existingRatings || []).map(r => r.phone));
+        // ── Build lookup maps ─────────────────────────────────────────────────
+        const ratingMap  = {};
+        for (const r of (allRatings  || [])) ratingMap[r.phone]  = r;
+        const walletMap  = {};
+        for (const w of (allWallets  || [])) walletMap[w.phone]  = parseFloat(w.balance) || 0;
+        const subMap     = {};
+        for (const s of (allSubs     || [])) subMap[s.phone]     = s;
+        const order30Map = {};
+        for (const o of (recentOrders30 || [])) {
+          order30Map[o.phone] = (order30Map[o.phone] || 0) + 1;
+        }
+
+        // ── Step 1: backfill user_ratings rows for users who have none ────────
+        const ratedPhones   = new Set(Object.keys(ratingMap));
         const missingPhones = allUsers.map(u => u.phone).filter(p => !ratedPhones.has(p));
+        let backfilled = 0;
 
         if (missingPhones.length > 0) {
-          // Fetch all orders for missing phones to compute lifetime_spend + last_order_date
-          const { data: ordersForMissing } = await supabase
+          // Need lifetime spend for missing phones — fetch ALL their orders (not just 30d)
+          const { data: lifetimeOrders } = await supabase
             .from('orders')
             .select('phone, final_amount, date')
             .in('phone', missingPhones)
@@ -4389,15 +4460,13 @@ app.post('/api', async (req, res) => {
             .neq('order_status', 'rejected');
 
           const spendMap = {};
-          for (const o of (ordersForMissing || [])) {
+          for (const o of (lifetimeOrders || [])) {
             if (!spendMap[o.phone]) spendMap[o.phone] = { spend: 0, lastDate: null };
             spendMap[o.phone].spend += (o.final_amount || 0);
-            if (!spendMap[o.phone].lastDate || o.date > spendMap[o.phone].lastDate) {
+            if (!spendMap[o.phone].lastDate || o.date > spendMap[o.phone].lastDate)
               spendMap[o.phone].lastDate = o.date;
-            }
           }
-          // Upsert rows for all missing phones (even those with 0 orders — they get spend=0)
-          const now = new Date().toISOString();
+
           const upsertRows = missingPhones.map(p => ({
             phone:           p,
             lifetime_spend:  spendMap[p]?.spend || 0,
@@ -4405,23 +4474,60 @@ app.post('/api', async (req, res) => {
             manual_score:    5,
             updated_at:      now
           }));
-          // Batch upsert in chunks of 50 to avoid payload limits
-          for (let i = 0; i < upsertRows.length; i += 50) {
-            await supabase.from('user_ratings').upsert(upsertRows.slice(i, i + 50), { onConflict: 'phone' });
+          // Patch ratingMap so the score computation below picks up the new rows
+          for (const row of upsertRows) ratingMap[row.phone] = row;
+
+          // Batch upsert in chunks of 100
+          for (let i = 0; i < upsertRows.length; i += 100) {
+            await supabase.from('user_ratings').upsert(upsertRows.slice(i, i + 100), { onConflict: 'phone' });
+          }
+          backfilled = missingPhones.length;
+        }
+
+        // ── Step 2: compute scores for all users in JS (zero extra DB calls) ──
+        const userUpdates = []; // { phone, rating }
+        for (const u of allUsers) {
+          const p       = u.phone;
+          const rRow    = ratingMap[p]  || {};
+          const walBal  = walletMap[p]  || 0;
+          const recent30 = order30Map[p] || 0;
+          const sub     = subMap[p];
+          const spend   = parseFloat(rRow.lifetime_spend) || 0;
+
+          const p1 = Math.round(Math.min(walBal  / 500,   1) * 20);
+          const p2 = Math.round(Math.min(spend   / 10000, 1) * 30);
+          const p3 = Math.round(Math.min(recent30 / 30,   1) * 25);
+          let p4 = 0;
+          if (sub?.created_at) {
+            const days = Math.floor((Date.now() - new Date(sub.created_at)) / 86400000);
+            p4 = days >= 90 ? 15 : days >= 30 ? 12 : 8;
+          }
+          const p5    = Math.max(0, Math.min(10, rRow.manual_score ?? 5));
+          const total = Math.min(p1 + p2 + p3 + p4 + p5, 100);
+          userUpdates.push({ phone: p, rating: total });
+        }
+
+        // ── Single RPC call: bulk-write all users.rating in one SQL statement ──
+        // bulk_update_ratings() uses unnest() — O(1) round-trips regardless of N.
+        const p_phones  = userUpdates.map(u => u.phone);
+        const p_ratings = userUpdates.map(u => u.rating);
+        const { data: rpcUpdated, error: rpcErr } = await supabase.rpc('bulk_update_ratings', {
+          p_phones,
+          p_ratings
+        });
+
+        // Graceful fallback: if RPC not yet deployed, fall back to parallel chunks
+        if (rpcErr) {
+          console.warn('[adminRecomputeAllRatings] bulk_update_ratings RPC unavailable, using fallback:', rpcErr.message);
+          for (let i = 0; i < userUpdates.length; i += 100) {
+            const chunk = userUpdates.slice(i, i + 100);
+            await Promise.all(
+              chunk.map(u => supabase.from('users').update({ rating: u.rating }).eq('phone', u.phone))
+            );
           }
         }
 
-        // Step 2: Recompute full score for every user and write to users.rating
-        let updated = 0, failed = 0;
-        for (const u of allUsers) {
-          try {
-            await _recomputeAndSyncRating(u.phone);
-            updated++;
-          } catch (_) { failed++; }
-          // Small yield to avoid event-loop starvation on large user bases
-          await new Promise(r => setTimeout(r, 20));
-        }
-        return res.json({ success: true, updated, failed, total: allUsers.length, backfilled: missingPhones.length });
+        return res.json({ success: true, updated: rpcErr ? userUpdates.length : (rpcUpdated || userUpdates.length), backfilled, total: allUsers.length });
       }
 
       case 'adminGetUserRating': {
