@@ -1,8 +1,14 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v161                                      ║
+// ║  Version : v163                                      ║
 // ║  Updated : 2026-06-26                               ║
+// ║  v163    : Rating fix — orders.select('id') →        ║
+// ║            select('order_id') in all 3 rating funcs  ║
+// ║            (_recomputeAndSyncRating, adminGet-        ║
+// ║            UserRating, getUserRating). Order          ║
+// ║            Consistency was always 0. Added            ║
+// ║            adminRecomputeAllRatings with backfill.   ║
 // ║  v161    : Bug fixes — updateOrderStatus rejected    ║
 // ║            guard, checkSession brute-force counter   ║
 // ║            fix, manualRefund negative wallet guard   ║
@@ -339,6 +345,7 @@ const _STAFF_ACTIONS = new Set([
   'setDeliveryAreas',
   'adminSetUserAddress',
   'adminSetUserRating',
+  'adminRecomputeAllRatings',
   'adminGetUserRating',
   'createRider',
   'addHelpVideo',
@@ -1260,7 +1267,51 @@ async function _upsertUserRating(phone, spend_delta, order_date) {
       { phone, lifetime_spend: newSpend, last_order_date: newLastDate, updated_at: new Date().toISOString() },
       { onConflict: 'phone' }
     );
+
+    // Non-fatal: recompute full Tiffo Score and sync to users.rating
+    _recomputeAndSyncRating(phone).catch(() => {});
   } catch (_) { /* non-fatal */ }
+}
+
+// Recomputes all 5 rating parameters and writes the total to users.rating.
+// Called after every order create/reject and after manual admin score changes.
+async function _recomputeAndSyncRating(phone) {
+  const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [
+    { data: walRow },
+    { data: subRow },
+    { data: recentOrders, error: ordErr },
+    { data: ratingRow }
+  ] = await Promise.all([
+    supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
+    supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
+    supabase.from('orders').select('order_id')
+      .eq('phone', phone)
+      .neq('order_status', 'cancelled')
+      .neq('order_status', 'rejected')
+      .gte('date', today30ago),
+    supabase.from('user_ratings').select('lifetime_spend, manual_score').eq('phone', phone).single()
+  ]);
+
+  const walletBal = parseFloat(walRow?.balance) || 0;
+  const recent30  = ordErr ? 0 : (recentOrders || []).length;
+  const spend     = parseFloat(ratingRow?.lifetime_spend) || 0;
+
+  const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
+  const p2 = Math.round(Math.min(spend / 10000, 1) * 30);
+  const p3 = Math.round(Math.min(recent30 / 30, 1) * 25);
+  let p4 = 0;
+  if (subRow?.created_at) {
+    const subDays = Math.floor((Date.now() - new Date(subRow.created_at)) / 86400000);
+    if (subDays >= 90)      p4 = 15;
+    else if (subDays >= 30) p4 = 12;
+    else                    p4 = 8;
+  }
+  const p5    = Math.max(0, Math.min(10, ratingRow?.manual_score || 0));
+  const total = Math.min(p1 + p2 + p3 + p4 + p5, 100);
+
+  await supabase.from('users').update({ rating: total }).eq('phone', phone);
+  return total;
 }
 
 async function _createSingleOrder(
@@ -3813,13 +3864,13 @@ app.post('/api', async (req, res) => {
         { const { data: rows, error: uErr } = await supabase.from('users').select('*').order('created_at', { ascending: false });
           if (uErr) throw new Error('DB error: ' + uErr.message);
 
-          // ── Parallel fetch: 3 independent tables — single round trip ─────
-          // user_ratings removed: rating now cached directly in users.rating (NUMERIC column)
+          // ── Parallel fetch: 4 independent tables — single round trip ─────
           const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
           const [
             { data: subs },
             { data: balRows },
-            { data: recentOrders }
+            { data: recentOrders },
+            { data: ratingRows }
           ] = await Promise.all([
             supabase.from('subscribers').select('phone, plan, plan_end, created_at'),
             supabase.from('khata_summary').select('phone, balance'),
@@ -3827,7 +3878,8 @@ app.post('/api', async (req, res) => {
               .select('phone, date')
               .neq('order_status', 'cancelled')
               .neq('order_status', 'rejected')
-              .gte('date', today30ago)
+              .gte('date', today30ago),
+            supabase.from('user_ratings').select('phone, manual_score')
           ]);
 
           // Build lookup maps in JS — O(n), zero extra DB calls
@@ -3842,6 +3894,9 @@ app.post('/api', async (req, res) => {
             recent30Map[o.phone] = (recent30Map[o.phone] || 0) + 1;
           }
 
+          const manualScoreMap = {};
+          for (const r of (ratingRows || [])) manualScoreMap[r.phone] = r.manual_score ?? 5;
+
           const safe = (rows || []).map(u => {
             const { password_hash, ...s } = u;
             const sub    = subMap[u.phone];
@@ -3854,8 +3909,10 @@ app.post('/api', async (req, res) => {
               subscriber_plan_end: sub?.plan_end || null,
               total_orders:        recent30,
               wallet_balance:      walBal,
-              // rating comes directly from users.rating (NUMERIC) — no join needed
+              // rating comes directly from users.rating (NUMERIC) — kept in sync by _recomputeAndSyncRating
               rating:              parseFloat(u.rating) || 0,
+              // manual_score from user_ratings — needed for the rating modal slider
+              manual_score:        manualScoreMap[u.phone] ?? 5,
               // zone / order fields
               zone_status:         u.zone_status  || 'unknown',
               order_allowed:       u.order_allowed !== false, // default true
@@ -4303,43 +4360,68 @@ app.post('/api', async (req, res) => {
         );
         if (rErr) throw new Error('DB error: ' + rErr.message);
 
-        // Sync computed rating to users.rating so adminGetUsers can read it directly
-        // (non-fatal — if this fails the rating in user_ratings is still correct)
-        try {
-          const today30ago = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-          const [
-            { data: walRow },
-            { data: subRow },
-            { data: recentOrders },
-            { data: updatedRating }
-          ] = await Promise.all([
-            supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
-            supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
-            supabase.from('orders').select('id')
-              .eq('phone', phone)
-              .neq('order_status', 'cancelled')
-              .neq('order_status', 'rejected')
-              .gte('date', today30ago),
-            supabase.from('user_ratings').select('lifetime_spend, manual_score').eq('phone', phone).single()
-          ]);
-          const walletBal = parseFloat(walRow?.balance) || 0;
-          const recent30  = (recentOrders || []).length;
-          const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
-          const p2 = Math.round(Math.min((parseFloat(updatedRating?.lifetime_spend) || 0) / 10000, 1) * 30);
-          const p3 = Math.round(Math.min(recent30 / 30, 1) * 25);
-          let p4 = 0;
-          if (subRow?.created_at) {
-            const subDays = Math.floor((Date.now() - new Date(subRow.created_at)) / 86400000);
-            if (subDays >= 90)      p4 = 15;
-            else if (subDays >= 30) p4 = 12;
-            else                    p4 = 8;
-          }
-          const p5    = Math.max(0, Math.min(10, updatedRating?.manual_score || 0));
-          const total = Math.min(p1 + p2 + p3 + p4 + p5, 100);
-          await supabase.from('users').update({ rating: total }).eq('phone', phone);
-        } catch (_) { /* non-fatal */ }
+        // Recompute full Tiffo Score and sync to users.rating (non-fatal)
+        let newTotal = 0;
+        try { newTotal = await _recomputeAndSyncRating(phone); } catch (_) {}
 
-        return res.json({ success: true });
+        return res.json({ success: true, rating: newTotal });
+      }
+
+      case 'adminRecomputeAllRatings': {
+        // One-time backfill: recompute Tiffo Score for ALL users and sync to users.rating.
+        // Also backfills user_ratings rows (lifetime_spend + last_order_date) from orders
+        // for any user whose row is missing — caused by the select('id') bug now fixed.
+        const { data: allUsers } = await supabase.from('users').select('phone').order('created_at', { ascending: false });
+        if (!allUsers || allUsers.length === 0) return res.json({ success: true, updated: 0 });
+
+        // Step 1: For users missing a user_ratings row, backfill lifetime_spend from orders
+        const { data: existingRatings } = await supabase.from('user_ratings').select('phone');
+        const ratedPhones = new Set((existingRatings || []).map(r => r.phone));
+        const missingPhones = allUsers.map(u => u.phone).filter(p => !ratedPhones.has(p));
+
+        if (missingPhones.length > 0) {
+          // Fetch all orders for missing phones to compute lifetime_spend + last_order_date
+          const { data: ordersForMissing } = await supabase
+            .from('orders')
+            .select('phone, final_amount, date')
+            .in('phone', missingPhones)
+            .neq('order_status', 'cancelled')
+            .neq('order_status', 'rejected');
+
+          const spendMap = {};
+          for (const o of (ordersForMissing || [])) {
+            if (!spendMap[o.phone]) spendMap[o.phone] = { spend: 0, lastDate: null };
+            spendMap[o.phone].spend += (o.final_amount || 0);
+            if (!spendMap[o.phone].lastDate || o.date > spendMap[o.phone].lastDate) {
+              spendMap[o.phone].lastDate = o.date;
+            }
+          }
+          // Upsert rows for all missing phones (even those with 0 orders — they get spend=0)
+          const now = new Date().toISOString();
+          const upsertRows = missingPhones.map(p => ({
+            phone:           p,
+            lifetime_spend:  spendMap[p]?.spend || 0,
+            last_order_date: spendMap[p]?.lastDate || null,
+            manual_score:    5,
+            updated_at:      now
+          }));
+          // Batch upsert in chunks of 50 to avoid payload limits
+          for (let i = 0; i < upsertRows.length; i += 50) {
+            await supabase.from('user_ratings').upsert(upsertRows.slice(i, i + 50), { onConflict: 'phone' });
+          }
+        }
+
+        // Step 2: Recompute full score for every user and write to users.rating
+        let updated = 0, failed = 0;
+        for (const u of allUsers) {
+          try {
+            await _recomputeAndSyncRating(u.phone);
+            updated++;
+          } catch (_) { failed++; }
+          // Small yield to avoid event-loop starvation on large user bases
+          await new Promise(r => setTimeout(r, 20));
+        }
+        return res.json({ success: true, updated, failed, total: allUsers.length, backfilled: missingPhones.length });
       }
 
       case 'adminGetUserRating': {
@@ -4353,13 +4435,13 @@ app.post('/api', async (req, res) => {
           { data: ratingRow },
           { data: walRow },
           { data: subRow },
-          { data: recentOrders }
+          { data: recentOrders, error: ordErr }
         ] = await Promise.all([
           supabase.from('user_ratings').select('lifetime_spend, last_order_date, manual_score').eq('phone', phone).single(),
           supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
           supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
           supabase.from('orders')
-            .select('id')
+            .select('order_id')
             .eq('phone', phone)
             .neq('order_status', 'cancelled')
             .neq('order_status', 'rejected')
@@ -4367,8 +4449,7 @@ app.post('/api', async (req, res) => {
         ]);
 
         const walletBal = parseFloat(walRow?.balance) || 0;
-        const recent30  = (recentOrders || []).length;
-        const today     = new Date();
+        const recent30  = ordErr ? 0 : (recentOrders || []).length;
 
         const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
         const spend = parseFloat(ratingRow?.lifetime_spend) || 0;
@@ -4376,7 +4457,7 @@ app.post('/api', async (req, res) => {
         const p3 = Math.round(Math.min(recent30 / 30, 1) * 25);
         let p4 = 0;
         if (subRow?.created_at) {
-          const subDays = Math.floor((today - new Date(subRow.created_at)) / 86400000);
+          const subDays = Math.floor((Date.now() - new Date(subRow.created_at)) / 86400000);
           if (subDays >= 90)      p4 = 15;
           else if (subDays >= 30) p4 = 12;
           else                    p4 = 8;
@@ -4389,6 +4470,9 @@ app.post('/api', async (req, res) => {
         else if (total >= 60) badge = 'Loyal';
         else if (total >= 40) badge = 'Developing';
         else if (total >= 20) badge = 'At Risk';
+
+        // Also sync users.rating with the freshly computed value (non-fatal)
+        supabase.from('users').update({ rating: total }).eq('phone', phone).then(() => {}).catch(() => {});
 
         return res.json({
           success:   true,
@@ -5074,13 +5158,13 @@ app.post('/api', async (req, res) => {
           { data: ratingRow },
           { data: walRow },
           { data: subRow },
-          { data: recentOrders }
+          { data: recentOrders, error: ordErr }
         ] = await Promise.all([
           supabase.from('user_ratings').select('lifetime_spend, last_order_date, manual_score').eq('phone', phone).single(),
           supabase.from('khata_summary').select('balance').eq('phone', phone).single(),
           supabase.from('subscribers').select('created_at').eq('phone', phone).single(),
           supabase.from('orders')
-            .select('id')
+            .select('order_id')
             .eq('phone', phone)
             .neq('order_status', 'cancelled')
             .neq('order_status', 'rejected')
@@ -5088,8 +5172,7 @@ app.post('/api', async (req, res) => {
         ]);
 
         const walletBal = parseFloat(walRow?.balance) || 0;
-        const recent30  = (recentOrders || []).length;
-        const today     = new Date();
+        const recent30  = ordErr ? 0 : (recentOrders || []).length;
 
         // P1: Wallet Balance (₹0=0 → ₹500+=20)
         const p1 = Math.round(Math.min(walletBal / 500, 1) * 20);
@@ -5104,7 +5187,7 @@ app.post('/api', async (req, res) => {
         // P4: Subscription tenure
         let p4 = 0;
         if (subRow?.created_at) {
-          const subDays = Math.floor((today - new Date(subRow.created_at)) / 86400000);
+          const subDays = Math.floor((Date.now() - new Date(subRow.created_at)) / 86400000);
           if (subDays >= 90)      p4 = 15;
           else if (subDays >= 30) p4 = 12;
           else                    p4 = 8;
