@@ -5250,9 +5250,33 @@ function setUserFilter(type, el) {
   filterUsers();
 }
 
-function filterUsers() {
+let _ratingsRecomputedThisSession = false;
+
+async function filterUsers() {
   const q    = (document.getElementById('users-search')?.value || '').toLowerCase().trim();
   const sort = document.getElementById('users-sort')?.value || 'default';
+
+  // When sorting by rating, recompute all scores once per session so values are fresh.
+  // Lazy approach: no dedicated button needed — admin naturally triggers this by sorting.
+  if ((sort === 'top_rating' || sort === 'low_rating') && !_ratingsRecomputedThisSession) {
+    const sortEl = document.getElementById('users-sort');
+    if (sortEl) sortEl.disabled = true;
+    aToast('Syncing ratings… please wait');
+    try {
+      const res = await api('adminRecomputeAllRatings', {});
+      if (res.success) {
+        _ratingsRecomputedThisSession = true;
+        // Patch _allUsers with fresh rating values from the recompute
+        // Re-fetch users so the in-memory list has updated ratings
+        const fresh = await api('adminGetUsers', {});
+        if (fresh.success && fresh.users) {
+          _allUsers = fresh.users;
+          aToast('Ratings synced ✅');
+        }
+      }
+    } catch(_) { /* non-fatal — show stale data rather than crashing */ }
+    if (sortEl) sortEl.disabled = false;
+  }
 
   let filtered = [..._allUsers];
 
@@ -5834,8 +5858,8 @@ function openUserRatingModal(phone, name, manualScore, currentRating) {
     <!-- Current Rating Display -->
     <div style="background:linear-gradient(135deg,#fefce8,#fef3c7);border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:14px;text-align:center">
       <div style="font-size:11px;color:#92400e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current Rating</div>
-      <div style="font-size:36px;font-weight:900;color:#b45309;line-height:1">${currentRating}%</div>
-      <div style="font-size:13px;color:#92400e;margin-top:4px;font-weight:600">${catLabel(currentRating)}</div>
+      <div id="ur-current-val" style="font-size:36px;font-weight:900;color:#b45309;line-height:1">${currentRating}%</div>
+      <div id="ur-current-badge" style="font-size:13px;color:#92400e;margin-top:4px;font-weight:600">${catLabel(currentRating)}</div>
     </div>
 
     <!-- Live Breakdown Section -->
@@ -5884,6 +5908,11 @@ function openUserRatingModal(phone, name, manualScore, currentRating) {
       const res = await api('adminGetUserRating', { phone });
       if (!res.success) { el.innerHTML = '<span style="color:#e63946;font-size:12px">Could not load breakdown</span>'; return; }
       const { breakdown } = res;
+      // Update the header "Current Rating" to the live computed total
+      const valEl = document.getElementById('ur-current-val');
+      const bdgEl = document.getElementById('ur-current-badge');
+      if (valEl) valEl.textContent = res.rating + '%';
+      if (bdgEl) bdgEl.textContent = catLabel(res.rating);
       const params = [
         { emoji: '💰', label: 'Wallet Balance',      hint: '₹' + (breakdown.wallet.value||0),    score: breakdown.wallet.score,       max: 20 },
         { emoji: '🏆', label: 'Lifetime Total Spend', hint: '₹' + (breakdown.spend.value||0),     score: breakdown.spend.score,        max: 30 },
@@ -5916,7 +5945,21 @@ async function _doSaveUserRating(phone) {
   const btn = document.getElementById('ur-save-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving…'; }
   try {
-    await api('adminSetUserRating', { phone, manual_score });
+    const saveRes = await api('adminSetUserRating', { phone, manual_score });
+    // Update header with newly computed rating before closing
+    if (saveRes?.rating !== undefined) {
+      const valEl = document.getElementById('ur-current-val');
+      const bdgEl = document.getElementById('ur-current-badge');
+      function catLabel(r) {
+        if (r >= 80) return '🟢 Champion';
+        if (r >= 60) return '🔵 Loyal';
+        if (r >= 40) return '🟡 Developing';
+        if (r >= 20) return '🟠 At Risk';
+        return '🔴 Inactive';
+      }
+      if (valEl) valEl.textContent = saveRes.rating + '%';
+      if (bdgEl) bdgEl.textContent = catLabel(saveRes.rating);
+    }
     closeMo();
     loadUsers();
     aToast('Rating updated ✅');

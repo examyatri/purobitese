@@ -1,6 +1,11 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.8  |  Updated : 2026-06-26
+   Version : v12.9  |  Updated : 2026-06-26
+
+   CHANGES v12.9:
+   - Cache bumped → tiffo-admin-v29 (v163 — rating fix: lazy recompute
+     all scores when admin sorts by Top/Low Rating; filterUsers now
+     async; _ratingsRecomputedThisSession flag prevents repeat hits)
 
    CHANGES v12.8:
    - Cache bumped → tiffo-admin-v28 (v161 — bug fixes: updateOrderStatus
@@ -59,7 +64,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v28'; // v161: bug fixes (rejected guard, checkSession, manualRefund wallet floor)
+const CACHE      = 'tiffo-admin-v29'; // v163: rating fix — lazy recompute on Top/Low Rating sort
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
