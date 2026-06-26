@@ -1,6 +1,11 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.7  |  Updated : 2026-06-25
+   Version : v12.8  |  Updated : 2026-06-26
+
+   CHANGES v12.8:
+   - Cache bumped → tiffo-admin-v28 (v161 — bug fixes: updateOrderStatus
+     rejected guard, checkSession brute-force fix, manualRefund
+     negative wallet floor guard)
 
    CHANGES v12.7:
    - Cache bumped → tiffo-admin-v27 (v160 release — version alignment update)
@@ -54,7 +59,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v27'; // v160: version alignment update
+const CACHE      = 'tiffo-admin-v28'; // v161: bug fixes (rejected guard, checkSession, manualRefund wallet floor)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
