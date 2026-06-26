@@ -1,8 +1,11 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v158                                      ║
-// ║  Updated : 2026-06-20                               ║
+// ║  Version : v161                                      ║
+// ║  Updated : 2026-06-26                               ║
+// ║  v161    : Bug fixes — updateOrderStatus rejected    ║
+// ║            guard, checkSession brute-force counter   ║
+// ║            fix, manualRefund negative wallet guard   ║
 // ║  v158    : Opt-in auto-tiffin default fix —          ║
 // ║            addAsSubscriber and promoteToSubscriber   ║
 // ║            both created new subscriber rows with     ║
@@ -1578,8 +1581,12 @@ app.post('/api', async (req, res) => {
         const result = await _authenticateUser(loginPhone, data.password);
         if (result.success) {
           _resetLoginAttempts(loginPhone); // successful login — clear counter
-        } else {
-          _recordLoginFailure(loginPhone); // failed — increment counter
+        } else if (action === 'login') {
+          // Only count brute-force failures for explicit login attempts.
+          // checkSession is called silently on every app-open (bootApp, 48h background verify).
+          // If stale creds are stored (e.g. admin reset user's password), every app-open
+          // would increment the counter — 5 opens = 15-min lockout of their own account.
+          _recordLoginFailure(loginPhone);
         }
         return res.json(result);
       }
@@ -2230,6 +2237,12 @@ app.post('/api', async (req, res) => {
         if (data.date) query = query.eq('date', data.date);
         else if (data.fromDate) query = query.gte('date', data.fromDate);
         query = query.order('created_at', { ascending: false });
+        // Safety cap: ONLY applies when neither date nor fromDate is given —
+        // i.e. only the dashboard's "Total Orders" (lifetime) stat-detail
+        // click. "Today's Orders" always passes data.date and the main
+        // Orders tab always passes data.fromDate, so both show every
+        // matching order with NO limit, no matter how many there are.
+        if (!data.date && !data.fromDate) query = query.limit(500);
         const { data: rows } = await query;
         const formatted = (rows || []).map(formatOrder);
         const resolved = await resolveRiderNames(formatted);
@@ -2252,6 +2265,11 @@ app.post('/api', async (req, res) => {
         const normalizedStatus = statusMap[rawStatus];
         if (!normalizedStatus) {
           return res.json({ success: false, error: 'Invalid order status: ' + rawStatus });
+        }
+        // SAFETY: 'rejected' must go through rejectOrder which handles wallet refund,
+        // khata entry, idempotency, and notifications. updateOrderStatus has none of that.
+        if (normalizedStatus === 'rejected') {
+          return res.json({ success: false, error: "Use the 'rejectOrder' action to reject an order — it handles wallet refund and notifications." });
         }
 
         // ── OWNERSHIP CHECK (same pattern as getRiderOrders) ──────────────────
@@ -3393,8 +3411,11 @@ app.post('/api', async (req, res) => {
       case 'getKhata': {
         const phone = cleanPhone(data.phone);
         // ── Parallel fetch: entries + balance are independent — one round-trip instead of two ──
+        // Capped at 100 most recent entries — the modal renders into a 260px
+        // scrollbox (see openKhataDetail), so unbounded history has no UX
+        // benefit while growing server cost forever for long-tenured users.
         const [{ data: entries }, { data: sumRow }] = await Promise.all([
-          supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: false }),
+          supabase.from('khata_entries').select('*').eq('phone', phone).order('created_at', { ascending: false }).limit(100),
           supabase.from('khata_summary').select('balance').eq('phone', phone).single()
         ]);
 
@@ -3478,6 +3499,15 @@ app.post('/api', async (req, res) => {
           return res.json({ success: false, error: 'Invalid amount' });
         }
         if (Math.abs(amount) > 50000) return res.json({ success: false, error: 'Amount too large (max ±₹50,000)' });
+        // Guard: if deduction would push wallet negative, block it server-side.
+        // increment_balance has no floor — a typo like -5000 on a ₹100 wallet silently goes to -₹4900.
+        if (amount < 0) {
+          const { data: balRow } = await supabase.from('khata_summary').select('balance').eq('phone', phone).single();
+          const currentBal = Number(balRow?.balance ?? 0);
+          if (currentBal + amount < 0) {
+            return res.json({ success: false, error: `Deduction of ₹${Math.abs(amount)} would push wallet to ₹${(currentBal + amount).toFixed(2)}. Current balance: ₹${currentBal.toFixed(2)}. Reduce the amount.` });
+          }
+        }
         const newBal = await _atomicWalletUpdate(phone, amount);
         await supabase.from('khata_entries').insert({
           id:              generateTxnId(ist),
@@ -3839,7 +3869,10 @@ app.post('/api', async (req, res) => {
       // Returns per-phone order stats for last 90 days + lifetime spend + last_order_date.
       // Two DB calls only — heavy segmentation logic runs on the frontend.
       case 'getUserAnalytics': {
-        const days = Math.min(parseInt(data.days) || 90, 180); // cap at 180d
+        const parsedDays = parseInt(data.days);
+        const days = (Number.isFinite(parsedDays) && parsedDays > 0)
+          ? Math.min(parsedDays, 180)
+          : 90; // default + guard against 0, negative, NaN, or garbage input
         const fromDate = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
         const [ordersRes, ratingsRes] = await Promise.all([
           supabase.from('orders')
@@ -3850,6 +3883,8 @@ app.post('/api', async (req, res) => {
           supabase.from('user_ratings')
             .select('phone, lifetime_spend, last_order_date, manual_score')
         ]);
+        if (ordersRes.error) return res.json({ success: false, error: ordersRes.error.message || 'Failed to load orders' });
+        if (ratingsRes.error) return res.json({ success: false, error: ratingsRes.error.message || 'Failed to load ratings' });
         // Aggregate per phone
         const statsMap = {};
         for (const o of (ordersRes.data || [])) {
@@ -4002,13 +4037,15 @@ app.post('/api', async (req, res) => {
       case 'getAllKhata': {
         const { data: rows } = await supabase.from('khata_summary').select('*');
         const akPhones = (rows || []).map(r => r.phone);
-        const [{ data: akUsers }, { data: akTxns }] = akPhones.length
+        const [{ data: akUsers }, { data: akTxns }, { data: akSubs }] = akPhones.length
           ? await Promise.all([
               supabase.from('users').select('phone, name').in('phone', akPhones),
-              supabase.from('khata_entries').select('phone, id, type, created_at').in('phone', akPhones).order('created_at', { ascending: false })
+              supabase.from('khata_entries').select('phone, id, type, created_at').in('phone', akPhones).order('created_at', { ascending: false }),
+              supabase.from('subscribers').select('phone').in('phone', akPhones)
             ])
-          : [{ data: [] }, { data: [] }];
+          : [{ data: [] }, { data: [] }, { data: [] }];
         const akUMap = {}, akTMap = {};
+        const akSubSet = new Set((akSubs || []).map(s => s.phone));
         for (const u of (akUsers || [])) akUMap[u.phone] = u.name;
         for (const t of (akTxns  || [])) {
           if (!akTMap[t.phone]) akTMap[t.phone] = { count: 0, lastRecharge: null };
@@ -4021,7 +4058,8 @@ app.post('/api', async (req, res) => {
           updated_at:       r.updated_at,
           name:             akUMap[r.phone] || null,
           txn_count:        akTMap[r.phone]?.count || 0,
-          last_recharge_at: akTMap[r.phone]?.lastRecharge || null
+          last_recharge_at: akTMap[r.phone]?.lastRecharge || null,
+          is_subscriber:    akSubSet.has(r.phone)
         }));
         return res.json({ success: true, khata: enriched });
       }
