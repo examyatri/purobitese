@@ -1,10 +1,14 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v52.3  |  Updated : 2026-06-25
+   Version : v52.4  |  Updated : 2026-06-26
+
+   CHANGES v52.4:
+   - Cache bumped → tiffo-v80 (v161 — bug fixes: updateOrderStatus
+     rejected guard, checkSession brute-force fix, manualRefund
+     negative wallet floor guard)
 
    CHANGES v52.3:
    - Cache bumped → tiffo-v79 (v160 release — version alignment update)
-
    CHANGES v52.2:
    - Cache bumped → tiffo-v78 (v158.2 — hardened the v158.1 update-
      banner fix: repeated user-initiated triggers (e.g. tapping
@@ -76,7 +80,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v79'; // v160: version alignment update
+const CACHE      = 'tiffo-v80'; // v161: bug fixes (rejected guard, checkSession, manualRefund wallet floor)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
