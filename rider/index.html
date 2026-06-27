@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v165                                    ║
+     ║  Version : v168                                    ║
      ║  Updated : 2026-06-27                               ║
      ║  v165: Delivery UX fix — order_id now shown on      ║
      ║        every stop card AND on the active-delivery   ║
@@ -110,21 +110,6 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 .stat-num{font-family:var(--ff);font-weight:700;font-size:22px;color:var(--p)}
 .stat-lbl{font-size:11px;color:var(--mu)}
 
-/* Route button */
-.route-btn{
-  margin:12px 16px;
-  background:linear-gradient(135deg,#1d4ed8,#3b82f6);
-  color:white;border:none;border-radius:13px;
-  padding:14px;font-family:var(--ff);font-weight:700;
-  font-size:14px;width:calc(100% - 32px);cursor:pointer;
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  box-shadow:0 4px 14px rgba(37,99,235,.35);
-  transition:background 300ms,opacity 180ms,transform 120ms;
-  letter-spacing:.2px;
-}
-.route-btn:active{opacity:.88;transform:scale(.98)}
-.route-btn.loading{background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:not-allowed}
-.route-btn.ready{background:linear-gradient(135deg,#059669,#10b981)}
 
 
 
@@ -450,6 +435,58 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 .celeb-sub{color:#94a3b8;font-size:15px;line-height:1.6}
 .celeb-close{margin-top:28px;background:var(--p);color:#fff;border:none;border-radius:12px;padding:14px 32px;font-family:var(--ff);font-weight:700;font-size:15px;cursor:pointer}
 
+/* ─── TURN-BY-TURN NAV BANNER (Google Maps style) ───────── */
+#turn-banner{
+  position:absolute;top:0;left:0;right:0;
+  z-index:600;
+  display:none;
+  background:linear-gradient(180deg,#1a73e8 0%,#1765d4 100%);
+  padding:10px 12px;
+  box-shadow:0 3px 14px rgba(0,0,0,.35);
+}
+#turn-banner.show{display:flex}
+#turn-banner{align-items:center;gap:10px}
+#turn-icon{
+  width:40px;height:40px;flex-shrink:0;
+  background:rgba(255,255,255,.18);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+}
+#turn-info{flex:1;min-width:0}
+#turn-dist{
+  font-family:var(--ff);font-weight:800;font-size:18px;color:#fff;
+  line-height:1.1;
+}
+#turn-instr{
+  font-family:var(--ff);font-weight:600;font-size:12.5px;color:#dbeafe;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-top:1px;
+}
+#turn-eta-wrap{
+  flex-shrink:0;text-align:right;
+  border-left:1px solid rgba(255,255,255,.28);
+  padding-left:10px;
+}
+#turn-eta{font-family:var(--ff);font-weight:800;font-size:14px;color:#fff;line-height:1.1}
+#turn-eta-label{font-family:var(--ff);font-size:9px;color:#bfdbfe;font-weight:700;letter-spacing:.3px}
+#turn-mute-btn{
+  flex-shrink:0;width:30px;height:30px;border-radius:50%;
+  background:rgba(255,255,255,.18);border:none;color:#fff;
+  font-size:14px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;margin-left:2px;
+}
+#turn-mute-btn:active{opacity:.7}
+#turn-mute-btn.muted{background:rgba(239,68,68,.35)}
+/* Re-routing pill shown briefly while OSRM recalculates */
+#turn-rerouting{
+  position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  z-index:610;display:none;
+  background:#1e293b;color:#fbbf24;font-family:var(--ff);font-weight:700;
+  font-size:11px;padding:5px 14px;border-radius:20px;
+  box-shadow:0 2px 8px rgba(0,0,0,.4);
+}
+#turn-rerouting.show{display:block}
+
 /* Blue pulsing GPS dot */
 .gps-pulse-ring{
   width:16px;height:16px;border-radius:50%;
@@ -713,12 +750,6 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
     <div class="stat-item"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Total Delivered</div></div>
   </div>
 
-  <!-- Route Planner — one button: GPS → optimize → open map with road route ready -->
-  <button class="route-btn" id="plan-route-btn" onclick="planAndGo()">
-    <span id="plan-route-icon">🗺</span>
-    <span id="plan-route-label">Plan &amp; Go — Optimized Route</span>
-  </button>
-
   <!-- Main Tabs -->
   <div class="tabs">
     <div class="tab act" id="tab-pending" onclick="switchTab('pending')">
@@ -822,6 +853,20 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
   <!-- Leaflet Map -->
   <div id="map-container">
     <div id="leaflet-map"></div>
+    <!-- Turn-by-turn navigation banner (Google Maps style) -->
+    <div id="turn-banner">
+      <div id="turn-icon">⬆️</div>
+      <div id="turn-info">
+        <div id="turn-dist">—</div>
+        <div id="turn-instr">Route ready ho rahi hai…</div>
+      </div>
+      <div id="turn-eta-wrap">
+        <div id="turn-eta">—</div>
+        <div id="turn-eta-label">ETA</div>
+      </div>
+      <button id="turn-mute-btn" onclick="toggleVoiceNav()" title="Voice on/off">🔊</button>
+    </div>
+    <div id="turn-rerouting">🔄 Route recalculate ho raha hai…</div>
     <!-- All-Pins stats bar — overlaid at bottom of map when expanded -->
     <div id="all-pins-bar">
       <span id="all-pins-stats"></span>
@@ -1890,8 +1935,10 @@ function renderOrders() {
     const grp = grouped[date];
     const showMorning = (_appliedSlot === 'all' || _appliedSlot === 'morning') && grp.morning.length;
     const showEvening = (_appliedSlot === 'all' || _appliedSlot === 'evening') && grp.evening.length;
-    const mJson = JSON.stringify(grp.morning).replace(/"/g,'&quot;');
-    const eJson = JSON.stringify(grp.evening).replace(/"/g,'&quot;');
+    const mKey = 'rmap_m_' + date;
+    const eKey = 'rmap_e_' + date;
+    if (grp.morning.length) sessionStorage.setItem(mKey, JSON.stringify(grp.morning));
+    if (grp.evening.length) sessionStorage.setItem(eKey, JSON.stringify(grp.evening));
     return `<div class="date-section">
       <div class="date-header" onclick="toggleDateSection('${date}')">
         <span class="date-label">${dateLabel(date)}</span>
@@ -1901,14 +1948,14 @@ function renderOrders() {
         ${showMorning ? `<div class="session-group">
           <div class="session-header session-morning">
             <span>☀️ Morning (${grp.morning.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${mJson}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();_openSessionRoute('${mKey}')">🗺 Route</button>
           </div>
           ${grp.morning.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
         ${showEvening ? `<div class="session-group">
           <div class="session-header session-evening">
             <span>🌙 Evening (${grp.evening.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();openRiderMap('${eJson}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();_openSessionRoute('${eKey}')">🗺 Route</button>
           </div>
           ${grp.evening.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
@@ -2198,6 +2245,11 @@ function _startGPS() {
         }
       }
 
+      // 2b. Turn-by-turn banner: cheap math-only update on every fix (no network)
+      if (_deliveryActive && _liveTrackingActive) {
+        _updateTurnBanner();
+      }
+
       // 3. Live route redraw — debounced, triggers every 40m of movement
       if (_deliveryActive && _liveTrackingActive) {
         const movedM = _lastRouteRedrawPos
@@ -2272,12 +2324,28 @@ function _drawFallbackPolyline(pts) {
 async function _drawPolyline() {
   if (!_map) return;
 
-  // Build ordered waypoints: GPS → pending stops in sequence
+  // Build ordered waypoints: GPS → pending stops.
+  // CRITICAL: the *first* stop after GPS must be _mapStops[_deliveryIdx] —
+  // the actual current target — not just "whatever comes first in array order".
+  // _deliveryIdx is chosen by nearest-GPS-distance and can point anywhere in
+  // the array, so without this the road-distance/turn-by-turn data computed
+  // from route.legs[0] would silently describe the route to the WRONG stop
+  // while the UI labels it as the current stop.
   const pts = [];
   if (_gpsPos) pts.push({ lat: _gpsPos.lat, lng: _gpsPos.lng });
-  _mapStops.forEach(s => {
-    if (s.coords && !s.delivered && !s.skipped) pts.push({ lat: s.coords.lat, lng: s.coords.lng });
-  });
+
+  const pending = _mapStops.filter(s => s.coords && !s.delivered && !s.skipped);
+  const targetStop = (_deliveryActive && _mapStops[_deliveryIdx] &&
+                       !_mapStops[_deliveryIdx].delivered && !_mapStops[_deliveryIdx].skipped &&
+                       _mapStops[_deliveryIdx].coords)
+    ? _mapStops[_deliveryIdx] : null;
+
+  if (targetStop) {
+    pts.push({ lat: targetStop.coords.lat, lng: targetStop.coords.lng });
+    pending.forEach(s => { if (s !== targetStop) pts.push({ lat: s.coords.lat, lng: s.coords.lng }); });
+  } else {
+    pending.forEach(s => pts.push({ lat: s.coords.lat, lng: s.coords.lng }));
+  }
 
   _clearRouteLayer();
   if (pts.length < 2) return; // need at least GPS + 1 stop (or 2 stops without GPS)
@@ -2288,13 +2356,17 @@ async function _drawPolyline() {
     return;
   }
   _routeDrawing = true;
+  if (_deliveryActive && _liveTrackingActive) {
+    const rr = document.getElementById('turn-rerouting');
+    if (rr) rr.classList.add('show');
+  }
 
   // Show straight placeholder ONLY while fetching — will be replaced immediately on success
   _drawFallbackPolyline(pts.map(p => [p.lat, p.lng]));
 
   try {
     const coords = pts.slice(0, 25).map(p => `${p.lng},${p.lat}`).join(';');
-    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
@@ -2310,7 +2382,7 @@ async function _drawPolyline() {
     const route   = data.routes[0];
     const geojson = route.geometry;
 
-    // ── Store road distance on current stop (replaces haversine) ──
+    // ── Store road distance + duration + turn-steps on current stop ──
     if (route.legs?.[0]) {
       const roadKm = route.legs[0].distance / 1000;
       const curStop = _mapStops[_deliveryIdx];
@@ -2321,6 +2393,10 @@ async function _drawPolyline() {
       if (_deliveryActive && curStop) {
         document.getElementById('delivery-bar-progress').textContent =
           `${_mapStops.filter(s=>s.delivered).length} done · ${_mapStops.filter(s=>!s.delivered&&!s.skipped).length} left · 🛣 ${roadKm.toFixed(1)}km`;
+      }
+      // First leg = GPS → current target stop. This is what live turn-by-turn nav uses.
+      if (_deliveryActive && _liveTrackingActive) {
+        _setTurnSteps(route.legs[0].steps || [], route.legs[0].duration || 0);
       }
     }
 
@@ -2336,7 +2412,234 @@ async function _drawPolyline() {
     console.warn('OSRM routing failed, showing straight line:', e.message);
   } finally {
     _routeDrawing = false;
+    const rr = document.getElementById('turn-rerouting');
+    if (rr) rr.classList.remove('show');
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TURN-BY-TURN NAVIGATION (Google Maps style, OpenStreetMap data)
+   - Uses OSRM 'steps' from the live route fetch in _drawPolyline()
+   - Auto-advances to next instruction as rider's GPS moves
+   - Speaks each instruction once in Hindi via Web Speech API
+   - Pure client-side, free, no API key
+═══════════════════════════════════════════════════════════════ */
+let _turnSteps        = [];     // current OSRM steps[] for GPS→active stop
+let _turnStepIdx       = 0;     // which step rider is currently on
+let _turnEtaSeconds     = 0;    // OSRM duration estimate (seconds) for remaining leg
+let _voiceNavOn         = true; // Hindi voice toggle (default ON per delivery start)
+let _lastSpokenStepKey  = null; // prevents repeating the same instruction
+let _lastSpokenWasFinal = false;
+let _hiVoice            = null; // cached hi-IN SpeechSynthesisVoice once loaded
+
+// ── Pick the best available Hindi voice (device-dependent) ─────
+function _pickHindiVoice() {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  return voices.find(v => v.lang === 'hi-IN') ||
+         voices.find(v => v.lang?.startsWith('hi')) ||
+         null; // null = browser default voice, text still passed in Hindi
+}
+if ('speechSynthesis' in window) {
+  speechSynthesis.onvoiceschanged = () => { _hiVoice = _pickHindiVoice(); };
+  // Some Android WebViews populate voices only after a dummy call
+  setTimeout(() => { _hiVoice = _pickHindiVoice(); }, 300);
+}
+
+// ── Speak Hindi text (cancels overlapping speech) ───────────────
+function _speakHindi(text) {
+  if (!_voiceNavOn || !('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel(); // don't queue/stack — latest instruction wins
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'hi-IN';
+    if (_hiVoice) u.voice = _hiVoice;
+    u.rate = 0.95;
+    u.pitch = 1.0;
+    speechSynthesis.speak(u);
+  } catch (e) { console.warn('TTS failed:', e.message); }
+}
+
+// ── Voice on/off toggle button ───────────────────────────────────
+function toggleVoiceNav() {
+  _voiceNavOn = !_voiceNavOn;
+  const btn = document.getElementById('turn-mute-btn');
+  if (btn) {
+    btn.textContent = _voiceNavOn ? '🔊' : '🔇';
+    btn.classList.toggle('muted', !_voiceNavOn);
+  }
+  if (_voiceNavOn) {
+    _speakHindi('आवाज़ चालू है');
+  } else if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+  }
+}
+
+// ── Translate OSRM maneuver → {icon, hindi instruction, english label} ──
+// OSRM maneuver.type values: turn, new name, depart, arrive, merge, on ramp,
+// off ramp, fork, end of road, continue, roundabout, rotary, roundabout turn,
+// notification, exit roundabout, exit rotary. modifier: left/right/straight/
+// slight left/slight right/sharp left/sharp right/uturn.
+function _maneuverToHindi(step, isLast) {
+  const type = step.maneuver?.type || 'continue';
+  const mod  = step.maneuver?.modifier || '';
+  const road = step.name && step.name.trim() ? step.name.trim() : '';
+  const onRoad = road ? ` ${road} पर` : '';
+
+  if (isLast || type === 'arrive') {
+    return { icon: '🏁', text: `आप अपनी मंज़िल पर पहुँच गए हैं` };
+  }
+  if (type === 'depart') {
+    return { icon: '⬆️', text: `सीधे चलिए${onRoad}` };
+  }
+
+  const dir = {
+    'left':         { icon: '⬅️',  word: 'बाएं मुड़ें' },
+    'right':        { icon: '➡️',  word: 'दाएं मुड़ें' },
+    'slight left':  { icon: '↖️',  word: 'थोड़ा बाएं मुड़ें' },
+    'slight right': { icon: '↗️',  word: 'थोड़ा दाएं मुड़ें' },
+    'sharp left':    { icon: '↙️',  word: 'तेज़ी से बाएं मुड़ें' },
+    'sharp right':   { icon: '↘️',  word: 'तेज़ी से दाएं मुड़ें' },
+    'straight':     { icon: '⬆️',  word: 'सीधे चलिए' },
+    'uturn':        { icon: '🔄',  word: 'यू-टर्न लें' },
+  }[mod] || { icon: '⬆️', word: 'सीधे चलिए' };
+
+  if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') {
+    return { icon: '🔄', text: `गोल चक्कर में${onRoad} मुड़ें` };
+  }
+  if (type === 'exit roundabout' || type === 'exit rotary') {
+    return { icon: '↗️', text: `गोल चक्कर से बाहर निकलें${onRoad}` };
+  }
+  if (type === 'fork') {
+    return { icon: dir.icon, text: `रास्ता बंटता है, ${dir.word}${onRoad}` };
+  }
+  if (type === 'merge') {
+    return { icon: '↗️', text: `मुख्य रास्ते में मिलें${onRoad}` };
+  }
+  if (type === 'on ramp' || type === 'off ramp') {
+    return { icon: dir.icon, text: `${dir.word}${onRoad}` };
+  }
+  if (type === 'end of road') {
+    return { icon: dir.icon, text: `रास्ता खत्म होता है, ${dir.word}${onRoad}` };
+  }
+  if (type === 'continue' || type === 'new name') {
+    return { icon: '⬆️', text: `सीधे चलते रहिए${onRoad}` };
+  }
+  return { icon: dir.icon, text: `${dir.word}${onRoad}` };
+}
+
+// ── English short label for the small text under the big instruction ──
+function _maneuverToEnglish(step) {
+  const road = step.name && step.name.trim() ? step.name.trim() : 'road';
+  const type = step.maneuver?.type || 'continue';
+  const mod  = step.maneuver?.modifier || '';
+  if (type === 'arrive') return 'Aap pahunch gaye';
+  if (type === 'depart') return `Start on ${road}`;
+  const modTxt = mod ? mod.replace(/\b\w/g, c => c.toUpperCase()) : 'Continue';
+  return `${modTxt} onto ${road}`;
+}
+
+// ── Receive fresh steps from OSRM (called from _drawPolyline) ──
+function _setTurnSteps(steps, durationSec) {
+  // Filter out near-zero-length "notification" pseudo-steps OSRM sometimes inserts
+  _turnSteps = (steps || []).filter(s => s.maneuver);
+  _turnEtaSeconds = durationSec || 0;
+  _turnStepIdx = 0;
+  _renderTurnBanner();
+}
+
+// ── Format ETA seconds → "12:45 PM" clock time + "8 min" duration ──
+function _fmtEta(seconds) {
+  if (!seconds || seconds <= 0) return { clock: '—', mins: '—' };
+  const mins = Math.max(1, Math.round(seconds / 60));
+  const arrive = new Date(Date.now() + seconds * 1000);
+  const clock = arrive.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  return { clock, mins: `${mins} min` };
+}
+
+// ── Core: figure out which step rider is on right now & render banner ──
+// Called on every GPS fix during delivery mode (cheap — pure math, no network).
+function _updateTurnBanner() {
+  if (!_deliveryActive || !_liveTrackingActive) return;
+  if (!_turnSteps.length || !_gpsPos) return;
+
+  // Find the step whose maneuver location is nearest ahead of the rider.
+  // Simple + robust approach: walk steps, pick the first one whose maneuver
+  // point is still "ahead" (i.e. rider hasn't passed within arrival radius).
+  let activeIdx = _turnStepIdx;
+  for (let i = _turnStepIdx; i < _turnSteps.length; i++) {
+    const loc = _turnSteps[i].maneuver?.location; // [lng, lat]
+    if (!loc) continue;
+    const d = _haversine(_gpsPos.lat, _gpsPos.lng, loc[1], loc[0]) * 1000; // meters
+    if (d > 20) { activeIdx = i; break; }
+    activeIdx = Math.min(i + 1, _turnSteps.length - 1);
+  }
+  _turnStepIdx = activeIdx;
+  _renderTurnBanner();
+}
+
+// ── Render the banner UI + trigger voice at the right distance ──
+function _renderTurnBanner() {
+  const banner = document.getElementById('turn-banner');
+  if (!banner) return;
+
+  if (!_deliveryActive || !_liveTrackingActive || !_turnSteps.length) {
+    banner.classList.remove('show');
+    return;
+  }
+  banner.classList.add('show');
+
+  const step    = _turnSteps[_turnStepIdx];
+  const isLast  = _turnStepIdx >= _turnSteps.length - 1;
+  const loc     = step?.maneuver?.location;
+  let distM     = null;
+  if (loc && _gpsPos) distM = _haversine(_gpsPos.lat, _gpsPos.lng, loc[1], loc[0]) * 1000;
+
+  const hindi = _maneuverToHindi(step, isLast);
+  document.getElementById('turn-icon').textContent = hindi.icon;
+  document.getElementById('turn-instr').textContent = _maneuverToEnglish(step);
+
+  if (distM != null) {
+    document.getElementById('turn-dist').textContent =
+      distM >= 1000 ? `${(distM/1000).toFixed(1)} km` : `${Math.round(distM/10)*10} m`;
+  } else {
+    document.getElementById('turn-dist').textContent = '—';
+  }
+
+  const eta = _fmtEta(_turnEtaSeconds);
+  document.getElementById('turn-eta').textContent = eta.mins;
+  document.getElementById('turn-eta-label').textContent = eta.mins === '—' ? 'ETA' : `ETA ${eta.clock}`;
+
+  // ── Voice trigger ──
+  // Speak when crossing key distance thresholds, once per step, so it
+  // doesn't repeat every GPS tick. Final arrival is spoken once too.
+  const stepKey = _turnStepIdx + ':' + (isLast ? 'arrive' : 'turn');
+  if (distM != null) {
+    if (distM <= 400 && distM > 150 && _lastSpokenStepKey !== stepKey + ':far') {
+      _lastSpokenStepKey = stepKey + ':far';
+      _speakHindi(`आगे ${Math.round(distM/50)*50} मीटर में ${hindi.text}`);
+    } else if (distM <= 150 && _lastSpokenStepKey !== stepKey + ':near') {
+      _lastSpokenStepKey = stepKey + ':near';
+      _speakHindi(hindi.text);
+    }
+    if (isLast && distM <= 40 && !_lastSpokenWasFinal) {
+      _lastSpokenWasFinal = true;
+      _speakHindi('आप अपनी मंज़िल के पास पहुँच गए हैं');
+    }
+  }
+}
+
+// ── Reset nav state when delivery stops/pauses or moves to next customer ──
+function _resetTurnNav() {
+  _turnSteps = [];
+  _turnStepIdx = 0;
+  _turnEtaSeconds = 0;
+  _lastSpokenStepKey = null;
+  _lastSpokenWasFinal = false;
+  const banner = document.getElementById('turn-banner');
+  if (banner) banner.classList.remove('show');
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
 
 // ── Render the bottom stop list ───────────────────────────────
@@ -2599,6 +2902,7 @@ function closeRiderMap() {
   document.getElementById('map-modal').classList.remove('open');
   document.getElementById('delivery-bar').classList.remove('show');
   _stopGPS();
+  _resetTurnNav();
   _mapModalOpen = false;
   _deliveryStartTime = null; // reset for next delivery session
   // Clean up markers
@@ -2762,6 +3066,12 @@ async function _startDeliveryMode() {
   DeliverySession.save(); // snapshot filters so app can offer "Resume Delivery" if this tab gets killed
   const lbadge = document.getElementById('live-track-badge');
   if (lbadge) lbadge.style.display = 'block';
+  // Voice navigation: ON by default the moment delivery starts
+  _voiceNavOn = true;
+  const muteBtn = document.getElementById('turn-mute-btn');
+  if (muteBtn) { muteBtn.textContent = '🔊'; muteBtn.classList.remove('muted'); }
+  _resetTurnNav();
+  _speakHindi('डिलीवरी शुरू, रास्ता तैयार किया जा रहा है');
   // Start at the nearest undelivered stop from current GPS (dynamic, not just index 0)
   _deliveryIdx = _findNearestRemainingIdx();
   if (_deliveryIdx === -1) _deliveryIdx = _mapStops.findIndex(s => !s.delivered && !s.skipped);
@@ -2780,6 +3090,7 @@ function _pauseDeliveryMode() {
   _deliveryActive = false;
   _liveTrackingActive = false;
   clearTimeout(_routeRedrawTimer);
+  _resetTurnNav();
   const lbadge = document.getElementById('live-track-badge');
   if (lbadge) lbadge.style.display = 'none';
   document.getElementById('btn-start-delivery').classList.remove('active-mode');
@@ -2877,26 +3188,31 @@ async function deliverySkip() {
   const s = _mapStops[_deliveryIdx];
   if (!s) return;
   s.skipped = true;
+  _resetTurnNav(); // target stop is changing — old turn-steps no longer valid
   // Move skipped stop to end so it stays in queue
   _mapStops.splice(_deliveryIdx, 1);
   _mapStops.push(s);
   // NOTE: do NOT call backend — order stays "pending/out for delivery" in the DB
   // so it remains in the main order list's "For Delivery" section
   rToast('⏭ Skipped — finding nearest next stop…');
-  _placeMarkers(); // re-number remaining pins
-  await _drawPolyline();
 
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) {
+    _placeMarkers();
     _renderStopList();
     _showCelebration();
     return;
   }
 
-  // Dynamic: go to nearest remaining stop from current GPS, not sequential
+  // Dynamic: go to nearest remaining stop from current GPS, not sequential.
+  // IMPORTANT: this must happen BEFORE _drawPolyline() so the route/turn-by-turn
+  // steps it fetches are built for the correct (new) target stop, not the
+  // just-skipped one's stale index.
   const nearestIdx = _findNearestRemainingIdx();
   _deliveryIdx = nearestIdx !== -1 ? nearestIdx : _mapStops.findIndex(s => !s.delivered && !s.skipped);
 
+  _placeMarkers(); // re-number remaining pins
+  await _drawPolyline();
   _renderStopList();
   _updateDeliveryBar();
   flyToStop(_deliveryIdx);
@@ -2914,6 +3230,8 @@ async function _advanceDelivery() {
   // Reset deliver button
   const btn = document.getElementById('dbar-deliver');
   if (btn) { btn.textContent = '✅ Delivered'; btn.classList.remove('loading'); }
+  _resetTurnNav(); // clear old turn-steps; fresh ones arrive with next _drawPolyline()
+  if (_voiceNavOn) _speakHindi('अगला स्टॉप, रास्ता तैयार किया जा रहा है');
 
   const remaining = _mapStops.filter(s => !s.delivered && !s.skipped);
   if (!remaining.length) {
@@ -3010,6 +3328,9 @@ function deliveryEditAddress() {
 
 function _showCelebration() {
   _deliveryActive = false;
+  _liveTrackingActive = false;
+  _resetTurnNav();
+  _speakHindi('सभी डिलीवरी पूरी हो गईं, बहुत बढ़िया!');
   document.getElementById('delivery-bar').classList.remove('show');
   DeliverySession.clear(); // route genuinely finished — no need to offer resume anymore
 
@@ -3885,22 +4206,25 @@ function _resetGMapsBatch() {
 }
 
 /* ── Backward compat stubs ────────────────────────────────────── */
+/* ── _openSessionRoute: reads orders from sessionStorage by key ──
+   Avoids HTML-entity corruption of JSON in onclick attributes. */
+function _openSessionRoute(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) { rToast('No orders for this session.'); return; }
+    const orders = JSON.parse(raw);
+    if (!orders.length) { rToast('No orders for this session.'); return; }
+    openRiderMap(orders);
+  } catch(e) {
+    rToast('Could not load route. Try refreshing.');
+  }
+}
+
 function openRouteModal(orders) { openRiderMap(orders); }
 function closeRouteModal()      { closeRiderMap(); }
 function openInMaps()           { openInMapsFromModal(); }
 
-/* ── planAndGo: "Plan & Go" top button ───────────────────────────
-   Opens the route map with all currently-filtered pending orders.
-   Same as clicking the 🗺 Route button on a session group, but
-   covers all pending stops across all slots in the current filter. */
-function planAndGo() {
-  const stops = _buildFilteredStops();
-  if (!stops.length) {
-    rToast('No pending orders to route. Search first.');
-    return;
-  }
-  openRiderMap(stops);
-}
+/* planAndGo removed — use per-session 🗺 Route buttons */
 
 /* ─── HELPERS ────────────────────────────────────────── */
 function openWA(phone, msg) {

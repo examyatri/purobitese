@@ -1,6 +1,14 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v11.9  |  Updated : 2026-06-27
+   Version : v12.0  |  Updated : 2026-06-27
+
+   CHANGES v12.0:
+   - Cache bumped → tiffo-rider-v28 (v168 — Route bug fix:
+     Morning 🗺 Route now opens ONLY morning orders, Evening
+     opens ONLY evening orders. Fixed &quot; JSON corruption
+     in onclick attrs via sessionStorage key approach.
+     Removed "Plan & Go — Optimized Route" button — redundant,
+     was also broken for same reason.)
 
    CHANGES v11.9:
    - Cache bumped → tiffo-rider-v27 (v166 — "Resume Delivery" banner:
@@ -57,7 +65,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v27'; // v166: Resume Delivery banner after interrupted Google Maps navigation
+const CACHE      = 'tiffo-rider-v28'; // v168: Morning/Evening Route session isolation fix + Plan & Go removed
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
