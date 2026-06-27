@@ -1,6 +1,17 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v11.7  |  Updated : 2026-06-20
+   Version : v11.9  |  Updated : 2026-06-27
+
+   CHANGES v11.9:
+   - Cache bumped → tiffo-rider-v27 (v166 — "Resume Delivery" banner:
+     if Android kills the tab while rider is in Google Maps mid-route,
+     app now offers to resume the exact same filter/batch/GMaps-mode
+     state on next load instead of losing delivery-in-progress context)
+
+   CHANGES v11.8:
+   - Cache bumped → tiffo-rider-v23 (v161 — bug fixes: updateOrderStatus
+     rejected guard, checkSession brute-force fix, manualRefund
+     negative wallet floor guard)
 
    CHANGES v11.7:
    - Cache bumped → tiffo-rider-v22 (v158 release — no rider-panel
@@ -46,7 +57,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v22'; // v158: unified release version
+const CACHE      = 'tiffo-rider-v27'; // v166: Resume Delivery banner after interrupted Google Maps navigation
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 

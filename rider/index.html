@@ -1,8 +1,38 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v145                                    ║
-     ║  Updated : 2026-06-13                               ║
+     ║  Version : v165                                    ║
+     ║  Updated : 2026-06-27                               ║
+     ║  v165: Delivery UX fix — order_id now shown on      ║
+     ║        every stop card AND on the active-delivery   ║
+     ║        bar (rider can confirm which order he's      ║
+     ║        holding before marking delivered). Removed   ║
+     ║        the "📤 ETA" share-location button (stop     ║
+     ║        cards + delivery bar) — unused by riders,    ║
+     ║        added confusion. Replaced delivery-bar ETA   ║
+     ║        slot with "✏️ Edit" — opens the same address/ ║
+     ║        GPS picker used on stop cards, scoped to the ║
+     ║        active stop, so rider can fix a wrong address ║
+     ║        before tapping Delivered. Saving an address  ║
+     ║        edit mid-delivery now also refreshes the     ║
+     ║        delivery-bar card instantly (was previously   ║
+     ║        stale until the next stop advance).           ║
+     ║  v165b: Removed "👁 View" (Street View) button from  ║
+     ║        stop cards per rider feedback — unused,       ║
+     ║        cluttered the action row. openStreetView()    ║
+     ║        function deleted (dead code).                ║
+     ║  v165c: Room number now shown as its own bold badge  ║
+     ║        (🚪 Room ...) next to the 🆔 order ID — on     ║
+     ║        BOTH the stop card list AND the active        ║
+     ║        delivery-bar (Start Delivery mode). Pulled    ║
+     ║        from the existing "Room No:" address line via ║
+     ║        _parseAddrFields() — works for GPS-flow AND   ║
+     ║        manually-typed addresses; badge auto-hides if ║
+     ║        a customer never set a room number. Address   ║
+     ║        text below no longer repeats "Room No:" line  ║
+     ║        to avoid duplication (_shortAddr gained an     ║
+     ║        optional hideRoom param, default off — fully  ║
+     ║        backward compatible with all other callers).  ║
      ║  v145: GPS fix for Edit modal on home screen —      ║
      ║        getCurrentPosition() called when _gpsPos     ║
      ║        null (GPS watch only runs in route panel).   ║
@@ -156,6 +186,19 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 #r-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #r-offline-bar{position:fixed;top:0;left:0;right:0;z-index:10000;background:#ef4444;color:#fff;text-align:center;font-size:13px;font-weight:600;padding:6px 12px;transform:translateY(-100%);transition:transform 250ms ease;letter-spacing:.2px}
 #r-offline-bar.show{transform:translateY(0)}
+
+/* Resume Delivery banner — shown when a delivery session was interrupted
+   (e.g. tab killed by Android after rider switched to Google Maps app) */
+#resume-banner{display:none;align-items:center;gap:10px;background:#fff7ed;border:1.5px solid #fb923c;border-radius:12px;padding:12px 14px;margin:10px 14px 0;font-family:var(--ff)}
+#resume-banner.show{display:flex}
+#resume-banner .rb-icon{font-size:22px;line-height:1}
+#resume-banner .rb-text{flex:1;min-width:0}
+#resume-banner .rb-title{font-size:13.5px;font-weight:700;color:#9a3412;margin:0 0 2px}
+#resume-banner .rb-sub{font-size:12px;color:#c2410c;margin:0}
+#resume-banner .rb-actions{display:flex;gap:6px;flex-shrink:0}
+#resume-banner .rb-btn{border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff)}
+#resume-banner .rb-resume{background:#ea580c;color:#fff}
+#resume-banner .rb-dismiss{background:transparent;color:#9a3412;padding:8px 8px}
 
 /* Route modal */
 #route-modal{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:520px;background:white;border-radius:20px 20px 0 0;box-shadow:var(--shl);padding:20px;z-index:1000;transition:transform 350ms cubic-bezier(.4,0,.2,1)}
@@ -330,6 +373,20 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
   color:#f1f5f9;margin-bottom:3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+#dbc-tags{
+  display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  margin-bottom:4px;
+}
+#dbc-orderid{
+  font-family:monospace;font-size:10.5px;font-weight:700;
+  color:#7c8aa5;letter-spacing:.2px;
+}
+#dbc-orderid:not(:empty){color:#94a3b8}
+#dbc-room{
+  font-family:var(--ff);font-size:11px;font-weight:800;
+  color:#1a1f2e;background:#fbbf24;border-radius:6px;padding:1px 7px;
+}
+#dbc-room:empty{display:none}
 #dbc-addr{
   font-size:12px;color:#94a3b8;margin-bottom:6px;
   line-height:1.45;
@@ -375,7 +432,7 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 #dbar-deliver.loading{opacity:.65;pointer-events:none}
 #dbar-call{background:#1e40af;color:#fff;flex:1}
 #dbar-wa{background:#15803d;color:#fff;flex:1}
-#dbar-eta{background:#7c3aed;color:#fff;flex:1}
+#dbar-edit{background:#f97316;color:#fff;flex:1}
 #dbar-skip{background:#334155;color:#94a3b8;flex:1}
 
 /* Celebration overlay */
@@ -636,6 +693,19 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
     <button onclick="doRiderLogout()" style="background:#fee2e2;color:#c1121f;border:none;border-radius:8px;padding:8px 14px;font-family:var(--ff);font-weight:600;font-size:13px;cursor:pointer">Logout</button>
   </nav>
 
+  <!-- Resume Delivery banner — appears if a delivery run was interrupted -->
+  <div id="resume-banner">
+    <span class="rb-icon">🛵</span>
+    <div class="rb-text">
+      <p class="rb-title">Pichli delivery resume karein?</p>
+      <p class="rb-sub" id="resume-banner-sub">Aapka route beech mein chhoot gaya tha</p>
+    </div>
+    <div class="rb-actions">
+      <button class="rb-btn rb-dismiss" onclick="dismissResumeDelivery()">Nahi</button>
+      <button class="rb-btn rb-resume" onclick="resumeDelivery()">Resume</button>
+    </div>
+  </div>
+
   <!-- Stats -->
   <div class="stats-bar">
     <div class="stat-item"><div class="stat-num" id="stat-delivered">0</div><div class="stat-lbl">Delivered Today</div></div>
@@ -863,6 +933,10 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
     <div id="dbc-top-row">
       <div style="flex:1;min-width:0">
         <div id="dbc-name"></div>
+        <div id="dbc-tags">
+          <span id="dbc-orderid"></span>
+          <span id="dbc-room"></span>
+        </div>
         <div id="dbc-addr"></div>
       </div>
       <button id="dbc-nav-btn" onclick="openInMapsFromModal()">
@@ -881,7 +955,7 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
     <button class="dbar-btn" id="dbar-deliver" onclick="deliveryMarkDone()">✅ Delivered</button>
     <button class="dbar-btn" id="dbar-call" onclick="deliveryCall()" title="Call customer">📞 Call</button>
     <button class="dbar-btn" id="dbar-wa" onclick="deliveryWA()" title="WhatsApp">💬 WA</button>
-    <button class="dbar-btn" id="dbar-eta" onclick="shareLocationViaWA()" style="background:#7c3aed;color:#fff" title="Share live location via WA">📤 ETA</button>
+    <button class="dbar-btn" id="dbar-edit" onclick="deliveryEditAddress()" style="background:#f97316;color:#fff" title="Edit customer address before delivering">✏️ Edit</button>
     <button class="dbar-btn" id="dbar-skip" onclick="deliverySkip()" title="Skip this stop">⏭ Skip</button>
   </div>
 </div>
@@ -995,6 +1069,117 @@ const RiderSession = {
     localStorage.setItem(this.VERIFY_KEY, String(Date.now()));
   }
 };
+
+/* ─── DELIVERY SESSION SNAPSHOT (key: tf_delivery_session) ────────
+   Problem: when the rider taps "Navigate" → Google Maps app opens →
+   Android (esp. low-RAM / battery-saver phones) often kills the
+   background Chrome tab → rider app reloads from scratch on return.
+   Actual delivery status is always safe in the DB (markDelivered hits
+   the server immediately), but the in-memory route UI state
+   (map mode, which filter/batch was open, delivery-in-progress flag)
+   lived only in JS variables and was lost on reload — rider had to
+   manually redo Optimize → Start Delivery and lost track of progress.
+
+   Fix: snapshot just enough (date/slot/area/query filters + a flag)
+   to rebuild the exact same screen. Stop-level delivered/skipped
+   status is NOT snapshotted — it's always re-derived live from
+   _pending/order_status, so this can never show a stop as pending
+   when it was actually already delivered.
+──────────────────────────────────────────────────────────────────── */
+const DeliverySession = {
+  TTL: 6 * 60 * 60 * 1000, // 6 hours — stale beyond a single delivery shift
+
+  _key() {
+    // Scoped per rider_id — same pattern as the order cache (_rcache_) —
+    // so a shared device handed between two riders never cross-shows
+    // one rider's "Resume Delivery" banner to another.
+    return 'tf_delivery_session_' + (_rider?.rider_id || 'anon');
+  },
+  save() {
+    try {
+      localStorage.setItem(this._key(), JSON.stringify({
+        date:  _appliedDate,
+        slot:  _appliedSlot,
+        area:  _appliedArea,
+        query: _appliedQuery,
+        ts:    Date.now()
+      }));
+    } catch(_) {}
+  },
+  get() {
+    try {
+      const d = JSON.parse(localStorage.getItem(this._key()));
+      if (!d || !d.ts) return null;
+      if (Date.now() - d.ts > this.TTL) { this.clear(); return null; }
+      return d;
+    } catch { return null; }
+  },
+  clear() {
+    try { localStorage.removeItem(this._key()); } catch(_) {}
+  }
+};
+
+/* ── Resume Delivery banner: check / show / act ────────────────────
+   Called once after loadOrders() resolves on a fresh app load.
+   Only shows the banner if the saved filter combo still has at
+   least one PENDING stop — status is re-checked live against
+   _pending, so a snapshot can never resurrect an already-delivered
+   route as "incomplete". Purely a UX convenience; never touches
+   order data. */
+function _checkResumeDelivery() {
+  const snap = DeliverySession.get();
+  if (!snap) return;
+
+  // Re-apply the saved filters (without touching the on-screen filter UI yet)
+  // just to count how many stops would still be pending under that combo.
+  const prevDate = _appliedDate, prevSlot = _appliedSlot, prevArea = _appliedArea, prevQuery = _appliedQuery;
+  _appliedDate = snap.date; _appliedSlot = snap.slot; _appliedArea = snap.area; _appliedQuery = snap.query;
+  const stillPending = _buildFilteredStops().length;
+  _appliedDate = prevDate; _appliedSlot = prevSlot; _appliedArea = prevArea; _appliedQuery = prevQuery;
+
+  if (!stillPending) { DeliverySession.clear(); return; } // route already finished elsewhere — nothing to resume
+
+  const sub = document.getElementById('resume-banner-sub');
+  if (sub) sub.textContent = `${stillPending} stop${stillPending > 1 ? 's' : ''} abhi bhi pending hain`;
+  document.getElementById('resume-banner')?.classList.add('show');
+}
+
+function dismissResumeDelivery() {
+  document.getElementById('resume-banner')?.classList.remove('show');
+  DeliverySession.clear();
+}
+
+async function resumeDelivery() {
+  const snap = DeliverySession.get();
+  document.getElementById('resume-banner')?.classList.remove('show');
+  if (!snap) return;
+
+  // Re-apply the exact filters that were active when the session was interrupted
+  _appliedDate = snap.date; _appliedSlot = snap.slot; _appliedArea = snap.area; _appliedQuery = snap.query;
+  _filterDate  = snap.date; _filterSlot  = snap.slot; _filterArea  = snap.area;
+  const searchBox = document.getElementById('r-search');
+  if (searchBox) searchBox.value = snap.query || '';
+  // Keep the filter chip highlighting in sync — otherwise the chips would still
+  // visually show "Today"/"All" even though yesterday/a slot/an area is what's
+  // actually applied, and tapping a chip later could silently undo the resume.
+  document.querySelectorAll('[data-date]').forEach(b => b.classList.toggle('act', b.dataset.date === snap.date));
+  document.querySelectorAll('[data-slot]').forEach(b => b.classList.toggle('act', b.dataset.slot === snap.slot));
+  document.querySelectorAll('[data-area]').forEach(b => b.classList.toggle('act', b.dataset.area === snap.area));
+  renderOrders();
+  updateFilterSummary();
+
+  const stops = _buildFilteredStops();
+  if (!stops.length) { rToast('Ye route already complete hai'); DeliverySession.clear(); return; }
+
+  openRiderMap(stops);
+  // openRiderMap() initializes the Leaflet map inside a requestAnimationFrame
+  // callback — wait for the next frame so `_map` exists before we touch markers
+  // (auto-optimize inside _startDeliveryMode calls _placeMarkers, which needs _map).
+  requestAnimationFrame(() => {
+    setMapMode('gmaps');
+    _startDeliveryMode().then(() => rToast('🛵 Delivery resume ho gayi'));
+  });
+}
 
 /* ─── API WRAPPER ────────────────────────────────────── */
 async function _refreshApiKey() {
@@ -1133,6 +1318,7 @@ function doRiderLogout() {
   stopPolling();
   clearRiderCreds();
   RiderSession.clear();
+  DeliverySession.clear();
   // Clear orders cache — so next login (possibly different rider) starts clean
   if (_rider?.rider_id) {
     try { localStorage.removeItem('_rcache_' + _rider.rider_id); } catch(_) {}
@@ -1895,7 +2081,7 @@ function _haversine(lat1, lng1, lat2, lng2) {
 // ── Shorten address display ───────────────────────────────────
 // Strips embedded coordinate/plus-code lines from both address formats
 // so riders see only the human-readable part in cards and popups.
-function _shortAddr(addr) {
+function _shortAddr(addr, hideRoom) {
   if (!addr) return '—';
   // Process line-by-line: drop metadata lines, keep everything else.
   // This avoids the over-aggressive regex that could eat user-typed content.
@@ -1906,6 +2092,7 @@ function _shortAddr(addr) {
     /^\s*\(latitude=[^)]+\)\s*$/i,             // OLD: (latitude=x, longitude=y)
     /^Area\s*:/i,                              // Area: Lanka (stored for DB, not shown)
   ];
+  if (hideRoom) META.push(/^Room No\s*:/i);   // caller renders Room No separately as its own badge
   const visible = addr
     .split('\n')
     .map(l => l.trim())
@@ -2185,24 +2372,23 @@ function _renderStopList() {
 
     // Quick action buttons on each stop card
     const phone = s.order.phone || '';
-    // View button: always shown when coords exist (works on delivered stops too)
-    const viewBtn = hasCoords
-      ? `<button onclick="openStreetView(${i})" style="flex:1;min-width:44px;background:#0f766e;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Street View">👁 View</button>`
-      : '';
+    const orderIdTxt = s.order.order_id || '';
+    // Room number — pulled out as its own field so it's never buried inside
+    // a long address string. Falls back to '' if customer never set it
+    // (older manual-only signups before the Room No field existed).
+    const roomTxt = (_parseAddrFields(s.order.address || '').room || '').trim();
     // Communication + nav buttons: only for active (non-delivered) stops with a phone
     const commBtns = (!s.delivered && phone) ? `
         <a href="tel:${phone}" style="flex:1;min-width:44px;background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:3px">📞</a>
         <button onclick="stopWA(${i})" style="flex:1;min-width:44px;background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">💬</button>
-        <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>
-        <button onclick="shareLocationViaWA(${i})" style="flex:1;min-width:44px;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Share my location via WA">📤 ETA</button>` : '';
+        <button onclick="openInMapsFromStop(${i})" style="flex:1;min-width:44px;background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer">🗺 Nav</button>` : '';
     // Edit Address button: available for all non-delivered stops (room/area/GPS)
     const setLocBtn = !s.delivered
       ? `<button onclick="event.stopPropagation();openSetLocationModal(${i})" style="flex:1;min-width:44px;background:#f97316;color:#fff;border:none;border-radius:7px;padding:6px 4px;font-family:var(--ff);font-size:10px;font-weight:700;cursor:pointer" title="Edit address / set GPS for this customer">${hasCoords ? '✏️ Edit' : '📍 Set Location'}</button>`
       : '';
-    const actionBtns = (viewBtn || commBtns || setLocBtn) ? `
+    const actionBtns = (commBtns || setLocBtn) ? `
       <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap" onclick="event.stopPropagation()">
         ${commBtns}
-        ${viewBtn}
         ${setLocBtn}
       </div>` : '';
 
@@ -2217,7 +2403,11 @@ function _renderStopList() {
             <span class="stop-slot ${slotClass}" style="font-size:12px">${slotLabel}</span>
           </div>
         </div>
-        <div class="stop-addr">${_esc(_shortAddr(s.order.address))}</div>
+        ${(orderIdTxt || roomTxt) ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
+          ${orderIdTxt ? `<span style="font-family:monospace;font-size:10px;color:#7c8aa5;font-weight:700;letter-spacing:.2px">🆔 ${_esc(orderIdTxt)}</span>` : ''}
+          ${roomTxt ? `<span style="font-family:var(--ff);font-size:11px;color:#1a1f2e;font-weight:800;background:#fbbf24;border-radius:6px;padding:1px 7px">🚪 Room ${_esc(roomTxt)}</span>` : ''}
+        </div>` : ''}
+        <div class="stop-addr">${_esc(_shortAddr(s.order.address, true))}</div>
         <div class="stop-meta">
           ${dist ? `<span class="stop-dist">${dist}</span>` : ''}
           ${statusBadge}${noCoordsBadge}
@@ -2569,6 +2759,7 @@ async function _startDeliveryMode() {
   _liveTrackingActive = true;
   _deliveryStartTime = _deliveryStartTime || Date.now(); // only set on first start, not resume
   _lastRouteRedrawPos = _gpsPos ? { ..._gpsPos } : null;
+  DeliverySession.save(); // snapshot filters so app can offer "Resume Delivery" if this tab gets killed
   const lbadge = document.getElementById('live-track-badge');
   if (lbadge) lbadge.style.display = 'block';
   // Start at the nearest undelivered stop from current GPS (dynamic, not just index 0)
@@ -2626,7 +2817,10 @@ function _updateDeliveryBar() {
   if (cur) {
     card.classList.add('show');
     document.getElementById('dbc-name').textContent = cur.order.name || '—';
-    document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address);
+    document.getElementById('dbc-orderid').textContent = cur.order.order_id ? ('🆔 ' + cur.order.order_id) : '';
+    const curRoom = (_parseAddrFields(cur.order.address || '').room || '').trim();
+    document.getElementById('dbc-room').textContent = curRoom ? ('🚪 Room ' + curRoom) : '';
+    document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address, true);
     const payLabel = cur.order.payment_mode === 'upi_insuf' ? '💳 UPI' : cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
     document.getElementById('dbc-amount').textContent = '';
     document.getElementById('dbc-pay').textContent = payLabel;
@@ -2716,6 +2910,7 @@ async function deliverySkip() {
 }
 
 async function _advanceDelivery() {
+  if (_deliveryActive) DeliverySession.save(); // keep resume snapshot fresh through a long route
   // Reset deliver button
   const btn = document.getElementById('dbar-deliver');
   if (btn) { btn.textContent = '✅ Delivered'; btn.classList.remove('loading'); }
@@ -2806,9 +3001,17 @@ function deliveryWA() {
   openWA('91' + s.order.phone, 'Hi ' + (s.order.name||'') + ', your Tiffo order is on the way!');
 }
 
+// ── Edit Address button on the active-delivery bar — opens the same
+//    address/GPS picker used on stop cards, scoped to the current stop ──
+function deliveryEditAddress() {
+  if (_deliveryIdx == null || !_mapStops[_deliveryIdx]) { rToast('No active stop'); return; }
+  openSetLocationModal(_deliveryIdx);
+}
+
 function _showCelebration() {
   _deliveryActive = false;
   document.getElementById('delivery-bar').classList.remove('show');
+  DeliverySession.clear(); // route genuinely finished — no need to offer resume anymore
 
   const delivered = _mapStops.filter(s => s.delivered);
   const skipped   = _mapStops.filter(s => s.skipped);
@@ -3005,17 +3208,6 @@ function openInMapsFromStop(idx) {
   const origin = _gpsPos || null;
   const url    = _gMapsNavUrl(dest, origin);
   if (!url) { rToast('No address available for navigation'); return; }
-  _gMapsOpen(url);
-}
-
-/* ── Street View for a stop (free, no key needed) ────────────── */
-function openStreetView(idx) {
-  const s = _mapStops[idx];
-  if (!s || !s.coords) { rToast('No GPS coordinates for this stop'); return; }
-  const { lat, lng } = s.coords;
-  // Use search?api=1&query= which reliably opens the location pin on all devices.
-  // The pano deep-link (?api=1&map_action=pano) is unreliable on many Android browsers.
-  const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   _gMapsOpen(url);
 }
 
@@ -3228,7 +3420,12 @@ async function _saveStopCoords() {
     rToast('✅ Address updated!');
     closeSetLocationModal();
     _setlocOrder = null; // clear home-card ref
-    if (s) { _placeMarkers(); _renderStopList(); } // only if map panel open
+    if (s) {
+      _placeMarkers(); _renderStopList();
+      // If this stop is the active delivery-bar stop, refresh its
+      // displayed address/order-id immediately (don't wait for next advance)
+      if (_deliveryActive && _mapStops[_deliveryIdx] === s) _updateDeliveryBar();
+    }
     renderOrders(); // always refresh home list
   } catch (e) {
     rToast('⚠️ ' + (e.message || 'Failed to save address'));
@@ -3238,22 +3435,6 @@ async function _saveStopCoords() {
   }
 }
 
-
-/* ── Share live location with customer via WhatsApp ─────────────
-   Sends the rider's current GPS as a Google Maps link in WA.    */
-function shareLocationViaWA(idx) {
-  const s = _mapStops[idx] || (_deliveryActive ? _mapStops[_deliveryIdx] : null);
-  if (!s) return;
-  const phone = '91' + (s.order.phone || '');
-  if (!_gpsPos) {
-    rToast('GPS not yet fixed — wait a moment and try again');
-    return;
-  }
-  const mapsLink = `https://maps.google.com/?q=${_gpsPos.lat},${_gpsPos.lng}`;
-  const name     = s.order.name || 'Customer';
-  const msg      = `Hi ${name}! 🛵 I'm on my way with your Tiffo order.\n📍 My location: ${mapsLink}\nExpected arrival in a few minutes. 🙏`;
-  openWA(phone, msg);
-}
 
 /* ── Main "Google Maps" button handler in the map modal ─────────
    Smart context-aware:
@@ -3916,7 +4097,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Same pattern as index.html: no "signing you in…" spinner
     _rider = RiderSession.get() || cachedRider; // pick up refreshed rider if token was just renewed
     showApp();
-    loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); });
+    loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); _checkResumeDelivery(); });
     startPolling();
 
     // BACKGROUND VERIFY — at most once every 48 hours.
@@ -3957,7 +4138,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         _rider = { ...res.rider, sessionToken: res.sessionToken || '' };
         RiderSession.save(_rider);
         showApp();
-        loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); });
+        loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); _checkResumeDelivery(); });
         startPolling();
       })
       .catch(() => { /* stay on login screen, creds already prefilled */ });
