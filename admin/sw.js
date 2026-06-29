@@ -3,6 +3,7 @@
    Version : v12.9  |  Updated : 2026-06-26
 
    CHANGES v12.9:
+   - Cache bumped → tiffo-admin-v30 (v169 — Free First Tiffin campaign system)
    - Cache bumped → tiffo-admin-v29 (v163 — rating fix: lazy recompute
      all scores when admin sorts by Top/Low Rating; filterUsers now
      async; _ratingsRecomputedThisSession flag prevents repeat hits)
@@ -64,7 +65,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v29'; // v163: rating fix — lazy recompute on Top/Low Rating sort
+const CACHE      = 'tiffo-admin-v30'; // v169: Free First Tiffin campaign system
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */

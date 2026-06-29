@@ -1434,6 +1434,335 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">Coupons</h2>
           <button class="btn btn-p" onclick="openCouponModal()"><i class="fa fa-plus"></i> Add Coupon</button>
         </div>
+
+        <!-- ── FREE TIFFIN CAMPAIGN PANEL (v169) ── -->
+        <!-- Toggle button — amber/orange theme, above filter bar -->
+        <button onclick="toggleFTPanel()" id="ft-toggle-card"
+          style="display:flex;align-items:center;gap:9px;padding:9px 16px;border-radius:12px;border:1.5px solid #fed7aa;background:linear-gradient(135deg,#fff7ed,#fffbeb);cursor:pointer;transition:all 180ms;box-shadow:0 2px 8px rgba(234,88,12,.10);width:100%;margin-bottom:10px;text-align:left">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="fa fa-gift" style="color:white;font-size:14px"></i>
+          </div>
+          <div style="flex:1;text-align:left">
+            <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#7c2d12">Free First Tiffin</div>
+            <div style="font-size:10px;color:#fb923c;margin-top:1px">Acquisition campaigns</div>
+          </div>
+          <div id="ft-toggle-badge" style="display:none;gap:6px;align-items:center">
+            <span id="ft-badge-redeemed" style="background:#f97316;color:white;border-radius:20px;padding:2px 8px;font-size:10px;font-family:var(--ff);font-weight:700"></span>
+            <span id="ft-badge-pending" style="background:#fbbf24;color:#78350f;border-radius:20px;padding:2px 8px;font-size:10px;font-family:var(--ff);font-weight:700"></span>
+          </div>
+          <i id="ft-toggle-arrow" class="fa fa-chevron-down" style="color:#f97316;font-size:12px;transition:transform 200ms"></i>
+        </button>
+
+        <!-- Collapsible Free Tiffin Panel -->
+        <div id="ft-panel" style="display:none;margin-bottom:14px">
+          <div class="card" style="border:1.5px solid #fed7aa;background:linear-gradient(135deg,#fff7ed 0%,#ffffff 100%);padding:0;overflow:hidden">
+            <!-- Tab switcher inside panel -->
+            <div style="display:flex;border-bottom:1.5px solid #fed7aa">
+              <button id="ft-tab-btn-dashboard" onclick="switchFTTab('dashboard')"
+                style="flex:1;padding:12px 6px;font-family:var(--ff);font-weight:700;font-size:12px;border:none;cursor:pointer;background:#fff7ed;color:#ea580c;border-bottom:2px solid #f97316;transition:all 150ms">
+                <i class="fa fa-chart-bar" style="margin-right:4px"></i>Dashboard
+              </button>
+              <button id="ft-tab-btn-create" onclick="switchFTTab('create')"
+                style="flex:1;padding:12px 6px;font-family:var(--ff);font-weight:700;font-size:12px;border:none;cursor:pointer;background:transparent;color:#64748b;border-bottom:2px solid transparent;transition:all 150ms">
+                <i class="fa fa-plus-circle" style="margin-right:4px"></i>Create Batch
+              </button>
+              <button id="ft-tab-btn-sendlist" onclick="switchFTTab('sendlist')"
+                style="flex:1;padding:12px 6px;font-family:var(--ff);font-weight:700;font-size:12px;border:none;cursor:pointer;background:transparent;color:#64748b;border-bottom:2px solid transparent;transition:all 150ms">
+                <i class="fa fa-paper-plane" style="margin-right:4px"></i>Send List
+              </button>
+            </div>
+
+            <!-- TAB: Dashboard -->
+            <div id="ft-tab-dashboard" style="padding:14px">
+              <!-- Stat cards -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+                <div style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fed7aa;border-radius:10px;padding:12px;text-align:center">
+                  <div style="font-family:var(--ff);font-weight:800;font-size:22px;color:#ea580c" id="ft-stat-wasent">–</div>
+                  <div style="font-size:10px;color:#9a3412;font-weight:600;margin-top:2px">WA Sent</div>
+                  <div style="font-size:9px;color:#fdba74;margin-top:1px">Awaiting order</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#fef9c3,#fefce8);border:1px solid #fde68a;border-radius:10px;padding:12px;text-align:center">
+                  <div style="font-family:var(--ff);font-weight:800;font-size:22px;color:#d97706" id="ft-stat-redeemed">–</div>
+                  <div style="font-size:10px;color:#78350f;font-weight:600;margin-top:2px">Redeemed</div>
+                  <div style="font-size:9px;color:#fbbf24;margin-top:1px">Free tiffin given</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center">
+                  <div style="font-family:var(--ff);font-weight:800;font-size:22px;color:#16a34a" id="ft-stat-converted">–</div>
+                  <div style="font-size:10px;color:#14532d;font-weight:600;margin-top:2px">Converted</div>
+                  <div style="font-size:9px;color:#86efac;margin-top:1px">Paid orders after</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fecaca;border-radius:10px;padding:12px;text-align:center">
+                  <div style="font-family:var(--ff);font-weight:800;font-size:22px;color:#dc2626" id="ft-stat-blocked">–</div>
+                  <div style="font-size:10px;color:#7f1d1d;font-weight:600;margin-top:2px">Blocked</div>
+                  <div style="font-size:9px;color:#fca5a5;margin-top:1px">FT access disabled</div>
+                </div>
+                <div onclick="document.getElementById('ft-filter').value='suspect';renderFTUserList()"
+                  style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;border-radius:10px;padding:12px;text-align:center;cursor:pointer;grid-column:1/-1">
+                  <div style="font-family:var(--ff);font-weight:800;font-size:22px;color:#92400e" id="ft-stat-suspects">–</div>
+                  <div style="font-size:10px;color:#78350f;font-weight:600;margin-top:2px">⚠️ GPS Suspects</div>
+                  <div style="font-size:9px;color:#d97706;margin-top:1px">Same location as another user · tap to filter</div>
+                </div>
+              </div>
+
+              <!-- Rollout Progress Tracker -->
+              <div id="ft-rollout-wrap" style="display:none;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:11px;padding:12px;margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <span style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0369a1">
+                    <i class="fa fa-rocket" style="margin-right:4px;color:#0ea5e9"></i>Campaign Rollout
+                  </span>
+                  <span id="ft-rollout-pct" style="font-family:var(--ff);font-weight:800;font-size:13px;color:#0369a1"></span>
+                </div>
+                <!-- Progress bar -->
+                <div style="background:#e0f2fe;border-radius:20px;height:8px;overflow:hidden;margin-bottom:7px">
+                  <div id="ft-rollout-bar" style="height:100%;background:linear-gradient(90deg,#0ea5e9,#0369a1);border-radius:20px;transition:width 600ms"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:10px;color:#0369a1">
+                  <span><b id="ft-rollout-targeted">0</b> targeted (WA sent + redeemed)</span>
+                  <span><b id="ft-rollout-remaining">0</b> still to reach</span>
+                </div>
+              </div>
+
+              <!-- Today's active TIFFO coupon progress -->
+              <div id="ft-today-coupon-wrap" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;margin-bottom:14px">
+                <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#7c2d12;margin-bottom:8px"><i class="fa fa-bolt" style="color:#f97316;margin-right:4px"></i>Today's Active Coupon</div>
+                <div id="ft-today-coupon-list"></div>
+              </div>
+
+              <!-- Search + filter -->
+              <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+                <input id="ft-search" type="text" placeholder="Search name / phone…"
+                  oninput="renderFTUserList()"
+                  style="flex:1;min-width:140px;padding:8px 12px;border:1.5px solid #fed7aa;border-radius:9px;font-size:13px;font-family:var(--ff);outline:none;background:#fffbeb">
+                <select id="ft-filter" onchange="renderFTUserList()"
+                  style="padding:8px 10px;border:1.5px solid #fed7aa;border-radius:9px;font-size:12px;font-family:var(--ff);background:#fffbeb;color:#7c2d12">
+                  <option value="">All Users</option>
+                  <option value="wa_sent">WA Sent</option>
+                  <option value="redeemed">Redeemed</option>
+                  <option value="null">Not Targeted</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="suspect">⚠️ GPS Suspect</option>
+                  <option value="ghost">👻 Ghost (never ordered after)</option>
+                  <option value="loyal">🏆 Loyal (3+ orders after)</option>
+                  <option value="returning">💚 Returning (1-2 orders after)</option>
+                  <option value="next_day">📅 Ordered Next Day</option>
+                </select>
+                <select id="ft-sort" onchange="renderFTUserList()"
+                  style="padding:8px 10px;border:1.5px solid #fed7aa;border-radius:9px;font-size:12px;font-family:var(--ff);background:#fffbeb;color:#7c2d12">
+                  <option value="newest">Newest First</option>
+                  <option value="redemption">Redemption Date</option>
+                  <option value="orders_desc">Most Orders After</option>
+                  <option value="revenue_desc">Highest Revenue After</option>
+                  <option value="az">Name A–Z</option>
+                </select>
+              </div>
+
+              <!-- Eligibility filter — completely separate from Welcome coupon system -->
+              <div style="margin-bottom:10px">
+                <div style="font-size:10px;font-weight:700;color:#7c2d12;margin-bottom:5px">
+                  <i class="fa fa-filter" style="margin-right:3px"></i>Eligibility Filter
+                  <span style="font-weight:400;color:#fb923c;margin-left:4px">(who hasn't received free tiffin yet)</span>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button onclick="ftSetEligFilter('all',this)" id="ft-elig-all"
+                    style="padding:5px 10px;border:1.5px solid #f97316;border-radius:7px;background:#fff7ed;color:#ea580c;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+                    All Eligible
+                  </button>
+                  <button onclick="ftSetEligFilter('7',this)" id="ft-elig-7"
+                    style="padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:7px;background:#f8fafc;color:#64748b;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+                    Last 7 Days
+                  </button>
+                  <button onclick="ftSetEligFilter('15',this)" id="ft-elig-15"
+                    style="padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:7px;background:#f8fafc;color:#64748b;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+                    Last 15 Days
+                  </button>
+                  <button onclick="ftSetEligFilter('30',this)" id="ft-elig-30"
+                    style="padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:7px;background:#f8fafc;color:#64748b;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+                    Last 30 Days
+                  </button>
+                  <button onclick="ftSetEligFilter('old',this)" id="ft-elig-old"
+                    style="padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:7px;background:#f8fafc;color:#64748b;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+                    30+ Days Ago
+                  </button>
+                </div>
+                <div id="ft-elig-count" style="font-size:10px;color:#fb923c;margin-top:5px"></div>
+              </div>
+
+              <!-- Post-Redemption Analytics (shown when redeemed users exist) -->
+              <div id="ft-analytics-wrap" style="display:none;margin-bottom:14px">
+                <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0;border-radius:12px;padding:12px">
+                  <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#14532d;margin-bottom:10px">
+                    <i class="fa fa-chart-line" style="color:#16a34a;margin-right:5px"></i>Post-Redemption Behaviour
+                  </div>
+                  <!-- Segment cards row -->
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px" id="ft-seg-cards"></div>
+                  <!-- Key metrics row -->
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px" id="ft-key-metrics"></div>
+                </div>
+              </div>
+
+              <!-- User list -->
+              <div id="ft-user-list" style="display:flex;flex-direction:column;gap:8px;max-height:480px;overflow-y:auto"></div>
+            </div>
+
+            <!-- TAB: Create Batch -->
+            <div id="ft-tab-create" style="padding:14px;display:none">
+              <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#7c2d12;margin-bottom:14px"><i class="fa fa-plus-circle" style="color:#f97316;margin-right:5px"></i>Create Free Tiffin Batch</div>
+
+              <!-- Mode -->
+              <div style="margin-bottom:12px">
+                <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:6px">Mode</label>
+                <div style="display:flex;gap:8px">
+                  <label style="flex:1;cursor:pointer">
+                    <input type="radio" name="ft-mode" value="personal" checked onchange="ftModeChange()" style="display:none">
+                    <div id="ft-mode-personal-btn" style="padding:10px 8px;border:2px solid #f97316;border-radius:10px;text-align:center;background:#fff7ed;font-family:var(--ff);font-size:11px;font-weight:700;color:#ea580c">
+                      <i class="fa fa-user" style="display:block;font-size:16px;margin-bottom:4px"></i>
+                      Personal Codes<br><span style="font-weight:400;font-size:10px;color:#fb923c">Recommended</span>
+                    </div>
+                  </label>
+                  <label style="flex:1;cursor:pointer">
+                    <input type="radio" name="ft-mode" value="fcfs" onchange="ftModeChange()" style="display:none">
+                    <div id="ft-mode-fcfs-btn" style="padding:10px 8px;border:2px solid #e2e8f0;border-radius:10px;text-align:center;background:#f8fafc;font-family:var(--ff);font-size:11px;font-weight:700;color:#64748b">
+                      <i class="fa fa-people-group" style="display:block;font-size:16px;margin-bottom:4px"></i>
+                      FCFS Shared<br><span style="font-weight:400;font-size:10px;color:#94a3b8">One code, many users</span>
+                    </div>
+                  </label>
+                  <label style="flex:1;cursor:pointer">
+                    <input type="radio" name="ft-mode" value="random" onchange="ftModeChange()" style="display:none">
+                    <div id="ft-mode-random-btn" style="padding:10px 8px;border:2px solid #e2e8f0;border-radius:10px;text-align:center;background:#f8fafc;font-family:var(--ff);font-size:11px;font-weight:700;color:#64748b">
+                      <i class="fa fa-shuffle" style="display:block;font-size:16px;margin-bottom:4px"></i>
+                      Random Pick<br><span style="font-weight:400;font-size:10px;color:#94a3b8">Server picks randomly</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Flash window -->
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+                <div>
+                  <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px">Date</label>
+                  <input type="date" id="ft-flash-date" style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:12px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+                </div>
+                <div>
+                  <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px">Start Time</label>
+                  <input type="time" id="ft-flash-start" style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:12px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+                </div>
+                <div>
+                  <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px">End Time</label>
+                  <input type="time" id="ft-flash-end" style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:12px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+                </div>
+              </div>
+
+              <!-- Capacity (fcfs only) -->
+              <div id="ft-capacity-wrap" style="display:none;margin-bottom:12px">
+                <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px">Capacity (max users)</label>
+                <input type="number" id="ft-capacity" min="1" max="500" placeholder="e.g. 20"
+                  style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+              </div>
+
+              <!-- Count (random only) -->
+              <div id="ft-random-count-wrap" style="display:none;margin-bottom:12px">
+                <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px">How many users to pick randomly?</label>
+                <input type="number" id="ft-random-count" min="1" max="500" placeholder="e.g. 10"
+                  style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+                <div style="font-size:10px;color:#fb923c;margin-top:4px"><i class="fa fa-circle-info" style="margin-right:3px"></i>Server picks eligible users randomly (not blocked, not redeemed, not subscriber). Preview shown after creation.</div>
+              </div>
+
+              <!-- Discount type -->
+              <div style="margin-bottom:12px">
+                <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:6px">Discount Type</label>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <label style="cursor:pointer;display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #fed7aa;border-radius:9px;background:#fffbeb">
+                    <input type="radio" name="ft-disc" value="percent_100" checked onchange="ftDiscChange()">
+                    <div><div style="font-size:12px;font-weight:700;color:#7c2d12">100% FREE — Full tiffin free</div><div style="font-size:10px;color:#fb923c">User pays ₹0 always</div></div>
+                  </label>
+                  <label style="cursor:pointer;display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc">
+                    <input type="radio" name="ft-disc" value="percent_cap" onchange="ftDiscChange()">
+                    <div><div style="font-size:12px;font-weight:700;color:#334155">100% FREE upto ₹X — Capped</div><div style="font-size:10px;color:#94a3b8">Free if tiffin ≤ cap, else user pays difference</div></div>
+                  </label>
+                  <label style="cursor:pointer;display:flex;align-items:flex-start;gap:8px;padding:10px;border:1.5px solid #e2e8f0;border-radius:9px;background:#f8fafc">
+                    <input type="radio" name="ft-disc" value="flat" onchange="ftDiscChange()">
+                    <div><div style="font-size:12px;font-weight:700;color:#334155">Flat ₹X OFF — Fixed amount</div><div style="font-size:10px;color:#94a3b8">Best when tiffin has one fixed price</div></div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Cap / flat amount -->
+              <div id="ft-disc-extra" style="display:none;margin-bottom:12px">
+                <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px" id="ft-disc-extra-label">Cap Amount (₹)</label>
+                <input type="number" id="ft-disc-extra-val" min="1" placeholder="e.g. 70"
+                  style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+              </div>
+
+              <!-- Min order -->
+              <div style="margin-bottom:14px">
+                <label style="font-size:11px;font-weight:700;color:#7c2d12;display:block;margin-bottom:4px">Min Order ₹ <span style="font-weight:400;color:#fb923c">(optional)</span></label>
+                <input type="number" id="ft-min-order" min="0" placeholder="0 = no minimum"
+                  style="width:100%;padding:8px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box">
+              </div>
+
+              <!-- Select recipients (personal mode only) -->
+              <div id="ft-recipients-wrap" style="margin-bottom:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <label style="font-size:11px;font-weight:700;color:#7c2d12">Select Recipients</label>
+                  <button onclick="ftAutoPickEligible()" style="padding:5px 10px;border:1.5px solid #f97316;border-radius:7px;background:#fff7ed;color:#ea580c;font-family:var(--ff);font-size:11px;font-weight:700;cursor:pointer">
+                    <i class="fa fa-wand-magic-sparkles" style="margin-right:3px"></i>Auto-pick Eligible
+                  </button>
+                </div>
+                <!-- Include wa_sent toggle -->
+                <label style="display:flex;align-items:center;gap:7px;margin-bottom:8px;cursor:pointer">
+                  <input type="checkbox" id="ft-incl-wasent" onchange="renderFTEligibleList()">
+                  <span style="font-size:11px;color:#78350f">Include users who already got a code (WA Sent)</span>
+                </label>
+                <!-- Registration age filter for eligible users in Create tab -->
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+                  <span style="font-size:10px;font-weight:700;color:#7c2d12;white-space:nowrap">Joined:</span>
+                  <select id="ft-create-reg-filter" onchange="renderFTEligibleList()"
+                    style="padding:5px 8px;border:1.5px solid #fed7aa;border-radius:7px;font-size:11px;font-family:var(--ff);background:#fffbeb;color:#7c2d12;flex:1">
+                    <option value="all">Any time</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="15">Last 15 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="old">30+ days ago</option>
+                  </select>
+                </div>
+                <!-- Subscriber filter — eligibility itself does NOT depend on subscriber status
+                     (any user who hasn't redeemed FT is eligible); this is purely for admin targeting -->
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+                  <span style="font-size:10px;font-weight:700;color:#7c2d12;white-space:nowrap">Type:</span>
+                  <select id="ft-create-sub-filter" onchange="renderFTEligibleList()"
+                    style="padding:5px 8px;border:1.5px solid #fed7aa;border-radius:7px;font-size:11px;font-family:var(--ff);background:#fffbeb;color:#7c2d12;flex:1">
+                    <option value="all">All users</option>
+                    <option value="non_sub">Non-subscriber only</option>
+                    <option value="sub">Subscriber only</option>
+                  </select>
+                </div>
+                <input id="ft-rec-search" type="text" placeholder="Search eligible users…"
+                  oninput="renderFTEligibleList()"
+                  style="width:100%;padding:8px 12px;border:1.5px solid #fed7aa;border-radius:9px;font-size:12px;font-family:var(--ff);background:#fffbeb;box-sizing:border-box;margin-bottom:8px">
+                <div id="ft-eligible-list" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+                <div id="ft-selected-count" style="margin-top:8px;font-size:11px;color:#7c2d12;font-weight:700;text-align:center"></div>
+              </div>
+
+              <!-- Create button -->
+              <button onclick="ftCreateBatch()" id="ft-create-btn"
+                style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#f97316,#ea580c);color:white;font-family:var(--ff);font-weight:800;font-size:14px;cursor:pointer;transition:all 180ms;box-shadow:0 4px 14px rgba(249,115,22,.3)">
+                <i class="fa fa-gift" style="margin-right:6px"></i>Create Coupons &amp; Show Send List
+              </button>
+            </div>
+
+            <!-- TAB: Send List -->
+            <div id="ft-tab-sendlist" style="padding:14px;display:none">
+              <div id="ft-sendlist-content">
+                <div style="text-align:center;padding:32px;color:#94a3b8">
+                  <i class="fa fa-paper-plane" style="font-size:32px;margin-bottom:8px;display:block;opacity:.4"></i>
+                  <div style="font-size:13px">Create a batch first to see the send list</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- ── END FREE TIFFIN PANEL ── -->
+
         <div class="filter-bar">
           <select id="coupon-type-filter" onchange="renderCouponsTable()">
             <option value="">All Discount Types</option>
@@ -4667,6 +4996,8 @@ async function loadCoupons() {
     if (!owner()) return;
     _coupons = res.coupons || [];
     renderCouponsTable();
+    // Refresh FT today-coupon bar if panel is open
+    if (typeof _ftPanelOpen !== 'undefined' && _ftPanelOpen) _ftRenderTodayCoupon();
     npDone();
   } catch(e) {
     if (!owner()) return;
@@ -4674,6 +5005,849 @@ async function loadCoupons() {
     if (!(e.message||'').includes('Session expired')) aToast('Coupons load failed — tap refresh to retry');
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FREE FIRST TIFFIN CAMPAIGN SYSTEM (v169)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _ftUsers = [];          // cached from getFreeTiffinUsers
+let _ftSelectedPhones = new Set();  // phones selected in Create tab
+let _ftPanelOpen = false;
+let _ftLastBatch = null;    // { mode, codeMap|code, phones, discountType, discountValue, capAmount }
+let _ftEligFilter = 'all';  // eligibility registration-age filter: 'all'|'7'|'15'|'30'|'old'
+
+// ── Toggle panel open/close ──────────────────────────────────────────────────
+function toggleFTPanel() {
+  _ftPanelOpen = !_ftPanelOpen;
+  const panel = document.getElementById('ft-panel');
+  const arrow = document.getElementById('ft-toggle-arrow');
+  panel.style.display = _ftPanelOpen ? 'block' : 'none';
+  arrow.style.transform = _ftPanelOpen ? 'rotate(180deg)' : '';
+  if (_ftPanelOpen) {
+    loadFTUsers();
+    // Set today's date as default flash date
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth()+1).padStart(2,'0');
+    const dd   = String(d.getDate()).padStart(2,'0');
+    const el   = document.getElementById('ft-flash-date');
+    if (el && !el.value) el.value = `${yyyy}-${mm}-${dd}`;
+  }
+}
+
+// ── Tab switcher ─────────────────────────────────────────────────────────────
+function switchFTTab(tab) {
+  ['dashboard','create','sendlist'].forEach(t => {
+    document.getElementById(`ft-tab-${t}`).style.display = t === tab ? 'block' : 'none';
+    const btn = document.getElementById(`ft-tab-btn-${t}`);
+    if (t === tab) {
+      btn.style.background = '#fff7ed';
+      btn.style.color = '#ea580c';
+      btn.style.borderBottom = '2px solid #f97316';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.color = '#64748b';
+      btn.style.borderBottom = '2px solid transparent';
+    }
+  });
+}
+
+// ── Load users from backend ──────────────────────────────────────────────────
+async function loadFTUsers() {
+  document.getElementById('ft-user-list').innerHTML =
+    '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px"><i class="fa fa-spinner fa-spin" style="margin-right:6px"></i>Loading…</div>';
+  try {
+    const res = await api('getFreeTiffinUsers');
+    _ftUsers = res.users || [];
+    _ftUpdateStats();
+    _ftRenderTodayCoupon();
+    renderFTUserList();
+    renderFTEligibleList();
+    _ftUpdateToggleBadge();
+  } catch(e) {
+    document.getElementById('ft-user-list').innerHTML =
+      '<div style="text-align:center;padding:20px;color:#ef4444;font-size:12px">Load failed — tap refresh</div>';
+  }
+}
+
+// ── Update stat cards ────────────────────────────────────────────────────────
+function _ftUpdateStats() {
+  const waSent    = _ftUsers.filter(u => u.free_tiffin_status === 'wa_sent').length;
+  const redeemed  = _ftUsers.filter(u => u.free_tiffin_status === 'redeemed').length;
+  const converted = _ftUsers.filter(u => u.free_tiffin_status === 'redeemed' && u.paid_orders_after > 0).length;
+  const blocked   = _ftUsers.filter(u => u.free_tiffin_blocked).length;
+  const suspects  = _ftUsers.filter(u => u.ft_loc_suspect).length;
+  document.getElementById('ft-stat-wasent').textContent    = waSent;
+  document.getElementById('ft-stat-redeemed').textContent  = redeemed;
+  document.getElementById('ft-stat-converted').textContent = converted;
+  document.getElementById('ft-stat-blocked').textContent   = blocked;
+  const suspEl = document.getElementById('ft-stat-suspects');
+  if (suspEl) suspEl.textContent = suspects;
+
+  // ── Rollout progress tracker ──────────────────────────────────────────────
+  // "Targeted" = anyone who has wa_sent OR redeemed status (we reached out)
+  // "Remaining" = NULL status, not blocked, still to reach.
+  // v172: subscriber status no longer excludes a user from the FT pool.
+  const targeted   = _ftUsers.filter(u => u.free_tiffin_status === 'wa_sent' || u.free_tiffin_status === 'redeemed').length;
+  const remaining  = _ftUsers.filter(u => !u.free_tiffin_status && !u.free_tiffin_blocked).length;
+  const totalKnown = targeted + remaining;
+  const rolloutWrap = document.getElementById('ft-rollout-wrap');
+  if (rolloutWrap && totalKnown > 0) {
+    rolloutWrap.style.display = 'block';
+    const pct = Math.round(targeted / totalKnown * 100);
+    document.getElementById('ft-rollout-bar').style.width       = pct + '%';
+    document.getElementById('ft-rollout-pct').textContent       = pct + '% done';
+    document.getElementById('ft-rollout-targeted').textContent  = targeted;
+    document.getElementById('ft-rollout-remaining').textContent = remaining;
+  } else if (rolloutWrap) {
+    rolloutWrap.style.display = 'none';
+  }
+
+  _ftRenderAnalytics();
+}
+
+// ── Post-redemption analytics renderer ───────────────────────────────────────
+function _ftRenderAnalytics() {
+  const wrap = document.getElementById('ft-analytics-wrap');
+  if (!wrap) return;
+
+  const redeemed = _ftUsers.filter(u => u.free_tiffin_status === 'redeemed');
+  if (!redeemed.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  const nowMs   = Date.now();
+  const DAY_MS  = 86400000;
+
+  // Classify each redeemed user into a behaviour segment
+  let loyal = 0, returning = 0, ghost = 0, tooSoon = 0, nextDay = 0;
+  let totalRevenue = 0, totalOrdersAfter = 0;
+  for (const u of redeemed) {
+    const cv    = u.conversion;
+    const cnt   = cv?.count  ?? u.paid_orders_after ?? 0;
+    const daysSinceRedeem = u.free_tiffin_given_at
+      ? (nowMs - new Date(u.free_tiffin_given_at).getTime()) / DAY_MS : 999;
+    totalRevenue    += cv?.revenue || 0;
+    totalOrdersAfter += cnt;
+    if (cv?.next_day) nextDay++;
+    if (cnt >= 3)                        loyal++;
+    else if (cnt >= 1)                   returning++;
+    else if (daysSinceRedeem < 3)        tooSoon++;
+    else                                 ghost++;
+  }
+
+  const convRate = redeemed.length ? Math.round((loyal + returning) / redeemed.length * 100) : 0;
+  const nextDayRate = redeemed.length ? Math.round(nextDay / redeemed.length * 100) : 0;
+  const avgRevPerConvert = (loyal + returning) > 0
+    ? Math.round(totalRevenue / (loyal + returning)) : 0;
+
+  // Segment cards
+  const segCards = document.getElementById('ft-seg-cards');
+  if (segCards) segCards.innerHTML = `
+    <div onclick="document.getElementById('ft-filter').value='loyal';renderFTUserList()"
+      style="background:linear-gradient(135deg,#fef9c3,#fefce8);border:1px solid #fde68a;border-radius:9px;padding:10px;text-align:center;cursor:pointer">
+      <div style="font-family:var(--ff);font-weight:800;font-size:20px;color:#92400e">${loyal}</div>
+      <div style="font-size:10px;color:#78350f;font-weight:700">🏆 Loyal</div>
+      <div style="font-size:9px;color:#d97706">3+ orders after FT</div>
+    </div>
+    <div onclick="document.getElementById('ft-filter').value='returning';renderFTUserList()"
+      style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:9px;padding:10px;text-align:center;cursor:pointer">
+      <div style="font-family:var(--ff);font-weight:800;font-size:20px;color:#15803d">${returning}</div>
+      <div style="font-size:10px;color:#14532d;font-weight:700">💚 Returning</div>
+      <div style="font-size:9px;color:#4ade80">1–2 orders after FT</div>
+    </div>
+    <div onclick="document.getElementById('ft-filter').value='ghost';renderFTUserList()"
+      style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fecaca;border-radius:9px;padding:10px;text-align:center;cursor:pointer">
+      <div style="font-family:var(--ff);font-weight:800;font-size:20px;color:#dc2626">${ghost}</div>
+      <div style="font-size:10px;color:#7f1d1d;font-weight:700">👻 Ghost</div>
+      <div style="font-size:9px;color:#fca5a5">0 orders, 3+ days ago</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:9px;padding:10px;text-align:center">
+      <div style="font-family:var(--ff);font-weight:800;font-size:20px;color:#475569">${tooSoon}</div>
+      <div style="font-size:10px;color:#475569;font-weight:700">⏳ Too Soon</div>
+      <div style="font-size:9px;color:#94a3b8">Redeemed &lt;3 days ago</div>
+    </div>
+  `;
+
+  // Key metrics strip
+  const metrics = document.getElementById('ft-key-metrics');
+  if (metrics) metrics.innerHTML = `
+    <div onclick="document.getElementById('ft-filter').value='next_day';renderFTUserList()"
+      style="background:white;border:1px solid #e2e8f0;border-radius:9px;padding:9px;text-align:center;cursor:pointer">
+      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#0369a1">${nextDayRate}%</div>
+      <div style="font-size:9px;color:#0c4a6e;font-weight:600">📅 Next-Day Order</div>
+    </div>
+    <div style="background:white;border:1px solid #e2e8f0;border-radius:9px;padding:9px;text-align:center">
+      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#7c3aed">${convRate}%</div>
+      <div style="font-size:9px;color:#4c1d95;font-weight:600">📈 Conversion</div>
+    </div>
+    <div style="background:white;border:1px solid #e2e8f0;border-radius:9px;padding:9px;text-align:center">
+      <div style="font-family:var(--ff);font-weight:800;font-size:16px;color:#0f766e">₹${avgRevPerConvert}</div>
+      <div style="font-size:9px;color:#134e4a;font-weight:600">Avg Rev/Convert</div>
+    </div>
+  `;
+}
+
+// ── Toggle button badge ──────────────────────────────────────────────────────
+function _ftUpdateToggleBadge() {
+  const waSent   = _ftUsers.filter(u => u.free_tiffin_status === 'wa_sent').length;
+  const redeemed = _ftUsers.filter(u => u.free_tiffin_status === 'redeemed').length;
+  const wrap = document.getElementById('ft-toggle-badge');
+  if (waSent || redeemed) {
+    wrap.style.display = 'flex';
+    const rb = document.getElementById('ft-badge-redeemed');
+    const pb = document.getElementById('ft-badge-pending');
+    rb.textContent = `${redeemed} redeemed`;
+    pb.textContent = `${waSent} pending`;
+    rb.style.display = redeemed ? 'inline' : 'none';
+    pb.style.display = waSent   ? 'inline' : 'none';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+// ── Today's active TIFFO coupons from _coupons cache ────────────────────────
+function _ftRenderTodayCoupon() {
+  const today = (() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth()+1).padStart(2,'0');
+    const dd   = String(d.getDate()).padStart(2,'0');
+    return `${yyyy}-${mm}-${dd}`;
+  })();
+  // v171: coupon_type='free_tiffin' replaces TIFFO prefix detection
+  const active = (_coupons || []).filter(c =>
+    c.coupon_type === 'free_tiffin' && c.flash_date === today && c.is_active
+  );
+  const wrap = document.getElementById('ft-today-coupon-wrap');
+  const list = document.getElementById('ft-today-coupon-list');
+  if (!active.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = active.map(c => {
+    const used = c.used_count || 0;
+    const max  = c.max_usage  || 1;
+    const pct  = Math.min(100, Math.round(used / max * 100));
+    const rtype = c.restriction_type === 'specific_phone' ? 'Personal' : 'FCFS';
+    return `<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-family:var(--ff);font-weight:700;font-size:12px;color:#7c2d12">${c.code}</span>
+        <span style="font-size:10px;color:#fb923c">${rtype} · ${used}/${max} claimed</span>
+      </div>
+      <div style="background:#fed7aa;border-radius:20px;height:6px;overflow:hidden">
+        <div style="height:100%;background:linear-gradient(90deg,#f97316,#ea580c);width:${pct}%;border-radius:20px;transition:width 600ms"></div>
+      </div>
+      <div style="font-size:10px;color:#9a3412;margin-top:3px">
+        ${c.flash_start ? c.flash_start.slice(0,5) : ''} – ${c.flash_end ? c.flash_end.slice(0,5) : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render user list in Dashboard tab ────────────────────────────────────────
+// ── Eligibility filter button handler ─────────────────────────────────────
+function ftSetEligFilter(val, btn) {
+  _ftEligFilter = val;
+  // Reset all button styles
+  ['all','7','15','30','old'].forEach(k => {
+    const el = document.getElementById('ft-elig-' + k);
+    if (!el) return;
+    el.style.border     = '1.5px solid #e2e8f0';
+    el.style.background = '#f8fafc';
+    el.style.color      = '#64748b';
+  });
+  // Highlight active
+  if (btn) {
+    btn.style.border     = '1.5px solid #f97316';
+    btn.style.background = '#fff7ed';
+    btn.style.color      = '#ea580c';
+  }
+  renderFTUserList();
+}
+
+function renderFTUserList() {
+  const q      = (document.getElementById('ft-search')?.value || '').trim().toLowerCase();
+  const filter = document.getElementById('ft-filter')?.value || '';
+  const sort   = document.getElementById('ft-sort')?.value   || 'newest';
+  const el     = document.getElementById('ft-user-list');
+
+  let list = [..._ftUsers];
+  if (q) list = list.filter(u => (u.name||'').toLowerCase().includes(q) || (u.phone||'').includes(q));
+
+  // ── Eligibility filter: show only users who haven't received free tiffin,
+  //    filtered by how recently they registered.
+  //    Completely independent of Welcome coupon system.
+  if (_ftEligFilter && _ftEligFilter !== 'all') {
+    // First: restrict to not-redeemed, not-blocked users
+    list = list.filter(u =>
+      u.free_tiffin_status !== 'redeemed' &&
+      !u.free_tiffin_blocked
+    );
+    const days = _ftEligFilter === 'old' ? null : parseInt(_ftEligFilter);
+    if (_ftEligFilter === 'old') {
+      // Registered MORE than 30 days ago
+      list = list.filter(u => (u.reg_days ?? 999) > 30);
+    } else {
+      // Registered within last N days
+      list = list.filter(u => (u.reg_days ?? 999) <= days);
+    }
+    // Update count label
+    const countEl = document.getElementById('ft-elig-count');
+    if (countEl) {
+      const label = _ftEligFilter === 'old'
+        ? 'Users registered 30+ days ago without free tiffin'
+        : `Users registered in last ${_ftEligFilter} days without free tiffin`;
+      countEl.textContent = `${list.length} ${label}`;
+    }
+  } else {
+    const countEl = document.getElementById('ft-elig-count');
+    if (countEl) countEl.textContent = '';
+  }
+  if (filter === 'wa_sent')   list = list.filter(u => u.free_tiffin_status === 'wa_sent');
+  else if (filter === 'redeemed')  list = list.filter(u => u.free_tiffin_status === 'redeemed');
+  else if (filter === 'null')      list = list.filter(u => !u.free_tiffin_status);
+  else if (filter === 'blocked')   list = list.filter(u => u.free_tiffin_blocked);
+  else if (filter === 'suspect')   list = list.filter(u => u.ft_loc_suspect);
+  else if (filter === 'ghost') {
+    const nowMs = Date.now();
+    list = list.filter(u => u.free_tiffin_status === 'redeemed' &&
+      (u.conversion?.count ?? u.paid_orders_after ?? 0) === 0 &&
+      u.free_tiffin_given_at && (nowMs - new Date(u.free_tiffin_given_at).getTime()) > 3 * 86400000);
+  }
+  else if (filter === 'loyal')     list = list.filter(u => (u.conversion?.count ?? u.paid_orders_after ?? 0) >= 3);
+  else if (filter === 'returning') list = list.filter(u => { const c = u.conversion?.count ?? u.paid_orders_after ?? 0; return c >= 1 && c < 3; });
+  else if (filter === 'next_day')  list = list.filter(u => u.conversion?.next_day === true);
+
+  if (sort === 'newest')          list.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  else if (sort === 'redemption') list.sort((a,b) => new Date(b.free_tiffin_given_at||0) - new Date(a.free_tiffin_given_at||0));
+  else if (sort === 'orders_desc') list.sort((a,b) => (b.conversion?.count ?? b.paid_orders_after ?? 0) - (a.conversion?.count ?? a.paid_orders_after ?? 0));
+  else if (sort === 'revenue_desc') list.sort((a,b) => (b.conversion?.revenue || 0) - (a.conversion?.revenue || 0));
+  else if (sort === 'az')         list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  if (!list.length) {
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px">No users found</div>';
+    return;
+  }
+
+  el.innerHTML = list.map(u => {
+    const statusBadge = u.free_tiffin_status === 'redeemed'
+      ? '<span style="background:#fef9c3;color:#92400e;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">✅ Redeemed</span>'
+      : u.free_tiffin_status === 'wa_sent'
+      ? '<span style="background:#fff7ed;color:#ea580c;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">📤 WA Sent</span>'
+      : '<span style="background:#f1f5f9;color:#64748b;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">Not Targeted</span>';
+
+    const blockedBadge = u.free_tiffin_blocked
+      ? '<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;margin-left:4px">🚫 FT Blocked</span>'
+      : '';
+
+    // ── GPS-based duplicate / suspect flag ──────────────────────────────────
+    // ft_loc_suspect = TRUE means server found another user within 30 m at signup.
+    // By default allowed; admin sees ⚠️ badge + tooltip with nearby user list.
+    let suspectBadge = '';
+    if (u.ft_loc_suspect) {
+      const nb = u.nearby_suspects || [];
+      // Build tooltip: list nearby users with distance
+      const tooltipLines = nb.length
+        ? nb.map(n => `${n.name||n.phone} (${Math.round(n.distance_m)}m)${n.free_tiffin_blocked ? ' 🚫' : n.free_tiffin_status === 'redeemed' ? ' ✅' : ''}`).join('\n')
+        : 'Nearby user data unavailable';
+      const tooltipText = `⚠️ GPS Suspect — another user within 30m:\n${tooltipLines}\n\nBy default allowed. Block FT if suspicious.`;
+      suspectBadge = `<span
+        title="${tooltipText.replace(/"/g,'&quot;')}"
+        onclick="ftShowSuspectDetail('${u.phone}')"
+        style="background:#fef3c7;color:#92400e;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700;margin-left:4px;cursor:pointer;border:1px solid #fde68a">
+        ⚠️ GPS Suspect
+      </span>`;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    const joinedDate = u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '';
+    const redeemedOn = u.free_tiffin_given_at ? new Date(u.free_tiffin_given_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '';
+
+    // ── Rich conversion badge for redeemed users ─────────────────────────────
+    let conversionBlock = '';
+    if (u.free_tiffin_status === 'redeemed') {
+      const cv  = u.conversion;
+      const cnt = cv?.count ?? u.paid_orders_after ?? 0;
+      const nowMs = Date.now();
+      const daysSince = u.free_tiffin_given_at
+        ? Math.floor((nowMs - new Date(u.free_tiffin_given_at).getTime()) / 86400000) : null;
+
+      // Segment label
+      let segLabel, segColor, segBg;
+      if (cnt >= 3)                              { segLabel = '🏆 Loyal';     segColor = '#78350f'; segBg = '#fef3c7'; }
+      else if (cnt >= 1)                         { segLabel = '💚 Returning'; segColor = '#14532d'; segBg = '#dcfce7'; }
+      else if (daysSince !== null && daysSince < 3) { segLabel = '⏳ Too Soon'; segColor = '#475569'; segBg = '#f1f5f9'; }
+      else                                       { segLabel = '👻 Ghost';     segColor = '#7f1d1d'; segBg = '#fee2e2'; }
+
+      // Day-by-day indicators (show up to day+3)
+      const dayDots = cv ? [
+        cv.next_day ? '✅ D+1' : '❌ D+1',
+        cv.day2     ? '✅ D+2' : '❌ D+2',
+        cv.day3     ? '✅ D+3' : '❌ D+3',
+      ].join('  ') : '';
+
+      const revenueStr   = cv?.revenue    ? ` · ₹${cv.revenue} earned` : '';
+      const lastOrderStr = cv?.last_date  ? ` · Last: ${new Date(cv.last_date + 'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}` : '';
+
+      conversionBlock = `
+        <div style="background:${segBg};border-radius:8px;padding:7px 9px;margin-top:6px;font-size:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <span style="font-family:var(--ff);font-weight:700;color:${segColor}">${segLabel}</span>
+            <span style="color:#64748b">${cnt} orders after${revenueStr}</span>
+          </div>
+          ${dayDots ? `<div style="color:#475569;font-family:monospace;font-size:10px;letter-spacing:1px">${dayDots}${lastOrderStr}</div>` : ''}
+        </div>`;
+    }
+
+    const conversionStr = '';  // Rich data shown in conversionBlock below
+
+    // Left border colour: blocked > suspect > redeemed > wa_sent > untargeted
+    const borderColor = u.free_tiffin_blocked ? '#ef4444'
+      : u.ft_loc_suspect ? '#f59e0b'
+      : u.free_tiffin_status === 'redeemed' ? '#fbbf24'
+      : u.free_tiffin_status === 'wa_sent' ? '#f97316'
+      : '#e2e8f0';
+
+    // Action buttons
+    const waMsg = encodeURIComponent(`Hi ${(u.name||'').split(' ')[0]}, aapko Tiffo ki taraf se ek free tiffin ka offer hai! 🎁\n\nCode: [CODE]\n\nTiffo app mein order karo aaj hi.\nhttps://tiffo.online`);
+    const waBtn = `<a href="https://wa.me/91${u.phone}?text=${waMsg}" target="_blank" onclick="ftMarkWaSent('${u.phone}',this)"
+      style="padding:5px 9px;border:1.5px solid #25d366;border-radius:7px;background:#f0fdf4;color:#16a34a;font-size:11px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+      <i class="fa-brands fa-whatsapp"></i> WA
+    </a>`;
+
+    const blockBtn = u.free_tiffin_blocked
+      ? `<button onclick="ftUnblockUser('${u.phone}')" style="padding:5px 9px;border:1.5px solid #22c55e;border-radius:7px;background:#f0fdf4;color:#15803d;font-size:11px;font-weight:700;cursor:pointer">Unblock FT</button>`
+      : `<button onclick="ftBlockUser('${u.phone}')" style="padding:5px 9px;border:1.5px solid #fca5a5;border-radius:7px;background:#fef2f2;color:#dc2626;font-size:11px;font-weight:700;cursor:pointer">Block FT</button>`;
+
+    // "Send New Coupon" only for wa_sent (not redeemed) users
+    const resendBtn = u.free_tiffin_status === 'wa_sent'
+      ? `<button onclick="ftResendNewCoupon('${u.phone}','${u.name}')" style="padding:5px 9px;border:1.5px solid #f97316;border-radius:7px;background:#fff7ed;color:#ea580c;font-size:11px;font-weight:700;cursor:pointer" title="Create & send a new coupon for this user">New Coupon</button>`
+      : '';
+
+    return `<div style="background:white;border:1.5px solid #f1f5f9;border-radius:12px;padding:12px;border-left:3px solid ${borderColor}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">${u.name||'—'}</div>
+          <div style="font-size:11px;color:#64748b">${u.phone} · Joined ${joinedDate}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end">${statusBadge}${blockedBadge}${suspectBadge}</div>
+      </div>
+      ${u.ft_loc_suspect && (u.nearby_suspects||[]).length ? `<div style="font-size:10px;color:#92400e;background:#fef3c7;border-radius:7px;padding:5px 8px;margin-bottom:6px;cursor:pointer" onclick="ftShowSuspectDetail('${u.phone}')"><i class="fa fa-triangle-exclamation" style="margin-right:4px"></i>GPS match: ${u.nearby_suspects.map(n=>`${(n.name||n.phone).split(' ')[0]} <b>${Math.round(n.distance_m)}m</b>`).join(', ')} — tap for details</div>` : ''}
+      ${u.free_tiffin_coupon ? `<div style="font-size:10px;color:#fb923c;font-family:monospace;margin-bottom:4px">Code: ${u.free_tiffin_coupon}${redeemedOn ? ' · Redeemed '+redeemedOn : ''}${conversionStr}</div>` : ''}
+      ${conversionBlock}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        ${waBtn}${resendBtn}${blockBtn}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Mark WA sent ─────────────────────────────────────────────────────────────
+async function ftMarkWaSent(phone, linkEl) {
+  try {
+    // Fire both in parallel: mark FT status + move out of Nu Coupon pending
+    await Promise.all([
+      api('markFreeTiffinWaSent', { phone }),
+      api('markNuCouponSent', { phone }).catch(() => {}) // silent — user may not be in nu_coupon_sent
+    ]);
+    // Update local FT cache
+    const u = _ftUsers.find(u => u.phone === phone);
+    if (u && !u.free_tiffin_status) {
+      u.free_tiffin_status     = 'wa_sent';
+      u.free_tiffin_wa_sent_at = new Date().toISOString();
+      _ftUpdateStats();
+      _ftUpdateToggleBadge();
+      renderFTUserList();
+    }
+  } catch(_) {}
+}
+
+// ── Block / Unblock ──────────────────────────────────────────────────────────
+async function ftBlockUser(phone) {
+  if (!confirm(`Block free tiffin access for ${phone}?`)) return;
+  try {
+    await api('blockFreeTiffinUser', { phone });
+    const u = _ftUsers.find(u => u.phone === phone);
+    if (u) { u.free_tiffin_blocked = true; _ftUpdateStats(); renderFTUserList(); }
+    aToast('FT access blocked');
+  } catch(e) { aToast(e.message); }
+}
+
+async function ftUnblockUser(phone) {
+  try {
+    await api('unblockFreeTiffinUser', { phone });
+    const u = _ftUsers.find(u => u.phone === phone);
+    if (u) { u.free_tiffin_blocked = false; _ftUpdateStats(); renderFTUserList(); }
+    aToast('FT access restored');
+  } catch(e) { aToast(e.message); }
+}
+
+// ── GPS Suspect detail modal ─────────────────────────────────────────────────
+// Shows who else is within 30m of this user, with their FT status + block controls.
+function ftShowSuspectDetail(phone) {
+  const u = _ftUsers.find(u => u.phone === phone);
+  if (!u) return;
+  const nb = u.nearby_suspects || [];
+  const nbRows = nb.length ? nb.map(n => {
+    const ftLabel = n.free_tiffin_status === 'redeemed' ? '✅ Redeemed'
+      : n.free_tiffin_status === 'wa_sent' ? '📤 WA Sent' : '—';
+    const blockLabel = n.free_tiffin_blocked ? '🚫 Blocked' : '';
+    const nearUser = _ftUsers.find(x => x.phone === n.phone);
+    const blockBtn = nearUser && !nearUser.free_tiffin_blocked
+      ? `<button onclick="ftBlockUser('${n.phone}')" style="padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;font-size:10px;font-weight:700;cursor:pointer">Block FT</button>`
+      : nearUser?.free_tiffin_blocked
+      ? `<button onclick="ftUnblockUser('${n.phone}')" style="padding:4px 8px;border:1px solid #22c55e;border-radius:6px;background:#f0fdf4;color:#15803d;font-size:10px;font-weight:700;cursor:pointer">Unblock</button>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px;background:#fef3c7;border-radius:8px;margin-bottom:6px">
+      <div style="flex:1">
+        <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0f172a">${n.name||n.phone}</div>
+        <div style="font-size:10px;color:#64748b">${n.phone} · ${Math.round(n.distance_m)}m away · ${ftLabel} ${blockLabel}</div>
+      </div>
+      ${blockBtn}
+    </div>`;
+  }).join('') : '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:12px">No nearby user data (coordinates may not have been saved)</div>';
+
+  openMo(`
+    <div class="mo-title" style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:20px">⚠️</span>
+      <div>
+        <div>GPS Suspect — ${u.name}</div>
+        <div style="font-size:11px;font-weight:400;color:#64748b">${u.phone}</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#92400e;background:#fef3c7;border-radius:8px;padding:10px;margin-bottom:14px">
+      This user's GPS location matches ${nb.length} other user${nb.length!==1?'s':''} within 30 metres.
+      This could be a hostel roommate or a duplicate account trying to get multiple free tiffins.
+      <br><br>
+      <b>By default, this user is allowed free tiffin.</b> Block only if you suspect fraud.
+    </div>
+    <div style="font-weight:700;font-size:12px;color:#0f172a;margin-bottom:8px">Nearby users:</div>
+    ${nbRows}
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button onclick="ftBlockUser('${phone}');closeMo()" style="flex:1;padding:10px;border:none;border-radius:10px;background:#fee2e2;color:#dc2626;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
+        🚫 Block ${u.name.split(' ')[0]} from FT
+      </button>
+      <button onclick="closeMo()" style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;background:white;color:#64748b;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
+        Allow (keep open)
+      </button>
+    </div>
+  `);
+}
+
+// ── Mode selector UI ─────────────────────────────────────────────────────────
+function ftModeChange() {
+  const mode = document.querySelector('input[name="ft-mode"]:checked')?.value || 'personal';
+  const isPersonal = mode === 'personal';
+  const isFcfs     = mode === 'fcfs';
+  const isRandom   = mode === 'random';
+
+  // Highlight active mode button
+  const _modeBtn = (id, active) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.border      = active ? '2px solid #f97316' : '2px solid #e2e8f0';
+    el.style.background  = active ? '#fff7ed' : '#f8fafc';
+    el.style.color       = active ? '#ea580c' : '#64748b';
+  };
+  _modeBtn('ft-mode-personal-btn', isPersonal);
+  _modeBtn('ft-mode-fcfs-btn',     isFcfs);
+  _modeBtn('ft-mode-random-btn',   isRandom);
+
+  // Show/hide mode-specific inputs
+  document.getElementById('ft-capacity-wrap').style.display      = isFcfs     ? 'block' : 'none';
+  document.getElementById('ft-random-count-wrap').style.display  = isRandom   ? 'block' : 'none';
+  document.getElementById('ft-recipients-wrap').style.display    = isPersonal ? 'block' : 'none';
+}
+
+// ── Discount type selector ───────────────────────────────────────────────────
+function ftDiscChange() {
+  const disc = document.querySelector('input[name="ft-disc"]:checked')?.value || 'percent_100';
+  const extra = document.getElementById('ft-disc-extra');
+  const label = document.getElementById('ft-disc-extra-label');
+  if (disc === 'percent_100') {
+    extra.style.display = 'none';
+  } else if (disc === 'percent_cap') {
+    extra.style.display = 'block';
+    label.textContent = 'Cap Amount (₹)';
+  } else {
+    extra.style.display = 'block';
+    label.textContent = 'Flat Discount (₹)';
+  }
+}
+
+// ── Eligible users list in Create tab ────────────────────────────────────────
+function renderFTEligibleList() {
+  const q = (document.getElementById('ft-rec-search')?.value || '').trim().toLowerCase();
+  const inclWaSent  = document.getElementById('ft-incl-wasent')?.checked;
+  const regFilter   = document.getElementById('ft-create-reg-filter')?.value || 'all';
+  const subFilter   = document.getElementById('ft-create-sub-filter')?.value || 'all';
+
+  // Eligible = not blocked, not redeemed.
+  // v172: subscriber status does NOT affect eligibility — any user (subscriber or not) who
+  // hasn't redeemed their free tiffin yet is eligible. The "Type" dropdown below is purely
+  // an admin targeting filter, not an eligibility rule.
+  // wa_sent users excluded by default (already got a TIFFO code) unless checkbox ticked.
+  let eligible = _ftUsers.filter(u =>
+    !u.free_tiffin_blocked &&
+    u.free_tiffin_status !== 'redeemed' &&
+    (inclWaSent || u.free_tiffin_status !== 'wa_sent')
+  );
+
+  // Admin targeting filter — narrow to subscribers / non-subscribers only (optional)
+  if (subFilter === 'non_sub')   eligible = eligible.filter(u => !u.is_subscriber);
+  else if (subFilter === 'sub')  eligible = eligible.filter(u => u.is_subscriber);
+
+  // Registration age filter — how recently the user signed up
+  if (regFilter === '7')        eligible = eligible.filter(u => (u.reg_days ?? 999) <= 7);
+  else if (regFilter === '15')  eligible = eligible.filter(u => (u.reg_days ?? 999) <= 15);
+  else if (regFilter === '30')  eligible = eligible.filter(u => (u.reg_days ?? 999) <= 30);
+  else if (regFilter === 'old') eligible = eligible.filter(u => (u.reg_days ?? 999) > 30);
+
+  if (q) eligible = eligible.filter(u => (u.name||'').toLowerCase().includes(q) || (u.phone||'').includes(q));
+  eligible.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); // newest first
+
+  // Duplicate address detection for selected users
+  const selAddrs = {};
+  eligible.filter(u => _ftSelectedPhones.has(u.phone)).forEach(u => {
+    const k = (u.address||'').trim().toLowerCase();
+    if (k) selAddrs[k] = (selAddrs[k]||[]).concat(u.phone);
+  });
+
+  const el = document.getElementById('ft-eligible-list');
+  if (!eligible.length) {
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">No eligible users found</div>';
+    _ftUpdateSelectedCount();
+    return;
+  }
+
+  el.innerHTML = eligible.map(u => {
+    const checked = _ftSelectedPhones.has(u.phone);
+    const addrKey = (u.address||'').trim().toLowerCase();
+    const dupWarning = selAddrs[addrKey]?.length > 1 && checked
+      ? '<span style="color:#f59e0b;font-size:10px;margin-left:4px">⚠️ Same address</span>'
+      : '';
+    const statusLabel = u.free_tiffin_status === 'wa_sent' ? ' · WA Sent before' : '';
+    const subLabel = u.is_subscriber ? ' · 👑 Subscriber' : '';
+    const suspectLabel = u.ft_loc_suspect ? ' · ⚠️ GPS Suspect' : '';
+    const regLabel = u.reg_days != null ? ` · ${u.reg_days}d ago` : '';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px;border:1.5px solid ${checked ? '#fed7aa' : '#f1f5f9'};border-radius:10px;background:${checked ? '#fffbeb' : 'white'};cursor:pointer" onclick="ftToggleRecipient('${u.phone}',this)">
+      <div style="width:18px;height:18px;border-radius:5px;border:2px solid ${checked ? '#f97316' : '#e2e8f0'};background:${checked ? '#f97316' : 'white'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        ${checked ? '<i class="fa fa-check" style="color:white;font-size:10px"></i>' : ''}
+      </div>
+      <div style="flex:1">
+        <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0f172a">${u.name||'—'}${dupWarning}</div>
+        <div style="font-size:10px;color:#64748b">${u.phone}${statusLabel}${subLabel}${suspectLabel}${regLabel} · ${u.area||u.address?.split(',')[0]||''}</div>
+      </div>
+    </label>`;
+  }).join('');
+  _ftUpdateSelectedCount();
+}
+
+function ftToggleRecipient(phone, rowEl) {
+  if (_ftSelectedPhones.has(phone)) _ftSelectedPhones.delete(phone);
+  else _ftSelectedPhones.add(phone);
+  renderFTEligibleList(); // re-render to update visual state + dup warnings
+}
+
+function _ftUpdateSelectedCount() {
+  const el = document.getElementById('ft-selected-count');
+  if (el) el.textContent = _ftSelectedPhones.size
+    ? `${_ftSelectedPhones.size} user${_ftSelectedPhones.size > 1 ? 's' : ''} selected`
+    : '';
+}
+
+function ftAutoPickEligible() {
+  const n = parseInt(prompt('Auto-pick how many eligible users? (newest signups, excludes wa_sent)', '10'));
+  if (!n || isNaN(n) || n < 1) return;
+  const subFilter = document.getElementById('ft-create-sub-filter')?.value || 'all';
+  // v172: subscriber status no longer disqualifies a user — only redeemed/blocked do.
+  // Respects the admin's "Type" dropdown (all / non-subscriber only / subscriber only) if set.
+  let eligible = _ftUsers.filter(u =>
+    !u.free_tiffin_blocked &&
+    u.free_tiffin_status !== 'redeemed' &&
+    u.free_tiffin_status !== 'wa_sent'
+  );
+  if (subFilter === 'non_sub')  eligible = eligible.filter(u => !u.is_subscriber);
+  else if (subFilter === 'sub') eligible = eligible.filter(u => u.is_subscriber);
+  eligible = eligible.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, n);
+  _ftSelectedPhones.clear();
+  eligible.forEach(u => _ftSelectedPhones.add(u.phone));
+  renderFTEligibleList();
+  aToast(`${eligible.length} users auto-selected`);
+}
+
+// ── Create batch ─────────────────────────────────────────────────────────────
+async function ftCreateBatch() {
+  const mode      = document.querySelector('input[name="ft-mode"]:checked')?.value || 'personal';
+  const discType  = document.querySelector('input[name="ft-disc"]:checked')?.value  || 'percent_100';
+  const flashDate = document.getElementById('ft-flash-date')?.value;
+  const flashStart= document.getElementById('ft-flash-start')?.value;
+  const flashEnd  = document.getElementById('ft-flash-end')?.value;
+  const minOrder  = parseInt(document.getElementById('ft-min-order')?.value) || null;
+  const extraVal  = parseInt(document.getElementById('ft-disc-extra-val')?.value) || null;
+
+  if (!flashDate)  return aToast('Select flash date');
+  if (!flashStart || !flashEnd) return aToast('Set start and end time');
+
+  let discount_type, discount_value, cap_amount;
+  if (discType === 'percent_100')  { discount_type = 'percent';     discount_value = 100; cap_amount = null; }
+  else if (discType === 'percent_cap') {
+    if (!extraVal) return aToast('Enter cap amount');
+    discount_type = 'percent_cap'; discount_value = 100; cap_amount = extraVal;
+  } else {
+    if (!extraVal) return aToast('Enter flat discount amount');
+    discount_type = 'flat'; discount_value = extraVal; cap_amount = null;
+  }
+
+  const payload = {
+    mode, discount_type, discount_value, cap_amount, min_order: minOrder,
+    flash_date:  flashDate,
+    flash_start: flashStart + ':00',
+    flash_end:   flashEnd   + ':00',
+  };
+
+  if (mode === 'personal') {
+    if (_ftSelectedPhones.size === 0) return aToast('Select at least 1 recipient');
+    payload.phones = [..._ftSelectedPhones];
+  } else if (mode === 'fcfs') {
+    const cap = parseInt(document.getElementById('ft-capacity')?.value);
+    if (!cap || cap < 1) return aToast('Enter capacity');
+    payload.capacity = cap;
+  } else if (mode === 'random') {
+    const rCount = parseInt(document.getElementById('ft-random-count')?.value);
+    if (!rCount || rCount < 1) return aToast('Enter how many users to pick randomly');
+    payload.count = rCount;
+    // v172: optional targeting filter — doesn't affect eligibility, just narrows the random pool
+    payload.sub_filter = document.getElementById('ft-create-sub-filter')?.value || 'all';
+  }
+
+  const btn = document.getElementById('ft-create-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  try {
+    const res = await api('createFreeTiffinBatch', payload);
+    const pickedPhones = res.phones || payload.phones || [];
+    _ftLastBatch = { mode, codeMap: res.codeMap, code: res.code, capacity: res.capacity,
+      phones: pickedPhones, picked: res.picked || [],
+      discount_type, discount_value, cap_amount,
+      flashStart: payload.flash_start, flashEnd: payload.flash_end, flashDate };
+    const createdLabel = mode === 'personal' ? pickedPhones.length + ' coupons'
+      : mode === 'random' ? pickedPhones.length + ' random coupons'
+      : '1 FCFS coupon';
+    aToast(`✅ ${createdLabel} created`);
+    _ftRenderSendList();
+    switchFTTab('sendlist');
+    // v171: patch local _coupons cache from response instead of full getCoupons reload.
+    // Server returns new coupon rows inline; we inject them so the progress bar
+    // and coupon tab stay accurate without an extra round-trip.
+    if (res.newCoupons && res.newCoupons.length) {
+      _coupons = [...(res.newCoupons), ..._coupons];
+      _ftRenderTodayCoupon();
+      renderCouponsTable();
+    } else {
+      loadCoupons(); // fallback if server didn't return inline rows
+    }
+  } catch(e) {
+    aToast(e.message || 'Create failed');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa fa-gift" style="margin-right:6px"></i>Create Coupons &amp; Show Send List';
+  }
+}
+
+// ── Render send list after batch created ─────────────────────────────────────
+function _ftRenderSendList() {
+  const b = _ftLastBatch;
+  if (!b) return;
+  const el = document.getElementById('ft-sendlist-content');
+  const discLabel = b.discount_type === 'percent' ? '100% FREE' :
+    b.discount_type === 'percent_cap' ? `100% FREE upto ₹${b.cap_amount}` :
+    `Flat ₹${b.discount_value} OFF`;
+  const timeLabel = `${b.flashStart?.slice(0,5)||''} – ${b.flashEnd?.slice(0,5)||''}`;
+
+  if (b.mode === 'personal' || b.mode === 'random') {
+    const phoneToUser = {};
+    _ftUsers.forEach(u => phoneToUser[u.phone] = u);
+    const rows = (b.phones || []).map(ph => {
+      const u    = phoneToUser[ph] || {};
+      const code = b.codeMap?.[ph] || '—';
+      const name = u.name || ph;
+      const firstName = name.split(' ')[0];
+      const waMsg = encodeURIComponent(
+        `Hi ${firstName}! 🎁 Tiffo aapko FREE tiffin de raha hai!\n\nYour code: *${code}*\n\nDiscount: ${discLabel}\nValid: ${timeLabel} · ${b.flashDate}\n\nOrder karo: https://tiffo.online\nCode enter karo checkout par.\n\nBhukh lag rahi ho? Tiffo yaad karo! 😄`
+      );
+      return `<div id="ft-sl-row-${ph}" style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #f1f5f9;border-radius:10px;background:white">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}${u.is_subscriber ? ' <span style="color:#f59e0b">👑</span>' : ''}</div>
+          <div style="font-size:10px;color:#64748b">${ph}</div>
+          <div style="font-size:10px;font-family:monospace;color:#f97316;font-weight:700;margin-top:2px">${code}</div>
+        </div>
+        <a href="https://wa.me/91${ph}?text=${waMsg}" target="_blank"
+          onclick="ftMarkWaSent('${ph}',this);document.getElementById('ft-sl-status-${ph}').textContent='✅ Sent'"
+          style="padding:6px 10px;border:1.5px solid #25d366;border-radius:8px;background:#f0fdf4;color:#16a34a;font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">
+          <i class="fa-brands fa-whatsapp"></i> Send
+        </a>
+        <span id="ft-sl-status-${ph}" style="font-size:10px;color:#94a3b8;white-space:nowrap"></span>
+      </div>`;
+    }).join('');
+
+    const allCodes = (b.phones || []).map(ph => `${ph}: ${b.codeMap?.[ph]||'—'}`).join('\n');
+    el.innerHTML = `
+      <div style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#7c2d12">
+          <i class="fa fa-list" style="margin-right:5px;color:#f97316"></i>${(b.phones||[]).length} ${b.mode === 'random' ? 'Random Pick' : 'Personal'} Codes
+        </div>
+        <button onclick="navigator.clipboard.writeText(${JSON.stringify(allCodes)}).then(()=>aToast('Copied!'))"
+          style="padding:5px 10px;border:1.5px solid #fed7aa;border-radius:7px;background:#fff7ed;color:#ea580c;font-size:11px;font-weight:700;cursor:pointer">
+          <i class="fa fa-copy" style="margin-right:3px"></i>Copy All
+        </button>
+      </div>
+      <div style="font-size:10px;color:#fb923c;margin-bottom:10px">${discLabel} · ${timeLabel} · ${b.flashDate}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:480px;overflow-y:auto">${rows}</div>
+      <button onclick="switchFTTab('dashboard')" style="width:100%;margin-top:12px;padding:10px;border:1.5px solid #fed7aa;border-radius:10px;background:transparent;color:#ea580c;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer">← Back to Dashboard</button>`;
+  } else {
+    // FCFS mode — one shared code
+    const code = b.code || '—';
+    const broadcastMsg = `🎁 Tiffo FREE Tiffin Offer!\n\nCode: *${code}*\nDiscount: ${discLabel}\nValid: ${timeLabel} today (${b.flashDate})\nCapacity: First ${b.capacity} users\n\nOrder karo abhi: https://tiffo.online\nCheckout par code enter karo!\n\nLimited slots — jaldi karo! ⚡`;
+    el.innerHTML = `
+      <div style="text-align:center;padding:20px;background:#fff7ed;border-radius:12px;border:2px solid #fed7aa;margin-bottom:14px">
+        <div style="font-size:11px;color:#7c2d12;font-weight:700;margin-bottom:8px">FCFS Shared Code</div>
+        <div style="font-family:monospace;font-weight:800;font-size:26px;color:#ea580c;letter-spacing:2px">${code}</div>
+        <div style="font-size:11px;color:#fb923c;margin-top:6px">${discLabel} · Max ${b.capacity} users · ${timeLabel}</div>
+        <button onclick="navigator.clipboard.writeText('${code}').then(()=>aToast('Copied!'))"
+          style="margin-top:10px;padding:7px 16px;border:1.5px solid #f97316;border-radius:8px;background:white;color:#ea580c;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer">
+          <i class="fa fa-copy" style="margin-right:4px"></i>Copy Code
+        </button>
+      </div>
+      <div style="margin-bottom:8px;font-family:var(--ff);font-weight:700;font-size:12px;color:#7c2d12">Broadcast Message Template</div>
+      <div style="background:white;border:1px solid #f1f5f9;border-radius:10px;padding:12px;font-size:12px;color:#334155;white-space:pre-wrap;font-family:monospace;margin-bottom:10px">${broadcastMsg}</div>
+      <button onclick="navigator.clipboard.writeText(${JSON.stringify(broadcastMsg)}).then(()=>aToast('Message copied!'))"
+        style="width:100%;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#25d366,#128c7e);color:white;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
+        <i class="fa-brands fa-whatsapp" style="margin-right:5px"></i>Copy Broadcast Message
+      </button>
+      <button onclick="switchFTTab('dashboard')" style="width:100%;margin-top:10px;padding:10px;border:1.5px solid #fed7aa;border-radius:10px;background:transparent;color:#ea580c;font-family:var(--ff);font-weight:700;font-size:12px;cursor:pointer">← Back to Dashboard</button>`;
+  }
+}
+
+// ── "Send New Coupon" for wa_sent-but-not-redeemed users ─────────────────────
+// Opens Create tab pre-filtered. Admin creates a fresh batch for just that one user.
+function ftResendNewCoupon(phone, name) {
+  switchFTTab('create');
+  // Select personal mode
+  document.querySelectorAll('input[name="ft-mode"]').forEach(r => r.checked = r.value === 'personal');
+  ftModeChange();
+  // Pre-select this user
+  _ftSelectedPhones.clear();
+  _ftSelectedPhones.add(phone);
+  renderFTEligibleList();
+  // Set date to today
+  const d = new Date();
+  const el = document.getElementById('ft-flash-date');
+  if (el) el.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  aToast(`${name} pre-selected. Set time window and create.`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END FREE TIFFIN SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function renderCouponsTable() {
   const tbody = document.getElementById('coupons-tbody');
@@ -9417,7 +10591,13 @@ async function loadNuCoupons(type, btn) {
       el.innerHTML = `<div style="text-align:center;padding:28px;color:#94a3b8;font-size:13px"><i class="fa ${type==='pending'?'fa-hourglass':'fa-check-circle'}" style="font-size:20px;display:block;margin-bottom:8px;opacity:.4"></i>${type==='pending'?'No pending users — all coupons sent!':'No sent records yet.'}</div>`;
       return;
     }
-    el.innerHTML = users.map(u => `
+    el.innerHTML = users.map(u => {
+        // FT badge: if _ftUsers data is loaded and this user already got free tiffin
+        const ftUser = _ftUsers.find(f => f.phone === u.phone);
+        const ftBadge = ftUser?.free_tiffin_status
+          ? `<div style="font-size:10px;color:#ea580c;margin-top:3px;font-weight:700"><i class="fa fa-gift" style="font-size:9px"></i> 🎁 Free tiffin ${ftUser.free_tiffin_status === 'redeemed' ? 'redeemed' : 'WA sent'}</div>`
+          : '';
+        return `
       <div style="display:flex;align-items:flex-start;gap:12px;padding:14px 4px;border-bottom:1px solid #f1f5f9" id="nu-row-${u.phone}">
         <div style="width:38px;height:38px;background:${type==='pending'?'#fff7ed':'#f0fdf4'};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px solid ${type==='pending'?'#fed7aa':'#bbf7d0'}">
           <i class="fa fa-user" style="color:${type==='pending'?'#f59e0b':'#10b981'};font-size:14px"></i>
@@ -9431,6 +10611,7 @@ async function loadNuCoupons(type, btn) {
                ${u.coupon_code ? `<div style="font-size:10px;color:#64748b;margin-top:2px"><i class="fa fa-tag" style="font-size:9px"></i> Code: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:10px">${_esc(u.coupon_code)}</code></div>` : ''}`
             : (u.created_at ? `<div style="font-size:10px;color:#cbd5e1;margin-top:3px">Joined ${relTime(u.created_at)}</div>` : '')
           }
+          ${ftBadge}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
           ${type==='pending'
@@ -9438,7 +10619,8 @@ async function loadNuCoupons(type, btn) {
             : `<span style="background:#f0fdf4;color:#16a34a;padding:4px 10px;border-radius:20px;font-size:11px;font-family:var(--ff);font-weight:700"><i class="fa fa-check"></i> Sent</span>`
           }
         </div>
-      </div>`).join('');
+      </div>`;
+      }).join('');
   } catch(e) {
     if (!owner()) return;
     el.innerHTML = `<div style="color:var(--p);padding:12px;font-size:13px">${e.message}</div>`;
