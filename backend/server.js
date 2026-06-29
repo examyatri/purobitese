@@ -381,6 +381,13 @@ const _STAFF_ACTIONS = new Set([
   'getAdminNotifVersion',  // lightweight version check — admin frontend polls every 60s
   'generateReferralCoupons',
   'setReferralSettings',
+  // ── Free First Tiffin Campaign System (v169) ──
+  'getFreeTiffinUsers',
+  'createFreeTiffinBatch',
+  'markFreeTiffinWaSent',
+  'markFreeTiffinRedeemed',
+  'blockFreeTiffinUser',
+  'unblockFreeTiffinUser',
 ]);
 
 
@@ -1396,6 +1403,27 @@ async function _createSingleOrder(
     } catch(_) {}
   }
 
+  // ── Free Tiffin Redemption Hook (v171) ───────────────────────────────────
+  // Fire-and-forget: if a free_tiffin coupon was used, mark user as redeemed.
+  // Never blocks or delays the order response — errors are swallowed silently.
+  // Runs AFTER use_coupon_atomic so we know the burn succeeded.
+  // v171: uses coupon.coupon_type === 'free_tiffin' instead of TIFFO prefix —
+  //   admin can name FT codes anything now.
+  // .neq('redeemed') ensures both null→redeemed and wa_sent→redeemed advance
+  //   correctly; admin manual overrides are not overwritten.
+  if (coupon?.coupon_type === 'free_tiffin' && user.phone) {
+    (async () => {
+      try {
+        await supabase.from('users').update({
+          free_tiffin_status:   'redeemed',
+          free_tiffin_given_at: new Date().toISOString(),
+          free_tiffin_coupon:   coupon.code
+        }).eq('phone', user.phone).neq('free_tiffin_status', 'redeemed');
+      } catch (_) {}
+    })();
+  }
+  // ── End Free Tiffin Hook ──────────────────────────────────────────────────
+
   // Stock deduction: ONLY for normal user orders.
   // Admin-placed orders (source='admin') and bulk-generated orders (source='admin_bulk')
   // must NOT affect stock — admin can always order even when OOS.
@@ -1501,7 +1529,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v160' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v172' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
@@ -1724,6 +1752,35 @@ app.post('/api', async (req, res) => {
         // ONCE per user and are never overwritten afterwards.
         if (data.needs_geocode && data.address) {
           _geocodeAndPatchAsync(phone, data.address, data.area || '').catch(() => {});
+        }
+
+        // ── ft_loc_suspect: flag if another user exists within 30 m ──────────
+        // Fire-and-forget — never delays signup response.
+        // Uses the get_nearby_ft_users() SQL function (Haversine, PART 4 of v169 migration).
+        // If any neighbour found → mark THIS new user suspect + mark all neighbours suspect too.
+        // Neighbours are only marked if they don't already have ft_loc_suspect = TRUE
+        // (avoids unnecessary DB writes on existing flagged users).
+        if (signupLat && signupLng) {
+          (async () => {
+            try {
+              const { data: nearby } = await supabase.rpc('get_nearby_ft_users', {
+                p_lat:           signupLat,
+                p_lng:           signupLng,
+                p_radius_m:      30,
+                p_exclude_phone: phone
+              });
+              if (nearby && nearby.length > 0) {
+                // v171: mark new user + unflagged neighbours in parallel
+                const unflaggedNeighbours = nearby.filter(n => !n.ft_loc_suspect).map(n => n.phone);
+                await Promise.all([
+                  supabase.from('users').update({ ft_loc_suspect: true }).eq('phone', phone),
+                  unflaggedNeighbours.length
+                    ? supabase.from('users').update({ ft_loc_suspect: true }).in('phone', unflaggedNeighbours)
+                    : Promise.resolve()
+                ]);
+              }
+            } catch (_) { /* non-fatal — never blocks signup */ }
+          })();
         }
 
         // ── Fire new-user notification so admin can send welcome coupon ──
@@ -2033,7 +2090,8 @@ app.post('/api', async (req, res) => {
         if (!_isStaff && !_verifyUserToken(req.body.userToken, phone)) {
           return res.status(401).json({ success: false, error: 'Auth required. Please log in again.' });
         }
-        const { data: user } = await supabase.from('users').select('phone, name, address, order_allowed').eq('phone', phone).single();
+        // FT fields fetched here so the FT gate below reuses this row — no second DB round-trip.
+        const { data: user } = await supabase.from('users').select('phone, name, address, order_allowed, free_tiffin_status, free_tiffin_blocked, free_tiffin_given_at').eq('phone', phone).single();
         if (!user) return res.json({ success: false, error: 'User not found' });
         const address = data.address || user.address;
         if (!address) return res.json({ success: false, error: 'Delivery address required' });
@@ -2182,13 +2240,37 @@ app.post('/api', async (req, res) => {
             } else {
               restrictionOk = false; // flashOk failed or maxUse exceeded
             }
+
+            // ── Free Tiffin gate inside createOrder (v171) ───────────────────────────
+            // validateCoupon enforces this too, but a client could bypass validateCoupon
+            // and POST createOrder directly. Gate enforced server-side regardless.
+            // v171: uses coupon_type='free_tiffin' (DB column) instead of TIFFO prefix.
+            // v171: reuses the user row already fetched above — zero extra DB round-trip.
+            if (restrictionOk && dbCoupon.coupon_type === 'free_tiffin' && phone) {
+              if (user.free_tiffin_blocked === true) {
+                return res.json({ success: false, error: 'Free tiffin access has been disabled for this account' });
+              }
+              if (user.free_tiffin_status === 'redeemed') {
+                let redeemedOn = '';
+                if (user.free_tiffin_given_at) {
+                  const _d = new Date(user.free_tiffin_given_at);
+                  const _dd = String(_d.getDate()).padStart(2,'0');
+                  const _mm = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][_d.getMonth()];
+                  redeemedOn = ` on ${_dd} ${_mm}`;
+                }
+                return res.json({ success: false, error: `You already received your free first tiffin${redeemedOn}. We hope you enjoyed it!` });
+              }
+            }
+            // ── End Free Tiffin gate ─────────────────────────────────────────────────
+
             if (restrictionOk) {
               const capAmt = dbCoupon.cap_amount ?? dbCoupon.max_cap ?? null;
               verifiedCoupon = {
                 code:           dbCoupon.code,
                 discount_type:  dbCoupon.discount_type,
                 discount_value: dbCoupon.discount_value,
-                cap_amount:     capAmt
+                cap_amount:     capAmt,
+                coupon_type:    dbCoupon.coupon_type || 'regular'  // v171: needed by FT redemption hook
               };
               _rawCouponRow = dbCoupon; // full row — _createSingleOrder uses this, skips re-fetch
             }
@@ -3074,7 +3156,14 @@ app.post('/api', async (req, res) => {
             return res.json({ success: false, error: 'Flash sale window has ended' });
         }
         const maxUse = coupon.max_usage ?? coupon.total_usage_limit ?? null;
-        if (maxUse != null && (coupon.used_count||0) >= maxUse) return res.json({ success: false, error: 'Coupon fully used' });
+        if (maxUse != null && (coupon.used_count||0) >= maxUse) {
+          // v171: use coupon_type for FCFS FT detection instead of prefix
+          const isTiffoFcfs = coupon.coupon_type === 'free_tiffin' && coupon.restriction_type === 'one_time_per_user';
+          const fullMsg = isTiffoFcfs
+            ? `Today's free tiffin slots are full (${maxUse}/${maxUse} claimed). Ask admin for a new coupon for the next batch.`
+            : 'Coupon fully used';
+          return res.json({ success: false, error: fullMsg });
+        }
         let usedBy=[]; try{usedBy=JSON.parse(coupon.used_by||'[]');}catch{usedBy=[];}
         const phone = data.phone || null;
         const rtype = coupon.restriction_type || 'unlimited';
@@ -3109,6 +3198,35 @@ app.post('/api', async (req, res) => {
         const minOrd = coupon.min_order ?? coupon.min_order_amount ?? null;
         if (minOrd && data.orderAmount < minOrd) return res.json({ success: false, error: 'Min order ₹' + minOrd });
         const capAmt = coupon.cap_amount ?? coupon.max_cap ?? null;
+
+        // ── Free Tiffin Gate (v171) ──────────────────────────────────────────
+        // v171: use coupon_type='free_tiffin' DB column — prefix-agnostic.
+        // Admin can name FT codes anything; the type tag in DB drives logic.
+        const isFreeTiffinCoupon = coupon.coupon_type === 'free_tiffin';
+        if (isFreeTiffinCoupon && phone) {
+          const { data: ftUser } = await supabase
+            .from('users')
+            .select('free_tiffin_status, free_tiffin_blocked, free_tiffin_given_at')
+            .eq('phone', phone)
+            .single();
+          if (ftUser) {
+            if (ftUser.free_tiffin_blocked === true) {
+              return res.json({ success: false, error: 'Free tiffin access has been disabled for this account' });
+            }
+            if (ftUser.free_tiffin_status === 'redeemed') {
+              let redeemedOn = '';
+              if (ftUser.free_tiffin_given_at) {
+                const d = new Date(ftUser.free_tiffin_given_at);
+                const dd = String(d.getDate()).padStart(2,'0');
+                const mm = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+                redeemedOn = ` on ${dd} ${mm}`;
+              }
+              return res.json({ success: false, error: `You already received your free first tiffin${redeemedOn}. We hope you enjoyed it!` });
+            }
+          }
+        }
+        // ── End Free Tiffin Gate ──────────────────────────────────────────────
+
         return res.json({ success: true, coupon: { code: coupon.code, discount_type: coupon.discount_type, discount_value: coupon.discount_value, cap_amount: capAmt, min_order: minOrd, restriction_type: rtype } });
       }
 
@@ -3759,8 +3877,13 @@ app.post('/api', async (req, res) => {
       }
 
       case 'markNuCouponSent': {
+        // Welcome coupon and Free First Tiffin are two separate systems.
+        // This action only records that a welcome/discount coupon was sent to a new user.
+        // It has NO effect on free_tiffin_status — that is managed exclusively
+        // by the FT Campaign tab (createFreeTiffinBatch / markFreeTiffinWaSent).
+        const nuPhone = cleanPhone(data.phone);
         await supabase.from('nu_coupon_sent').upsert({
-          phone:       cleanPhone(data.phone),
+          phone:       nuPhone,
           name:        data.name || null,
           sent_at:     new Date().toISOString(),
           coupon_code: data.coupon_code || null,
@@ -5317,6 +5440,340 @@ app.post('/api', async (req, res) => {
           badge
         });
       }
+
+      // ── FREE FIRST TIFFIN CAMPAIGN SYSTEM (v169) ─────────────────────────
+
+      // Returns all users enriched with free_tiffin_* columns for admin dashboard.
+      // Also does a parallel count of paid orders after redemption for conversion tracking.
+      case 'getFreeTiffinUsers': {
+        const { data: ftUsers, error: ftErr } = await supabase
+          .from('users')
+          .select('phone, name, address, area, coord_lat, coord_lng, created_at, free_tiffin_status, free_tiffin_blocked, free_tiffin_wa_sent_at, free_tiffin_given_at, free_tiffin_coupon, order_allowed, ft_loc_suspect')
+          .order('created_at', { ascending: false });
+        if (ftErr) return res.json({ success: false, error: ftErr.message });
+
+        // Post-redemption analytics: for each redeemed user, compute rich behaviour data.
+        // toISTDateStr: convert UTC ISO → IST date string (YYYY-MM-DD)
+        const toISTDateStr = isoStr => {
+          const d = new Date(isoStr);
+          const ist = new Date(d.getTime() + (5 * 60 + 30) * 60 * 1000);
+          return `${ist.getUTCFullYear()}-${String(ist.getUTCMonth()+1).padStart(2,'0')}-${String(ist.getUTCDate()).padStart(2,'0')}`;
+        };
+        const addDays = (dateStr, n) => {
+          const d = new Date(dateStr + 'T00:00:00Z');
+          d.setUTCDate(d.getUTCDate() + n);
+          return d.toISOString().slice(0, 10);
+        };
+
+        const redeemedUsers = (ftUsers || []).filter(u => u.free_tiffin_status === 'redeemed' && u.free_tiffin_given_at);
+        const conversionMap = {};
+        if (redeemedUsers.length) {
+          const redeemedPhones = redeemedUsers.map(u => u.phone);
+          // Fetch orders with final_amount + date for full analytics
+          const { data: paidOrders } = await supabase
+            .from('orders')
+            .select('phone, created_at, coupon_code, final_amount, date, slot')
+            .in('phone', redeemedPhones)
+            .neq('order_status', 'rejected');
+          for (const u of redeemedUsers) {
+            const redeemTime    = new Date(u.free_tiffin_given_at).getTime();
+            const redeemDateIST = toISTDateStr(u.free_tiffin_given_at);
+            const day1Date      = addDays(redeemDateIST, 1);
+            const day2Date      = addDays(redeemDateIST, 2);
+            const day3Date      = addDays(redeemDateIST, 3);
+            const ordersAfter   = (paidOrders || []).filter(o =>
+              o.phone === u.phone &&
+              new Date(o.created_at).getTime() > redeemTime &&
+              o.coupon_code !== u.free_tiffin_coupon
+            );
+            const sortedDates = ordersAfter.map(o => o.date).filter(Boolean).sort();
+            conversionMap[u.phone] = {
+              count:        ordersAfter.length,
+              revenue:      Math.round(ordersAfter.reduce((s,o) => s + (o.final_amount || 0), 0)),
+              next_day:     ordersAfter.some(o => o.date === day1Date),
+              day2:         ordersAfter.some(o => o.date === day2Date),
+              day3:         ordersAfter.some(o => o.date === day3Date),
+              first_date:   sortedDates[0] || null,
+              last_date:    sortedDates[sortedDates.length - 1] || null,
+              redeem_date:  redeemDateIST,
+            };
+          }
+        }
+
+        // v171: subscribers fetch + all suspect Haversine RPCs in parallel
+        const suspectUsers = (ftUsers || []).filter(u => u.ft_loc_suspect && u.coord_lat && u.coord_lng);
+        const [subResult2, ...suspectResults] = await Promise.all([
+          supabase.from('subscribers').select('phone'),
+          ...suspectUsers.map(u =>
+            supabase.rpc('get_nearby_ft_users', {
+              p_lat: u.coord_lat, p_lng: u.coord_lng, p_radius_m: 30, p_exclude_phone: u.phone
+            }).then(r => ({ phone: u.phone, data: r.data })).catch(() => ({ phone: u.phone, data: null }))
+          )
+        ]);
+        const subSet = new Set((subResult2.data || []).map(r => r.phone));
+        const nearbyMap = {};
+        for (const { phone, data: nb } of suspectResults) {
+          if (nb && nb.length > 0) {
+            nearbyMap[phone] = nb.map(n => ({
+              phone: n.phone, name: n.name, distance_m: n.distance_m,
+              free_tiffin_status: n.free_tiffin_status, free_tiffin_blocked: n.free_tiffin_blocked
+            }));
+          }
+        }
+
+        const nowMs = Date.now();
+        const enriched = (ftUsers || []).map(u => {
+          const regMs   = u.created_at ? new Date(u.created_at).getTime() : 0;
+          const reg_days = regMs ? Math.floor((nowMs - regMs) / 86400000) : null;
+          return {
+            ...u,
+            reg_days,                                              // days since registration (for eligibility filter)
+            paid_orders_after: conversionMap[u.phone]?.count ?? 0,
+            conversion:        conversionMap[u.phone] || null,
+            is_subscriber:     subSet.has(u.phone),
+            nearby_suspects:   nearbyMap[u.phone] || []
+          };
+        });
+        return res.json({ success: true, users: enriched });
+      }
+
+      // Creates a batch of free-tiffin coupons.
+      // mode='personal' → one unique code per phone (specific_phone restriction)
+      // mode='fcfs'     → one shared code with max_usage=capacity (one_time_per_user restriction)
+      // mode='random'   → server picks <count> random eligible users (specific_phone restriction)
+      //
+      // v172: eligibility = "has not redeemed free tiffin yet" ONLY (free_tiffin_status !== 'redeemed'
+      // AND free_tiffin_blocked === false). Subscriber status no longer matters — any user, subscriber
+      // or not, who hasn't already gotten their free first tiffin is eligible. 'random' mode accepts an
+      // optional sub_filter ('all' default | 'non_sub' | 'sub') purely for admin targeting convenience.
+      case 'createFreeTiffinBatch': {
+        const {
+          mode,           // 'personal' | 'fcfs' | 'random'
+          phones = [],    // required for personal mode
+          capacity,       // required for fcfs mode
+          discount_type,  // 'percent' | 'percent_cap' | 'flat'
+          discount_value,
+          cap_amount,
+          min_order,
+          flash_start,    // e.g. '07:00:00'
+          flash_end,      // e.g. '10:00:00'
+          flash_date,     // e.g. '2026-07-10' — defaults to today
+        } = data;
+
+        if (!discount_type || discount_value == null) {
+          return res.json({ success: false, error: 'discount_type and discount_value are required' });
+        }
+
+        // Collision-safe unique code generator
+        // Format: TIFFO + 6 random UPPERCASE alphanumeric chars
+        const _genCode = () => {
+          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          let s = 'TIFFO';
+          for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+          return s;
+        };
+        const _uniqueCode = async () => {
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const candidate = _genCode();
+            const { data: existing } = await supabase.from('coupons').select('code').eq('code', candidate).single();
+            if (!existing) return candidate;
+          }
+          throw new Error('Could not generate unique coupon code after 5 attempts');
+        };
+
+        const todayStr = flash_date || istDateStr(ist);
+        const baseFields = {
+          coupon_type:       'free_tiffin',   // v171: DB type tag replaces TIFFO prefix detection
+          discount_type,
+          discount_value,
+          cap_amount:        cap_amount ?? null,
+          max_cap:           cap_amount ?? null,
+          min_order:         min_order  ?? null,
+          min_order_amount:  min_order  ?? null,
+          flash_date:        todayStr,
+          flash_start:       flash_start || null,
+          flash_end:         flash_end   || null,
+          restriction_type:  'flash_window',  // will be overridden per mode
+          auto_delete:       true,
+          is_active:         true,
+          used_count:        0,
+          usage_count:       0,
+          used_by:           '[]',
+          created_at:        new Date().toISOString()
+        };
+
+        if (mode === 'personal') {
+          if (!phones.length) return res.json({ success: false, error: 'phones array required for personal mode' });
+          // v171: generate all unique codes in parallel instead of sequential await loop
+          const personalCodes = await Promise.all(phones.map(() => _uniqueCode()));
+          const rows = [];
+          const codeMap = {}; // phone → code
+          phones.forEach((ph, i) => {
+            codeMap[ph] = personalCodes[i];
+            rows.push({
+              ...baseFields,
+              code:              personalCodes[i],
+              restriction_type:  'specific_phone',
+              allowed_phones:    JSON.stringify([ph]),
+              max_usage:         1,
+              total_usage_limit: 1,
+              per_user_limit:    1,
+              max_per_user:      1,
+            });
+          });
+          const { error: insErr } = await supabase.from('coupons').insert(rows);
+          if (insErr) return res.json({ success: false, error: insErr.message });
+          _bumpMenuVersion();
+          // v171: return new coupon rows inline so admin can patch local cache without getCoupons round-trip
+          return res.json({ success: true, mode: 'personal', codeMap, newCoupons: rows });
+
+        } else if (mode === 'fcfs') {
+          const cap = parseInt(capacity);
+          if (!cap || cap < 1) return res.json({ success: false, error: 'capacity required for fcfs mode' });
+          const code = await _uniqueCode();
+          const fcfsRow = {
+            ...baseFields,
+            code,
+            restriction_type:  'one_time_per_user',
+            allowed_phones:    '[]',
+            max_usage:         cap,
+            total_usage_limit: cap,
+            per_user_limit:    1,
+            max_per_user:      1,
+          };
+          const { error: insErr } = await supabase.from('coupons').insert(fcfsRow);
+          if (insErr) return res.json({ success: false, error: insErr.message });
+          _bumpMenuVersion();
+          // v171: return new coupon row inline so admin can patch local cache without getCoupons round-trip
+          return res.json({ success: true, mode: 'fcfs', code, capacity: cap, newCoupons: [fcfsRow] });
+
+        } else if (mode === 'random') {
+          // Random mode (v171): admin specifies count; server picks randomly from eligible users
+          // and creates personal unique codes for each — same as personal mode but server-picked.
+          // v172: eligibility is purely free_tiffin_status/blocked-based — subscriber status is
+          // NO LONGER auto-excluded. Any user (subscriber or not) who hasn't redeemed FT yet is
+          // eligible. Admin can optionally narrow the pool via sub_filter ('all'|'non_sub'|'sub').
+          const count = parseInt(data.count);
+          if (!count || count < 1) return res.json({ success: false, error: 'count required for random mode' });
+          const subFilter = data.sub_filter || 'all'; // 'all' | 'non_sub' | 'sub'
+
+          // v171 FIX: parallel fetch of subscribers + eligible users (was sequential)
+          // v171 FIX: removed duplicate .is('free_tiffin_blocked', false) — .eq() is sufficient
+          const [subResultR, eligResult] = await Promise.all([
+            supabase.from('subscribers').select('phone'),
+            supabase.from('users').select('phone, name')
+              .neq('free_tiffin_status', 'redeemed')
+              .eq('free_tiffin_blocked', false)
+          ]);
+          if (eligResult.error) return res.json({ success: false, error: eligResult.error.message });
+          const subSetR = new Set((subResultR.data || []).map(r => r.phone));
+
+          // v172: subscribers are eligible by default now (neq above already handles redeemed).
+          // Only filtered out if admin explicitly asked for non-subscribers only / subscribers only.
+          let pool = eligResult.data || [];
+          if (subFilter === 'non_sub') pool = pool.filter(u => !subSetR.has(u.phone));
+          else if (subFilter === 'sub') pool = pool.filter(u => subSetR.has(u.phone));
+          if (!pool.length) return res.json({ success: false, error: 'No eligible users available for random pick' });
+
+          // Fisher-Yates shuffle, take first <count>
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+          }
+          const picked = pool.slice(0, count).map(u => ({ ...u, is_subscriber: subSetR.has(u.phone) }));
+
+          // v171: generate all unique codes in parallel (was sequential per-user await loop)
+          const generatedCodes = await Promise.all(picked.map(() => _uniqueCode()));
+          const rows = [];
+          const codeMap = {};
+          picked.forEach((u, i) => {
+            codeMap[u.phone] = generatedCodes[i];
+            rows.push({
+              ...baseFields,
+              code:              generatedCodes[i],
+              restriction_type:  'specific_phone',
+              allowed_phones:    JSON.stringify([u.phone]),
+              max_usage:         1,
+              total_usage_limit: 1,
+              per_user_limit:    1,
+              max_per_user:      1,
+            });
+          });
+          const { error: insErrR } = await supabase.from('coupons').insert(rows);
+          if (insErrR) return res.json({ success: false, error: insErrR.message });
+          _bumpMenuVersion();
+          // v171: return new coupon rows inline so admin can patch local cache without getCoupons round-trip
+          return res.json({
+            success: true,
+            mode: 'random',
+            codeMap,
+            phones: picked.map(u => u.phone),
+            picked: picked,   // includes name + phone for admin UI preview
+            newCoupons: rows
+          });
+
+        } else {
+          return res.json({ success: false, error: "mode must be 'personal', 'fcfs', or 'random'" });
+        }
+      }
+
+      // Admin clicked WhatsApp send button — mark user's status as 'wa_sent'.
+      // Only runs if current status is NULL — never overwrites 'redeemed'.
+      case 'markFreeTiffinWaSent': {
+        // BUG #4b FIX (v170): previously .is('free_tiffin_status', null) meant that
+        // if admin re-sends a WA (resend flow), the wa_sent_at timestamp was never
+        // updated because the status was already 'wa_sent'. Now: always update
+        // wa_sent_at for wa_sent users too (so resend is tracked), but never
+        // overwrite 'redeemed' (that is a terminal state).
+        const ph = cleanPhone(data.phone);
+        if (!ph) return res.json({ success: false, error: 'Phone required' });
+        const { error: e } = await supabase.from('users')
+          .update({ free_tiffin_status: 'wa_sent', free_tiffin_wa_sent_at: new Date().toISOString() })
+          .eq('phone', ph)
+          .neq('free_tiffin_status', 'redeemed');  // allow null→wa_sent AND wa_sent→wa_sent (timestamp refresh)
+        if (e) return res.json({ success: false, error: e.message });
+        return res.json({ success: true });
+      }
+
+      // Manual override: admin marks a user as redeemed (e.g. phone order, outside app).
+      // Also called automatically from _createSingleOrder hook (fire-and-forget).
+      case 'markFreeTiffinRedeemed': {
+        const ph = cleanPhone(data.phone);
+        if (!ph) return res.json({ success: false, error: 'Phone required' });
+        const updates = {
+          free_tiffin_status:   'redeemed',
+          free_tiffin_given_at: new Date().toISOString(),
+        };
+        if (data.coupon_code) updates.free_tiffin_coupon = data.coupon_code;
+        const { error: e } = await supabase.from('users').update(updates).eq('phone', ph);
+        if (e) return res.json({ success: false, error: e.message });
+        return res.json({ success: true });
+      }
+
+      // Block a user from using any free-tiffin coupon in future.
+      // Does NOT affect normal ordering (order_allowed is separate).
+      case 'blockFreeTiffinUser': {
+        const ph = cleanPhone(data.phone);
+        if (!ph) return res.json({ success: false, error: 'Phone required' });
+        const { error: e } = await supabase.from('users')
+          .update({ free_tiffin_blocked: true })
+          .eq('phone', ph);
+        if (e) return res.json({ success: false, error: e.message });
+        return res.json({ success: true });
+      }
+
+      // Reverse a free-tiffin block.
+      case 'unblockFreeTiffinUser': {
+        const ph = cleanPhone(data.phone);
+        if (!ph) return res.json({ success: false, error: 'Phone required' });
+        const { error: e } = await supabase.from('users')
+          .update({ free_tiffin_blocked: false })
+          .eq('phone', ph);
+        if (e) return res.json({ success: false, error: e.message });
+        return res.json({ success: true });
+      }
+
+      // ── END FREE TIFFIN ACTIONS ───────────────────────────────────────────
 
       // ─────────────────────────────────────────────────────────────────────
       default:
