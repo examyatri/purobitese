@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v12.9  |  Updated : 2026-06-26
+   Version : v13.0  |  Updated : 2026-06-30
+
+   CHANGES v13.0:
+   - Cache bumped → tiffo-admin-v33 (v176 — User Location Map page added:
+     Leaflet CSS/JS, p-usermap page, Map button next to Analytics,
+     12h localStorage cache, numbered pins (oldest=1), popup with
+     name/phone/area/subscriber status/rating%)
 
    CHANGES v12.9:
    - Cache bumped → tiffo-admin-v30 (v169 — Free First Tiffin campaign system)
@@ -65,7 +71,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v30'; // v169: Free First Tiffin campaign system
+const CACHE      = 'tiffo-admin-v33'; // v176: User Location Map page (Leaflet, p-usermap, numbered pins, 12h cache)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */
