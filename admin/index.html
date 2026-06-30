@@ -2192,7 +2192,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button onclick="_umRefresh()" style="padding:8px 14px;border-radius:9px;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.35);color:#fff;font-family:var(--ff);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px" onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.18)'"><i class="fa fa-rotate-right"></i> Refresh</button>
-        <button onclick="showPage('p-users')" style="padding:8px 16px;border-radius:9px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px"><i class="fa fa-arrow-left"></i> Back</button>
+        <button onclick="showPage('p-users')" style="padding:8px 16px;border-radius:9px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px"><i class="fa fa-arrow-left"></i> Back to Users</button>
       </div>
     </div>
 
@@ -13157,18 +13157,45 @@ async function _umOpen(forceRefresh = false) {
   _umShowState('loading');
 
   try {
+    // BUG FIX (v177): read cache-age BEFORE _umGetUsers() runs, because
+    // _umGetUsers() writes a fresh cache entry as part of fetching data —
+    // by the time we read it afterward, the "old" cache is already gone,
+    // so a brand-new first-ever load incorrectly said "refreshed 0m ago"
+    // instead of "just refreshed".
+    const cacheBefore = _umReadCache();
+
     const users = await _umGetUsers(forceRefresh);
     _umAllUsers = users;
     _umRenderStats(users);
+
+    // ── BUG FIX (v177): ROOT CAUSE of the blank map page ──────────────────
+    // Leaflet reads the container's actual rendered width/height the moment
+    // L.map(...) is constructed. #um-map-wrap starts as display:none (only
+    // the loading spinner is visible while data loads), so building the map
+    // here — BEFORE switching to the 'map' display state — handed Leaflet a
+    // 0×0 container. Leaflet then computes broken internal pixel offsets;
+    // tiles + markers render off-screen or not at all, leaving a blank box
+    // even though the rest of the page (header/stats/filters) is fine.
+    // The previous `setTimeout(invalidateSize, 120)` inside _umShowState()
+    // was a best-effort patch for this but doesn't reliably fix a map that
+    // was *initialized* at zero size — invalidateSize() corrects the size
+    // but not always the broken initial pixel origin/tile grid.
+    // Fix: make the container visible FIRST (forces a synchronous layout
+    // reflow), THEN construct the Leaflet map — so it gets correct
+    // dimensions from the very first frame.
+    _umShowState('map');
     await _umEnsureLeaflet();
     _umBuildMap();
     _umApplyFilter();
-    _umShowState('map');
+    // Extra safety net: even though the container is already visible by the
+    // time L.map() runs (so sizing should be correct from frame one), force
+    // one more size recalculation a tick later in case any browser hasn't
+    // fully flushed layout yet (e.g. right after a dynamic script injection).
+    setTimeout(() => { try { _umLeaflet?.invalidateSize(); } catch(_) {} }, 50);
 
     // Update subtitle with cache age
-    const cached = _umReadCache();
-    if (cached && !forceRefresh) {
-      const ageMin = Math.round((Date.now() - cached.ts) / 60000);
+    if (cacheBefore && !forceRefresh) {
+      const ageMin = Math.round((Date.now() - cacheBefore.ts) / 60000);
       const ageStr = ageMin < 60
         ? `${ageMin}m ago`
         : `${Math.round(ageMin / 60)}h ago`;
@@ -13216,14 +13243,37 @@ async function _umGetUsers(forceRefresh = false) {
     }
   }
 
-  // Source of truth: _allUsers (already in memory).
-  // If _allUsers is populated use it, else call getUsers API.
-  let sourceUsers = _allUsers && _allUsers.length > 0 ? _allUsers : null;
+  let sourceUsers;
 
-  if (!sourceUsers) {
-    const res = await api('getUsers');
-    if (!res?.success) throw new Error(res?.error || 'getUsers failed');
+  if (forceRefresh) {
+    // BUG FIX (v178): forceRefresh previously still fell through to the
+    // in-memory _allUsers below — so the Refresh button never actually hit
+    // the server as long as the All Users tab had already loaded once
+    // (the normal case). It silently re-served the same stale snapshot.
+    // "Refresh" must mean refresh: always hit the server, and keep
+    // _allUsers in sync so the All Users table/filters benefit too —
+    // not just the map's own copy.
+    const res = await api('adminGetUsers');
+    if (!res?.success) throw new Error(res?.error || 'adminGetUsers failed');
     sourceUsers = res.users || [];
+    _allUsers = sourceUsers;
+    // Keep the All Users table/filters in sync too, so navigating back
+    // from the map doesn't show a stale table next to a freshly-refreshed map.
+    try { filterUsers(); } catch(_) {}
+  } else {
+    // Source of truth: _allUsers (already in memory).
+    // If _allUsers is populated use it, else call getUsers API.
+    sourceUsers = _allUsers && _allUsers.length > 0 ? _allUsers : null;
+
+    if (!sourceUsers) {
+      // BUG FIX (v177): backend action is 'adminGetUsers', not 'getUsers' —
+      // this fallback path (used when _allUsers hasn't been loaded yet) was
+      // calling a non-existent action and would always fail.
+      const res = await api('adminGetUsers');
+      if (!res?.success) throw new Error(res?.error || 'adminGetUsers failed');
+      sourceUsers = res.users || [];
+      _allUsers = sourceUsers;
+    }
   }
 
   // Sort oldest → newest by created_at so #1 = oldest registered user
