@@ -1,6 +1,10 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v12.0  |  Updated : 2026-06-27
+   Version : v12.1  |  Updated : 2026-06-30
+
+   CHANGES v12.1:
+   - Cache bumped → tiffo-rider-v29 (v176 — version headers updated
+     to v176 across all panels; no rider-specific logic changes)
 
    CHANGES v12.0:
    - Cache bumped → tiffo-rider-v28 (v168 — Route bug fix:
@@ -65,7 +69,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v28'; // v168: Morning/Evening Route session isolation fix + Plan & Go removed
+const CACHE      = 'tiffo-rider-v29'; // v176: version headers updated to v176 across all panels
 const FONT_CACHE = 'tiffo-fonts-v1';
 const TILE_CACHE = 'tiffo-osm-tiles-v1';
 
