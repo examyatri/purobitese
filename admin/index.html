@@ -1,8 +1,41 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v180                                   ║
+     ║  Version : v183                                   ║
      ║  Updated : 2026-06-30                               ║
+     ║  Changes : v183 — Fresh global cache bump across all  ║
+     ║            three portals (customer, admin, rider).    ║
+     ║            FONT_CACHE unified to tiffo-fonts-v3       ║
+     ║            everywhere (shared origin-wide cache that  ║
+     ║            serves Leaflet/CDN assets); customer and    ║
+     ║            rider sw.js activate() handlers also fixed  ║
+     ║            to clean up stale font caches (same root-   ║
+     ║            cause bug as admin v182, present in all     ║
+     ║            three service workers, now fixed in all     ║
+     ║            three). All version numbers synced.          ║
+     ║  Changes : v182 — REAL ROOT CAUSE of persistent     ║
+     ║            blank User Location Map found and fixed:  ║
+     ║            the service worker's FONT_CACHE (used for ║
+     ║            cdnjs.cloudflare.com, which serves        ║
+     ║            Leaflet's JS/CSS) is a separate cache from ║
+     ║            the main admin CACHE and was NEVER version- ║
+     ║            bumped across v177-v181 — so once a        ║
+     ║            browser cached leaflet.min.js/.css once     ║
+     ║            (even an old/broken copy from before the    ║
+     ║            media="print" trick was removed in v180),   ║
+     ║            it was served from that cache FOREVER,      ║
+     ║            completely immune to every admin-panel       ║
+     ║            version bump, with zero console errors —     ║
+     ║            explaining the silent blank screen even      ║
+     ║            after v177/v178/v179/v180/v181 "fixes".      ║
+     ║            Fix: bumped FONT_CACHE (tiffo-fonts-v1 →     ║
+     ║            tiffo-fonts-v2) and fixed sw.js activate()   ║
+     ║            handler to also clean up stale tiffo-fonts-* ║
+     ║            caches, not just tiffo-admin-* ones, so      ║
+     ║            future bumps actually take effect.            ║
+     ║  Changes : v181 — Version bump only (no functional   ║
+     ║            changes; see v180 for the full User      ║
+     ║            Location Map rewrite).                    ║
      ║  Changes : v180 — User Location Map: COMPLETE REWRITE ║
      ║            of the entire map module (was failing      ║
      ║            after 3 prior theory-based patches v177-   ║

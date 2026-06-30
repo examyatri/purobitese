@@ -1,6 +1,13 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v13.2  |  Updated : 2026-06-30
+   Version : v14.1  |  Updated : 2026-06-30
+
+   CHANGES v14.1 (v183):
+   - Fresh global version bump across all three portals.
+   - FONT_CACHE re-bumped: tiffo-fonts-v2 → tiffo-fonts-v3 (unified
+     version string across admin/customer/rider sw.js — this cache
+     is shared origin-wide regardless of which portal's SW writes it)
+   - Cache bumped → tiffo-admin-v38
 
    CHANGES v13.2:
    - Cache bumped → tiffo-admin-v35 (v180 — User Location Map:
@@ -85,8 +92,8 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v35'; // v180: User Map full rewrite (no more print-CSS trick, no localStorage cache, watchdog + logging)
-const FONT_CACHE = 'tiffo-fonts-v1';
+const CACHE      = 'tiffo-admin-v38'; // v183: fresh global bump across all portals
+const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */
 const PRECACHE = ['./index.html', './manifest.json', './sw.js'];
@@ -139,7 +146,9 @@ self.addEventListener('activate', e => {
       caches.keys().then(keys =>
         Promise.all(
           keys
-            .filter(k => k.startsWith('tiffo-admin-') && k !== CACHE)
+            .filter(k => (k.startsWith('tiffo-admin-') && k !== CACHE) ||
+                         (k.startsWith('tiffo-fonts-')  && k !== FONT_CACHE))
+
             .map(k => caches.delete(k))
         )
       ),
