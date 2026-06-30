@@ -1,8 +1,19 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v164                                      ║
-// ║  Updated : 2026-06-26                               ║
+// ║  Version : v177                                      ║
+// ║  Updated : 2026-06-30                               ║
+// ║  v177    : INTEGRITY FIX — coupon burn (incl. Free   ║
+// ║            Tiffin redemption) is no longer perm-     ║
+// ║            anently wasted when the order INSERT      ║
+// ║            fails after use_coupon_atomic() already   ║
+// ║            ran. Added revert_coupon_use() Postgres   ║
+// ║            RPC (database.sql) + wired into the       ║
+// ║            order-insert rollback path. Free Tiffin   ║
+// ║            redemption hook moved from BEFORE the     ║
+// ║            order insert to AFTER it succeeds, so a   ║
+// ║            customer's one-time free tiffin can no    ║
+// ║            longer be burned with zero food delivered.║
 // ║  v164    : Audit fix — explicit startup warning if    ║
 // ║            SUPABASE_SERVICE_KEY is missing. RLS is    ║
 // ║            enabled on every table with zero policies  ║
@@ -1383,6 +1394,13 @@ async function _createSingleOrder(
   }
 
   // Mark coupon used — atomic RPC prevents double-use in simultaneous orders (v122 fix)
+  // SECURITY/INTEGRITY FIX v177: coupon burn used to be irreversible even if the
+  // order insert below later failed (DB blip, constraint violation, etc.) — the
+  // customer's limited-use/referral/free-tiffin coupon was permanently wasted
+  // with no order to show for it. We now remember whether the burn actually
+  // succeeded (couponUseOk) so the rollback block after the failed INSERT can
+  // call revert_coupon_use() and give the coupon back.
+  let couponUseOk = false;
   if (coupon && coupon.code) {
     try {
       const cpnRow = _rawCouponRow ||
@@ -1393,36 +1411,16 @@ async function _createSingleOrder(
         p_phone:     user.phone || '',
         p_max_usage: maxUsage
       });
+      couponUseOk = rpcResult === 'ok';
       // Auto-delete: mark inactive instead of deleting — preserves referral_key for idempotency
       // (deleting row would allow admin to re-issue a second coupon for same referral pair)
-      if (rpcResult === 'ok' && cpnRow?.auto_delete === true && maxUsage !== null) {
+      if (couponUseOk && cpnRow?.auto_delete === true && maxUsage !== null) {
         if ((cpnRow.used_count || 0) + 1 >= maxUsage) {
           await supabase.from('coupons').update({ is_active: false }).eq('code', coupon.code);
         }
       }
     } catch(_) {}
   }
-
-  // ── Free Tiffin Redemption Hook (v171) ───────────────────────────────────
-  // Fire-and-forget: if a free_tiffin coupon was used, mark user as redeemed.
-  // Never blocks or delays the order response — errors are swallowed silently.
-  // Runs AFTER use_coupon_atomic so we know the burn succeeded.
-  // v171: uses coupon.coupon_type === 'free_tiffin' instead of TIFFO prefix —
-  //   admin can name FT codes anything now.
-  // .neq('redeemed') ensures both null→redeemed and wa_sent→redeemed advance
-  //   correctly; admin manual overrides are not overwritten.
-  if (coupon?.coupon_type === 'free_tiffin' && user.phone) {
-    (async () => {
-      try {
-        await supabase.from('users').update({
-          free_tiffin_status:   'redeemed',
-          free_tiffin_given_at: new Date().toISOString(),
-          free_tiffin_coupon:   coupon.code
-        }).eq('phone', user.phone).neq('free_tiffin_status', 'redeemed');
-      } catch (_) {}
-    })();
-  }
-  // ── End Free Tiffin Hook ──────────────────────────────────────────────────
 
   // Stock deduction: ONLY for normal user orders.
   // Admin-placed orders (source='admin') and bulk-generated orders (source='admin_bulk')
@@ -1496,8 +1494,43 @@ async function _createSingleOrder(
         }
       } catch (_) { /* non-fatal stock restore on insert failure */ }
     }
+    // ── FIX v177: revert coupon burn too — without this, a customer's
+    // limited-use/referral/free-tiffin coupon was permanently wasted even
+    // though no order was ever created for them.
+    if (couponUseOk && coupon?.code) {
+      try {
+        await supabase.rpc('revert_coupon_use', { p_code: coupon.code, p_phone: user.phone || '' });
+      } catch (rollbackErr) {
+        console.error(`[_createSingleOrder] CRITICAL: coupon rollback failed for code=${coupon.code}, phone=${user.phone}. Manual adjustment needed.`, rollbackErr.message);
+      }
+    }
     throw new Error('Order save failed: ' + ordErr.message);
   }
+
+  // ── Free Tiffin Redemption Hook (v171, repositioned in v177) ─────────────
+  // Fire-and-forget: if a free_tiffin coupon was used, mark user as redeemed.
+  // Never blocks or delays the order response — errors are swallowed silently.
+  // v177 FIX: moved to AFTER the order INSERT succeeds (previously ran right
+  // after use_coupon_atomic, i.e. BEFORE the insert). That meant a customer
+  // could be marked free_tiffin_status='redeemed' even when the order itself
+  // then failed to save — permanently burning their one-time free tiffin with
+  // no food ever delivered. Now it only fires once we know the order exists.
+  // v171: uses coupon.coupon_type === 'free_tiffin' instead of TIFFO prefix —
+  //   admin can name FT codes anything now.
+  // .neq('redeemed') ensures both null→redeemed and wa_sent→redeemed advance
+  //   correctly; admin manual overrides are not overwritten.
+  if (coupon?.coupon_type === 'free_tiffin' && user.phone) {
+    (async () => {
+      try {
+        await supabase.from('users').update({
+          free_tiffin_status:   'redeemed',
+          free_tiffin_given_at: new Date().toISOString(),
+          free_tiffin_coupon:   coupon.code
+        }).eq('phone', user.phone).neq('free_tiffin_status', 'redeemed');
+      } catch (_) {}
+    })();
+  }
+  // ── End Free Tiffin Hook ──────────────────────────────────────────────────
 
   // ── Update permanent rating stats (non-fatal, fire-and-forget) ──
   // lifetime_spend and last_order_date are stored permanently in user_ratings
@@ -1529,7 +1562,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v172' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v177' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
@@ -2742,11 +2775,14 @@ app.post('/api', async (req, res) => {
         const { data: subs } = await supabase.from('subscribers').select('*');
 
         // Fetch today's orders for this slot to detect duplicates
+        // (excludes cancelled AND rejected — both mean no tiffin was actually delivered,
+        // same convention used everywhere else in this file)
         const { data: todayOrders } = await supabase.from('orders')
           .select('phone, order_id')
           .eq('date', today)
           .eq('slot', slot)
-          .not('order_status', 'eq', 'cancelled');
+          .not('order_status', 'eq', 'cancelled')
+          .not('order_status', 'eq', 'rejected');
 
         const orderedPhones = new Set((todayOrders || []).map(o => o.phone));
 
@@ -2784,7 +2820,8 @@ app.post('/api', async (req, res) => {
           const planMismatch = (slot === 'morning' && subPlan === 'evening')
             || (slot === 'evening' && subPlan === 'morning');
           const insufficientBalance = khataEnabledForBulk && balance < bulkPrice;
-          const eligible = !slotPaused && !planMismatch && !ordered && !insufficientBalance;
+          const eligibleBase = !slotPaused && !planMismatch && !ordered; // price-independent part
+          const eligible = eligibleBase && !insufficientBalance;
 
           result.push({
             phone:       sub.phone,
@@ -2799,11 +2836,12 @@ app.post('/api', async (req, res) => {
             is_delivery_off: sub.is_delivery_off || false,
             already_ordered: ordered,
             insufficient_balance: insufficientBalance,
+            eligible_base: eligibleBase, // price-independent eligibility — frontend layers price check on top
             eligible
           });
         }
 
-        return res.json({ success: true, subscribers: result });
+        return res.json({ success: true, subscribers: result, khataEnabled: khataEnabledForBulk });
       }
 
       // Generate bulk orders as PENDING for selected phones
@@ -3371,7 +3409,7 @@ app.post('/api', async (req, res) => {
         if (checkSlot) {
           const [{ data: balRow }, { data: existOrd }, { data: subRow }] = await Promise.all([
             supabase.from('khata_summary').select('balance').eq('phone', safe.phone).single(),
-            supabase.from('orders').select('order_id').eq('phone', safe.phone).eq('date', checkDate).eq('slot', checkSlot).not('order_status', 'eq', 'cancelled').limit(1),
+            supabase.from('orders').select('order_id').eq('phone', safe.phone).eq('date', checkDate).eq('slot', checkSlot).not('order_status', 'eq', 'cancelled').not('order_status', 'eq', 'rejected').limit(1),
             supabase.from('subscribers').select('pause_delivery, pause_morning, pause_morning_from, pause_evening, pause_evening_from, is_delivery_off').eq('phone', safe.phone).single()
           ]);
           safe.balance = balRow?.balance ?? 0;
