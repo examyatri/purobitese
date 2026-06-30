@@ -92,7 +92,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v38'; // v183: fresh global bump across all portals
+const CACHE      = 'tiffo-admin-v39'; // v184: THE REAL FIX — #p-usermap was nested inside display:none #p-analytics due to missing </div> in source HTML
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */

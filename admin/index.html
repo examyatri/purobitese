@@ -1,8 +1,24 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v183                                   ║
-     ║  Updated : 2026-06-30                               ║
+     ║  Version : v184                                   ║
+     ║  Updated : 2026-07-01                               ║
+     ║  Changes : v184 — THE ACTUAL ROOT CAUSE FIXED:       ║
+     ║            #p-usermap was nested INSIDE #p-analytics  ║
+     ║            in the browser's parsed DOM, because       ║
+     ║            #p-analytics was missing its closing </div> ║
+     ║            in the HTML source. #p-analytics is always  ║
+     ║            display:none (pg-v without .act) when Map   ║
+     ║            is opened, so its entire subtree including  ║
+     ║            #p-usermap had clientWidth=0, clientHeight=0 ║
+     ║            at all times — making Leaflet render into    ║
+     ║            an invisible 0x0 box. All JS fixes (v177-   ║
+     ║            v183) were correct but powerless against     ║
+     ║            an invisible ancestor. Fix: added the        ║
+     ║            missing </div> closing #p-analytics, and     ║
+     ║            removed a compensating extra </div> that      ║
+     ║            had been self-healing the broken nesting      ║
+     ║            from inside #p-usermap's own block.           ║
      ║  Changes : v183 — Fresh global cache bump across all  ║
      ║            three portals (customer, admin, rider).    ║
      ║            FONT_CACHE unified to tiffo-fonts-v3       ║
@@ -2253,6 +2269,19 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
      Numbered pins: oldest user = 1 (chronological order by created_at)
      Popup on click: name, phone, area, subscriber/normal, rating %
 ══════════════════════════════════════════════════════════════════════════ -->
+    <!-- BUG FIX: the closing </div> tag below for #p-analytics itself was
+         MISSING in every version from v176 through v183. Without it, the
+         HTML parser auto-nested the entire #p-usermap page INSIDE
+         #p-analytics (which only ever gets class="pg-v", never "pg-v act"
+         — it's not the active page). That made #um-map-wrap's whole
+         ancestor chain sit inside a display:none element, so
+         clientWidth/clientHeight always read 0x0 no matter how correct the
+         map JS itself was. This is the real root cause of the "container
+         has zero size at build time" warning that survived v177 through
+         v183 — every prior fix was correct on its own terms but powerless
+         against an invisible parent. -->
+</div><!-- /#p-analytics -->
+
 <div id="p-usermap" class="pg-v">
   <div style="background:#fff;min-height:100vh;display:flex;flex-direction:column">
 
@@ -2311,8 +2340,6 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 
   </div>
 </div><!-- /#p-usermap -->
-
-</div><!-- /#main-layout -->
 
 <div id="mo-bg" class="mo-bg" style="display:none" onclick="if(event.target===this)closeMo()">
   <div id="mo-box" class="mo-box"></div>
