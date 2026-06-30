@@ -1,6 +1,10 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v52.4  |  Updated : 2026-06-26
+   Version : v52.5  |  Updated : 2026-06-30
+
+   CHANGES v52.5:
+   - Cache bumped → tiffo-v81 (v176 — User Location Map in admin panel;
+     all panel version headers updated to v176; admin SW bumped to v33)
 
    CHANGES v52.4:
    - Cache bumped → tiffo-v80 (v161 — bug fixes: updateOrderStatus
@@ -80,7 +84,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v80'; // v161: bug fixes (rejected guard, checkSession, manualRefund wallet floor)
+const CACHE      = 'tiffo-v81'; // v176: User Location Map in admin; version headers updated across all panels
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Core app shell — cached on install. */
