@@ -1,8 +1,30 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v179                                   ║
+     ║  Version : v180                                   ║
      ║  Updated : 2026-06-30                               ║
+     ║  Changes : v180 — User Location Map: COMPLETE REWRITE ║
+     ║            of the entire map module (was failing      ║
+     ║            after 3 prior theory-based patches v177-   ║
+     ║            v179). Removed the fragile media="print"   ║
+     ║            CSS preload-swap trick from <head> entirely; ║
+     ║            Leaflet JS+CSS now both injected on demand  ║
+     ║            with a real readiness POLL on window.L      ║
+     ║            (not just a script "load" event, which can  ║
+     ║            fire before execution completes on some     ║
+     ║            WebViews). Removed the localStorage cache    ║
+     ║            layer (was a source of staleness/race bugs); ║
+     ║            map now always reads from in-memory          ║
+     ║            _allUsers or a direct server call. Added a   ║
+     ║            hard 12s watchdog so a failure always shows  ║
+     ║            a visible error state with the real reason — ║
+     ║            never a silent blank page again. Added       ║
+     ║            [UserMap]-tagged console logging at every    ║
+     ║            checkpoint (open, fetch, leaflet-ready,       ║
+     ║            build, render, state-change) for fast future ║
+     ║            debugging. Added a runId guard so rapid       ║
+     ║            Map/Refresh/Back clicks can't leave stale     ║
+     ║            async work racing the latest one.             ║
      ║  Changes : v179 — User Location Map: fixed blank-map ║
      ║            bug for real — _umEnsureLeaflet() now    ║
      ║            waits for leaflet.min.css (async media=  ║
@@ -46,8 +68,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-<!-- Leaflet — OpenStreetMap, no API key, loaded lazily when Map page opens -->
-<link id="leaflet-css-link" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'; window._leafletCssLoaded = true;">
+<!-- Leaflet — OpenStreetMap, no API key. CSS + JS both injected dynamically
+     by _umEnsureLeaflet() in the User Map module (see bottom of file).
+     Removed the old media="print" preload-swap trick (v179 and earlier) —
+     it was an unreliable source of blank-map races. -->
 <style>
   /* ── User Map page: Leaflet overrides ──────────────────────────── */
   #um-leaflet-map .leaflet-control-zoom{border:none;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18)}
@@ -13144,176 +13168,176 @@ function _uaToggleSeg(id) {
 // Analytics page — back button handled by showPage('p-users')
 
 // ══════════════════════════════════════════════════════════════════════════════
-// USER MAP — openUserMap(), _umRefresh(), _umSetFilter()
+// USER MAP — full rewrite (v180)
 // ──────────────────────────────────────────────────────────────────────────────
-// Cache strategy: localStorage key 'tf_usermap_cache'
-//   { ts: <epoch ms>, users: [...] }
-//   Stale after 12 hours (43 200 000 ms)
-//   Manual Refresh button forces a fresh fetch regardless of age
+// REWRITTEN FROM SCRATCH after v177/v178/v179 theory-based patches all failed
+// to fix a persistent blank-page bug. Old design relied on a fragile
+// media="print" CSS-preload-swap trick in <head> and a localStorage cache
+// layer — both removed. This version:
+//   • Injects Leaflet JS + CSS itself, on demand, with a real readiness check
+//     (polls for `window.L` existing AND having a working core class, not just
+//     a script "load" event firing — script onload does NOT guarantee the
+//     browser has finished parsing/executing on every platform/WebView).
+//   • Never builds the Leaflet map while its container is display:none.
+//   • Has a hard 12-second watchdog — if the map hasn't rendered by then, the
+//     UI shows a visible error state with the exact failure reason, never a
+//     silent blank screen.
+//   • Logs every checkpoint with a [UserMap] prefix so future debugging is a
+//     5-second console read, not a guessing game.
+//   • No localStorage caching — every open/refresh fetches directly from
+//     _allUsers (already in memory app-wide) or the server. Simpler, fewer
+//     states to go wrong.
 // ──────────────────────────────────────────────────────────────────────────────
 
-const _UM_CACHE_KEY = 'tf_usermap_cache';
-const _UM_TTL = 43200000; // 12 hours in ms
+let _umLeaflet     = null;   // Leaflet map instance
+let _umMarkerLayer = null;   // Leaflet LayerGroup holding all pin markers
+let _umAllUsers    = [];     // users WITH coords, sorted oldest → newest
+let _umFilter      = 'all';  // 'all' | 'subscriber' | 'normal'
+let _umWatchdog    = null;   // timeout id for the hard watchdog
+let _umRunId       = 0;      // increments each openUserMap() call; stale async
+                              // work from a previous open is ignored if the
+                              // run id no longer matches (prevents races if
+                              // user spam-clicks Map/Refresh/Back quickly)
 
-let _umLeaflet       = null;  // Leaflet map instance
-let _umLeafletLoaded = false; // true once script injected + L available
-let _umMarkerLayer   = null;  // Leaflet LayerGroup holding all pin markers
-let _umAllUsers      = [];    // full user list (with GPS) sorted oldest→newest
-let _umFilter        = 'all'; // 'all' | 'subscriber' | 'normal'
-let _umInitDone      = false; // map instance created?
+function _umLog(...args)  { console.log('[UserMap]', ...args); }
+function _umWarn(...args) { console.warn('[UserMap]', ...args); }
+function _umErr(...args)  { console.error('[UserMap]', ...args); }
 
-/* ── Entry point ─────────────────────────────────────────────────────────── */
+/* ── Entry point — called by the Map button on the All Users page ────────── */
 async function openUserMap() {
-  // If _allUsers is not yet loaded wait briefly
-  if (!_allUsers || _allUsers.length === 0) await loadUsers();
+  const runId = ++_umRunId;
+  _umLog('openUserMap() called, runId=', runId);
+
   showPage('p-usermap');
-  _umOpen();
-}
-
-async function _umOpen(forceRefresh = false) {
   _umShowState('loading');
+  _umArmWatchdog(runId);
 
   try {
-    // BUG FIX (v177): read cache-age BEFORE _umGetUsers() runs, because
-    // _umGetUsers() writes a fresh cache entry as part of fetching data —
-    // by the time we read it afterward, the "old" cache is already gone,
-    // so a brand-new first-ever load incorrectly said "refreshed 0m ago"
-    // instead of "just refreshed".
-    const cacheBefore = _umReadCache();
-
-    const users = await _umGetUsers(forceRefresh);
-    _umAllUsers = users;
-    _umRenderStats(users);
-
-    // ── BUG FIX (v177): ROOT CAUSE of the blank map page ──────────────────
-    // Leaflet reads the container's actual rendered width/height the moment
-    // L.map(...) is constructed. #um-map-wrap starts as display:none (only
-    // the loading spinner is visible while data loads), so building the map
-    // here — BEFORE switching to the 'map' display state — handed Leaflet a
-    // 0×0 container. Leaflet then computes broken internal pixel offsets;
-    // tiles + markers render off-screen or not at all, leaving a blank box
-    // even though the rest of the page (header/stats/filters) is fine.
-    // The previous `setTimeout(invalidateSize, 120)` inside _umShowState()
-    // was a best-effort patch for this but doesn't reliably fix a map that
-    // was *initialized* at zero size — invalidateSize() corrects the size
-    // but not always the broken initial pixel origin/tile grid.
-    // Fix: make the container visible FIRST (forces a synchronous layout
-    // reflow), THEN construct the Leaflet map — so it gets correct
-    // dimensions from the very first frame.
-    _umShowState('map');
-    await _umEnsureLeaflet();
-    _umBuildMap();
-    _umApplyFilter();
-    // Extra safety net: even though the container is already visible by the
-    // time L.map() runs (so sizing should be correct from frame one), force
-    // one more size recalculation a tick later in case any browser hasn't
-    // fully flushed layout yet (e.g. right after a dynamic script injection).
-    setTimeout(() => { try { _umLeaflet?.invalidateSize(); } catch(_) {} }, 50);
-
-    // Update subtitle with cache age
-    if (cacheBefore && !forceRefresh) {
-      const ageMin = Math.round((Date.now() - cacheBefore.ts) / 60000);
-      const ageStr = ageMin < 60
-        ? `${ageMin}m ago`
-        : `${Math.round(ageMin / 60)}h ago`;
-      document.getElementById('um-subtitle').textContent =
-        `Showing GPS-mapped users · refreshed ${ageStr}`;
-    } else {
-      document.getElementById('um-subtitle').textContent =
-        `Showing GPS-mapped users · just refreshed`;
+    // _allUsers is the app-wide in-memory list (populated by loadUsers(),
+    // which runs whenever the All Users tab is opened). If it's empty —
+    // e.g. admin deep-linked straight here, or this is the very first
+    // thing they did this session — fetch it now.
+    if (!_allUsers || _allUsers.length === 0) {
+      _umLog('_allUsers empty, calling loadUsers() first');
+      await loadUsers();
     }
+    if (runId !== _umRunId) { _umLog('stale run, abandoning (after loadUsers)'); return; }
+
+    await _umLoadAndRender(runId, /*forceRefresh=*/false);
   } catch (err) {
-    console.error('[UserMap] load error:', err);
-    const errEl = document.getElementById('um-error-msg');
-    if (errEl) errEl.textContent = err?.message || 'Unknown error';
-    _umShowState('error');
+    if (runId !== _umRunId) return;
+    _umErr('openUserMap() failed:', err);
+    _umFail(err?.message || 'Could not load user data.');
   }
 }
 
+/* ── Refresh button — always re-fetches from server ───────────────────────── */
 function _umRefresh() {
-  _umOpen(true);
+  const runId = ++_umRunId;
+  _umLog('_umRefresh() called, runId=', runId);
+  _umShowState('loading');
+  _umArmWatchdog(runId);
+  _umLoadAndRender(runId, /*forceRefresh=*/true).catch(err => {
+    if (runId !== _umRunId) return;
+    _umErr('_umRefresh() failed:', err);
+    _umFail(err?.message || 'Could not refresh user data.');
+  });
 }
 
-/* ── Cache helpers ───────────────────────────────────────────────────────── */
-function _umReadCache() {
-  try {
-    const raw = localStorage.getItem(_UM_CACHE_KEY);
-    if (!raw) return null;
-    const obj = JSON.parse(raw);
-    if (!obj || !obj.ts || !Array.isArray(obj.users)) return null;
-    return obj;
-  } catch { return null; }
-}
-
-function _umWriteCache(users) {
-  try {
-    localStorage.setItem(_UM_CACHE_KEY, JSON.stringify({ ts: Date.now(), users }));
-  } catch(e) { console.warn('[UserMap] cache write failed:', e); }
-}
-
-/* ── Data fetch: use cache if <12h, else refetch from _allUsers or API ───── */
-async function _umGetUsers(forceRefresh = false) {
-  if (!forceRefresh) {
-    const cached = _umReadCache();
-    if (cached && (Date.now() - cached.ts) < _UM_TTL) {
-      return cached.users;
-    }
-  }
-
+/* ── Core load + render pipeline, shared by open & refresh ───────────────── */
+async function _umLoadAndRender(runId, forceRefresh) {
+  // STEP 1 — get user data
   let sourceUsers;
-
-  if (forceRefresh) {
-    // BUG FIX (v178): forceRefresh previously still fell through to the
-    // in-memory _allUsers below — so the Refresh button never actually hit
-    // the server as long as the All Users tab had already loaded once
-    // (the normal case). It silently re-served the same stale snapshot.
-    // "Refresh" must mean refresh: always hit the server, and keep
-    // _allUsers in sync so the All Users table/filters benefit too —
-    // not just the map's own copy.
+  if (forceRefresh || !_allUsers || _allUsers.length === 0) {
+    _umLog('fetching users from server (forceRefresh=' + forceRefresh + ')');
     const res = await api('adminGetUsers');
+    if (runId !== _umRunId) { _umLog('stale run, abandoning (after api call)'); return; }
     if (!res?.success) throw new Error(res?.error || 'adminGetUsers failed');
     sourceUsers = res.users || [];
     _allUsers = sourceUsers;
-    // Keep the All Users table/filters in sync too, so navigating back
-    // from the map doesn't show a stale table next to a freshly-refreshed map.
-    try { filterUsers(); } catch(_) {}
+    try { filterUsers(); } catch(_) { /* All Users table may not be mounted yet, fine */ }
   } else {
-    // Source of truth: _allUsers (already in memory).
-    // If _allUsers is populated use it, else call getUsers API.
-    sourceUsers = _allUsers && _allUsers.length > 0 ? _allUsers : null;
-
-    if (!sourceUsers) {
-      // BUG FIX (v177): backend action is 'adminGetUsers', not 'getUsers' —
-      // this fallback path (used when _allUsers hasn't been loaded yet) was
-      // calling a non-existent action and would always fail.
-      const res = await api('adminGetUsers');
-      if (!res?.success) throw new Error(res?.error || 'adminGetUsers failed');
-      sourceUsers = res.users || [];
-      _allUsers = sourceUsers;
-    }
+    _umLog('using in-memory _allUsers, count=', _allUsers.length);
+    sourceUsers = _allUsers;
   }
 
-  // Sort oldest → newest by created_at so #1 = oldest registered user
-  const sorted = [...sourceUsers]
-    .filter(u => u.coord_lat && u.coord_lng)
-    .sort((a, b) => {
-      const da = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const db = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return da - db;
-    });
+  // STEP 2 — filter to users WITH valid coordinates, sort oldest → newest
+  const withCoords = sourceUsers.filter(u => {
+    const lat = parseFloat(u.coord_lat);
+    const lng = parseFloat(u.coord_lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+  });
+  withCoords.sort((a, b) => {
+    const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return da - db;
+  });
+  _umAllUsers = withCoords;
+  _umLog('total users=', sourceUsers.length, ' with coords=', withCoords.length);
 
-  _umWriteCache(sorted);
-  return sorted;
+  _umRenderStats(sourceUsers.length, withCoords.length);
+
+  // STEP 3 — make the map container visible BEFORE building the Leaflet
+  // map. Leaflet reads the container's rendered width/height the instant
+  // L.map() runs; if the container is still display:none at that moment
+  // it gets a 0×0 box and silently fails to render anything. This was the
+  // root cause identified (and supposedly fixed) in v177 — kept here as
+  // the very first thing STEP 3 does, before any Leaflet code touches it.
+  _umShowState('map');
+
+  // STEP 4 — ensure Leaflet library (JS + CSS) is actually ready
+  await _umEnsureLeaflet();
+  if (runId !== _umRunId) { _umLog('stale run, abandoning (after ensureLeaflet)'); return; }
+  if (typeof L === 'undefined') {
+    throw new Error('Leaflet library failed to load (window.L is undefined).');
+  }
+  _umLog('Leaflet ready, L.version=', L.version);
+
+  // STEP 5 — build the map
+  _umBuildMap();
+  if (!_umLeaflet) throw new Error('Map failed to initialize (_umBuildMap produced no instance).');
+
+  // STEP 6 — draw pins
+  _umApplyFilter();
+
+  // STEP 7 — defensive re-layouts. Cheap, and guards against any browser
+  // that hasn't fully flushed a layout reflow by the time L.map() ran
+  // (most likely right after the page-show display:block toggle).
+  requestAnimationFrame(() => { try { _umLeaflet?.invalidateSize(); } catch(_) {} });
+  setTimeout(() => { try { _umLeaflet?.invalidateSize(); } catch(_) {} }, 150);
+  setTimeout(() => { try { _umLeaflet?.invalidateSize(); } catch(_) {} }, 600);
+
+  document.getElementById('um-subtitle').textContent =
+    forceRefresh ? 'Showing GPS-mapped users · just refreshed'
+                 : 'Showing GPS-mapped users';
+
+  _umDisarmWatchdog();
+  _umLog('render complete ✓');
 }
 
-/* ── Stats bar ───────────────────────────────────────────────────────────── */
-function _umRenderStats(gpsUsers) {
-  // gpsUsers = only those with coords
-  // total registered = _allUsers (full list)
-  const total   = (_allUsers || []).length;
-  const withGps = gpsUsers.length;
-  const noGps   = total - withGps;
+/* ── Watchdog — guarantees we never sit on a blank/loading screen forever ── */
+function _umArmWatchdog(runId) {
+  _umDisarmWatchdog();
+  _umWatchdog = setTimeout(() => {
+    if (runId !== _umRunId) return; // a newer open/refresh already superseded this one
+    _umWarn('watchdog fired — map did not finish rendering within 12s');
+    _umFail('Map took too long to load. This can happen on a slow connection, ' +
+             'or if the map library failed to download. Tap "Try Again" to retry.');
+  }, 12000);
+}
+function _umDisarmWatchdog() {
+  if (_umWatchdog) { clearTimeout(_umWatchdog); _umWatchdog = null; }
+}
+function _umFail(message) {
+  _umDisarmWatchdog();
+  const errEl = document.getElementById('um-error-msg');
+  if (errEl) errEl.textContent = message;
+  _umShowState('error');
+}
 
+/* ── Stats bar ─────────────────────────────────────────────────────────── */
+function _umRenderStats(total, withGps) {
+  const noGps = total - withGps;
   const card = (icon, label, val, bg, col) =>
     `<div style="background:${bg};border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:12px">
       <div style="width:40px;height:40px;border-radius:10px;background:${col};display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -13324,69 +13348,87 @@ function _umRenderStats(gpsUsers) {
         <div style="font-family:var(--ff);font-size:11px;color:#64748b;margin-top:2px">${label}</div>
       </div>
     </div>`;
-
   const el = document.getElementById('um-stat-cards');
   if (el) el.innerHTML =
-    card('fa-users',        'Total Registered',  total,   '#f0f9ff', '#0ea5e9') +
-    card('fa-location-dot', 'GPS Mapped Users',  withGps, '#f0fdf4', '#22c55e') +
-    card('fa-location-xmark','Without GPS',      noGps,   '#fef2f2', '#ef4444');
+    card('fa-users',         'Total Registered', total,   '#f0f9ff', '#0ea5e9') +
+    card('fa-location-dot',  'GPS Mapped Users', withGps, '#f0fdf4', '#22c55e') +
+    card('fa-location-xmark','Without GPS',       noGps,   '#fef2f2', '#ef4444');
 }
 
-/* ── Load Leaflet JS lazily ──────────────────────────────────────────────── */
+/* ── Load Leaflet JS + CSS on demand, with real readiness polling ────────── */
 function _umEnsureLeaflet() {
-  // BUG FIX (v179): leaflet.min.css is loaded non-blocking via the
-  // media="print" → onload swap-to-"all" trick (see <head>), so it can
-  // still be mid-download when this function used to resolve right after
-  // leaflet.min.js loaded. _umBuildMap() then ran with Leaflet's JS present
-  // but its CSS not yet applied — panes have no positioning/sizing rules,
-  // so tiles/markers render broken or invisible (blank map). This was
-  // intermittent (network/cache-speed dependent), which is why it kept
-  // resurfacing after the v177 display:none fix — that fix solved the
-  // sizing race, this solves the separate CSS-timing race.
-  // Fix: wait for BOTH the script AND the stylesheet to be ready.
-  const jsReady = new Promise((resolve, reject) => {
-    if (typeof L !== 'undefined') { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-    s.onload  = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load Leaflet.js'));
-    document.head.appendChild(s);
+  // CSS: inject a normal (blocking-for-Leaflet-purposes) stylesheet link if
+  // not already present. No media="print" trick — that swap-based approach
+  // was the suspected root cause of repeated blank-map races and is gone
+  // for good. A plain <link> is simple and its `load` event is reliable.
+  const cssReady = new Promise((resolve) => {
+    if (document.getElementById('leaflet-css-link')) { resolve(); return; }
+    const link = document.createElement('link');
+    link.id = 'leaflet-css-link';
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    let settled = false;
+    link.addEventListener('load',  () => { settled = true; _umLog('leaflet.css loaded'); resolve(); }, { once: true });
+    link.addEventListener('error', () => { settled = true; _umWarn('leaflet.css failed to load — map will still try to render, possibly unstyled'); resolve(); }, { once: true });
+    document.head.appendChild(link);
+    // Safety net: some browsers/extensions can swallow the load event for
+    // cached stylesheets. Don't let a missing event hang the whole map open.
+    setTimeout(() => { if (!settled) { _umWarn('leaflet.css load event never fired, continuing anyway'); resolve(); } }, 4000);
   });
 
-  const cssReady = new Promise((resolve, reject) => {
-    if (window._leafletCssLoaded) { resolve(); return; }
-    const link = document.getElementById('leaflet-css-link');
-    if (!link) { resolve(); return; } // shouldn't happen, but don't block forever
-    if (link.media === 'all') { resolve(); return; } // already swapped before we checked
-    let settled = false;
-    link.addEventListener('load', () => { settled = true; resolve(); }, { once: true });
-    link.addEventListener('error', () => { settled = true; reject(new Error('Failed to load Leaflet.css')); }, { once: true });
-    // Safety net: if the load/error events never fire for some reason
-    // (older browsers, extension interference), don't hang the map open
-    // forever — fall back after a short wait so at least the JS-only
-    // (slightly unstyled) map still renders instead of a stuck spinner.
-    setTimeout(() => { if (!settled) resolve(); }, 3000);
+  // JS: inject the script if not already present, then POLL for `window.L`
+  // to actually exist with a working class — not just "script element fired
+  // a load event", which on some Android WebViews / extensions can occur
+  // before the script body has fully executed.
+  const jsReady = new Promise((resolve, reject) => {
+    if (typeof L !== 'undefined' && L.map) { _umLog('Leaflet JS already present'); resolve(); return; }
+
+    let script = document.getElementById('leaflet-js-script');
+    if (!script) {
+      script = document.createElement('script');
+      script.id = 'leaflet-js-script';
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      script.onerror = () => reject(new Error('Failed to download Leaflet.js from CDN. Check your internet connection.'));
+      document.head.appendChild(script);
+    }
+
+    const startedAt = Date.now();
+    const poll = setInterval(() => {
+      if (typeof L !== 'undefined' && L.map) {
+        clearInterval(poll);
+        _umLog('Leaflet JS ready after', Date.now() - startedAt, 'ms');
+        resolve();
+      } else if (Date.now() - startedAt > 8000) {
+        clearInterval(poll);
+        reject(new Error('Leaflet.js loaded but window.L never became available (timed out after 8s).'));
+      }
+    }, 50);
   });
 
   return Promise.all([jsReady, cssReady]);
 }
 
-/* ── Build / re-init Leaflet map ─────────────────────────────────────────── */
+/* ── Build / re-init the Leaflet map instance ─────────────────────────────── */
 function _umBuildMap() {
   const mapEl = document.getElementById('um-leaflet-map');
-  if (!mapEl) return;
+  if (!mapEl) { _umErr('um-leaflet-map element not found in DOM'); return; }
 
-  // Destroy previous instance if re-opening
   if (_umLeaflet) {
-    _umLeaflet.remove();
-    _umLeaflet    = null;
+    _umLog('destroying previous map instance before rebuild');
+    try { _umLeaflet.remove(); } catch(_) {}
+    _umLeaflet = null;
     _umMarkerLayer = null;
-    _umInitDone   = false;
     mapEl.innerHTML = '';
   }
 
+  const w = mapEl.clientWidth, h = mapEl.clientHeight;
+  _umLog('building map, container size=', w, 'x', h);
+  if (w === 0 || h === 0) {
+    _umWarn('container has zero size at build time — map will likely be blank. Check #um-map-wrap display state.');
+  }
+
   // Centre on BHU / Lanka, Varanasi
-  _umLeaflet = L.map('um-leaflet-map', {
+  _umLeaflet = L.map(mapEl, {
     center: [25.2677, 82.9913],
     zoom: 14,
     zoomControl: true,
@@ -13399,10 +13441,10 @@ function _umBuildMap() {
   }).addTo(_umLeaflet);
 
   _umMarkerLayer = L.layerGroup().addTo(_umLeaflet);
-  _umInitDone = true;
+  _umLog('map instance built ✓');
 }
 
-/* ── Create a custom numbered pin icon ───────────────────────────────────── */
+/* ── Numbered pin icon ─────────────────────────────────────────────────── */
 function _umPinIcon(num, isSub) {
   const size = 34;
   const cls  = isSub ? 'um-pin-sub' : 'um-pin-norm';
@@ -13412,7 +13454,7 @@ function _umPinIcon(num, isSub) {
              <span class="um-pin-inner">${num}</span>
            </div>`,
     iconSize:   [size, size],
-    iconAnchor: [size / 2, size],    // tip at bottom-centre
+    iconAnchor: [size / 2, size],
     popupAnchor:[0, -size]
   });
 }
@@ -13427,9 +13469,9 @@ function _umRatingLabel(score) {
   return               { label:'Inactive',  color:'#9f1239', bg:'#ffe4e6' };
 }
 
-/* ── Apply filter and re-draw markers ───────────────────────────────────── */
+/* ── Apply filter and (re)draw markers ────────────────────────────────────── */
 function _umApplyFilter() {
-  if (!_umInitDone || !_umMarkerLayer) return;
+  if (!_umLeaflet || !_umMarkerLayer) { _umWarn('_umApplyFilter() called before map ready, skipping'); return; }
 
   _umMarkerLayer.clearLayers();
 
@@ -13437,20 +13479,20 @@ function _umApplyFilter() {
   if (_umFilter === 'subscriber') visible = _umAllUsers.filter(u => u.is_subscriber);
   if (_umFilter === 'normal')     visible = _umAllUsers.filter(u => !u.is_subscriber);
 
-  // Update showing label
   const pinEl = document.getElementById('um-pin-count');
-  if (pinEl) pinEl.textContent = `${visible.length} pins shown`;
+  if (pinEl) pinEl.textContent = `${visible.length} pin${visible.length === 1 ? '' : 's'} shown`;
+
+  _umLog('drawing', visible.length, 'pins (filter=' + _umFilter + ')');
 
   if (visible.length === 0) return;
 
   const bounds = [];
 
-  visible.forEach((u, idx) => {
-    // num = position in the FULL sorted list (not filtered) so numbers don't change
-    const globalNum = _umAllUsers.indexOf(u) + 1;
+  visible.forEach((u) => {
+    const globalNum = _umAllUsers.indexOf(u) + 1; // position in FULL sorted list, stable across filters
     const lat = parseFloat(u.coord_lat);
     const lng = parseFloat(u.coord_lng);
-    if (isNaN(lat) || isNaN(lng)) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
     bounds.push([lat, lng]);
 
@@ -13465,7 +13507,6 @@ function _umApplyFilter() {
 
     const popup = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-width:210px">
-        <!-- popup header -->
         <div style="background:${u.is_subscriber ? 'linear-gradient(135deg,#0ea5e9,#0284c7)' : 'linear-gradient(135deg,#f97316,#ea580c)'};padding:12px 14px;display:flex;align-items:center;gap:10px">
           <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex-shrink:0">
             ${_esc((u.name || 'U')[0].toUpperCase())}
@@ -13475,7 +13516,6 @@ function _umApplyFilter() {
             <div style="color:rgba(255,255,255,.8);font-size:11px;margin-top:1px">#${globalNum} · Registered User</div>
           </div>
         </div>
-        <!-- popup body -->
         <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
           <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#475569">
             <i class="fa fa-phone" style="color:#0ea5e9;width:14px;text-align:center;flex-shrink:0"></i>
@@ -13497,21 +13537,13 @@ function _umApplyFilter() {
       icon:  _umPinIcon(globalNum, u.is_subscriber),
       title: u.name || u.phone
     });
-
-    marker.bindPopup(popup, {
-      maxWidth: 260,
-      minWidth: 210,
-      className: 'um-popup'
-    });
-
+    marker.bindPopup(popup, { maxWidth: 260, minWidth: 210, className: 'um-popup' });
     _umMarkerLayer.addLayer(marker);
   });
 
-  // Fit bounds to all visible markers
   if (bounds.length > 0) {
-    try {
-      _umLeaflet.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-    } catch(e) { /* ignore */ }
+    try { _umLeaflet.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 }); }
+    catch(e) { _umWarn('fitBounds failed:', e); }
   }
 }
 
@@ -13534,10 +13566,7 @@ function _umShowState(state) {
   if (loading) loading.style.display = state === 'loading' ? 'flex'  : 'none';
   if (mapWrap) mapWrap.style.display = state === 'map'     ? 'block' : 'none';
   if (errWrap) errWrap.style.display = state === 'error'   ? 'flex'  : 'none';
-  // Invalidate Leaflet size after becoming visible (required after display:none)
-  if (state === 'map' && _umLeaflet) {
-    setTimeout(() => _umLeaflet.invalidateSize(), 120);
-  }
+  _umLog('state →', state);
 }
 </script>
 </body>
