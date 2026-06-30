@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v13.0  |  Updated : 2026-06-30
+   Version : v13.1  |  Updated : 2026-06-30
+
+   CHANGES v13.1:
+   - Cache bumped → tiffo-admin-v34 (v179 — User Location Map
+     blank-screen fix: Leaflet now waits for CSS to finish loading,
+     not just JS, before building the map; Map Refresh button now
+     genuinely refetches from server; back-button label fixed)
 
    CHANGES v13.0:
    - Cache bumped → tiffo-admin-v33 (v176 — User Location Map page added:
@@ -71,7 +77,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v33'; // v176: User Location Map page (Leaflet, p-usermap, numbered pins, 12h cache)
+const CACHE      = 'tiffo-admin-v34'; // v179: User Map blank-screen fix (CSS-load race, refresh fetch, back label)
 const FONT_CACHE = 'tiffo-fonts-v1';
 
 /* Only admin assets */

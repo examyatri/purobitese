@@ -1,8 +1,25 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v176                                   ║
+     ║  Version : v179                                   ║
      ║  Updated : 2026-06-30                               ║
+     ║  Changes : v179 — User Location Map: fixed blank-map ║
+     ║            bug for real — _umEnsureLeaflet() now    ║
+     ║            waits for leaflet.min.css (async media=  ║
+     ║            print swap) in addition to leaflet.min.js ║
+     ║            before building the map, closing a CSS-  ║
+     ║            timing race the v177 sizing fix missed.  ║
+     ║            Also: Map "Refresh" button now genuinely ║
+     ║            refetches from server instead of re-      ║
+     ║            serving stale in-memory users, and Map   ║
+     ║            page's back button label now matches     ║
+     ║            Analytics page ("Back to Users").         ║
+     ║  Changes : v177 — User Location Map: fixed blank-map ║
+     ║            page caused by Leaflet being initialized  ║
+     ║            while #um-map-wrap was still display:none; ║
+     ║            container now made visible before L.map() ║
+     ║            runs. Also fixed broken adminGetUsers      ║
+     ║            fallback action name.                     ║
      ║  Changes : v145 — Version sync (no functional      ║
      ║            changes); frontend fix: Android WebView  ║
      ║            freeze guard on customer portal.        ║
