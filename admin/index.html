@@ -30,7 +30,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <!-- Leaflet — OpenStreetMap, no API key, loaded lazily when Map page opens -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'">
+<link id="leaflet-css-link" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'; window._leafletCssLoaded = true;">
 <style>
   /* ── User Map page: Leaflet overrides ──────────────────────────── */
   #um-leaflet-map .leaflet-control-zoom{border:none;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18)}
@@ -13317,7 +13317,17 @@ function _umRenderStats(gpsUsers) {
 
 /* ── Load Leaflet JS lazily ──────────────────────────────────────────────── */
 function _umEnsureLeaflet() {
-  return new Promise((resolve, reject) => {
+  // BUG FIX (v179): leaflet.min.css is loaded non-blocking via the
+  // media="print" → onload swap-to-"all" trick (see <head>), so it can
+  // still be mid-download when this function used to resolve right after
+  // leaflet.min.js loaded. _umBuildMap() then ran with Leaflet's JS present
+  // but its CSS not yet applied — panes have no positioning/sizing rules,
+  // so tiles/markers render broken or invisible (blank map). This was
+  // intermittent (network/cache-speed dependent), which is why it kept
+  // resurfacing after the v177 display:none fix — that fix solved the
+  // sizing race, this solves the separate CSS-timing race.
+  // Fix: wait for BOTH the script AND the stylesheet to be ready.
+  const jsReady = new Promise((resolve, reject) => {
     if (typeof L !== 'undefined') { resolve(); return; }
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
@@ -13325,6 +13335,23 @@ function _umEnsureLeaflet() {
     s.onerror = () => reject(new Error('Failed to load Leaflet.js'));
     document.head.appendChild(s);
   });
+
+  const cssReady = new Promise((resolve, reject) => {
+    if (window._leafletCssLoaded) { resolve(); return; }
+    const link = document.getElementById('leaflet-css-link');
+    if (!link) { resolve(); return; } // shouldn't happen, but don't block forever
+    if (link.media === 'all') { resolve(); return; } // already swapped before we checked
+    let settled = false;
+    link.addEventListener('load', () => { settled = true; resolve(); }, { once: true });
+    link.addEventListener('error', () => { settled = true; reject(new Error('Failed to load Leaflet.css')); }, { once: true });
+    // Safety net: if the load/error events never fire for some reason
+    // (older browsers, extension interference), don't hang the map open
+    // forever — fall back after a short wait so at least the JS-only
+    // (slightly unstyled) map still renders instead of a stuck spinner.
+    setTimeout(() => { if (!settled) resolve(); }, 3000);
+  });
+
+  return Promise.all([jsReady, cssReady]);
 }
 
 /* ── Build / re-init Leaflet map ─────────────────────────────────────────── */
