@@ -1,8 +1,25 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v186                                      ║
+// ║  Version : v188                                      ║
 // ║  Updated : 2026-07-04                               ║
+// ║  v188    : EARNINGS FIX — rider cash collection now  ║
+// ║            counts as real earnings the instant the   ║
+// ║            rider marks an unpaid/udhar order         ║
+// ║            delivered+collected (rider_collected_at   ║
+// ║            set), instead of waiting for admin to run ║
+// ║            settleRiderCollection. getEarningReport's  ║
+// ║            'unpaid' mode paidTotal/paidCount now      ║
+// ║            treat payment_status='paid' OR             ║
+// ║            rider_collected_at!=null as collected —   ║
+// ║            this flows automatically into dayTrueCash,║
+// ║            grandTrueCash, and the Combination         ║
+// ║            Calculator (all read paidTotal). New       ║
+// ║            dayRiderCollected/grandRiderCollected      ║
+// ║            fields expose the rider-held (unsettled)   ║
+// ║            slice for transparency. Rider Collections  ║
+// ║            tab unchanged — still shows unsettled cash ║
+// ║            until admin taps settle.                   ║
 // ║  v186    : Unpaid/Udhar payment workflow overhaul.   ║
 // ║            payment_status now locked after admin     ║
 // ║            confirms paid/unpaid (bulkUpdateOrder     ║
@@ -5144,7 +5161,7 @@ app.post('/api', async (req, res) => {
 
         const { data: rows, error: rErr } = await supabase
           .from('orders')
-          .select('order_id, name, phone, slot, payment_mode, payment_status, final_amount, order_status, date, time, items, source')
+          .select('order_id, name, phone, slot, payment_mode, payment_status, final_amount, order_status, date, time, items, source, rider_collected_at')
           .gte('date', fromDate)
           .lte('date', toDate)
           .neq('order_status', 'cancelled')
@@ -5201,6 +5218,7 @@ app.post('/api', async (req, res) => {
             slot:           o.slot || 'morning',
             time:           o.time || '',
             source:         o.source || 'user',
+            rider_collected_at: o.rider_collected_at || null,
             items:          typeof o.items === 'string' ? _safeJsonParse(o.items, []) : (o.items || [])
           });
         }
@@ -5223,18 +5241,36 @@ app.post('/api', async (req, res) => {
               const orders = slotData[mode];
               if (!orders.length) continue;
               const modeTotal = orders.reduce((s, o) => s + o.final_amount, 0);
-              // paidTotal: only orders where admin marked payment_status = 'paid'
-              // wallet: all recharges count (collected by admin via any method)
-              const paidTotal = mode === 'wallet'
-                ? modeTotal
-                : orders.reduce((s, o) => s + (o.payment_status === 'paid' ? o.final_amount : 0), 0);
-              const paidCount = mode === 'wallet'
-                ? orders.length
-                : orders.filter(o => o.payment_status === 'paid').length;
-              slotEntry.modes[mode] = { orders, total: modeTotal, count: orders.length, paidTotal, paidCount };
+              // "Collected" test per mode:
+              //   wallet    → always (cash already taken at recharge time)
+              //   unpaid    → admin marked payment_status='paid' OR rider has
+              //               physically collected the cash from the customer
+              //               (rider_collected_at stamped, settleRiderCollection
+              //               not yet run). Real money is in hand either way —
+              //               it shouldn't wait on admin's settle click to count
+              //               as an actual earning. It still shows separately
+              //               in Rider Collections until settled.
+              //   others    → only admin-confirmed payment_status='paid'
+              const isCollected = mode === 'wallet'
+                ? () => true
+                : mode === 'unpaid'
+                  ? (o) => o.payment_status === 'paid' || !!o.rider_collected_at
+                  : (o) => o.payment_status === 'paid';
+              const paidTotal = orders.reduce((s, o) => s + (isCollected(o) ? o.final_amount : 0), 0);
+              const paidCount = orders.filter(isCollected).length;
+              // riderCollectedTotal/-Count: subset of the 'unpaid' paidTotal that
+              // is rider-held cash not yet settled by admin (informational only —
+              // still shows in the Rider Collections tab).
+              const riderCollectedTotal = mode === 'unpaid'
+                ? orders.reduce((s, o) => s + ((o.payment_status !== 'paid' && o.rider_collected_at) ? o.final_amount : 0), 0)
+                : 0;
+              const riderCollectedCount = mode === 'unpaid'
+                ? orders.filter(o => o.payment_status !== 'paid' && o.rider_collected_at).length
+                : 0;
+              slotEntry.modes[mode] = { orders, total: modeTotal, count: orders.length, paidTotal, paidCount, riderCollectedTotal, riderCollectedCount };
               slotEntry.slotTotal  += modeTotal;
               slotEntry.slotCounts[mode] = orders.length;
-              // slotTrueCash: wallet excluded (cash collected at recharge), others only if admin marked paid
+              // slotTrueCash: wallet excluded (cash collected at recharge), others only if collected
               if (mode !== 'wallet') slotEntry.slotTrueCash += paidTotal;
             }
 
@@ -5259,24 +5295,33 @@ app.post('/api', async (req, res) => {
           // ── True Cash / Earnings for the day ────────────────────────────
           // NEW LOGIC (v79): Only orders where admin explicitly marked payment_status='paid'
           // are counted in earnings. This gives a real-money-in-hand picture.
+          // UPDATED (v188): 'unpaid'/udhar orders that the rider has physically
+          // collected cash for (rider_collected_at set) now ALSO count as real
+          // cash-in-hand the moment the rider marks it, even before admin runs
+          // settleRiderCollection — see isCollected() above. dayUdharPaid below
+          // already reflects this since it reads modes['unpaid'].paidTotal.
           //
           // dayTrueCash = recharges collected that day          ← all recharges (admin credits wallet)
           //             + UPI orders   (payment_status='paid')  ← admin confirmed payment received
           //             + UPI_insuf    (payment_status='paid')  ← admin confirmed payment received
-          //             + Udhar/unpaid (payment_status='paid')  ← admin confirmed cash collected
+          //             + Udhar/unpaid (paid OR rider-collected) ← real cash physically received
           // wallet orders EXCLUDED — cash was already counted when subscriber recharged
           const dayUpiPaid    = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi']?.paidTotal       || 0), 0);
           const dayInsufPaid  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi_insuf']?.paidTotal  || 0), 0);
           const dayUdharPaid  = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.paidTotal     || 0), 0);
+          // Rider-collected-but-not-yet-settled slice of dayUdharPaid (informational —
+          // also drives the Rider Collections tab via getRiderCollections).
+          const dayRiderCollected = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.riderCollectedTotal || 0), 0);
           // Keep old totals for display reference (all orders, not just paid)
           const dayUpiTotal   = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi']?.total       || 0), 0);
           const dayInsufTotal = dayEntry.slots.reduce((s, sl) => s + (sl.modes['upi_insuf']?.total  || 0), 0);
           const dayUdharTotal = dayEntry.slots.reduce((s, sl) => s + (sl.modes['unpaid']?.total     || 0), 0);
-          dayEntry.dayRechargeCash = rechargeDateMap[date] || 0;
-          dayEntry.dayUpiPaid      = dayUpiPaid;
-          dayEntry.dayInsufPaid    = dayInsufPaid;
-          dayEntry.dayUdharPaid    = dayUdharPaid;
-          dayEntry.dayTrueCash     = dayEntry.dayRechargeCash + dayUpiPaid + dayInsufPaid + dayUdharPaid;
+          dayEntry.dayRechargeCash    = rechargeDateMap[date] || 0;
+          dayEntry.dayUpiPaid         = dayUpiPaid;
+          dayEntry.dayInsufPaid       = dayInsufPaid;
+          dayEntry.dayUdharPaid       = dayUdharPaid;
+          dayEntry.dayRiderCollected  = dayRiderCollected;
+          dayEntry.dayTrueCash        = dayEntry.dayRechargeCash + dayUpiPaid + dayInsufPaid + dayUdharPaid;
 
           report.push(dayEntry);
         }
@@ -5298,6 +5343,8 @@ app.post('/api', async (req, res) => {
         const grandUpiPaid    = report.reduce((s, d) => s + d.dayUpiPaid,    0);
         const grandInsufPaid  = report.reduce((s, d) => s + d.dayInsufPaid,  0);
         const grandUdharPaid  = report.reduce((s, d) => s + d.dayUdharPaid,  0);
+        // Rider-held cash included inside grandUdharPaid but not yet settled by admin.
+        const grandRiderCollected = report.reduce((s, d) => s + (d.dayRiderCollected || 0), 0);
 
         return res.json({
           success: true,
@@ -5309,6 +5356,7 @@ app.post('/api', async (req, res) => {
           grandUpiCombinedCount,
           grandRechargeCash,
           grandTrueCash,
+          grandRiderCollected,
           grandUpiPaid,
           grandInsufPaid,
           grandUdharPaid,
