@@ -1,8 +1,21 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v185                                      ║
-// ║  Updated : 2026-06-30                               ║
+// ║  Version : v186                                      ║
+// ║  Updated : 2026-07-04                               ║
+// ║  v186    : Unpaid/Udhar payment workflow overhaul.   ║
+// ║            payment_status now locked after admin     ║
+// ║            confirms paid/unpaid (bulkUpdateOrder     ║
+// ║            rejects re-edit once != 'pending'). Fixed ║
+// ║            wallet single-orders inserting with       ║
+// ║            payment_status='pending' instead of       ║
+// ║            'wallet'. New rider_collected_at column +  ║
+// ║            updateOrderStatus(collected:true) so the   ║
+// ║            rider panel can confirm cash collection on ║
+// ║            unpaid orders before marking delivered.    ║
+// ║            New admin-only actions getRiderCollections ║
+// ║            + settleRiderCollection for the Earnings > ║
+// ║            Rider Collections settlement panel.        ║
 // ║  v185    : Version bump; release sync (no backend logic change).
 // ║  v177    : INTEGRITY FIX — coupon burn (incl. Free   ║
 // ║            Tiffin redemption) is no longer perm-     ║
@@ -297,7 +310,9 @@ const _ADMIN_ONLY_ACTIONS = new Set([
   'resetAdminPassword',
   'adminDeleteUser',  // permanently deletes a user + all their data — admin-only
   'getEarningReport',  // detailed payment-mode breakdown — admin-only financial report
-  'getWalletRechargeReport' // wallet recharges (real cash-in) — admin-only
+  'getWalletRechargeReport', // wallet recharges (real cash-in) — admin-only
+  'getRiderCollections',   // outstanding cash riders are holding — admin-only financial report
+  'settleRiderCollection'  // confirms cash handover from rider — admin-only financial action
 ]);
 
 // ─── RIDER ROLE (separate from staff) ──────────────────────────────────────────
@@ -1428,6 +1443,13 @@ async function _createSingleOrder(
   // must NOT affect stock — admin can always order even when OOS.
   if (source === 'user') await _deductMenuStock(items);
 
+  // FIX (v186): payment_status used to be hard-coded 'pending' here even when the
+  // order was actually paid via wallet at placement time (see wallet deduction
+  // block above). This left the admin "Update Order" payment-status dropdown
+  // showing 'Pending' for wallet orders, which is wrong — a wallet order is
+  // already settled and should show/lock as 'wallet', matching how bulk-generated
+  // orders already behave (see allOrderRows below).
+  const _resolvedPaymentMode = paymentMode || (khataEnabled && user.is_subscriber ? 'wallet' : 'upi');
   const { error: ordErr } = await supabase.from('orders').insert({
     order_id:        orderId,
     user_id:         user.phone,
@@ -1442,8 +1464,8 @@ async function _createSingleOrder(
     coupon_code:     coupon?.code || null,
     discount,
     order_status:    'pending',
-    payment_status:  'pending',
-    payment_mode:    paymentMode || (khataEnabled && user.is_subscriber ? 'wallet' : 'upi'),
+    payment_status:  _resolvedPaymentMode === 'wallet' ? 'wallet' : 'pending',
+    payment_mode:    _resolvedPaymentMode,
     user_type:       user.is_subscriber ? 'subscriber' : 'daily',
     rider_id:        null,
     slot:            slot || 'morning',
@@ -2487,12 +2509,36 @@ app.post('/api', async (req, res) => {
           }
         }
 
-        const updates = { order_status: normalizedStatus };
-        // rider_id is set ONLY by admin via assignRider — never overwritten here
-        await supabase.from('orders').update(updates).eq('order_id', data.orderId);
-        if (normalizedStatus === 'delivered') {
-          await supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId);
+        // PERF (v186): these are 1-2 independent statements (rider_collected_at
+        // and khata_entries.order_status both key off order_id/khata's own PK,
+        // not off each other's result) — firing them concurrently instead of
+        // sequentially cuts the round-trip latency the rider actually waits
+        // on when tapping "Delivered". Postgres row-locks handle any overlap
+        // on the same 'orders' row safely regardless of arrival order.
+        const _ops = [supabase.from('orders').update({ order_status: normalizedStatus }).eq('order_id', data.orderId)];
+        // ── Rider cash-collection flag (v186) ─────────────────────────────
+        // Rider panel shows a "collect payment" popup before marking an
+        // 'unpaid' (udhar) order delivered. When the rider confirms cash was
+        // collected from the customer, data.collected=true is sent along with
+        // status='delivered'. We stamp rider_collected_at so the admin's
+        // "Rider Collections" panel (Earnings page) can show pending cash the
+        // rider is holding, which the admin later settles via
+        // settleRiderCollection (flips payment_status to 'paid', which is
+        // what the existing earnings calculation already keys off).
+        // Atomic UPDATE ... WHERE payment_status = 'unpaid' both validates
+        // and writes in one round trip — no trust placed in the client's
+        // 'unpaid' claim, the WHERE clause is the real check.
+        if (normalizedStatus === 'delivered' && data.collected === true) {
+          _ops.push(supabase.from('orders')
+            .update({ rider_collected_at: new Date().toISOString() })
+            .eq('order_id', data.orderId)
+            .eq('payment_status', 'unpaid'));
         }
+        // rider_id is set ONLY by admin via assignRider — never overwritten here
+        if (normalizedStatus === 'delivered') {
+          _ops.push(supabase.from('khata_entries').update({ order_status: 'delivered' }).eq('order_id', data.orderId));
+        }
+        await Promise.all(_ops);
         _bumpMenuVersion();
         return res.json({ success: true });
       }
@@ -3166,18 +3212,54 @@ app.post('/api', async (req, res) => {
           }
         }
 
+        let _paymentLockedWarning = null;
+        let _paymentApplied = false;
         if (data.paymentStatus) {
-          bulkUpdates.payment_status = data.paymentStatus;
+          // Only 'paid'/'unpaid' are legitimate manual transitions here.
+          // 'wallet' is set automatically at order placement, never by an
+          // admin — and any other value is not a real payment_status at all.
+          if (data.paymentStatus !== 'paid' && data.paymentStatus !== 'unpaid') {
+            return res.json({ success: false, error: 'Invalid payment status: ' + data.paymentStatus });
+          }
+          // LOCK (v186): once payment_status is confirmed away from 'pending'
+          // (paid/unpaid/wallet), it must not be casually re-edited through
+          // this generic update modal — that would risk silently corrupting
+          // an already-reconciled financial record. Only 'pending' orders may
+          // have their payment_status set here. Any later correction for an
+          // 'unpaid' order happens through the dedicated
+          // settleRiderCollection flow (Earnings → Rider Collections).
+          //
+          // OPTIMIZATION (v186): this used to be a SELECT (check current
+          // payment_status) followed by a separate UPDATE — two round trips,
+          // with a small race window between them (another admin could
+          // confirm it in between). Folded into one atomic
+          // UPDATE ... WHERE payment_status = 'pending', checked via
+          // .select() on the returned rows: empty = the row didn't match
+          // (already locked), so nothing was touched.
+          const { data: payRows, error: payErr } = await supabase
+            .from('orders')
+            .update({ payment_status: data.paymentStatus })
+            .eq('order_id', data.orderId)
+            .eq('payment_status', 'pending')
+            .select('order_id');
+          if (payErr) return res.json({ success: false, error: payErr.message });
+          if (!payRows || !payRows.length) {
+            _paymentLockedWarning = 'Payment status is locked after confirmation and was not changed.';
+          } else {
+            _paymentApplied = true;
+          }
         }
 
-        if (Object.keys(bulkUpdates).length === 0) {
-          return res.json({ success: false, error: 'Nothing to update' });
+        if (Object.keys(bulkUpdates).length === 0 && !_paymentApplied) {
+          return res.json({ success: false, error: _paymentLockedWarning || 'Nothing to update' });
         }
 
-        const { error: updateErr } = await supabase.from('orders').update(bulkUpdates).eq('order_id', data.orderId);
-        if (updateErr) return res.json({ success: false, error: updateErr.message });
+        if (Object.keys(bulkUpdates).length) {
+          const { error: updateErr } = await supabase.from('orders').update(bulkUpdates).eq('order_id', data.orderId);
+          if (updateErr) return res.json({ success: false, error: updateErr.message });
+        }
         _bumpMenuVersion(); // customer + rider detect via version poll → see updated order status
-        return res.json({ success: true });
+        return res.json({ success: true, warning: _paymentLockedWarning || undefined });
       }
       case 'validateCoupon': {
         const cpnCode = (data.code||'').toUpperCase();
@@ -5304,6 +5386,101 @@ app.post('/api', async (req, res) => {
           grandTotal,
           grandCount
         });
+      }
+
+      // ── RIDER CASH COLLECTIONS (v186) ─────────────────────────────────────
+      // 'unpaid' (udhar) orders: rider confirms cash collection from customer
+      // at delivery time (stamps rider_collected_at, see updateOrderStatus).
+      // That cash is physically with the rider until handed over to
+      // admin/owner. This report shows, per day → per rider, exactly how much
+      // is outstanding (payment_status still 'unpaid' + rider_collected_at
+      // set) so admin knows how much to collect from each rider at day end.
+      // Once settled (settleRiderCollection), payment_status flips to 'paid'
+      // and the order naturally drops out of this query — and is now counted
+      // in the existing getEarningReport "Udhar Paid" totals.
+      case 'getRiderCollections': {
+        const toDate   = data.toDate   || istDateStr(ist);
+        const fromDate = data.fromDate || istDateStr(new Date(Date.now() + 5.5 * 3_600_000 - 2 * 86_400_000));
+        const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRe.test(fromDate) || !dateRe.test(toDate)) {
+          return res.json({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' });
+        }
+
+        const { data: rows, error: rcErr } = await supabase
+          .from('orders')
+          .select('order_id, name, phone, rider_id, final_amount, date, slot, rider_collected_at, items')
+          .eq('payment_status', 'unpaid')
+          .not('rider_collected_at', 'is', null)
+          .gte('date', fromDate)
+          .lte('date', toDate)
+          .order('date', { ascending: false });
+        if (rcErr) throw new Error('DB error: ' + rcErr.message);
+
+        const withNames = await resolveRiderNames(rows || []);
+
+        // Group: date → rider_id → { riderName, orders[], total }
+        const byDate = {};
+        for (const o of withNames) {
+          const d   = o.date ? String(o.date).slice(0, 10) : 'unknown';
+          const rid = o.rider_id || 'unassigned';
+          if (!byDate[d]) byDate[d] = {};
+          if (!byDate[d][rid]) byDate[d][rid] = { riderId: rid, riderName: o.rider_name || rid, orders: [], total: 0 };
+          byDate[d][rid].orders.push({
+            order_id:     o.order_id,
+            name:         o.name || '',
+            phone:        o.phone || '',
+            final_amount: Number(o.final_amount) || 0,
+            slot:         o.slot || 'morning',
+            items:        typeof o.items === 'string' ? _safeJsonParse(o.items, []) : (o.items || [])
+          });
+          byDate[d][rid].total += Number(o.final_amount) || 0;
+        }
+
+        const report = Object.keys(byDate).sort().reverse().map(date => ({
+          date,
+          riders: Object.values(byDate[date]).sort((a, b) => b.total - a.total)
+        }));
+        const grandTotal = report.reduce((s, d) => s + d.riders.reduce((s2, r) => s2 + r.total, 0), 0);
+        const grandCount = report.reduce((s, d) => s + d.riders.reduce((s2, r) => s2 + r.orders.length, 0), 0);
+
+        return res.json({ success: true, fromDate, toDate, report, grandTotal, grandCount });
+      }
+
+      // Admin confirms cash physically received from the rider (handover).
+      // Pass orderId for a single order, OR riderId+date to bulk-settle every
+      // outstanding collected-unpaid order for that rider on that date.
+      // OPTIMIZATION (v186): both paths used to SELECT first (to validate
+      // eligibility) then UPDATE — two round trips each, with a race window
+      // between them. Collapsed into a single atomic UPDATE whose WHERE
+      // clause IS the eligibility check; .select() on the result tells us
+      // exactly which/how many rows were actually eligible and got settled.
+      case 'settleRiderCollection': {
+        if (data.orderId) {
+          const { data: updRows, error: updErr } = await supabase
+            .from('orders')
+            .update({ payment_status: 'paid' })
+            .eq('order_id', data.orderId)
+            .eq('payment_status', 'unpaid')
+            .not('rider_collected_at', 'is', null)
+            .select('order_id');
+          if (updErr) return res.json({ success: false, error: updErr.message });
+          if (!updRows || !updRows.length) {
+            return res.json({ success: false, error: 'Order not eligible for settlement' });
+          }
+          return res.json({ success: true, settled: 1 });
+        }
+
+        if (!data.riderId || !data.date) {
+          return res.json({ success: false, error: 'riderId and date required for bulk settle' });
+        }
+        const { data: updRows, error: bulkErr } = await supabase
+          .from('orders')
+          .update({ payment_status: 'paid' })
+          .eq('rider_id', data.riderId).eq('date', data.date)
+          .eq('payment_status', 'unpaid').not('rider_collected_at', 'is', null)
+          .select('order_id');
+        if (bulkErr) return res.json({ success: false, error: bulkErr.message });
+        return res.json({ success: true, settled: (updRows || []).length });
       }
 
       case 'generateReferralCoupons': {
