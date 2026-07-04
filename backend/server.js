@@ -1,8 +1,9 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v177                                      ║
+// ║  Version : v185                                      ║
 // ║  Updated : 2026-06-30                               ║
+// ║  v185    : Version bump; release sync (no backend logic change).
 // ║  v177    : INTEGRITY FIX — coupon burn (incl. Free   ║
 // ║            Tiffin redemption) is no longer perm-     ║
 // ║            anently wasted when the order INSERT      ║
@@ -1562,7 +1563,7 @@ async function _createSingleOrder(
 }
 
 // ─── HEALTH ROUTES ────────────────────────────────────────────────────────────
-app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v177' }));
+app.get('/',     (_req, res) => res.json({ app: 'Tiffo API', status: 'running', version: 'v185' }));
 app.get('/ping', (_req, res) => res.json({ status: 'alive', time: new Date().toISOString() }));
 
 // ─── CONFIG INJECTION ─────────────────────────────────────────────────────────
@@ -3113,6 +3114,7 @@ app.post('/api', async (req, res) => {
       case 'assignRider': {
         const updates = { rider_id: data.riderId };
         await supabase.from('orders').update(updates).eq('order_id', data.orderId);
+        _bumpMenuVersion(); // rider panel detects via version poll → sees newly assigned order
         return res.json({ success: true });
       }
 
@@ -3174,6 +3176,7 @@ app.post('/api', async (req, res) => {
 
         const { error: updateErr } = await supabase.from('orders').update(bulkUpdates).eq('order_id', data.orderId);
         if (updateErr) return res.json({ success: false, error: updateErr.message });
+        _bumpMenuVersion(); // customer + rider detect via version poll → see updated order status
         return res.json({ success: true });
       }
       case 'validateCoupon': {
