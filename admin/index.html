@@ -11913,6 +11913,8 @@ function _renderEarnings(res) {
   }
   const trueCashUpi       = (paidModeTotals['upi'] || 0) + (paidModeTotals['upi_insuf'] || 0);
   const trueCashUdhar     = paidModeTotals['unpaid'] || 0;
+  // Slice of trueCashUdhar that's rider-held cash not yet settled by admin (informational).
+  const grandRiderCollected = filteredRes.report.reduce((s,d)=>s+d.slots.reduce((ss,sl)=>ss+(sl.modes['unpaid']?.riderCollectedTotal||0),0),0);
   const trueCashUpiCount  = (paidModeCounts['upi'] || 0) + (paidModeCounts['upi_insuf'] || 0);
   const trueCashUdharCount = paidModeCounts['unpaid'] || 0;
 
@@ -11937,7 +11939,7 @@ function _renderEarnings(res) {
       <span style="font-size:13px;font-weight:800;color:#60a5fa">${_earnFmt(trueCashUpi)}</span>
     </div>` : '',
     trueCashUdhar > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;${(pendingUpiAmt>0||pendingUdharAmt>0)?'border-bottom:1px solid #334155':''}">
-      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#f87171;font-weight:600"><i class="fa fa-arrow-trend-down" style="font-size:11px"></i>Udhar Collected <span style="font-size:10px;color:#94a3b8;font-weight:400">(${trueCashUdharCount} paid ✓)</span></span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#f87171;font-weight:600"><i class="fa fa-arrow-trend-down" style="font-size:11px"></i>Udhar Collected <span style="font-size:10px;color:#94a3b8;font-weight:400">(${trueCashUdharCount} collected${grandRiderCollected>0?`, ${_earnFmt(grandRiderCollected)} with rider`:''})</span></span>
       <span style="font-size:13px;font-weight:800;color:#f87171">${_earnFmt(trueCashUdhar)}</span>
     </div>` : '',
     (pendingUpiAmt > 0 || pendingUdharAmt > 0) ? `<div style="padding:6px 0;margin-top:2px">
@@ -11995,7 +11997,7 @@ function _renderEarnings(res) {
         <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">
           <i class="fa fa-indian-rupee-sign" style="margin-right:5px;color:#10b981"></i>Total Day Earnings
         </div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:8px">${_earnSession==='all'?'Recharges + Paid UPI + Paid Udhar':(_earnSession==='morning'?'☀️ Morning — Paid UPI + Paid Udhar':'🌙 Evening — Paid UPI + Paid Udhar')}<span style="font-size:10px;color:#4ade80;margin-left:6px;font-weight:600">(admin marked paid only)</span></div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:8px">${_earnSession==='all'?'Recharges + Paid UPI + Collected Udhar':(_earnSession==='morning'?'☀️ Morning — Paid UPI + Collected Udhar':'🌙 Evening — Paid UPI + Collected Udhar')}<span style="font-size:10px;color:#4ade80;margin-left:6px;font-weight:600">(admin-paid + rider-collected cash)</span></div>
         <div style="font-size:34px;font-weight:900;color:#10b981;font-family:var(--ff);line-height:1">${_earnFmt(grandTrueCash)}</div>
         ${breakdownRows.length ? `<div style="margin-top:14px;border-top:1px solid #334155;padding-top:12px">${breakdownRows}</div>` : ''}
       </div>
@@ -12035,8 +12037,9 @@ function _renderEarnings(res) {
           const itemSummary = (o.items||[]).map(i=>`${_esc(i.name)}${i.variantLabel?' '+_esc(i.variantLabel):''} ×${i.qty||1}`).join(', ');
           const statusColor = o.order_status==='delivered'?'#10b981':o.order_status==='pending'?'#f59e0b':'#64748b';
           const isPaid = o.payment_status === 'paid';
-          const payColor = isPaid ? '#10b981' : '#f59e0b';
-          const payLabel = isPaid ? '✓ Paid' : (o.payment_status || 'pending');
+          const isRiderHeld = !isPaid && !!o.rider_collected_at;
+          const payColor = isPaid ? '#10b981' : isRiderHeld ? '#7c3aed' : '#f59e0b';
+          const payLabel = isPaid ? '✓ Paid' : isRiderHeld ? '🏍️ With Rider' : (o.payment_status || 'pending');
           return `<tr style="border-top:1px solid #f1f5f9">
             <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a">${_esc(o.name)||'—'}</td>
             <td style="padding:8px 10px;font-size:12px;color:#64748b;font-family:monospace">${o.phone||'—'}</td>

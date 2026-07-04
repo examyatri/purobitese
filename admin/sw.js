@@ -1,6 +1,13 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v14.3  |  Updated : 2026-07-04
+   Version : v14.4  |  Updated : 2026-07-04
+
+   CHANGES v14.4 (v188):
+   - Cache bumped → tiffo-admin-v43 (v188 — Earnings fix: rider cash
+     collection on unpaid/udhar orders now counts as real earnings
+     the moment the rider marks it collected, instead of waiting for
+     admin to settle. Force refresh so admins see corrected Earnings
+     totals and the new "With Rider" payment badge immediately.)
 
    CHANGES v14.3 (v187):
    - Cache bumped → tiffo-admin-v42 (v187 — Update Order modal:
@@ -105,7 +112,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v42'; // v187: Update Order modal payment-pending select now actually blinks
+const CACHE      = 'tiffo-admin-v43'; // v188: rider-collection earnings fix — force refresh
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */
