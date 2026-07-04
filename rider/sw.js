@@ -1,6 +1,31 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v12.1  |  Updated : 2026-06-30
+   Version : v12.4  |  Updated : 2026-07-04
+
+   CHANGES v12.4 (v186):
+   - Cache bumped → tiffo-rider-v33 (v186 — Unpaid/Udhar payment
+     workflow: real payment-status tags (Wallet/Paid/blinking
+     UNPAID) instead of hardcoded Cash, Collect Payment popup
+     before marking unpaid orders delivered, new Cash Collected
+     stat + day-summary. Force refresh so riders get this today.)
+
+   CHANGES v12.3:
+   - Cache bumped → tiffo-rider-v32 (v185 — release sync; version bump)
+   - Cache bumped → tiffo-rider-v31 (v184 sync — admin fixed real
+     root cause of blank User Map: missing </div> caused #p-usermap
+     to nest inside display:none #p-analytics)
+
+   CHANGES v12.2:
+   - Cache bumped → tiffo-rider-v30 (v183 — fresh global bump across
+     all three portals)
+   - FONT_CACHE bumped: tiffo-fonts-v1 → tiffo-fonts-v3 (unified
+     version string with admin/customer sw.js — this cache is shared
+     origin-wide across all portals regardless of which SW writes it)
+   - TILE_CACHE bumped: tiffo-osm-tiles-v1 → tiffo-osm-tiles-v2
+   - activate() handler fixed: stale tiffo-fonts-* caches were
+     previously NOT cleaned up here (only rider + tile caches were) —
+     same root-cause bug found and fixed in admin/sw.js v182. Now
+     properly versioned and cleaned up like every other cache.
 
    CHANGES v12.1:
    - Cache bumped → tiffo-rider-v29 (v176 — version headers updated
@@ -69,9 +94,9 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v29'; // v176: version headers updated to v176 across all panels
-const FONT_CACHE = 'tiffo-fonts-v1';
-const TILE_CACHE = 'tiffo-osm-tiles-v1';
+const CACHE      = 'tiffo-rider-v33'; // v186: Unpaid/Udhar payment workflow overhaul
+const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
+const TILE_CACHE = 'tiffo-osm-tiles-v2'; // v183: fresh bump
 
 /* Only rider assets */
 const PRECACHE = ['./index.html', './manifest.json', './sw.js'];
@@ -134,13 +159,16 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     Promise.all([
-      // Scoped cleanup: only delete OLD rider/tile caches — never touch main or admin
+      // Scoped cleanup: only delete OLD rider/tile/font caches — never touch main or admin
+      // BUG FIX: font cache was previously never cleaned up here either — same
+      // root-cause class of bug found and fixed in admin/sw.js v182.
       caches.keys().then(keys =>
         Promise.all(
           keys
             .filter(k =>
               (k.startsWith('tiffo-rider-') && k !== CACHE) ||
-              (k.startsWith('tiffo-osm-tiles-') && k !== TILE_CACHE)
+              (k.startsWith('tiffo-osm-tiles-') && k !== TILE_CACHE) ||
+              (k.startsWith('tiffo-fonts-') && k !== FONT_CACHE)
             )
             .map(k => caches.delete(k))
         )

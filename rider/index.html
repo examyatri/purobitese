@@ -1,8 +1,32 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v176                                    ║
-     ║  Updated : 2026-06-30                               ║
+     ║  Version : v186                                    ║
+     ║  Updated : 2026-07-04                               ║
+     ║  v186: Unpaid/Udhar payment workflow overhaul.       ║
+     ║        Payment tags fixed everywhere (home card,     ║
+     ║        PDF export, delivery bar, route summary) to   ║
+     ║        show real status — Wallet/Paid/blinking       ║
+     ║        UNPAID — instead of hardcoded Cash. Collect   ║
+     ║        Payment popup before marking an unpaid order  ║
+     ║        delivered ("Not Now" keeps it pending for      ║
+     ║        reattempt). New Cash Collected stat + day     ║
+     ║        summary.                                       ║
+     ║  v184: Version sync with admin panel. Admin v184     ║
+     ║        fixed the real root cause of the blank User  ║
+     ║        Map page: #p-usermap was nested inside        ║
+     ║        display:none #p-analytics due to a missing   ║
+     ║        closing </div> in HTML. No functional changes ║
+     ║        to rider portal.                              ║
+     ║  v183: Fresh global cache bump across all three      ║
+     ║        portals. Fixed sw.js activate() handler: stale ║
+     ║        tiffo-fonts-* caches were previously treated   ║
+     ║        as "permanent" and never cleaned up, so a bad/ ║
+     ║        stale cached CDN asset could be served forever ║
+     ║        regardless of how many times the main app      ║
+     ║        cache was version-bumped (same root-cause bug  ║
+     ║        found and fixed in admin panel v182). No other ║
+     ║        functional changes to this portal.              ║
      ║  v165: Delivery UX fix — order_id now shown on      ║
      ║        every stop card AND on the active-delivery   ║
      ║        bar (rider can confirm which order he's      ║
@@ -105,7 +129,7 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.2)}}
 
 /* Stats bar */
-.stats-bar{display:grid;grid-template-columns:repeat(3,1fr);background:white;border-bottom:1px solid var(--lt);padding:12px 0}
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);background:white;border-bottom:1px solid var(--lt);padding:12px 0}
 .stat-item{text-align:center}
 .stat-num{font-family:var(--ff);font-weight:700;font-size:22px;color:var(--p)}
 .stat-lbl{font-size:11px;color:var(--mu)}
@@ -689,6 +713,9 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 .ptr-spinner-r{display:none;width:16px;height:16px;border:2px solid #f0f0f0;
   border-top-color:var(--p);border-radius:50%;animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
+/* v186: bold-blinking UNPAID tag so rider never forgets to collect cash */
+.pay-tag-blink{animation:pay-blink 1s step-start infinite}
+@keyframes pay-blink{50%{opacity:.35}}
 </style>
 <script src="https://purobitese-api.onrender.com/config.js" defer></script>
 </head>
@@ -755,6 +782,7 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
     <div class="stat-item"><div class="stat-num" id="stat-delivered">0</div><div class="stat-lbl">Delivered Today</div></div>
     <div class="stat-item"><div class="stat-num" id="stat-pending">0</div><div class="stat-lbl">Pending Today</div></div>
     <div class="stat-item"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Total Delivered</div></div>
+    <div class="stat-item" style="cursor:pointer" onclick="showDaySummary()"><div class="stat-num" id="stat-collected" style="color:#dc2626">₹0</div><div class="stat-lbl">Cash Collected</div></div>
   </div>
 
   <!-- Main Tabs -->
@@ -1607,6 +1635,13 @@ function updateStats() {
   document.getElementById('stat-total').textContent      = _delivered.length;
   document.getElementById('pending-count').textContent   = _pending.length;
   document.getElementById('delivered-count').textContent = _delivered.length;
+  // v186: today's unpaid/udhar cash the rider is currently holding (collected
+  // from customer at delivery, persisted via rider_collected_at). Stays
+  // accurate across page reloads since it reads a real DB field, not a
+  // session-only flag.
+  const todayCollected = todayDel.filter(o => o.rider_collected_at);
+  const collectedTotal = todayCollected.reduce((s,o) => s + (Number(o.final_amount)||0), 0);
+  document.getElementById('stat-collected').textContent = '₹' + collectedTotal;
 }
 
 /* ─── RENDER ─────────────────────────────────────────── */
@@ -1615,8 +1650,6 @@ function renderOrderCard(o) {
   const isDone    = status === 'delivered';
   const isOut     = status === 'out for delivery' || status === 'out_for_delivery';
   const items     = (o.items || []).map(i => `${_esc(i.name)}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
-  const payClass  = o.payment_mode === 'upi_insuf' ? 'pay-cash' : o.user_type === 'subscriber' ? 'pay-wallet' : 'pay-cash';
-  const payLabel  = o.payment_mode === 'upi_insuf' ? '💳 UPI'    : o.user_type === 'subscriber' ? '💳 Wallet'  : '💵 Cash';
   const safePhone = o.phone || '';
   const slotBadge = o.slot
     ? `<span style="background:${o.slot==='morning'?'#fffbeb':'#eef2ff'};color:${o.slot==='morning'?'#d97706':'#4f46e5'};border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--ff)">${o.slot==='morning'?'☀️ Morning':'🌙 Evening'}</span>`
@@ -1650,7 +1683,7 @@ function renderOrderCard(o) {
         <span class="o-id">${_seqBadge}${o.order_id}</span>
         <div style="display:flex;gap:4px;flex-wrap:wrap">${slotBadge}${_distBadge}</div>
       </div>
-      <span class="${payClass}">${payLabel}</span>
+      ${_payTagHtml(o)}
     </div>
     <div style="margin-bottom:6px">
       <span class="o-name">👤 ${_esc(o.name) || '—'}</span>
@@ -1713,16 +1746,31 @@ async function markOutForDelivery(orderId) {
 
 /* ─── MARK DELIVERED (optimistic UI) ─────────────────── */
 async function markDelivered(orderId) {
+  const o = _pending.find(x => x.order_id === orderId);
+  // Unpaid (udhar) order — rider must confirm cash collection first.
+  // "Not Now" leaves the order pending so the rider can reattempt delivery
+  // once the customer is available to pay.
+  if (o && (o.payment_status || '').toLowerCase() === 'unpaid') {
+    const confirmed = await showCollectPopup(o);
+    if (!confirmed) { rToast('⏭ Not delivered — reattempt when customer available'); return; }
+    await _doMarkDelivered(orderId, true);
+    return;
+  }
+  await _doMarkDelivered(orderId, false);
+}
+
+async function _doMarkDelivered(orderId, collected) {
   const btn  = document.getElementById('del-btn-' + orderId);
   const card = document.getElementById('card-' + orderId);
   if (!btn || btn.disabled) return;
   btn.textContent = '…'; btn.disabled = true;
   card.style.opacity = '0.6';
   try {
-    await api('updateOrderStatus', { orderId, status: 'delivered' });
+    await api('updateOrderStatus', collected ? { orderId, status: 'delivered', collected: true } : { orderId, status: 'delivered' });
     const idx = _pending.findIndex(o => o.order_id === orderId);
     if (idx !== -1) {
       const order = { ..._pending[idx], order_status: 'delivered' };
+      if (collected) { order._riderCollected = true; order.rider_collected_at = new Date().toISOString(); } // for the end-of-day summary tally
       _pending.splice(idx, 1);
       _delivered.unshift(order);
     }
@@ -2017,7 +2065,7 @@ function generateRiderPDF() {
   const rows = filtered.map((o,i) => {
     const items = (o.items||[]).map(it=>`${_esc(it.name)}${it.qty>1?` ×${it.qty}`:''}`).join(', ');
     const slot  = o.slot ? (o.slot==='morning'?'☀️ Morning':'🌙 Evening') : (_isSlotMatch(o,'morning')?'☀️ Morning':'🌙 Evening');
-    const pay   = o.payment_mode === 'upi_insuf' ? '💳 UPI' : o.user_type==='subscriber' ? '💳 Wallet' : '💵 Cash';
+    const pay   = _payTagText(o);
     const status= (o.order_status||'pending').replace(/_/g,' ');
     const _cm   = (o.address||'').match(/Coordinates\s*:\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)/i)
                || (o.address||'').match(/latitude\s*=\s*([+-]?\d+\.?\d*)[,\s]+longitude\s*=\s*([+-]?\d+\.?\d*)/i);
@@ -2136,6 +2184,100 @@ function _haversine(lat1, lng1, lat2, lng2) {
 // ── Shorten address display ───────────────────────────────────
 // Strips embedded coordinate/plus-code lines from both address formats
 // so riders see only the human-readable part in cards and popups.
+// ── Payment status label (v186) ─────────────────────────────────────────
+// FIX: every render spot used to derive the tag purely from user_type
+// ('subscriber' → Wallet, else → Cash), which showed 'Cash' even for orders
+// the admin has explicitly marked Unpaid/udhar or already Paid. Real
+// payment_status (set by admin / at order placement) is now the source of
+// truth: wallet | paid | unpaid | pending(=normal cash-on-delivery).
+function _payTag(o) {
+  const ps = (o.payment_status || '').toLowerCase();
+  if (ps === 'wallet' || o.payment_mode === 'wallet') return { label: '💳 Wallet', color: '#6d28d9', bg: '#ede9fe' };
+  if (ps === 'paid')   return { label: '✅ Paid',    color: '#166534', bg: '#dcfce7' };
+  if (ps === 'unpaid') return { label: '🔴 UNPAID',  color: '#fff',    bg: '#ef4444', blink: true };
+  if (o.payment_mode === 'upi_insuf') return { label: '💳 UPI', color: '#0369a1', bg: '#e0f2fe' };
+  return { label: '💵 Cash', color: '#166534', bg: '#dcfce7' }; // normal cash-on-delivery, nothing special to track
+}
+// Plain text label only (for places needing a string, e.g. PDF export)
+function _payTagText(o) {
+  return _payTag(o).label;
+}
+// Inline-styled HTML chip. `blinkClass` should exist in CSS (added alongside
+// this helper) so the Unpaid tag is impossible for a rider to miss.
+function _payTagHtml(o) {
+  const t = _payTag(o);
+  return `<span class="${t.blink ? 'pay-tag-blink' : ''}" style="background:${t.bg};color:${t.color};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:800;white-space:nowrap">${t.label}</span>`;
+}
+
+// ── Collect Payment popup controller (v186) ─────────────────────────────
+// Returns a Promise<boolean>: true if rider tapped "Payment Collected",
+// false if "Not Now" (order should stay NOT delivered so rider can reattempt).
+let _collectPopupResolve = null;
+function showCollectPopup(o) {
+  return new Promise(resolve => {
+    _collectPopupResolve = resolve;
+    const items  = (o.items || []).map(i => `${_esc(i.name)}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ') || '—';
+    const coupon = o.coupon_code
+      ? `<div style="display:flex;justify-content:space-between;font-size:12.5px;color:#64748b;margin-top:4px"><span>Coupon ${_esc(o.coupon_code)}</span><span>-₹${o.discount || 0}</span></div>`
+      : '';
+    document.getElementById('_collect-details').innerHTML = `
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:4px">${o.order_id}</div>
+      <div style="font-weight:700;font-size:14px;color:#0f172a;margin-bottom:6px">👤 ${_esc(o.name) || 'Customer'}</div>
+      <div style="font-size:12.5px;color:#334155">${items}</div>
+      ${coupon}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1.5px dashed #fecaca">
+        <span style="font-size:13px;font-weight:700;color:#334155">Collect Amount</span>
+        <span style="font-size:22px;font-weight:900;color:#dc2626;font-family:var(--ff)">₹${o.final_amount || 0}</span>
+      </div>`;
+    document.getElementById('_collect-overlay').style.display = 'flex';
+  });
+}
+function _collectPopupSkip() {
+  document.getElementById('_collect-overlay').style.display = 'none';
+  if (_collectPopupResolve) { _collectPopupResolve(false); _collectPopupResolve = null; }
+}
+function _collectPopupConfirm() {
+  document.getElementById('_collect-overlay').style.display = 'none';
+  if (_collectPopupResolve) { _collectPopupResolve(true); _collectPopupResolve = null; }
+}
+
+// ── Day Summary (v186) — delivered count + unpaid cash collected today ──
+function showDaySummary() {
+  const today    = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+  const todayDel = _delivered.filter(o => o.date === today);
+  const collected = todayDel.filter(o => o.rider_collected_at);
+  const collectedTotal = collected.reduce((s,o) => s + (Number(o.final_amount)||0), 0);
+
+  document.getElementById('_daysummary-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-family:var(--ff);font-size:24px;font-weight:900;color:#16a34a">${todayDel.length}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">Delivered Today</div>
+      </div>
+      <div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-family:var(--ff);font-size:24px;font-weight:900;color:#dc2626">₹${collectedTotal}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px">Unpaid Cash Collected</div>
+      </div>
+    </div>
+    ${collected.length ? `
+    <div style="font-size:11.5px;color:#94a3b8;margin-bottom:8px">${collected.length} order${collected.length!==1?'s':''} — hand this cash over to admin</div>
+    <div style="max-height:220px;overflow-y:auto">
+      ${collected.map(o => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
+          <div>
+            <div style="font-weight:700;font-size:13px;color:#0f172a">${_esc(o.name)||'Customer'}</div>
+            <div style="font-size:11px;color:#94a3b8">${o.order_id}</div>
+          </div>
+          <div style="font-weight:800;font-size:14px;color:#dc2626">₹${o.final_amount||0}</div>
+        </div>`).join('')}
+    </div>` : `<div style="text-align:center;color:#94a3b8;font-size:12.5px;padding:8px 0">No unpaid cash collected today</div>`}
+  `;
+  document.getElementById('_daysummary-overlay').style.display = 'flex';
+}
+function hideDaySummary() {
+  document.getElementById('_daysummary-overlay').style.display = 'none';
+}
+
 function _shortAddr(addr, hideRoom) {
   if (!addr) return '—';
   // Process line-by-line: drop metadata lines, keep everything else.
@@ -2677,7 +2819,11 @@ function _renderStopList() {
     const activeClass= isActive ? 'active-stop' : '';
     const delivClass = s.delivered ? 'delivered-stop' : s.skipped ? 'skipped-stop' : '';
     const noClass    = !hasCoords ? 'no-coords-stop' : '';
-    const amount     = '';
+    // Payment status badge (v186 fix): map/route stop cards previously showed
+    // no payment info at all. Reuse the single source-of-truth _payTagHtml()
+    // so Wallet/Paid/Unpaid/Cash is consistent across home, map, and
+    // start-delivery — and Unpaid still bold-blinks here too.
+    const amount     = _payTagHtml(s.order);
     // "NEAREST" badge only on active stop during delivery
     const nearestBadge = isActive ? `<span style="font-size:9px;font-weight:800;background:#f59e0b;color:#1a1f2e;border-radius:6px;padding:2px 6px;letter-spacing:.4px">NEAREST</span>` : '';
 
@@ -3152,9 +3298,12 @@ function _updateDeliveryBar() {
       srcEl.className = 'src-admin';
     }
     document.getElementById('dbc-addr').textContent = _shortAddr(cur.order.address, true);
-    const payLabel = cur.order.payment_mode === 'upi_insuf' ? '💳 UPI' : cur.order.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
+    const _pt = _payTag(cur.order);
     document.getElementById('dbc-amount').textContent = '';
-    document.getElementById('dbc-pay').textContent = payLabel;
+    const dbcPayEl = document.getElementById('dbc-pay');
+    dbcPayEl.textContent = _pt.label;
+    dbcPayEl.style.color = _pt.color;
+    dbcPayEl.classList.toggle('pay-tag-blink', !!_pt.blink);
     const items = (cur.order.items || []).map(i => `${i.name}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ');
     document.getElementById('dbc-items').textContent = items || '—';
   } else {
@@ -3166,6 +3315,19 @@ async function deliveryMarkDone() {
   const s = _mapStops[_deliveryIdx];
   if (!s || s._syncing) return;
 
+  if ((s.order.payment_status || '').toLowerCase() === 'unpaid') {
+    const confirmed = await showCollectPopup(s.order);
+    if (!confirmed) { rToast('⏭ Not delivered — reattempt when customer available'); return; }
+    await _doDeliveryMarkDone(true);
+    return;
+  }
+  await _doDeliveryMarkDone(false);
+}
+
+async function _doDeliveryMarkDone(collected) {
+  const s = _mapStops[_deliveryIdx];
+  if (!s || s._syncing) return;
+
   // Optimistic UI first
   const btn = document.getElementById('dbar-deliver');
   btn.textContent = '⏳ Saving…';
@@ -3174,15 +3336,15 @@ async function deliveryMarkDone() {
 
   try {
     // Sync to backend — same API as markDelivered in the order cards
-    await api('updateOrderStatus', {
-      orderId: s.order.order_id,
-      status:  'delivered'
-    });
+    await api('updateOrderStatus', collected
+      ? { orderId: s.order.order_id, status: 'delivered', collected: true }
+      : { orderId: s.order.order_id, status: 'delivered' });
 
     // Update in-memory state so the order list + stats reflect this instantly
     const idx = _pending.findIndex(o => o.order_id === s.order.order_id);
     if (idx !== -1) {
       const orderCopy = { ..._pending[idx], order_status: 'delivered' };
+      if (collected) { orderCopy._riderCollected = true; orderCopy.rider_collected_at = new Date().toISOString(); } // for the end-of-day summary tally
       _pending.splice(idx, 1);
       _delivered.unshift(orderCopy);
       s.order = orderCopy; // keep map stop in sync
@@ -3374,7 +3536,7 @@ function _showCelebration() {
   const deliveredRows = delivered.map((s, i) => {
     const o = s.order;
     const items = (o.items||[]).map(i => _esc(i.name)).join(', ') || '—';
-    const pay = o.payment_mode === 'upi_insuf' ? '💳 UPI' : o.user_type === 'subscriber' ? '💳 Wallet' : '💵 Cash';
+    const pay = _payTagText(o);
     return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)">
       <div style="width:26px;height:26px;background:#10b981;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;color:white">${i+1}</div>
       <div style="flex:1;min-width:0">
@@ -3395,6 +3557,10 @@ function _showCelebration() {
       </div>
     </div>`;
   }).join('') : '';
+
+  // ── Cash collected this route from unpaid/udhar orders ──
+  const collectedOrders = delivered.filter(s => s.order._riderCollected);
+  const collectedTotal  = collectedOrders.reduce((sum, s) => sum + (Number(s.order.final_amount) || 0), 0);
 
   // ── Build celebration HTML ──
   const celebEl = document.getElementById('map-celebration');
@@ -3424,6 +3590,12 @@ function _showCelebration() {
       </div>
 
       ${durationTxt ? `<div style="background:rgba(255,255,255,.06);border-radius:10px;padding:10px 14px;text-align:center;margin-bottom:18px;font-size:13px;color:#cbd5e1"><i class="fa fa-clock" style="margin-right:6px;color:#94a3b8"></i>Total time: <b style="color:#f1f5f9">${durationTxt}</b></div>` : ''}
+
+      ${collectedOrders.length ? `<div style="background:rgba(239,68,68,.12);border:1.5px solid rgba(239,68,68,.3);border-radius:12px;padding:14px 16px;text-align:center;margin-bottom:18px">
+        <div style="font-size:11px;color:#fca5a5;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Unpaid Cash Collected</div>
+        <div style="font-family:var(--ff);font-size:26px;font-weight:900;color:#fca5a5;margin-top:2px">₹${collectedTotal}</div>
+        <div style="font-size:11.5px;color:#94a3b8;margin-top:2px">${collectedOrders.length} order${collectedOrders.length!==1?'s':''} — hand this over to admin</div>
+      </div>` : ''}
 
       <!-- Delivered list -->
       ${delivered.length ? `
@@ -4698,6 +4870,37 @@ if ('serviceWorker' in navigator) {
   if (!navigator.onLine) setOffline();
 })();
 </script>
+
+<!-- ══════════════════════════════════════════════
+     COLLECT PAYMENT POPUP (v186) — shown before marking an 'unpaid'
+     (udhar) order delivered. Rider confirms cash collected from customer,
+     or taps "Not Now" to reattempt delivery later (order stays pending).
+     Controlled by showCollectPopup() / _collectPopupConfirm() / _collectPopupSkip().
+══════════════════════════════════════════════ -->
+<div id="_collect-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;align-items:flex-end;justify-content:center" onclick="_collectPopupSkip()">
+  <div class="_collect-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:34px">💰</div>
+      <p style="font-size:18px;font-weight:800;margin:8px 0 2px;color:#0f172a">Collect Payment</p>
+      <p style="font-size:13px;color:#64748b;margin:0">This order is <b>Unpaid</b> — please collect cash from the customer before marking delivered.</p>
+    </div>
+    <div id="_collect-details" style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:14px;padding:14px 16px;margin-bottom:18px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_collectPopupSkip()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:14px;font-weight:700;cursor:pointer;color:#334155">⏭ Not Now</button>
+      <button onclick="_collectPopupConfirm()" style="flex:1;padding:14px;border-radius:13px;border:none;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-size:14px;font-weight:700;cursor:pointer">✅ Payment Collected</button>
+    </div>
+  </div>
+</div>
+
+<div id="_daysummary-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;align-items:flex-end;justify-content:center" onclick="hideDaySummary()">
+  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
+    <p style="font-size:18px;font-weight:800;margin:0 0 14px;color:#0f172a;text-align:center">📊 Today's Summary</p>
+    <div id="_daysummary-body"></div>
+    <button onclick="hideDaySummary()" style="width:100%;margin-top:16px;padding:14px;border-radius:13px;border:none;background:#0f172a;color:#fff;font-size:15px;font-weight:700;cursor:pointer">Close</button>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════
      EXIT CONFIRM — rider back button guard
