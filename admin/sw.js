@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v14.2  |  Updated : 2026-07-04
+   Version : v14.3  |  Updated : 2026-07-04
+
+   CHANGES v14.3 (v187):
+   - Cache bumped → tiffo-admin-v42 (v187 — Update Order modal:
+     pending payment-status select now actually blinks red via
+     .bmo-payment-pending / @keyframes bmoPaymentBlink, instead of
+     a static border. Force refresh so admins see the blink.)
 
    CHANGES v14.2 (v186):
    - Cache bumped → tiffo-admin-v41 (v186 — Unpaid/Udhar payment
@@ -99,7 +105,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v41'; // v186: Unpaid/Udhar payment workflow overhaul
+const CACHE      = 'tiffo-admin-v42'; // v187: Update Order modal payment-pending select now actually blinks
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */
