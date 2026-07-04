@@ -7,6 +7,7 @@
    - FONT_CACHE re-bumped: tiffo-fonts-v2 → tiffo-fonts-v3 (unified
      version string across admin/customer/rider sw.js — this cache
      is shared origin-wide regardless of which portal's SW writes it)
+   - Cache bumped → tiffo-admin-v40 (v185 — release sync; version bump)
    - Cache bumped → tiffo-admin-v38
 
    CHANGES v13.2:
@@ -92,7 +93,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v39'; // v184: THE REAL FIX — #p-usermap was nested inside display:none #p-analytics due to missing </div> in source HTML
+const CACHE      = 'tiffo-admin-v40'; // v185: version bump; release sync
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */

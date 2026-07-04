@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v184                                   ║
+     ║  Version : v185                                   ║
      ║  Updated : 2026-07-01                               ║
      ║  Changes : v184 — THE ACTUAL ROOT CAUSE FIXED:       ║
      ║            #p-usermap was nested INSIDE #p-analytics  ║
@@ -3936,7 +3936,7 @@ function renderOrdersTable(orders) {
             <button class="act-btn" style="background:#eff6ff;color:#1d4ed8" onclick="openWalletHistory('${o.phone}','${_escAttr(o.name)}')"><i class="fa fa-wallet"></i> Wallet</button>
           </div>
           <div style="display:flex;gap:5px;flex-wrap:wrap">
-            <button class="act-btn act-btn-update" onclick="openUpdateModal('${o.order_id}','${o.rider_id||''}','${o.order_status||'pending'}','${o.payment_status||'pending'}')"><i class="fa fa-pen-to-square"></i> Update</button>
+            <button class="act-btn act-btn-update" onclick="openUpdateModal('${o.order_id}','${o.rider_id||''}','${o.order_status||'pending'}','${o.payment_status||'pending'}','${_escAttr(o.area||'')}')"><i class="fa fa-pen-to-square"></i> Update</button>
             <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${_escAttr(o.name)}')"><i class="fa fa-ban"></i> Reject</button>
           </div>
         </div>
@@ -4178,9 +4178,13 @@ async function assignRider(orderId, riderId) {
 }
 
 // ── Update Modal (Bulk: Rider + Status + Payment) ──
-function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment) {
+function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment, customerArea) {
+  // Auto-select if exactly 1 rider exists and order is unassigned
+  const singleRider = _ridersCache.length === 1 && !currentRiderId ? _ridersCache[0] : null;
+  const effectiveRiderId = singleRider ? singleRider.rider_id : currentRiderId;
+
   const riderOpts = _ridersCache.map(r =>
-    `<option value="${r.rider_id}" ${r.rider_id === currentRiderId ? 'selected' : ''}>${_esc(r.name)} (#${r.rider_id})</option>`
+    `<option value="${r.rider_id}" ${r.rider_id === effectiveRiderId ? 'selected' : ''}>${_esc(r.name)} (#${r.rider_id})</option>`
   ).join('');
 
   const statusOpts = ['pending','preparing','out for delivery','delivered'].map(s =>
@@ -4191,9 +4195,30 @@ function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment)
     `<option value="${p}" ${currentPayment === p ? 'selected' : ''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
   ).join('');
 
+  // Customer area chip — shown at top so admin sees it before assigning rider
+  const areaChip = customerArea
+    ? `<div style="display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:16px">
+        <i class="fa fa-location-dot" style="color:#16a34a;font-size:15px;flex-shrink:0"></i>
+        <div>
+          <div style="font-size:10.5px;font-weight:700;color:#15803d;letter-spacing:.04em;text-transform:uppercase">Customer Area</div>
+          <div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:1px">${_esc(customerArea)}</div>
+        </div>
+      </div>`
+    : '';
+
+  // Single-rider auto-assign notice
+  const autoRiderNote = singleRider
+    ? `<div style="display:flex;align-items:center;gap:6px;background:#faf5ff;border:1.5px solid #ddd6fe;border-radius:8px;padding:7px 11px;margin-top:6px">
+        <i class="fa fa-circle-check" style="color:#7c3aed;font-size:13px"></i>
+        <span style="font-size:12px;color:#6d28d9;font-weight:600">${_esc(singleRider.name)} auto-assigned (only rider)</span>
+      </div>`
+    : '';
+
   openMo(`
     <div class="mo-title"><i class="fa fa-pen-to-square" style="color:#7c3aed"></i> Update Order</div>
-    <p style="color:#64748b;font-size:12.5px;margin-bottom:18px">Order: <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code></p>
+    <p style="color:#64748b;font-size:12.5px;margin-bottom:14px">Order: <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code></p>
+
+    ${areaChip}
 
     <div style="margin-bottom:14px">
       <div class="bulk-mo-label"><i class="fa fa-motorcycle" style="color:#7c3aed"></i> Assign Rider</div>
@@ -4201,6 +4226,7 @@ function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment)
         <option value="">— No change / Unassigned —</option>
         ${riderOpts}
       </select>
+      ${autoRiderNote}
     </div>
 
     <div style="margin-bottom:14px">
