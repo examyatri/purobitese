@@ -1,8 +1,14 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v185                                   ║
-     ║  Updated : 2026-07-01                               ║
+     ║  Version : v186                                   ║
+     ║  Updated : 2026-07-04                               ║
+     ║  Changes : v186 — Unpaid/Udhar payment workflow      ║
+     ║            overhaul: Update Order modal locks         ║
+     ║            payment status after admin confirms         ║
+     ║            paid/unpaid (red-highlighted while          ║
+     ║            pending), new Earnings → Rider Collections  ║
+     ║            tab to settle cash handed over by riders.   ║
      ║  Changes : v184 — THE ACTUAL ROOT CAUSE FIXED:       ║
      ║            #p-usermap was nested INSIDE #p-analytics  ║
      ║            in the browser's parsed DOM, because       ║
@@ -198,6 +204,10 @@ body{display:flex;min-height:100vh;background:#fff;font-family:var(--fb);color:#
   animation:badgePulse 2s infinite;
 }
 @keyframes badgePulse{0%,100%{box-shadow:0 0 0 0 rgba(230,57,70,.4)}50%{box-shadow:0 0 0 4px rgba(230,57,70,0)}}
+/* Update Order modal — pending payment status select must blink red so admin
+   never misses confirming Paid/Unpaid before closing the modal (v186 fix). */
+.bmo-payment-pending{animation:bmoPaymentBlink 1s step-start infinite}
+@keyframes bmoPaymentBlink{50%{border-color:#fecaca;box-shadow:0 0 0 3px transparent;background:#fff5f5}}
 
 .sb-footer{
   padding:18px 20px;border-top:1px solid rgba(255,255,255,.07);
@@ -1943,6 +1953,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .18s;background:transparent;color:#64748b">
             <i class="fa fa-wallet" style="margin-right:6px"></i> Wallet Recharges
           </button>
+          <button id="earn-tab-collections" onclick="switchEarnTab('collections')"
+            style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;transition:all .18s;background:transparent;color:#64748b">
+            <i class="fa fa-motorcycle" style="margin-right:6px"></i> Rider Collections
+          </button>
         </div>
 
         <!-- ── TAB 1: Order Revenue ── -->
@@ -1998,6 +2012,22 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           </div>
           <div id="earn-recharge-summary" style="display:none;margin-bottom:16px"></div>
           <div id="earn-recharge-report"></div>
+        </div>
+
+        <!-- ── TAB 3: Rider Collections (unpaid/udhar cash riders are holding) ── -->
+        <div id="earn-pane-collections" style="display:none">
+          <div class="card" style="margin-bottom:14px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="font-size:12.5px;color:#64748b;line-height:1.5">
+              <i class="fa fa-circle-info" style="color:#7c3aed;margin-right:5px"></i>
+              Orders marked <b>Unpaid</b> where the rider has confirmed collecting cash from the customer, but you haven't yet marked it collected from the rider. Settle once the rider hands over the cash.
+            </div>
+            <button onclick="loadRiderCollections()"
+              style="display:flex;align-items:center;gap:7px;padding:8px 20px;border-radius:10px;border:none;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px #7c3aed22;white-space:nowrap">
+              <i class="fa fa-search"></i> Fetch
+            </button>
+          </div>
+          <div id="earn-collections-summary" style="display:none;margin-bottom:16px"></div>
+          <div id="earn-collections-report"></div>
         </div>
       </div>
 
@@ -4191,9 +4221,29 @@ function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment,
     `<option value="${s}" ${currentStatus === s ? 'selected' : ''}>${s === 'out for delivery' ? 'Out for Delivery' : s.charAt(0).toUpperCase()+s.slice(1)}</option>`
   ).join('');
 
-  const payOpts = ['pending','paid','unpaid','wallet'].map(p =>
-    `<option value="${p}" ${currentPayment === p ? 'selected' : ''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
-  ).join('');
+  // ── Payment Status section (v186) ──────────────────────────────────────
+  // 'wallet' → auto-set at order placement (subscriber paid via wallet at
+  //   the time of ordering) — nothing for admin to do, shown locked.
+  // 'paid' / 'unpaid' → already confirmed once by admin via Save — LOCKED
+  //   here to prevent accidental re-edit. 'unpaid' corrections only happen
+  //   via Earnings → Rider Collections (cash handover from rider).
+  // 'pending' → still needs admin action — editable dropdown, RED highlight
+  //   so it isn't missed, and Save only ever moves it away from 'pending'.
+  const _payLockedLabels = {
+    wallet: { icon: 'fa-wallet',       color: '#7c3aed', bg: '#faf5ff', border: '#ddd6fe', text: 'Wallet — paid at order placement, no action needed' },
+    paid:   { icon: 'fa-circle-check', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', text: 'Paid — confirmed, locked' },
+    unpaid: { icon: 'fa-clock',        color: '#b45309', bg: '#fffbeb', border: '#fde68a', text: 'Unpaid (Udhar) — locked. Settle via Earnings → Rider Collections once rider hands over the cash.' }
+  };
+  const paymentSectionHtml = _payLockedLabels[currentPayment]
+    ? `<div style="display:flex;align-items:center;gap:8px;background:${_payLockedLabels[currentPayment].bg};border:1.5px solid ${_payLockedLabels[currentPayment].border};border-radius:9px;padding:10px 12px">
+        <i class="fa ${_payLockedLabels[currentPayment].icon}" style="color:${_payLockedLabels[currentPayment].color};font-size:14px"></i>
+        <span style="font-size:12.5px;font-weight:600;color:${_payLockedLabels[currentPayment].color}">${_payLockedLabels[currentPayment].text}</span>
+      </div>`
+    : `<select id="bmo-payment" class="bulk-mo-select bmo-payment-pending" style="border-color:#ef4444;box-shadow:0 0 0 3px #fef2f2">
+        <option value="">— Select: Paid or Unpaid —</option>
+        <option value="paid">Paid</option>
+        <option value="unpaid">Unpaid (Udhar — collect cash on delivery)</option>
+      </select>`;
 
   // Customer area chip — shown at top so admin sees it before assigning rider
   const areaChip = customerArea
@@ -4238,9 +4288,7 @@ function openUpdateModal(orderId, currentRiderId, currentStatus, currentPayment,
 
     <div style="margin-bottom:20px">
       <div class="bulk-mo-label"><i class="fa fa-indian-rupee-sign" style="color:#b45309"></i> Payment Status</div>
-      <select id="bmo-payment" class="bulk-mo-select">
-        ${payOpts}
-      </select>
+      ${paymentSectionHtml}
     </div>
 
     <button class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;font-weight:700;border-radius:12px;min-height:52px" onclick="doBulkUpdate('${orderId}')">
@@ -4267,6 +4315,7 @@ async function doBulkUpdate(orderId) {
 
     const res = await api('bulkUpdateOrder', payload);
     if (!res.success) { aToast(res.error || 'Update failed'); return; }
+    if (res.warning) aToast('⚠️ ' + res.warning);
 
     // Update local cache so table re-renders immediately without a full reload
     const o = _allOrders.find(x => x.order_id === orderId);
@@ -4277,7 +4326,7 @@ async function doBulkUpdate(orderId) {
         if (riderObj) o.rider_name = riderObj.name;
       }
       if (orderStatus)   o.order_status   = orderStatus;
-      if (paymentStatus) o.payment_status = paymentStatus;
+      if (paymentStatus && !res.warning) o.payment_status = paymentStatus;
       _ordersStr = JSON.stringify(_allOrders);
     }
 
@@ -10985,9 +11034,12 @@ function earnQuick(days) {
   document.getElementById('earn-to').value   = to;
   _rchRawData = null; // clear cached recharge data so next fetch is fresh
   // Fire the correct loader based on which sub-tab is currently visible
-  const rechargePane = document.getElementById('earn-pane-recharge');
+  const rechargePane    = document.getElementById('earn-pane-recharge');
+  const collectionsPane = document.getElementById('earn-pane-collections');
   if (rechargePane && rechargePane.style.display !== 'none') {
     loadWalletRecharges();
+  } else if (collectionsPane && collectionsPane.style.display !== 'none') {
+    loadRiderCollections();
   } else {
     loadEarnings();
   }
@@ -11002,31 +11054,33 @@ function _earnInitDates() {
 
 // ── Earnings Sub-Tab Switcher ──────────────────────────────────────────────
 function switchEarnTab(tab) {
-  const isOrders   = tab === 'orders';
-  document.getElementById('earn-pane-orders').style.display   = isOrders ? 'block' : 'none';
-  document.getElementById('earn-pane-recharge').style.display = isOrders ? 'none'  : 'block';
+  document.getElementById('earn-pane-orders').style.display       = tab === 'orders'      ? 'block' : 'none';
+  document.getElementById('earn-pane-recharge').style.display     = tab === 'recharge'    ? 'block' : 'none';
+  document.getElementById('earn-pane-collections').style.display  = tab === 'collections' ? 'block' : 'none';
 
   const btnO = document.getElementById('earn-tab-orders');
   const btnR = document.getElementById('earn-tab-recharge');
-  if (isOrders) {
-    btnO.style.background  = 'linear-gradient(135deg,#6366f1,#4f46e5)';
-    btnO.style.color       = '#fff';
-    btnO.style.boxShadow   = '0 2px 8px #6366f133';
-    btnR.style.background  = 'transparent';
-    btnR.style.color       = '#64748b';
-    btnR.style.boxShadow   = 'none';
-  } else {
-    btnR.style.background  = 'linear-gradient(135deg,#10b981,#059669)';
-    btnR.style.color       = '#fff';
-    btnR.style.boxShadow   = '0 2px 8px #10b98133';
-    btnO.style.background  = 'transparent';
-    btnO.style.color       = '#64748b';
-    btnO.style.boxShadow   = 'none';
+  const btnC = document.getElementById('earn-tab-collections');
+  const _off = (btn) => { btn.style.background = 'transparent'; btn.style.color = '#64748b'; btn.style.boxShadow = 'none'; };
+  _off(btnO); _off(btnR); _off(btnC);
+
+  if (tab === 'orders') {
+    btnO.style.background = 'linear-gradient(135deg,#6366f1,#4f46e5)'; btnO.style.color = '#fff'; btnO.style.boxShadow = '0 2px 8px #6366f133';
+  } else if (tab === 'recharge') {
+    btnR.style.background = 'linear-gradient(135deg,#10b981,#059669)'; btnR.style.color = '#fff'; btnR.style.boxShadow = '0 2px 8px #10b98133';
     // Auto-load recharge data if not yet loaded for this date range
     const reportEl = document.getElementById('earn-recharge-report');
     if (!reportEl || !reportEl.innerHTML.trim()) loadWalletRecharges();
-    // Ensure session chips are visually in sync
     _setRchSession(_rchSession, null);
+  } else if (tab === 'collections') {
+    btnC.style.background = 'linear-gradient(135deg,#7c3aed,#6d28d9)'; btnC.style.color = '#fff'; btnC.style.boxShadow = '0 2px 8px #7c3aed33';
+    const reportEl = document.getElementById('earn-collections-report');
+    if (!reportEl || !reportEl.innerHTML.trim()) {
+      // First open: default to today/yesterday/day-before (3-day window) as requested
+      document.getElementById('earn-from').value = _earnISTDate(2);
+      document.getElementById('earn-to').value   = _earnISTDate(0);
+      loadRiderCollections();
+    }
   }
 }
 
@@ -11250,6 +11304,122 @@ function _renderWalletRecharges(res) {
         </div>
       </div>`;
   }).join('');
+}
+
+// ── Rider Collections (cash riders are holding for 'unpaid'/udhar orders) ──
+async function loadRiderCollections() {
+  _earnInitDates();
+  const from = document.getElementById('earn-from').value;
+  const to   = document.getElementById('earn-to').value;
+  if (!from || !to) { aToast('Select date range'); return; }
+
+  const summaryEl = document.getElementById('earn-collections-summary');
+  const reportEl  = document.getElementById('earn-collections-report');
+  reportEl.innerHTML = '<div style="text-align:center;padding:32px;color:#94a3b8;font-size:13px"><i class="fa fa-spinner fa-spin"></i> Loading…</div>';
+  summaryEl.style.display = 'none';
+
+  const owner = _acquireLoad('earn-collections');
+  try {
+    const res = await api('getRiderCollections', { fromDate: from, toDate: to });
+    if (!owner()) return;
+    if (!res.success) { reportEl.innerHTML = `<div class="card" style="color:#ef4444">${res.error}</div>`; return; }
+    _renderRiderCollections(res);
+  } catch(e) {
+    if (!owner()) return;
+    reportEl.innerHTML = `<div class="card" style="color:#ef4444">${e.message}</div>`;
+  }
+}
+
+function _renderRiderCollections(res) {
+  const summaryEl = document.getElementById('earn-collections-summary');
+  const reportEl  = document.getElementById('earn-collections-report');
+  const fmtDate   = d => { const p=d.split('-'); return `${p[2]} ${['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]]} ${p[0]}`; };
+
+  if (!res.report.length) {
+    summaryEl.style.display = 'none';
+    reportEl.innerHTML = '<div class="card" style="text-align:center;padding:30px;color:#94a3b8;font-size:13px"><i class="fa fa-circle-check" style="color:#16a34a;margin-right:6px"></i>Nothing pending — all rider collections settled ✓</div>';
+    return;
+  }
+
+  summaryEl.style.display = 'flex';
+  summaryEl.style.gap = '12px'; summaryEl.style.flexWrap = 'wrap';
+  summaryEl.innerHTML = `
+    <div class="card" style="flex:1;min-width:160px;padding:14px 16px">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Pending Handover</div>
+      <div style="font-size:24px;font-weight:900;color:#7c3aed;font-family:var(--ff)">${_earnFmt(res.grandTotal)}</div>
+      <div style="font-size:11.5px;color:#94a3b8;margin-top:2px">${res.grandCount} order${res.grandCount!==1?'s':''} across ${res.report.reduce((s,d)=>s+d.riders.length,0)} rider-day${res.report.reduce((s,d)=>s+d.riders.length,0)!==1?'s':''}</div>
+    </div>`;
+
+  reportEl.innerHTML = res.report.map(day => `
+    <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
+      <div style="padding:12px 16px;background:#faf5ff;border-bottom:1.5px solid #ede9fe;font-weight:800;font-size:13px;color:#5b21b6;font-family:var(--ff)">
+        <i class="fa fa-calendar-day" style="margin-right:6px"></i>${fmtDate(day.date)}
+      </div>
+      ${day.riders.map(r => {
+        const riderKey = `${day.date}__${r.riderId}`;
+        return `
+        <div style="padding:12px 16px;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:700;font-size:13.5px;color:#0f172a"><i class="fa fa-motorcycle" style="color:#7c3aed;margin-right:5px"></i>${_esc(r.riderName)}</div>
+              <div style="font-size:11.5px;color:#94a3b8;margin-top:2px">${r.orders.length} unpaid order${r.orders.length!==1?'s':''} · <a href="javascript:void(0)" onclick="_toggleRiderCollDetail('${riderKey}')" style="color:#7c3aed;font-weight:600">view orders</a></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="font-size:17px;font-weight:900;color:#7c3aed;font-family:var(--ff)">${_earnFmt(r.total)}</div>
+              <button onclick="settleRiderCollectionBulk('${r.riderId}','${day.date}',this)" style="padding:8px 14px;border-radius:9px;border:none;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-family:var(--ff);font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap"><i class="fa fa-check"></i> Mark Collected</button>
+            </div>
+          </div>
+          <div id="rc-detail-${riderKey}" style="display:none;margin-top:10px;overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:280px">
+              <thead><tr style="background:#f8fafc">
+                <th style="padding:6px 10px;font-size:10.5px;font-weight:700;color:#64748b;text-align:left">Order</th>
+                <th style="padding:6px 10px;font-size:10.5px;font-weight:700;color:#64748b;text-align:left">Customer</th>
+                <th style="padding:6px 10px;font-size:10.5px;font-weight:700;color:#64748b;text-align:right">Amount</th>
+                <th style="padding:6px 10px;font-size:10.5px;font-weight:700;color:#64748b;text-align:right"></th>
+              </tr></thead>
+              <tbody>
+                ${r.orders.map(o => `
+                  <tr style="border-top:1px solid #f1f5f9">
+                    <td style="padding:6px 10px;font-size:11px;color:#64748b">${o.order_id}</td>
+                    <td style="padding:6px 10px;font-size:12px;font-weight:600">${_esc(o.name)}</td>
+                    <td style="padding:6px 10px;font-size:12px;font-weight:700;text-align:right">${_earnFmt(o.final_amount)}</td>
+                    <td style="padding:6px 10px;text-align:right"><button onclick="settleRiderCollectionOne('${o.order_id}',this)" style="padding:4px 10px;border-radius:7px;border:1.5px solid #16a34a;background:#fff;color:#16a34a;font-family:var(--ff);font-weight:700;font-size:10.5px;cursor:pointer">Settle</button></td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function _toggleRiderCollDetail(key) {
+  const el = document.getElementById('rc-detail-' + key);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function settleRiderCollectionBulk(riderId, date, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const res = await api('settleRiderCollection', { riderId, date });
+    if (!res.success) { aToast(res.error || 'Settle failed'); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-check"></i> Mark Collected'; } return; }
+    aToast(`✓ Settled ${res.settled} order${res.settled!==1?'s':''}`);
+    loadRiderCollections();
+  } catch(e) {
+    aToast(e.message); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa fa-check"></i> Mark Collected'; }
+  }
+}
+
+async function settleRiderCollectionOne(orderId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const res = await api('settleRiderCollection', { orderId });
+    if (!res.success) { aToast(res.error || 'Settle failed'); if (btn) { btn.disabled = false; btn.textContent = 'Settle'; } return; }
+    aToast('✓ Settled');
+    loadRiderCollections();
+  } catch(e) {
+    aToast(e.message); if (btn) { btn.disabled = false; btn.textContent = 'Settle'; }
+  }
 }
 
 async function loadEarnings() {

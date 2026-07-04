@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v14.1  |  Updated : 2026-06-30
+   Version : v14.2  |  Updated : 2026-07-04
+
+   CHANGES v14.2 (v186):
+   - Cache bumped → tiffo-admin-v41 (v186 — Unpaid/Udhar payment
+     workflow overhaul: locked payment-status dropdown, new
+     Rider Collections earnings tab. Force refresh so admins get
+     the new Update Order modal + Earnings tab immediately.)
 
    CHANGES v14.1 (v183):
    - Fresh global version bump across all three portals.
@@ -93,7 +99,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v40'; // v185: version bump; release sync
+const CACHE      = 'tiffo-admin-v41'; // v186: Unpaid/Udhar payment workflow overhaul
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */
