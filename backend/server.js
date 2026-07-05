@@ -1,8 +1,82 @@
 'use strict';
 // ╔══════════════════════════════════════════════════════╗
 // ║  Tiffo — Backend API (server.js)                    ║
-// ║  Version : v188                                      ║
-// ║  Updated : 2026-07-04                               ║
+// ║  Version : v192                                      ║
+// ║  Updated : 2026-07-05                               ║
+// ║  v192    : TOKEN TTL JITTER — flat 30-day user token   ║
+// ║            TTL replaced with a deterministic per-phone ║
+// ║            spread of 20–40 days (_userTokenTTL, sha256 ║
+// ║            hash of phone number → stable offset, same  ║
+// ║            phone always gets the same value). Fixes    ║
+// ║            the delayed version of the shared-WiFi rate ║
+// ║            -limit collision: previously every launch-  ║
+// ║            week signup's token expired in the same     ║
+// ║            few-day window ~30 days later, and each     ║
+// ║            expiry silently triggers a 'login' call —   ║
+// ║            which sits behind the tight, IP-based       ║
+// ║            _authRateLimit (10/15min) — so a mass        ║
+// ║            same-day expiry wave on the same campus      ║
+// ║            WiFi could collide there even though every   ║
+// ║            other action is already per-user keyed.      ║
+// ║            Now spread across a ~3-week window instead   ║
+// ║            of a single day.                              ║
+// ║  v191    : Two workflow fixes found during a broader ║
+// ║            multi-user launch-readiness review:        ║
+// ║            (1) IDEMPOTENCY BUG — the 30s mutation     ║
+// ║            lock (createOrder/rechargeWallet/etc.) was ║
+// ║            set BEFORE the handler ran and never       ║
+// ║            released on failure. A customer whose      ║
+// ║            order failed validation or hit a transient ║
+// ║            error, then retried immediately, was        ║
+// ║            wrongly told "Duplicate request" for up to ║
+// ║            30s even though nothing was created. Now   ║
+// ║            releases the lock instantly on any          ║
+// ║            success:false response; success:true keeps ║
+// ║            the full 30s lock (still blocks real        ║
+// ║            double-taps). (2) NOMINATIM BURST RISK —    ║
+// ║            server-side signup geocoding fired an       ║
+// ║            unthrottled fetch() per signup; a launch-   ║
+// ║            day signup burst could exceed Nominatim's   ║
+// ║            1 req/s policy and get the server IP        ║
+// ║            temporarily blocked, breaking geocoding for ║
+// ║            everyone. New _queueNominatimRequest serializes ║
+// ║            all geocode calls ≥1.1s apart regardless of ║
+// ║            burst size — signup response is still       ║
+// ║            instant, only the background geocode is     ║
+// ║            paced.                                       ║
+// ║  v190    : RATE LIMIT — third tier added for public,  ║
+// ║            pre-login reads (getMenuVersion,            ║
+// ║            getHomeData, getMenuItems,                  ║
+// ║            getPublicSettings, getDeliveryAreas,        ║
+// ║            getHelpData/Categories/Videos). These have  ║
+// ║            no phone/token yet (genuine anonymous       ║
+// ║            guests browsing before signup), so v189's   ║
+// ║            per-user _rateLimitKey correctly falls back ║
+// ║            to IP for them — reintroducing the shared-  ║
+// ║            WiFi collision for this narrow slice.        ║
+// ║            New _publicReadRateLimit gives these a       ║
+// ║            generous IP-based ceiling (3000/15min)        ║
+// ║            instead — safe because every action in the   ║
+// ║            set is read-only and served from an in-      ║
+// ║            memory/cached value, so volume has near-zero ║
+// ║            real cost. login/signup/createOrder/etc.     ║
+// ║            unaffected — still on _authRateLimit /        ║
+// ║            _generalRateLimit exactly as in v189.         ║
+// ║  v189    : RATE LIMIT FIX — _generalRateLimit (200    ║
+// ║            req/15min) was IP-keyed by default, so     ║
+// ║            campus-WiFi NAT (thousands of BHU students ║
+// ║            behind one IP) could let one building's    ║
+// ║            traffic collectively lock out everyone     ║
+// ║            else on the same router. New _rateLimitKey ║
+// ║            keys by decoded userToken phone /           ║
+// ║            sessionToken username / data.phone first,  ║
+// ║            falling back to IP (IPv6-safe, /64-        ║
+// ║            coarsened) only for genuinely               ║
+// ║            unauthenticated requests. _authRateLimit    ║
+// ║            (login/signup) intentionally left IP-based  ║
+// ║            — no token exists yet at that point, and    ║
+// ║            IP-based brute-force throttling is still    ║
+// ║            useful there.                                ║
 // ║  v188    : EARNINGS FIX — rider cash collection now  ║
 // ║            counts as real earnings the instant the   ║
 // ║            rider marks an unpaid/udhar order         ║
@@ -128,6 +202,9 @@ app.set('trust proxy', 1); // Required for correct IP behind Render's reverse pr
 
 // ─── RATE LIMITERS ───────────────────────────────────────────────────────────
 // Auth limiter: tight limit for login/signup/password actions (brute-force protection)
+// Stays IP-based on purpose — login/signup happen BEFORE any token exists, so
+// there's nothing else to key on, and IP-based brute-force throttling here is
+// still useful (a genuine attacker hammering login attempts from one IP).
 const _authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
@@ -136,10 +213,127 @@ const _authRateLimit = rateLimit({
   handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
 });
 
-// General limiter: permissive limit for all other actions
+// ── PER-USER KEY for the general limiter (v189) ───────────────────────────
+// PROBLEM: express-rate-limit's default keyGenerator is IP-based. At BHU,
+// thousands of students share campus WiFi NAT — they all look like the same
+// IP to Express. A default IP-keyed limiter would let one hostel's traffic
+// collectively exhaust the 200-req/15min budget and lock out every other
+// student behind that same router, even though each of them individually
+// made only a handful of requests.
+//
+// FIX: key general (post-login) traffic by the authenticated identity
+// carried in the request instead of the IP:
+//   1. userToken  (customers)         → decoded phone claim
+//   2. sessionToken (staff/admin/rider) → decoded username claim
+//   3. data.phone (present on several customer actions even before the
+//      token is checked, e.g. createOrder) → cleaned phone as fallback
+//   4. IP (last resort — only unauthenticated/malformed requests land here,
+//      a small minority of traffic, so IP-sharing risk is much lower)
+//
+// Token decoding here is read-only (base64 decode, no signature check) —
+// good enough for a rate-limit *key*; a forged/expired token still gets
+// rejected later by the real _verifyToken()/_verifyUserToken() auth checks
+// inside each action handler. Wrapped in try/catch since malformed tokens
+// must never crash the limiter — they just fall through to the next key.
+function _rateLimitKey(req) {
+  const body = req.body || {};
+  try {
+    if (body.userToken) {
+      const parts = String(body.userToken).split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        if (payload && payload.phone) return 'u:' + payload.phone;
+      }
+    }
+  } catch { /* fall through */ }
+  try {
+    if (body.sessionToken) {
+      const parts = String(body.sessionToken).split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        if (payload && payload.username) return 's:' + payload.username;
+        if (payload && payload.phone)    return 'u:' + payload.phone;
+      }
+    }
+  } catch { /* fall through */ }
+  try {
+    const rawPhone = body?.data?.phone || body.phone;
+    if (rawPhone) {
+      const digits = String(rawPhone).replace(/\D/g, '');
+      if (digits.length >= 10) return 'p:' + digits.slice(-10);
+    }
+  } catch { /* fall through */ }
+  // Last resort — genuinely unauthenticated/malformed request only (login/
+  // signup never reach this limiter; they use _authRateLimit). A small
+  // minority of traffic, so IP-sharing risk here is low — but we still
+  // normalize IPv6 addresses down to a /64-ish prefix (first 4 groups) so a
+  // client can't dodge the limit by rotating through its own IPv6 address
+  // block, matching the intent of express-rate-limit's own ipv6Subnet
+  // handling without depending on its v8+-only ipKeyGenerator export (this
+  // project pins express-rate-limit ^7.4.0).
+  return 'ip:' + _normalizeIpForRateLimit(req.ip);
+}
+
+function _normalizeIpForRateLimit(ip) {
+  if (!ip) return 'unknown';
+  const s = String(ip);
+  if (s.includes(':') && !s.includes('.')) {
+    // Bare IPv6 (not an IPv4-mapped '::ffff:a.b.c.d' form) — coarsen to
+    // the first 4 hextets (~/64) so the whole client subnet shares one key.
+    return s.split(':').slice(0, 4).join(':') + '::/64';
+  }
+  // IPv4, or IPv4-mapped IPv6 ('::ffff:x.x.x.x') — strip any port suffix.
+  return s.replace(/:\d+$/, '');
+}
+
+// General limiter: permissive limit for all other (post-login) actions.
+// Keyed per-user (see _rateLimitKey above) instead of per-IP so shared
+// campus WiFi doesn't let one building's traffic lock out another.
 const _generalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: _rateLimitKey,
+  handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
+});
+
+// ── PUBLIC READ TIER (v190) ────────────────────────────────────────────────
+// A handful of actions are called with NO identity at all — genuine
+// first-time guests browsing the menu before they've signed up (no
+// userToken exists yet, no phone in the payload). _rateLimitKey correctly
+// falls back to IP for these, which reintroduces the shared-WiFi collision
+// for this narrow slice of traffic (see _rateLimitKey's own fallback
+// comment). Two things make an IP-keyed limiter fine here specifically,
+// unlike the general 200/15min limit:
+//   1. Every action in this set is read-only and cheap — either an
+//      in-memory counter (getMenuVersion) or backed by a 60s/5min
+//      in-process cache (getHomeData, getMenuItems, getSettings, etc.).
+//      Real server cost per request is ~0, so even hundreds of guests on
+//      one campus router polling every few minutes is not a load problem.
+//   2. Nothing here can be abused for spam — no DB writes happen, so a
+//      generous ceiling doesn't open any attack surface the way it would
+//      for _authRateLimit's login/signup actions.
+// So instead of forcing this traffic through the per-user limiter (where
+// it would collide on IP anyway) or leaving it on the tight 200/15min
+// general limiter (where it WOULD collide, unlike everything else fixed by
+// _rateLimitKey), it gets its own much higher IP-based ceiling — generous
+// enough that no realistic amount of legitimate shared-WiFi browsing on
+// campus ever hits it, while still capping any single machine that starts
+// hammering the endpoint.
+const _PUBLIC_READ_ACTIONS = new Set([
+  'getMenuVersion',      // in-memory counter, no DB hit at all
+  'getHomeData',         // menu + settings, 60s in-memory cache
+  'getMenuItems',        // menu items, called standalone in a few flows
+  'getPublicSettings',   // delivery zone / cutoff / referral %, cached
+  'getDeliveryAreas',    // static admin-configured area list
+  'getHelpData',         // help videos + categories, static content
+  'getHelpCategories',
+  'getHelpVideos',
+]);
+const _publicReadRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3000, // ~3.3 req/sec sustained per IP — comfortably above any real campus browsing volume, well below a scripted flood
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, res) => res.status(429).json({ success: false, error: 'Too many requests. Please try again later.' }),
@@ -316,6 +510,36 @@ function _verifyToken(token) {
     if (Date.now() > payload.exp) return null; // expired
     return payload;
   } catch { return null; }
+}
+
+// ── DETERMINISTIC TTL JITTER (v192) ─────────────────────────────────────────
+// PROBLEM: user tokens were always issued with a flat 30-day TTL. Everyone
+// who signed up in the same launch-week burst gets a token that expires in
+// the same few-day window ~30 days later. When a token expires, the app
+// silently calls 'login' to refresh it (see _refreshUserToken on the
+// frontend) — and 'login' sits behind the tight, IP-based _authRateLimit
+// (10 req/15min), unlike everything else which is now keyed per-user. A
+// mass token-expiry wave landing on the same day means many students on the
+// same campus WiFi could all trigger a re-login within the same window and
+// collide on that IP-based limiter — the same shared-WiFi problem already
+// fixed everywhere else, just reappearing 30 days later in a delayed form.
+// FIX: instead of a flat 30 days, each phone number deterministically maps
+// to a TTL somewhere in a spread range (20–40 days here). Same phone always
+// gets the same offset — stable across every login/checkSession call for
+// that user, so their expiry date doesn't drift around — but different
+// phones land on different days, spreading a launch-week signup burst's
+// token expiries across a ~3-week window instead of a single day.
+// Hash-based (not random) so it's reproducible without needing to persist
+// anything — same phone, same offset, forever, using only the phone digits
+// already in memory at token-issue time.
+const _TTL_MIN_DAYS = 20;
+const _TTL_MAX_DAYS = 40;
+function _userTokenTTL(phone) {
+  const hash = require('crypto').createHash('sha256').update(String(phone)).digest();
+  // Use the first 4 bytes as a uint32 for a stable, evenly-distributed value.
+  const n = hash.readUInt32BE(0);
+  const spreadDays = _TTL_MIN_DAYS + (n % (_TTL_MAX_DAYS - _TTL_MIN_DAYS + 1)); // 20..40 inclusive
+  return spreadDays * 24 * 60 * 60 * 1000;
 }
 
 // Actions that require a valid admin session token (role = 'admin' only)
@@ -940,9 +1164,9 @@ async function _authenticateUser(phone, password) {
     supabase.from('khata_summary').select('balance').eq('phone', phone).single()
   ]);
   const { password_hash, ...safeUser } = user;
-  // Issue a signed user token — 30-day TTL so customers never face forced re-login
-  const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
-  const userToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
+  // Issue a signed user token — jittered ~20-40 day TTL (see _userTokenTTL)
+  // so a launch-week signup burst's tokens don't all expire on the same day.
+  const userToken = _signToken({ role: 'user', phone, exp: Date.now() + _userTokenTTL(phone) });
   // Override pause_delivery with effective value for TODAY — a "tomorrow-only" pause
   // (set after cutoff) must not block today's orders in the customer frontend.
   const subWithEffectivePause = sub
@@ -1193,15 +1417,49 @@ function _titleCase(str) {
   return (str || '').replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
+/* ── Nominatim request queue (v191) ──────────────────────────────────────────
+   PROBLEM: _geocodeAndPatchAsync below fires an independent, unthrottled
+   fetch() to Nominatim per signup. That was a reasonable assumption at
+   "a handful of signups/day", but launch day is explicitly NOT that case —
+   a poster/WhatsApp campaign can plausibly land a burst of signups within
+   the same few seconds, each needing server-side geocoding (client-side
+   Nominatim often fails for BHU hostel room names not in OSM). Nominatim's
+   usage policy is 1 request/second; a burst of concurrent fire-and-forget
+   calls can exceed that and get the server's IP temporarily blocked by
+   Nominatim — breaking geocoding for every signup afterward, not just the
+   burst, until the block clears.
+   FIX: a simple in-process FIFO queue that runs Nominatim requests one at a
+   time, spaced ≥1100ms apart (small margin over the 1000ms policy floor).
+   Each signup's geocode still runs fully in the background — the customer's
+   signup response is never delayed by this, only the actual outbound
+   Nominatim call is serialized. */
+let _nominatimQueue = Promise.resolve();
+function _queueNominatimRequest(fn) {
+  const run = _nominatimQueue.then(async () => {
+    const result = await fn().catch(() => null);
+    await new Promise(r => setTimeout(r, 1100)); // pace ≥1.1s between requests
+    return result;
+  });
+  // Keep the chain alive even if this particular call rejects, so one
+  // failure never stalls every geocode request queued after it.
+  _nominatimQueue = run.catch(() => {});
+  return run;
+}
+
 /* ── Server-side geocode safety net ─────────────────────────────────────────
    Called after signup when client Nominatim failed (needs_geocode=true).
    Builds a richer query using room + area + campus context that OSM knows.
    Patches the user's address field with discovered coordinates in v84 format.
    Fire-and-forget — never called awaited, never blocks the signup response.
 
-   Nominatim rate limit: 1 req/s. At Tiffo's scale (handful of signups/day)
-   this is never an issue. User-Agent is required by Nominatim policy.         */
+   Nominatim rate limit: 1 req/s — enforced across ALL signups via the
+   _queueNominatimRequest queue above, not just per-request, so a launch-day
+   burst of signups queues up safely instead of hammering Nominatim at once.
+   User-Agent is required by Nominatim policy.         */
 async function _geocodeAndPatchAsync(phone, address, area) {
+  return _queueNominatimRequest(() => _geocodeAndPatchAsyncInner(phone, address, area));
+}
+async function _geocodeAndPatchAsyncInner(phone, address, area) {
   try {
     // Parse structured fields from v84 address
     const lines = (address || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -1640,8 +1898,16 @@ app.post('/api', async (req, res) => {
   }
   const { action, data = {}, apiKey } = req.body;
 
-  // Apply rate limiting before any auth or DB work
-  const limiter = _AUTH_ACTIONS.has(action) ? _authRateLimit : _generalRateLimit;
+  // Apply rate limiting before any auth or DB work.
+  // Three tiers (v190): auth actions (login/signup — tight, IP-based, no
+  // identity to trust yet) → public reads (generous, IP-based, but cheap/
+  // cached so volume isn't a real cost) → everything else (per-user keyed,
+  // see _rateLimitKey).
+  const limiter = _AUTH_ACTIONS.has(action)
+    ? _authRateLimit
+    : _PUBLIC_READ_ACTIONS.has(action)
+      ? _publicReadRateLimit
+      : _generalRateLimit;
   await new Promise((resolve) => limiter(req, res, resolve));
   if (res.headersSent) return; // limiter already sent 429
 
@@ -1722,6 +1988,7 @@ app.post('/api', async (req, res) => {
   }
 
   // Idempotency: reject mutation duplicates within 30s window
+  let _mutationKeyForThisRequest = null;
   if (_MUTATION_ACTIONS.has(action)) {
     const mKey = _mutationKey(action, data);
     const lastTs = _recentMutations.get(mKey);
@@ -1730,12 +1997,36 @@ app.post('/api', async (req, res) => {
       return res.status(429).json({ success: false, error: 'Duplicate request — please wait a moment' });
     }
     _recentMutations.set(mKey, now);
+    _mutationKeyForThisRequest = mKey; // remembered so we can release it below on failure
     // Cleanup stale keys lazily (runs max once per request, O(n) but Map is tiny)
     if (_recentMutations.size > 500) {
       for (const [k, ts] of _recentMutations) {
         if (now - ts > _MUTATION_TTL) _recentMutations.delete(k);
       }
     }
+  }
+
+  // ── RELEASE-ON-FAILURE WRAPPER (v191) ───────────────────────────────────
+  // BUG FIXED: the guard above previously stayed "locked" for the full 30s
+  // even when the actual handler responded success:false — e.g. createOrder
+  // rejecting for a validation reason (missing address, outside delivery
+  // zone, empty cart) or a genuine transient error (Supabase hiccup,
+  // network blip) caught by the outer try/catch below. A customer whose
+  // order failed for any of these reasons, then immediately retried (the
+  // natural reaction to "something went wrong, please try again"), was
+  // wrongly told "Duplicate request" for up to 30 seconds — even though
+  // nothing had actually been created. Wrapping res.json here lets us
+  // release the lock the instant we see success:false go out, while a
+  // genuine success:true keeps the full 30s lock (still correctly blocking
+  // real accidental double-taps that would otherwise create two orders).
+  if (_mutationKeyForThisRequest) {
+    const _origJson = res.json.bind(res);
+    res.json = (body) => {
+      if (body && body.success === false) {
+        _recentMutations.delete(_mutationKeyForThisRequest);
+      }
+      return _origJson(body);
+    };
   }
 
   const ist = getIST();
@@ -1916,8 +2207,10 @@ app.post('/api', async (req, res) => {
           } catch (_) { /* non-fatal — referral failure never blocks signup */ }
         }
 
-        const USER_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days — matches login
-        const signupToken = _signToken({ role: 'user', phone, exp: Date.now() + USER_TOKEN_TTL });
+        // Jittered ~20-40 day TTL (see _userTokenTTL) — matches login, spreads
+        // out the launch-week signup cohort's token expiries across weeks
+        // instead of everyone re-authenticating on the same day.
+        const signupToken = _signToken({ role: 'user', phone, exp: Date.now() + _userTokenTTL(phone) });
         return res.json({
           success: true,
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, area: data.area || null, zone_status: signupZoneStatus, created_at: createdAt },
