@@ -1,6 +1,21 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v52.5  |  Updated : 2026-06-30
+   Version : v52.8  |  Updated : 2026-07-04
+
+   CHANGES v52.8:
+   - Cache bumped → tiffo-v85 (v186 — release sync; no customer-facing
+     logic change. v186 was an admin/rider-only release: Unpaid/Udhar
+     payment workflow overhaul.)
+
+   CHANGES v52.7:
+   - Cache bumped → tiffo-v84 (v185 — release sync; version bump)
+   - Cache bumped → tiffo-v83 (v184 sync — admin fixed real root
+     cause of blank User Map: missing </div> caused #p-usermap to
+     nest inside display:none #p-analytics)
+
+   CHANGES v52.6:
+   - Cache bumped → tiffo-v82 (v183 — fresh global bump; FONT_CACHE
+     bumped v1→v3, activate() fixed to clean stale font caches)
 
    CHANGES v52.5:
    - Cache bumped → tiffo-v81 (v176 — User Location Map in admin panel;
@@ -84,8 +99,8 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v81'; // v176: User Location Map in admin; version headers updated across all panels
-const FONT_CACHE = 'tiffo-fonts-v1';
+const CACHE      = 'tiffo-v85'; // v186: release sync (no customer-facing change)
+const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Core app shell — cached on install. */
 const PRECACHE = ['./', './index.html', './manifest.json', './robots.txt', './sitemap.xml', './humans.txt'];
@@ -172,15 +187,21 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     Promise.all([
-      // Delete old CUSTOMER-ONLY caches (tiffo-v* prefix).
+      // Delete old CUSTOMER-ONLY caches (tiffo-v* prefix) AND stale font caches.
       // IMPORTANT: Cache Storage is shared across the entire origin — SW scopes
       // do NOT restrict caches.keys(). Using startsWith('tiffo-') would also
       // delete tiffo-admin-v* and tiffo-rider-v* caches. Use 'tiffo-v' prefix
-      // so we only touch our own versioned caches. Font cache is permanent.
+      // so we only touch our own versioned caches.
+      // BUG FIX (v177/admin v182 root-cause fix, applied here too): font cache
+      // was previously treated as "permanent" and never cleaned up — meaning a
+      // bad/stale cached CDN asset (e.g. Leaflet JS/CSS) could be served forever
+      // regardless of how many times CACHE itself was version-bumped. Font
+      // cache is now versioned and cleaned up just like everything else.
       caches.keys().then(keys =>
         Promise.all(
           keys
-            .filter(k => k.startsWith('tiffo-v') && k !== CACHE)
+            .filter(k => (k.startsWith('tiffo-v') && k !== CACHE) ||
+                         (k.startsWith('tiffo-fonts-') && k !== FONT_CACHE))
             .map(k => caches.delete(k))
         )
       ),

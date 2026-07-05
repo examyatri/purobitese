@@ -1,346 +1,332 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tifo Deals | Premium Coupons</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }body {
-  font-family: 'Inter', sans-serif;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(251,191,36,0.15), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(59,130,246,0.12), transparent 30%),
-    linear-gradient(135deg, #050816, #0f172a 45%, #111827);
-  color: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 40px 20px;
-  overflow-x: hidden;
-}
-
-.container {
-  width: 100%;
-  max-width: 1100px;
-  position: relative;
-  border-radius: 32px;
-  padding: 45px;
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(28px);
-  border: 1px solid rgba(255,255,255,0.1);
-  box-shadow:
-    0 25px 70px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-
-.container::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 32px;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.25), rgba(251,191,36,0.3), rgba(59,130,246,0.25));
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 40px;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.logo {
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #111827;
-  font-size: 24px;
-  font-weight: 800;
-  box-shadow: 0 10px 25px rgba(251,191,36,0.35);
-}
-
-.brand-text h1 {
-  font-size: 34px;
-  font-weight: 700;
-  margin-bottom: 6px;
-  letter-spacing: -1px;
-  background: linear-gradient(to right, #fff, #dbeafe);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.brand-text p {
-  color: #94a3b8;
-  font-size: 15px;
-}
-
-.premium-tag {
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
-  color: #111827;
-  padding: 12px 20px;
-  border-radius: 999px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  font-size: 13px;
-  box-shadow: 0 10px 25px rgba(251,191,36,0.25);
-}
-
-.table-wrapper {
-  overflow: hidden;
-  border-radius: 24px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-thead {
-  background: rgba(255,255,255,0.06);
-}
-
-thead th {
-  padding: 22px;
-  text-align: left;
-  font-size: 14px;
-  color: #e2e8f0;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-tbody tr {
-  transition: 0.3s ease;
-  border-top: 1px solid rgba(255,255,255,0.06);
-}
-
-tbody tr:hover {
-  background: rgba(255,255,255,0.05);
-  transform: scale(1.01);
-}
-
-tbody td {
-  padding: 24px 22px;
-  color: #f8fafc;
-  font-size: 15px;
-}
-
-.offer-name {
-  font-size: 17px;
-  font-weight: 600;
-  margin-bottom: 5px;
-}
-
-.offer-desc {
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.discount {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 16px;
-  border-radius: 12px;
-  background: rgba(34,197,94,0.12);
-  color: #4ade80;
-  font-weight: 700;
-}
-
-.coupon {
-  display: inline-block;
-  padding: 12px 18px;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.08);
-  border: 1px dashed rgba(255,255,255,0.2);
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: #fff;
-}
-
-.copy-btn {
-  border: none;
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
-  color: white;
-  padding: 13px 20px;
-  border-radius: 14px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: 0.3s ease;
-  box-shadow: 0 10px 25px rgba(59,130,246,0.25);
-}
-
-.copy-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 14px 30px rgba(59,130,246,0.4);
-}
-
-.success-message {
-  margin-top: 28px;
-  padding: 18px;
-  border-radius: 16px;
-  background: rgba(34,197,94,0.12);
-  border: 1px solid rgba(34,197,94,0.2);
-  text-align: center;
-  color: #4ade80;
-  font-weight: 600;
-  display: none;
-}
-
-@media (max-width: 850px) {
-  .container {
-    padding: 24px;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Tiffo Offers — Join for Latest Coupon Codes</title>
+<meta name="description" content="Join the Tiffo Offers WhatsApp group to get the latest coupon codes for tiffin delivery near BHU, Varanasi.">
+<link rel="icon" href="data:,">
+<style>
+  @font-face {
+    font-family: 'Fraunces';
+    src: local('Georgia');
   }
 
-  .top-bar {
-    flex-direction: column;
-    align-items: flex-start;
+  :root {
+    --ink: #1c1710;
+    --paper: #fbf3e3;
+    --spice: #c05621;
+    --spice-deep: #8a3a17;
+    --turmeric: #e0a736;
+    --stitch: #d8c7a1;
+    --green: #3f6b4a;
   }
 
-  .brand-text h1 {
-    font-size: 28px;
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Segoe UI', 'Noto Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 
-  table, thead, tbody, th, td, tr {
-    display: block;
-  }
-
-  thead {
-    display: none;
-  }
-
-  tbody tr {
-    margin-bottom: 18px;
-    border-radius: 18px;
-    overflow: hidden;
-  }
-
-  tbody td {
+  body {
+    min-height: 100svh;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 20px;
+    justify-content: center;
+    padding: 28px 16px 40px;
+    background:
+      radial-gradient(1100px 700px at 50% -10%, #2a2015 0%, var(--ink) 60%);
+    overflow-x: hidden;
   }
 
-  tbody td::before {
-    content: attr(data-label);
-    color: #94a3b8;
+  .display {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 440px;
+    position: relative;
+  }
+
+  /* ---- floating steam / spice dust ambience ---- */
+  .ambient {
+    position: absolute;
+    inset: -60px -40px auto -40px;
+    height: 300px;
+    pointer-events: none;
+    z-index: 0;
+    overflow: visible;
+  }
+  .ambient span {
+    position: absolute;
+    display: block;
+    border-radius: 50%;
+    filter: blur(1px);
+    opacity: 0;
+    animation: drift 7s ease-in-out infinite;
+  }
+  .ambient span:nth-child(1){ left:12%; width:6px; height:6px; background:var(--turmeric); animation-delay:.2s; }
+  .ambient span:nth-child(2){ left:32%; width:4px; height:4px; background:var(--spice); animation-delay:1.4s; }
+  .ambient span:nth-child(3){ left:58%; width:5px; height:5px; background:var(--turmeric); animation-delay:2.6s; }
+  .ambient span:nth-child(4){ left:74%; width:4px; height:4px; background:var(--stitch); animation-delay:.9s; }
+  .ambient span:nth-child(5){ left:88%; width:6px; height:6px; background:var(--spice); animation-delay:3.3s; }
+
+  @keyframes drift {
+    0%   { transform: translateY(20px) scale(.6); opacity:0; }
+    18%  { opacity:.9; }
+    100% { transform: translateY(-160px) scale(1); opacity:0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ambient span { animation: none; opacity: 0; }
+    .ticket, .cta, .pulse-ring { animation: none !important; }
+  }
+
+  /* ---- eyebrow ---- */
+  .eyebrow {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    font-size: 12.5px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--turmeric);
+    margin: 0 0 10px;
     font-weight: 600;
   }
-}
 
-  </style>
+  /* ---- the coupon-ticket card: the signature element ---- */
+  .ticket {
+    position: relative;
+    z-index: 1;
+    background: linear-gradient(175deg, #fffaf0 0%, var(--paper) 55%, #f3e6c8 100%);
+    color: var(--ink);
+    border-radius: 22px;
+    padding: 34px 26px 28px;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.6) inset,
+      0 30px 60px -20px rgba(0,0,0,.65),
+      0 8px 20px -8px rgba(0,0,0,.5);
+    animation: settle .7s cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  @keyframes settle {
+    from { opacity: 0; transform: translateY(14px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* torn-ticket notches, top and bottom */
+  .notch {
+    position: absolute;
+    left: 0; right: 0;
+    height: 22px;
+    background: repeating-radial-gradient(circle at 0 50%, transparent 0 8px, var(--ink) 8.5px) ;
+    background-size: 24px 22px;
+    background-repeat: repeat-x;
+  }
+  .notch.top { top: -11px; transform: rotate(180deg); }
+  .notch.bottom { bottom: -11px; }
+  .notch.top, .notch.bottom {
+    background:
+      radial-gradient(circle 11px at 12px 11px, var(--ink) 99%, transparent 100%);
+    background-size: 24px 22px;
+    background-repeat: repeat-x;
+    background-position: center;
+  }
+
+  .stub-rule {
+    border: none;
+    border-top: 2px dashed var(--stitch);
+    margin: 20px 0 22px;
+  }
+
+  .kicker {
+    text-align: center;
+    font-size: 11.5px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--spice-deep);
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+
+  h1.headline {
+    text-align: center;
+    font-size: clamp(26px, 7vw, 32px);
+    line-height: 1.12;
+    margin: 0 0 12px;
+    color: var(--ink);
+  }
+  h1.headline .accent { color: var(--spice); }
+
+  .sub {
+    text-align: center;
+    font-size: 15px;
+    line-height: 1.55;
+    color: #4a4136;
+    margin: 0 auto 4px;
+    max-width: 320px;
+  }
+
+  /* ---- CTA button ---- */
+  .cta-wrap {
+    position: relative;
+    margin: 26px auto 6px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .pulse-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 999px;
+    border: 2px solid var(--green);
+    opacity: 0;
+    animation: pulse 2.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { transform: scale(.94); opacity: .55; }
+    70%  { transform: scale(1.12); opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  .cta {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--green);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16.5px;
+    padding: 15px 26px;
+    border-radius: 999px;
+    box-shadow: 0 14px 28px -10px rgba(63,107,74,.55), 0 2px 0 rgba(0,0,0,.12) inset;
+    transition: transform .15s ease, box-shadow .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cta:active { transform: scale(.97); box-shadow: 0 8px 18px -8px rgba(63,107,74,.55); }
+
+  .cta svg { width: 21px; height: 21px; flex: none; }
+
+  .cta .cta-sub {
+    display: block;
+    font-weight: 500;
+    font-size: 11px;
+    opacity: .85;
+    margin-top: 1px;
+  }
+
+  .instruction {
+    text-align: center;
+    font-size: 12.5px;
+    color: #6b5f4d;
+    margin: 14px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .instruction svg { width: 13px; height: 13px; animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0);} 50%{transform:translateY(3px);} }
+
+  .number-line {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 12.5px;
+    color: #8a7d67;
+    letter-spacing: .02em;
+  }
+  .number-line b { color: var(--spice-deep); font-weight: 700; letter-spacing: .03em; }
+
+  /* ---- footer note ---- */
+  .foot {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    margin-top: 22px;
+    font-size: 12px;
+    color: #9c9384;
+  }
+  .foot a { color: var(--turmeric); text-decoration: none; }
+
+  .brandline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: #cbb98e;
+  }
+  .brandline .dot { width:4px; height:4px; border-radius:50%; background:#5b5340; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>Tifo Premium Coupons</h1>
-      <p>Unlock premium savings with exclusive verified offers.</p>
-      <div class="premium-badge">EXCLUSIVE DEALS</div>
-    </div><table>
-  <thead>
-    <tr>
-      <th>Offer Name</th>
-      <th>Discount</th>
-      <th>Coupon Code</th>
-      <th>Action</th>
-    </tr>
-  </thead>
 
-  <tbody>
-    <tr>
-      <td data-label="Offer">
-        <span class="offer-name">Premium Welcome Offer</span>
-      </td>
-      <td data-label="Discount">
-        <span class="discount">50% OFF</span>
-      </td>
-      <td data-label="Coupon">
-        <span class="coupon-code">SAVE50</span>
-      </td>
-      <td data-label="Action">
-        <button class="copy-btn" onclick="copyCoupon('SAVE50')">
-          Copy Coupon
-        </button>
-      </td>
-    </tr>
+<div class="wrap">
+  <div class="ambient" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
 
-    <tr>
-      <td data-label="Offer">
-        <span class="offer-name">Exclusive Festival Deal</span>
-      </td>
-      <td data-label="Discount">
-        <span class="discount">30% OFF</span>
-      </td>
-      <td data-label="Coupon">
-        <span class="coupon-code">FEST30</span>
-      </td>
-      <td data-label="Action">
-        <button class="copy-btn" onclick="copyCoupon('FEST30')">
-          Copy Coupon
-        </button>
-      </td>
-    </tr>
+  <p class="eyebrow">Tiffo · Offers</p>
 
-    <tr>
-      <td data-label="Offer">
-        <span class="offer-name">VIP Member Savings</span>
-      </td>
-      <td data-label="Discount">
-        <span class="discount">20% OFF</span>
-      </td>
-      <td data-label="Coupon">
-        <span class="coupon-code">VIP20</span>
-      </td>
-      <td data-label="Action">
-        <button class="copy-btn" onclick="copyCoupon('VIP20')">
-          Copy Coupon
-        </button>
-      </td>
-    </tr>
-  </tbody>
-</table>
+  <div class="ticket">
+    <div class="notch top" aria-hidden="true"></div>
 
-<div class="success-message" id="successMessage">
-  Coupon copied successfully.
+    <p class="kicker">Members-only coupons</p>
+    <h1 class="headline">Join the <span class="accent">Offer Group</span><br>on WhatsApp</h1>
+    <p class="sub">Fresh coupon codes, launch discounts and tiffin drops — sent straight to WhatsApp, before anyone else sees them.</p>
+
+    <hr class="stub-rule">
+
+    <div class="cta-wrap">
+      <span class="pulse-ring" aria-hidden="true"></span>
+      <a class="cta" id="joinBtn" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.29-1.39a9.9 9.9 0 0 0 4.75 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.16c-.24.68-1.4 1.32-1.93 1.4-.5.08-1.11.11-1.79-.11-.41-.13-.95-.31-1.63-.6-2.87-1.24-4.74-4.12-4.88-4.31-.14-.19-1.17-1.56-1.17-2.97 0-1.41.74-2.1 1-2.39.26-.29.57-.36.76-.36.19 0 .38 0 .55.01.18.01.41-.07.64.49.24.58.81 2 .88 2.14.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.37-.42.5-.14.14-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.21 1.37.28.14.44.12.6-.07.16-.19.68-.79.87-1.06.19-.27.37-.22.62-.13.26.09 1.63.77 1.91.91.28.14.47.21.54.33.07.12.07.68-.17 1.36z"/></svg>
+        <span>
+          Join on WhatsApp
+          <span class="cta-sub">Tap to send the request</span>
+        </span>
+      </a>
+    </div>
+
+    <p class="instruction">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 4v14M6 12l6 6 6-6"/></svg>
+      Click above to join the offer group
+    </p>
+
+    <p class="number-line">We'll add you at <b>+91 98897 60350</b></p>
+
+    <div class="notch bottom" aria-hidden="true"></div>
+  </div>
+
+  <div class="brandline">tiffo.online <span class="dot"></span> BHU · Lanka, Varanasi</div>
+  <p class="foot">Already a member? No need to join again — codes are shared in the same group.</p>
 </div>
 
-  </div>  <script>
-    function copyCoupon(code) {
-      navigator.clipboard.writeText(code).then(() => {
-        const successMessage = document.getElementById('successMessage');
-        successMessage.style.display = 'block';
-        successMessage.innerHTML = `Coupon Code <strong>${code}</strong> copied successfully!`;
+<script>
+  (function () {
+    var phone = '919889760350'; // 91 + 10-digit number, no symbols
+    var message = 'Please add me in offer group, to get latest coupon code';
+    var url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
+    var btn = document.getElementById('joinBtn');
+    btn.setAttribute('href', url);
+    btn.addEventListener('click', function (e) {
+      // Let default navigation happen (opens WhatsApp app or web.whatsapp.com).
+      // No preventDefault — this must stay a real, tappable link.
+    });
+  })();
+</script>
 
-        setTimeout(() => {
-          successMessage.style.display = 'none';
-        }, 2500);
-      });
-    }
-  </script></body>
-</html>
+</body>
+</html
