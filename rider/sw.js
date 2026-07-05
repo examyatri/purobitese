@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v12.4  |  Updated : 2026-07-04
+   Version : v12.5  |  Updated : 2026-07-04
+
+   CHANGES v12.5 (v187):
+   - Cache bumped → tiffo-rider-v34 (v187 — Map/Optimize Route stop
+     cards now show the same Wallet/Paid/Unpaid payment tag as home
+     and start-delivery, previously missing there entirely. Force
+     refresh so riders see payment status on the map view too.)
 
    CHANGES v12.4 (v186):
    - Cache bumped → tiffo-rider-v33 (v186 — Unpaid/Udhar payment
@@ -94,7 +100,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v33'; // v186: Unpaid/Udhar payment workflow overhaul
+const CACHE      = 'tiffo-rider-v34'; // v187: map/route stop cards now show payment tag
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 const TILE_CACHE = 'tiffo-osm-tiles-v2'; // v183: fresh bump
 
