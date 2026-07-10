@@ -1882,6 +1882,10 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <div class="si-icon" style="background:#ede9fe"><i class="fa fa-wallet" style="color:#7c3aed"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Khata Toggle</span>
             </div>
+            <div class="settings-item" onclick="showSettingPanel('delivery-charge',this)">
+              <div class="si-icon" style="background:#fff7ed"><i class="fa fa-motorcycle" style="color:#ea580c"></i></div>
+              <span style="font-family:var(--ff);font-size:14px;font-weight:600">Delivery Charge</span>
+            </div>
             <div class="settings-item" onclick="showSettingPanel('reset-pw',this)">
               <div class="si-icon" style="background:#fde8ea"><i class="fa fa-key" style="color:var(--p)"></i></div>
               <span style="font-family:var(--ff);font-size:14px;font-weight:600">Reset Password</span>
@@ -4472,11 +4476,13 @@ function renderBulkSubsList() {
         ? '<span style="background:#dcfce7;color:#166534;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">✓ ELIGIBLE</span>'
         : s.already_ordered
           ? '<span style="background:#e0f2fe;color:#075985;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">ORDERED</span>'
-          : s.insufficient_balance
-            ? '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">LOW BAL</span>'
-            : s.pause !== 'none'
-              ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">PAUSED</span>'
-              : '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">SKIP</span>';
+          : (s.plan === 'none')
+            ? '<span style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">WALLET ONLY</span>'
+            : s.insufficient_balance
+              ? '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">LOW BAL</span>'
+              : s.pause !== 'none'
+                ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">PAUSED</span>'
+                : '<span style="background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:700">SKIP</span>';
     const bal = parseFloat(s.balance||0);
     const balColor = bal >= 0 ? '#166534' : '#dc2626';
     const planLabel = s.plan_end ? s.plan_end.slice(5).replace('-','/') : '—';
@@ -6420,6 +6426,7 @@ function getPlanBadge(s) {
     day:   { label:'Morning Tiffin', bg:'#fffbeb', color:'#92400e', icon:'fa-sun' },
     night: { label:'Evening Tiffin', bg:'#eff6ff', color:'#1d4ed8', icon:'fa-moon' },
     both:  { label:'Both Tiffins',   bg:'#f0fdf4', color:'#166534', icon:'fa-layer-group' },
+    none:  { label:'Wallet Only',    bg:'#f1f5f9', color:'#475569', icon:'fa-wallet' },
   };
   const cfg = map[p] || { label: p, bg:'#f8fafc', color:'#475569', icon:'fa-bowl-food' };
   return `<span style="font-size:11px;font-weight:700;font-family:var(--ff);background:${cfg.bg};color:${cfg.color};padding:3px 8px;border-radius:20px;white-space:nowrap"><i class="fa ${cfg.icon}" style="font-size:9px;margin-right:3px"></i>${cfg.label}</span>`;
@@ -6534,6 +6541,7 @@ async function findUserForPromote() {
       </div>
       <div class="field"><label>Plan</label>
         <select id="promo-plan">
+          <option value="none" selected>No Plan (Wallet Only)</option>
           <option value="morning">Morning Tiffin (Day)</option>
           <option value="evening">Evening Tiffin (Night)</option>
           <option value="both">Both (Morning + Evening)</option>
@@ -6607,6 +6615,7 @@ function openSubEditModal(phone) {
     <div class="mo-title"><i class="fa fa-edit" style="color:var(--blue)"></i> Edit Subscriber — ${_esc(s.name)}</div>
     <div class="field"><label>Plan</label>
       <select id="se-plan">
+        <option value="none" ${getSubsPlan(s)==='none'?'selected':''}>No Plan (Wallet Only)</option>
         <option value="morning" ${getSubsPlan(s)==='day'?'selected':''}>Morning Tiffin (Day)</option>
         <option value="evening" ${getSubsPlan(s)==='night'?'selected':''}>Evening Tiffin (Night)</option>
         <option value="both" ${getSubsPlan(s)==='both'?'selected':''}>Both (Morning + Evening)</option>
@@ -6885,9 +6894,15 @@ function renderUsersTable(users) {
     return `<span style="color:#94a3b8">${days}d ago</span>`;
   };
 
-  const subBadge = (u) => u.is_subscriber
-    ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:#dcfce7;color:#16a34a;border-radius:20px;font-size:11px;font-weight:700"><i class="fa fa-crown" style="font-size:9px"></i>&nbsp;Sub</span>`
-    : `<span style="padding:3px 9px;background:#f1f5f9;color:#64748b;border-radius:20px;font-size:11px;font-weight:600">Normal</span>`;
+  // Three states: real auto-tiffin plan (👑 Sub), wallet-only plan:'none' (Sub + None),
+  // or no subscriber row at all (Normal — shouldn't really happen post-v197 signup/migration).
+  const subBadge = (u) => {
+    if (u.is_subscriber && u.subscriber_plan && u.subscriber_plan !== 'none')
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:#dcfce7;color:#16a34a;border-radius:20px;font-size:11px;font-weight:700"><i class="fa fa-crown" style="font-size:9px"></i>&nbsp;Sub</span>`;
+    if (u.is_subscriber)
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:#e0f2fe;color:#0369a1;border-radius:20px;font-size:11px;font-weight:700">Sub + None</span>`;
+    return `<span style="padding:3px 9px;background:#f1f5f9;color:#64748b;border-radius:20px;font-size:11px;font-weight:600">Normal</span>`;
+  };
 
   const zoneBadge = (u) => {
     const zs = u.zone_status || 'unknown';
@@ -6960,7 +6975,7 @@ function renderUsersTable(users) {
             style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;box-shadow:0 2px 6px rgba(14,165,233,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
             <i class="fa fa-location-dot" style="font-size:10px"></i> Edit Address
           </button>
-          ${!u.is_subscriber ? `<button onclick="promoteUserFromAllTab('${u.phone}')" title="Promote to Subscriber" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.35);letter-spacing:.2px;transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-arrow-up" style="font-size:10px"></i> Promote to Subscriber</button>` : `<div style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border-radius:7px;background:#dcfce7;color:#16a34a;"><i class="fa fa-crown" style="font-size:10px"></i> Subscribed</div>`}
+          ${(!u.is_subscriber || u.subscriber_plan === 'none') ? `<button onclick="promoteUserFromAllTab('${u.phone}')" title="Promote to Auto-Tiffin Subscriber" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.35);letter-spacing:.2px;transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-arrow-up" style="font-size:10px"></i> Promote to Auto-Tiffin</button>` : `<div style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border-radius:7px;background:#dcfce7;color:#16a34a;"><i class="fa fa-crown" style="font-size:10px"></i> Subscribed</div>`}
           ${u.order_allowed === false
             ? `<button onclick="adminAllowUserOrder('${u.phone}','${_escAttr(u.name)}')" title="Allow this user to place orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,.30);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-unlock" style="font-size:10px"></i> Allow Orders</button>`
             : `<button onclick="adminBlockUserOrder('${u.phone}','${_escAttr(u.name)}')" title="Block this user from placing orders" style="width:100%;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 0;font-size:11px;font-weight:700;font-family:var(--ff);border:none;border-radius:7px;cursor:pointer;background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff;box-shadow:0 2px 6px rgba(100,116,139,.25);transition:opacity .15s" onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'"><i class="fa fa-lock" style="font-size:10px"></i> Block Orders</button>`}
@@ -7288,6 +7303,7 @@ function promoteFromKhata(phone, name) {
     </div>
     <div class="field"><label>Plan</label>
       <select id="pfk-plan">
+        <option value="none" selected>No Plan (Wallet Only)</option>
         <option value="morning">Morning Tiffin (Day)</option>
         <option value="evening">Evening Tiffin (Night)</option>
         <option value="both">Both (Morning + Evening)</option>
@@ -7348,6 +7364,7 @@ function promoteUserFromAllTab(phone) {
     </div>
     <div class="field"><label>Plan</label>
       <select id="pat-plan">
+        <option value="none" selected>No Plan (Wallet Only)</option>
         <option value="morning">Morning Tiffin (Day)</option>
         <option value="evening">Evening Tiffin (Night)</option>
         <option value="both">Both (Morning + Evening)</option>
@@ -7963,6 +7980,7 @@ function showSettingPanel(type, el) {
     cutoff:       renderCutoffPanel,
     schedule:     renderSchedulePanel,
     'khata-toggle': renderKhataTogglePanel,
+    'delivery-charge': renderDeliveryChargePanel,
     'reset-pw':   renderResetPwPanel,
     'reset-user-pw': renderResetUserPwPanel,
     cleanup:      renderCleanupPanel,
@@ -8111,6 +8129,53 @@ async function setKhataEnabled(enabled) {
     document.getElementById('khata-toggle-label').textContent = enabled ? 'Enabled' : 'Disabled';
     aToast(enabled ? 'Wallet enabled' : 'Wallet disabled');
   } catch(e) { aToast(e.message); }
+}
+
+function renderDeliveryChargePanel(area) {
+  area.innerHTML = `
+    <div class="settings-panel">
+      <div style="font-family:var(--ff);font-weight:700;font-size:15px;margin-bottom:6px">🚴 Delivery Charge</div>
+      <p style="color:#64748b;font-size:13px;margin-bottom:20px;line-height:1.5">
+        Charged on non-free-delivery orders — daily (non-subscriber) orders, and
+        subscriber orders paid via UPI due to low wallet balance. Subscriber orders
+        paid via wallet always stay free. Change reflects on the customer app
+        within ~60 seconds (no app update needed).
+      </p>
+      <div class="field">
+        <label style="font-size:13px;font-weight:600">Amount (₹)</label>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+          <span style="font-family:var(--ff);font-weight:700;font-size:18px;color:#334155">₹</span>
+          <input id="dc-amount" type="number" min="0" max="200" step="1" placeholder="e.g. 20"
+            style="padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;width:140px">
+        </div>
+        <span style="font-size:11px;color:#94a3b8;display:block;margin-top:6px">Whole rupees only · 0–200</span>
+      </div>
+      <button class="btn btn-p" id="dc-save-btn" style="margin-top:16px" onclick="saveDeliveryCharge()">Save Delivery Charge</button>
+    </div>`;
+  _getAdminSettings().then(r => {
+    const inp = document.getElementById('dc-amount');
+    if (inp) inp.value = r.settings?.deliveryCharge ?? 20;
+  }).catch(() => aToast('Could not load settings'));
+}
+
+async function saveDeliveryCharge() {
+  const inp = document.getElementById('dc-amount');
+  const raw = inp?.value;
+  const amount = parseInt(raw, 10);
+  if (raw === '' || raw === null || isNaN(amount) || amount < 0 || amount > 200 || String(raw).includes('.')) {
+    aToast('Enter a whole number between 0 and 200'); return;
+  }
+  const btn = document.getElementById('dc-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await api('setDeliveryCharge', { amount });
+    _invalidateAdminSettingsCache();
+    aToast(`Delivery charge set to ₹${amount} ✅`);
+  } catch (e) {
+    aToast(e.message || 'Save failed');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Delivery Charge'; }
+  }
 }
 
 function renderResetPwPanel(area) {
