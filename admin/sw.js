@@ -1,6 +1,12 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v14.4  |  Updated : 2026-07-04
+   Version : v14.5  |  Updated : 2026-07-10
+
+   CHANGES v14.5 (v199):
+   - Cache bumped → tiffo-admin-v46 (v199 — release sync only. v199
+     was a customer-app-only release: cold-boot plan restore fix +
+     Join Auto Tiffin/Monthly Plan carousel. No admin panel logic
+     changed; bump keeps all three portals' cache versions aligned.)
 
    CHANGES v14.4 (v188):
    - Cache bumped → tiffo-admin-v43 (v188 — Earnings fix: rider cash
@@ -112,7 +118,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v43'; // v188: rider-collection earnings fix — force refresh
+const CACHE      = 'tiffo-admin-v46'; // v199: release sync only (no admin logic change)
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */

@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v186                                   ║
-     ║  Updated : 2026-07-04                               ║
+     ║  Version : v199                                   ║
+     ║  Updated : 2026-07-10                               ║
+     ║  Changes : v199 — Release sync only. v199 was a       ║
+     ║            customer-app-only release (cold-boot plan  ║
+     ║            restore fix + Join Auto Tiffin/Monthly Plan ║
+     ║            carousel). No admin panel logic changed.    ║
      ║  Changes : v186 — Unpaid/Udhar payment workflow      ║
      ║            overhaul: Update Order modal locks         ║
      ║            payment status after admin confirms         ║
@@ -5917,8 +5921,10 @@ function renderFTEligibleList() {
   );
 
   // Admin targeting filter — narrow to subscribers / non-subscribers only (optional)
-  if (subFilter === 'non_sub')   eligible = eligible.filter(u => !u.is_subscriber);
-  else if (subFilter === 'sub')  eligible = eligible.filter(u => u.is_subscriber);
+  // v198: "subscriber" here means an active auto-tiffin plan — every user has a wallet
+  // row now (v197 auto-enrol), so raw is_subscriber would make this filter a no-op.
+  if (subFilter === 'non_sub')   eligible = eligible.filter(u => !u.subscriber_plan || u.subscriber_plan === 'none');
+  else if (subFilter === 'sub')  eligible = eligible.filter(u => u.subscriber_plan && u.subscriber_plan !== 'none');
 
   // Registration age filter — how recently the user signed up
   if (regFilter === '7')        eligible = eligible.filter(u => (u.reg_days ?? 999) <= 7);
@@ -5950,7 +5956,7 @@ function renderFTEligibleList() {
       ? '<span style="color:#f59e0b;font-size:10px;margin-left:4px">⚠️ Same address</span>'
       : '';
     const statusLabel = u.free_tiffin_status === 'wa_sent' ? ' · WA Sent before' : '';
-    const subLabel = u.is_subscriber ? ' · 👑 Subscriber' : '';
+    const subLabel = (u.subscriber_plan && u.subscriber_plan !== 'none') ? ' · 👑 Subscriber' : '';
     const suspectLabel = u.ft_loc_suspect ? ' · ⚠️ GPS Suspect' : '';
     const regLabel = u.reg_days != null ? ` · ${u.reg_days}d ago` : '';
     return `<label style="display:flex;align-items:center;gap:10px;padding:10px;border:1.5px solid ${checked ? '#fed7aa' : '#f1f5f9'};border-radius:10px;background:${checked ? '#fffbeb' : 'white'};cursor:pointer" onclick="ftToggleRecipient('${u.phone}',this)">
@@ -5990,8 +5996,8 @@ function ftAutoPickEligible() {
     u.free_tiffin_status !== 'redeemed' &&
     u.free_tiffin_status !== 'wa_sent'
   );
-  if (subFilter === 'non_sub')  eligible = eligible.filter(u => !u.is_subscriber);
-  else if (subFilter === 'sub') eligible = eligible.filter(u => u.is_subscriber);
+  if (subFilter === 'non_sub')  eligible = eligible.filter(u => !u.subscriber_plan || u.subscriber_plan === 'none');
+  else if (subFilter === 'sub') eligible = eligible.filter(u => u.subscriber_plan && u.subscriber_plan !== 'none');
   eligible = eligible.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, n);
   _ftSelectedPhones.clear();
   eligible.forEach(u => _ftSelectedPhones.add(u.phone));
@@ -6101,7 +6107,7 @@ function _ftRenderSendList() {
       );
       return `<div id="ft-sl-row-${ph}" style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #f1f5f9;border-radius:10px;background:white">
         <div style="flex:1;min-width:0">
-          <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}${u.is_subscriber ? ' <span style="color:#f59e0b">👑</span>' : ''}</div>
+          <div style="font-family:var(--ff);font-weight:700;font-size:12px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}${(u.subscriber_plan && u.subscriber_plan !== 'none') ? ' <span style="color:#f59e0b">👑</span>' : ''}</div>
           <div style="font-size:10px;color:#64748b">${ph}</div>
           <div style="font-size:10px;font-family:monospace;color:#f97316;font-weight:700;margin-top:2px">${code}</div>
         </div>
@@ -6841,8 +6847,8 @@ async function filterUsers() {
 
   let filtered = [..._allUsers];
 
-  if (_userFilter === 'subscriber')     filtered = filtered.filter(u => u.is_subscriber);
-  if (_userFilter === 'non-subscriber') filtered = filtered.filter(u => !u.is_subscriber);
+  if (_userFilter === 'subscriber')     filtered = filtered.filter(u => u.subscriber_plan && u.subscriber_plan !== 'none');
+  if (_userFilter === 'non-subscriber') filtered = filtered.filter(u => !u.subscriber_plan || u.subscriber_plan === 'none');
   if (_userFilter === 'outside_zone')   filtered = filtered.filter(u => u.order_allowed === false || (u.zone_status === 'outside' || u.zone_status === 'manual_only'));
   if (_userFilter === 'no_coords')      filtered = filtered.filter(u => !u.coord_lat && !u.coord_lng);
 
@@ -6992,8 +6998,8 @@ function downloadUsersPDF() {
 
   // Build the same filtered list filterUsers() would show
   let list = [..._allUsers];
-  if (_userFilter === 'subscriber')     list = list.filter(u => u.is_subscriber);
-  if (_userFilter === 'non-subscriber') list = list.filter(u => !u.is_subscriber);
+  if (_userFilter === 'subscriber')     list = list.filter(u => u.subscriber_plan && u.subscriber_plan !== 'none');
+  if (_userFilter === 'non-subscriber') list = list.filter(u => !u.subscriber_plan || u.subscriber_plan === 'none');
   if (_userFilter === 'outside_zone')   list = list.filter(u => u.order_allowed === false || u.zone_status === 'outside' || u.zone_status === 'manual_only');
   if (_userFilter === 'no_coords')      list = list.filter(u => !u.coord_lat && !u.coord_lng);
   if (q) list = list.filter(u =>
@@ -13418,9 +13424,9 @@ function _uaDrawSegments(segments) {
               const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1);
               const scoreTxt = seg.badge
                 ? seg.badge(u, _uaDays, u)
-                : (u.is_subscriber ? 'Sub' : 'Normal');
+                : ((u.subscriber_plan && u.subscriber_plan !== 'none') ? 'Sub' : 'Normal');
               // subscriber pill shown separately in badge if sub
-              const subPill = u.is_subscriber
+              const subPill = (u.subscriber_plan && u.subscriber_plan !== 'none')
                 ? '<span style="padding:1px 6px;background:#dcfce7;color:#16a34a;border-radius:10px;font-size:9px;font-weight:700;margin-left:4px">SUB</span>'
                 : '';
               const scoreBg  = '#f1f5f9';
@@ -13800,8 +13806,8 @@ function _umApplyFilter() {
   _umMarkerLayer.clearLayers();
 
   let visible = _umAllUsers;
-  if (_umFilter === 'subscriber') visible = _umAllUsers.filter(u => u.is_subscriber);
-  if (_umFilter === 'normal')     visible = _umAllUsers.filter(u => !u.is_subscriber);
+  if (_umFilter === 'subscriber') visible = _umAllUsers.filter(u => u.subscriber_plan && u.subscriber_plan !== 'none');
+  if (_umFilter === 'normal')     visible = _umAllUsers.filter(u => !u.subscriber_plan || u.subscriber_plan === 'none');
 
   const pinEl = document.getElementById('um-pin-count');
   if (pinEl) pinEl.textContent = `${visible.length} pin${visible.length === 1 ? '' : 's'} shown`;
@@ -13822,7 +13828,7 @@ function _umApplyFilter() {
 
     const rating   = u.rating ?? 0;
     const rInfo    = _umRatingLabel(rating);
-    const subBadge = u.is_subscriber
+    const subBadge = (u.subscriber_plan && u.subscriber_plan !== 'none')
       ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;background:#dcfce7;color:#16a34a;border-radius:20px;font-size:10px;font-weight:700"><i class="fa fa-crown" style="font-size:8px"></i> Subscriber</span>`
       : `<span style="padding:3px 9px;background:#f1f5f9;color:#64748b;border-radius:20px;font-size:10px;font-weight:600">Normal User</span>`;
     const joinedStr = u.created_at
@@ -13831,7 +13837,7 @@ function _umApplyFilter() {
 
     const popup = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-width:210px">
-        <div style="background:${u.is_subscriber ? 'linear-gradient(135deg,#0ea5e9,#0284c7)' : 'linear-gradient(135deg,#f97316,#ea580c)'};padding:12px 14px;display:flex;align-items:center;gap:10px">
+        <div style="background:${(u.subscriber_plan && u.subscriber_plan !== 'none') ? 'linear-gradient(135deg,#0ea5e9,#0284c7)' : 'linear-gradient(135deg,#f97316,#ea580c)'};padding:12px 14px;display:flex;align-items:center;gap:10px">
           <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;flex-shrink:0">
             ${_esc((u.name || 'U')[0].toUpperCase())}
           </div>
@@ -13858,7 +13864,7 @@ function _umApplyFilter() {
       </div>`;
 
     const marker = L.marker([lat, lng], {
-      icon:  _umPinIcon(globalNum, u.is_subscriber),
+      icon:  _umPinIcon(globalNum, !!(u.subscriber_plan && u.subscriber_plan !== 'none')),
       title: u.name || u.phone
     });
     marker.bindPopup(popup, { maxWidth: 260, minWidth: 210, className: 'um-popup' });
