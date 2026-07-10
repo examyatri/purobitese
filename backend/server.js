@@ -3795,8 +3795,16 @@ app.post('/api', async (req, res) => {
 
 
       case 'adminGetSubscribers': {
-        const { data: subs } = await supabase.from('subscribers').select('*');
-        const phones = (subs || []).map(s => s.phone);
+        const { data: allSubs } = await supabase.from('subscribers').select('*');
+        // v198: every user now has a subscribers row (v197 wallet-only auto-enrol +
+        // backfill migration). This page is specifically for AUTO-TIFFIN plan
+        // management (pause toggles, day/night/both badges) — wallet-only
+        // (plan:'none') users don't belong here; they're wallet subscribers, not
+        // auto-tiffin subscribers. Filter them out so this page only shows users
+        // with a real active plan. Wallet-only users are still visible/manageable
+        // from the "All Users" tab (Sub + None badge) and Khata/Wallet tab.
+        const subs = (allSubs || []).filter(s => s.plan && s.plan !== 'none');
+        const phones = subs.map(s => s.phone);
         const [{ data: userRows }, { data: balRows }] = phones.length
           ? await Promise.all([
               supabase.from('users').select('phone, name, address').in('phone', phones),
@@ -6159,7 +6167,7 @@ app.post('/api', async (req, res) => {
         // v171: subscribers fetch + all suspect Haversine RPCs in parallel
         const suspectUsers = (ftUsers || []).filter(u => u.ft_loc_suspect && u.coord_lat && u.coord_lng);
         const [subResult2, ...suspectResults] = await Promise.all([
-          supabase.from('subscribers').select('phone'),
+          supabase.from('subscribers').select('phone, plan'),
           ...suspectUsers.map(u =>
             supabase.rpc('get_nearby_ft_users', {
               p_lat: u.coord_lat, p_lng: u.coord_lng, p_radius_m: 30, p_exclude_phone: u.phone
@@ -6167,6 +6175,12 @@ app.post('/api', async (req, res) => {
           )
         ]);
         const subSet = new Set((subResult2.data || []).map(r => r.phone));
+        // v198: plan lookup — is_subscriber alone no longer distinguishes "has an active
+        // auto-tiffin plan" from "wallet-only" (every user has a subscribers row now).
+        // The admin targeting filter (Type: All/Non-subscriber/Subscriber) needs the real
+        // plan to keep meaning "has a paid auto-tiffin plan", matching its pre-v197 behaviour.
+        const subPlanMap = {};
+        for (const r of (subResult2.data || [])) subPlanMap[r.phone] = r.plan;
         const nearbyMap = {};
         for (const { phone, data: nb } of suspectResults) {
           if (nb && nb.length > 0) {
@@ -6187,6 +6201,7 @@ app.post('/api', async (req, res) => {
             paid_orders_after: conversionMap[u.phone]?.count ?? 0,
             conversion:        conversionMap[u.phone] || null,
             is_subscriber:     subSet.has(u.phone),
+            subscriber_plan:   subPlanMap[u.phone] || null,
             nearby_suspects:   nearbyMap[u.phone] || []
           };
         });
@@ -6316,13 +6331,19 @@ app.post('/api', async (req, res) => {
           // v171 FIX: parallel fetch of subscribers + eligible users (was sequential)
           // v171 FIX: removed duplicate .is('free_tiffin_blocked', false) — .eq() is sufficient
           const [subResultR, eligResult] = await Promise.all([
-            supabase.from('subscribers').select('phone'),
+            supabase.from('subscribers').select('phone, plan'),
             supabase.from('users').select('phone, name')
               .neq('free_tiffin_status', 'redeemed')
               .eq('free_tiffin_blocked', false)
           ]);
           if (eligResult.error) return res.json({ success: false, error: eligResult.error.message });
-          const subSetR = new Set((subResultR.data || []).map(r => r.phone));
+          // v198: "subscriber" here must mean an active auto-tiffin plan (matches the pre-v197
+          // targeting intent), not just "has a subscribers row" — every user has one now
+          // (wallet-only plan:'none' auto-enrol), so a raw phone-set would make 'non_sub'
+          // always return an empty pool and 'sub' collapse to the same as 'all'.
+          const subSetR = new Set(
+            (subResultR.data || []).filter(r => r.plan && r.plan !== 'none').map(r => r.phone)
+          );
 
           // v172: subscribers are eligible by default now (neq above already handles redeemed).
           // Only filtered out if admin explicitly asked for non-subscribers only / subscribers only.
