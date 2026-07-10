@@ -632,6 +632,7 @@ const _STAFF_ACTIONS = new Set([
   'setDeliveryZone',
   'setAutoTiffinCutoff',
   'setDeliveryAreas',
+  'setDeliveryCharge',
   'adminSetUserAddress',
   'adminSetUserRating',
   'adminRecomputeAllRatings',
@@ -874,6 +875,23 @@ async function getCachedSetting(key) {
   return val;
 }
 
+// ── Delivery charge (admin-configurable, v195) ─────────────────────────────
+// Was hardcoded ₹20 everywhere. Now stored in admin_settings under key
+// 'delivery_charge' and read through the same 5-min cache as other settings.
+// DEFAULT_DELIVERY_CHARGE is the fallback used when the row doesn't exist yet
+// (fresh DB / before first admin save) AND as a last-resort guard against a
+// corrupted/non-numeric value — order creation must never silently charge ₹0
+// or throw because of a bad settings row.
+const DEFAULT_DELIVERY_CHARGE = 20;
+const MAX_DELIVERY_CHARGE     = 200; // sanity cap — matches admin UI validation
+
+async function getDeliveryCharge() {
+  const raw = await getCachedSetting('delivery_charge');
+  const n = parseInt(raw, 10);
+  if (Number.isFinite(n) && n >= 0 && n <= MAX_DELIVERY_CHARGE) return n;
+  return DEFAULT_DELIVERY_CHARGE;
+}
+
 // ── Menu content version ──────────────────────────────────────────────────────
 // Lightweight monotonic counter. Bumped every time admin changes menu items OR
 // any setting visible on the user homepage (schedule, cutoff, khata toggle).
@@ -905,6 +923,7 @@ function _invalidateSettingsCache() {
   delete _settingsCache['auto_tiffin_cutoff'];
   delete _settingsCache['delivery_zone'];
   delete _settingsCache['delivery_areas'];
+  delete _settingsCache['delivery_charge'];
   // Also wipe menu cache — admin may have changed items alongside settings
   _menuItemsCache   = null;
   _menuItemsCacheTs = 0;
@@ -2175,6 +2194,28 @@ app.post('/api', async (req, res) => {
             .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
         } catch(_) {}
 
+        // ── Auto-enrol every new signup as a wallet-only subscriber (plan:'none') ──
+        // Gives every user wallet + free-delivery-when-covered features from day 1.
+        // Auto-tiffin (daily auto delivery) stays OFF until admin explicitly sets a
+        // plan (morning/evening/both) — see promoteToSubscriber / updateSubscriber.
+        const signupPlanStart = istDateStr(ist);
+        try {
+          await supabase.from('subscribers').insert({
+            phone,
+            plan:           'none',
+            plan_start:     signupPlanStart,
+            notes:          'Auto-enrolled on signup (wallet-only)',
+            pause_delivery: 'both',
+            pause_morning:  true,
+            pause_evening:  true,
+            pause_morning_from: null,
+            pause_evening_from: null,
+            is_delivery_off: false,
+            auto_tiffin:    false,
+            created_at:     createdAt
+          });
+        } catch(_) {}
+
         // ── Referral tracking: save referred_by + create notification for admin ──
         const referredBy = typeof data.referred_by === 'string'
           ? data.referred_by.replace(/\D/g, '').slice(-10)
@@ -2214,7 +2255,14 @@ app.post('/api', async (req, res) => {
         return res.json({
           success: true,
           user: { user_id: phone, name: data.name, phone, email: data.email || null, address: data.address || null, area: data.area || null, zone_status: signupZoneStatus, created_at: createdAt },
-          subscriber:    null,
+          subscriber: {
+            phone,
+            plan:           'none',
+            plan_start:     signupPlanStart,
+            plan_end:       null,
+            pause_delivery: 'both',
+            created_at:     createdAt
+          },
           walletBalance: 0,
           userToken:     signupToken,
           zone_status:   signupZoneStatus,
@@ -2366,10 +2414,11 @@ app.post('/api', async (req, res) => {
         const needsUserCheck = !!(cleanedPhone && _verifyUserToken(req.body.userToken, cleanedPhone));
 
         // Settings + optional order_allowed all in one round-trip (was sequential after settings)
-        const [scheduleVal, cutoffVal, khataVal, uRow] = await Promise.all([
+        const [scheduleVal, cutoffVal, khataVal, deliveryChargeAmt, uRow] = await Promise.all([
           getCachedSetting('weekly_schedule'),
           getCachedSetting('order_cutoff_config'),
           getCachedSetting('khata_enabled'),
+          getDeliveryCharge(),
           needsUserCheck
             ? supabase.from('users').select('order_allowed').eq('phone', cleanedPhone).single()
             : Promise.resolve({ data: null })
@@ -2381,7 +2430,7 @@ app.post('/api', async (req, res) => {
         // order_allowed: default true for guests; use DB value for verified logged-in users
         let orderAllowed = true;
         if (needsUserCheck && uRow?.data) orderAllowed = uRow.data.order_allowed !== false;
-        return res.json({ success: true, items: menuItems, schedule, config, enabled, version: _menuContentVersion, order_allowed: orderAllowed });
+        return res.json({ success: true, items: menuItems, schedule, config, enabled, deliveryCharge: deliveryChargeAmt, version: _menuContentVersion, order_allowed: orderAllowed });
       }
 
       // ── MERGED: replaces getSubscriberBalance + getSubscriberPauseStatus (same row) ──
@@ -2709,10 +2758,12 @@ app.post('/api', async (req, res) => {
         // ineligible for admin bulk generation (handled in bulkGenerateOrders, unchanged).
 
         // ── FIX #3: Compute delivery charge server-side — never trust client value ──
-        // upi_insuf: subscriber has insufficient wallet, pays via UPI — delivery is charged (₹20)
+        // upi_insuf: subscriber has insufficient wallet, pays via UPI — delivery is charged
         // wallet:    subscriber has sufficient balance — free delivery
-        // daily:     non-subscriber — always ₹20 delivery
-        const serverDeliveryCharge = (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') ? 0 : 20;
+        // daily:     non-subscriber — always charged
+        // Charge amount itself is admin-configurable (v195) — see getDeliveryCharge().
+        const _deliveryChargeAmt = await getDeliveryCharge();
+        const serverDeliveryCharge = (user.is_subscriber && khataEnabled && data.paymentMode !== 'upi_insuf') ? 0 : _deliveryChargeAmt;
 
         // ── SECURITY FIX v157 (race condition) ──────────────────────────────
         // REMOVED: the old separate SELECT-then-compare balance check that
@@ -3172,9 +3223,11 @@ app.post('/api', async (req, res) => {
           const slotPaused = deliveryOff
             || (slot === 'morning' && pm)
             || (slot === 'evening' && pe);
-          // Plan-slot mismatch: morning-only subscriber excluded from evening bulk and vice versa
+          // Plan-slot mismatch: morning-only subscriber excluded from evening bulk and vice versa.
+          // plan === 'none' → wallet-only subscriber, never eligible for auto-tiffin (any slot).
           const subPlan = sub.plan || 'both';
-          const planMismatch = (slot === 'morning' && subPlan === 'evening')
+          const planMismatch = subPlan === 'none'
+            || (slot === 'morning' && subPlan === 'evening')
             || (slot === 'evening' && subPlan === 'morning');
           const insufficientBalance = khataEnabledForBulk && balance < bulkPrice;
           const eligibleBase = !slotPaused && !planMismatch && !ordered; // price-independent part
@@ -3264,12 +3317,14 @@ app.post('/api', async (req, res) => {
             const slotPaused = deliveryOff
               || (bulkSlot === 'morning' && pm)
               || (bulkSlot === 'evening' && pe);
-            // Plan-slot mismatch: skip subscriber if their plan doesn't include this slot
+            // Plan-slot mismatch: skip subscriber if their plan doesn't include this slot.
+            // plan === 'none' → wallet-only subscriber, never eligible for auto-tiffin (any slot).
             const subPlan = sub.plan || 'both';
-            const planMismatch = (bulkSlot === 'morning' && subPlan === 'evening')
+            const planMismatch = subPlan === 'none'
+              || (bulkSlot === 'morning' && subPlan === 'evening')
               || (bulkSlot === 'evening' && subPlan === 'morning');
             if (slotPaused || planMismatch) {
-              skipped.push({ phone: cleanPh, reason: slotPaused ? 'delivery paused for this slot' : 'plan does not include this slot' }); continue;
+              skipped.push({ phone: cleanPh, reason: slotPaused ? 'delivery paused for this slot' : (subPlan === 'none' ? 'wallet-only plan — auto-tiffin not enabled' : 'plan does not include this slot') }); continue;
             }
           }
           eligiblePhones.push(cleanPh);
@@ -3767,7 +3822,11 @@ app.post('/api', async (req, res) => {
 
       case 'updateSubscriber': {
         const updates = { plan_start: data.plan_start, notes: data.notes };
-        if (data.plan)           updates.plan           = data.plan;
+        if (data.plan) {
+          updates.plan        = data.plan;
+          // Keep legacy auto_tiffin column in sync: 'none' plan = wallet-only, no auto-tiffin
+          updates.auto_tiffin = data.plan !== 'none';
+        }
         if (data.is_delivery_off !== undefined) updates.is_delivery_off = data.is_delivery_off;
         // plan_end: allow setting or clearing (null = infinite subscription)
         if (data.plan_end !== undefined) updates.plan_end = data.plan_end || null;
@@ -3856,9 +3915,10 @@ app.post('/api', async (req, res) => {
             .upsert({ phone, balance: 0, updated_at: new Date().toISOString() }, { onConflict: 'phone' });
         } catch(_) {}
         if (data.addAsSubscriber) {
+          const _acsPlan = data.plan || 'none';
           await supabase.from('subscribers').insert({
             phone,
-            plan:           data.plan || 'morning',
+            plan:           _acsPlan,
             plan_start:     data.plan_start || istDateStr(ist),
             notes:          data.notes      || '',
             // Opt-in auto-tiffin: new subscribers start PAUSED ('both') and must
@@ -3870,6 +3930,7 @@ app.post('/api', async (req, res) => {
             pause_morning_from: null,
             pause_evening_from: null,
             is_delivery_off: false,
+            auto_tiffin:    _acsPlan !== 'none',
             created_at:     new Date().toISOString()
           });
         }
@@ -3878,27 +3939,42 @@ app.post('/api', async (req, res) => {
 
       case 'promoteToSubscriber': {
         const phone = cleanPhone(data.phone);
-        // Validate user exists + not already subscriber in parallel (was 2 sequential selects)
+        // Validate user exists + check existing subscriber row in parallel (was 2 sequential selects)
         const [{ data: user }, { data: existing }] = await Promise.all([
           supabase.from('users').select('phone').eq('phone', phone).single(),
-          supabase.from('subscribers').select('phone').eq('phone', phone).single()
+          supabase.from('subscribers').select('phone, plan').eq('phone', phone).single()
         ]);
         if (!user) return res.json({ success: false, error: 'User not found' });
-        if (existing) return res.json({ success: false, error: 'Already a subscriber' });
-        await supabase.from('subscribers').insert({
-          phone,
-          plan:           data.plan || 'morning',
-          plan_start:     data.plan_start || istDateStr(getIST()),
-          notes:          data.notes || '',
-          // Opt-in auto-tiffin: see matching note in addAsSubscriber above.
-          pause_delivery: 'both',
-          pause_morning:  true,
-          pause_evening:  true,
-          pause_morning_from: null,
-          pause_evening_from: null,
-          is_delivery_off: false,
-          created_at:     new Date().toISOString()
-        });
+        // v197: every signup is auto-enrolled as a wallet-only (plan:'none') subscriber,
+        // so an existing row no longer means "already promoted" — only block if they
+        // already have a real auto-tiffin plan (morning/evening/both).
+        if (existing && existing.plan && existing.plan !== 'none') {
+          return res.json({ success: false, error: 'Already a subscriber' });
+        }
+        {
+          const _promoPlan = data.plan || 'none';
+          const _subFields = {
+            plan:           _promoPlan,
+            plan_start:     data.plan_start || istDateStr(getIST()),
+            notes:          data.notes || '',
+            // Opt-in auto-tiffin: see matching note in addAsSubscriber above.
+            // plan === 'none' → wallet-only subscriber, never eligible for auto-tiffin
+            // (see planMismatch checks in getSubscribersForBulk / bulkGenerateOrders).
+            pause_delivery: 'both',
+            pause_morning:  true,
+            pause_evening:  true,
+            pause_morning_from: null,
+            pause_evening_from: null,
+            is_delivery_off: false,
+            auto_tiffin:    _promoPlan !== 'none',
+          };
+          if (existing) {
+            // Wallet-only row already present (v197 auto-enrol) — upgrade it in place.
+            await supabase.from('subscribers').update(_subFields).eq('phone', phone);
+          } else {
+            await supabase.from('subscribers').insert({ phone, ..._subFields, created_at: new Date().toISOString() });
+          }
+        }
         // Ensure wallet row exists at 0 so balance never shows null
         try {
           await supabase.from('khata_summary')
@@ -4199,6 +4275,24 @@ app.post('/api', async (req, res) => {
         await supabase.from('admin_settings').upsert({ key: 'khata_enabled', value: JSON.stringify(!!data.enabled), updated_at: new Date().toISOString() }, { onConflict: 'key' });
         _invalidateSettingsCache(); _analyticsCache = null; _bumpMenuVersion();
         return res.json({ success: true });
+      }
+
+      // ── Delivery Charge (v195) ──────────────────────────────────────────
+      // Admin-configurable ₹ amount charged on non-free-delivery orders
+      // (daily/non-subscriber orders, and subscriber orders paid via UPI due
+      // to insufficient wallet balance). Previously hardcoded to ₹20 across
+      // backend + all 3 frontends. Integer rupees only (no paise) — keeps it
+      // simple for a small tiffin operation and avoids float rounding bugs
+      // in the wallet ledger. Bounded 0–200 to prevent a fat-finger entry
+      // (e.g. accidentally typing 2000) from silently breaking checkout.
+      case 'setDeliveryCharge': {
+        const amount = parseInt(data.amount, 10);
+        if (!Number.isFinite(amount) || amount < 0 || amount > MAX_DELIVERY_CHARGE || String(data.amount).includes('.')) {
+          return res.json({ success: false, error: `Delivery charge must be a whole number between 0 and ${MAX_DELIVERY_CHARGE}` });
+        }
+        await supabase.from('admin_settings').upsert({ key: 'delivery_charge', value: JSON.stringify(amount), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        _invalidateSettingsCache(); _bumpMenuVersion();
+        return res.json({ success: true, amount });
       }
 
       case 'setDeliveryZone': {
@@ -4718,6 +4812,8 @@ app.post('/api', async (req, res) => {
         { const { data: rows } = await supabase.from('admin_settings').select('*');
           const map = {};
           for (const r of (rows || [])) { try { map[r.key] = JSON.parse(r.value); } catch { map[r.key] = r.value; } }
+          const _dcRaw = parseInt(map['delivery_charge'], 10);
+          const deliveryCharge = (Number.isFinite(_dcRaw) && _dcRaw >= 0 && _dcRaw <= MAX_DELIVERY_CHARGE) ? _dcRaw : DEFAULT_DELIVERY_CHARGE;
           return res.json({ success: true, settings: {
             cutoff:              map['order_cutoff_config']   || {},
             weeklySchedule:      map['weekly_schedule']       || [],
@@ -4726,7 +4822,8 @@ app.post('/api', async (req, res) => {
             autoTiffinCutoff:    map['auto_tiffin_cutoff']   || { morning: '11:00', evening: '18:00' },
             deliveryAreas:       map['delivery_areas']        || [],
             referralReferrerPct: parseInt(map['referral_referrer_pct'] || '10'),
-            referralNewUserPct:  parseInt(map['referral_new_user_pct'] || '15')
+            referralNewUserPct:  parseInt(map['referral_new_user_pct'] || '15'),
+            deliveryCharge
           }}); }
 
       case 'getDeliveryAreas': {
