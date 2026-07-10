@@ -1,6 +1,25 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Service Worker (sw.js)
-   Version : v52.8  |  Updated : 2026-07-04
+   Version : v53.0  |  Updated : 2026-07-10
+
+   CHANGES v53.0:
+   - Cache bumped → tiffo-v88 (v199 — customer app: fixed cold-boot
+     race where a wallet-only subscriber's plan wasn't restored from
+     SessionCache on app open, briefly showing the wrong card/PRO
+     badge until the next network refresh. Added the auto-swiping
+     Join Auto Tiffin ⇄ Monthly Tiffin Plan carousel for subscribers
+     without auto-tiffin. No backend/admin/rider logic changed.)
+
+   CHANGES v52.9:
+   - Cache bumped → tiffo-v86 (v198 — CRITICAL: cache was stuck at
+     tiffo-v85 since v186. Every release from v187 through v198 never
+     reached users' devices — SW kept serving the stale v186 app shell
+     against the live (newer) backend, causing home/order/cart icons
+     to fail loading and login/session errors that persisted even
+     after re-login, because re-login itself ran on the same stale
+     cached JS. Only a manual "clear browsing data" fixed it for
+     affected users. This bump forces every stale client to fetch and
+     activate the current app shell automatically.)
 
    CHANGES v52.8:
    - Cache bumped → tiffo-v85 (v186 — release sync; no customer-facing
@@ -99,7 +118,7 @@
      - bfcache pageshow: no longer re-runs full bootApp()
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-v85'; // v186: release sync (no customer-facing change)
+const CACHE      = 'tiffo-v88'; // v199: cold-boot plan restore fix + Join Auto Tiffin/Monthly Plan carousel
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Core app shell — cached on install. */

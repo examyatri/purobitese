@@ -1,8 +1,26 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — User App (index.html)           ║
-     ║  Version : v186                                     ║
-     ║  Updated : 2026-07-04                               ║
+     ║  Version : v199                                     ║
+     ║  Updated : 2026-07-10                               ║
+     ║  CHANGE  : v199 — Fixed cold-boot race where a       ║
+     ║            wallet-only subscriber's `plan` was never  ║
+     ║            restored from SessionCache on app open     ║
+     ║            (cached.user never carried .plan; only     ║
+     ║            cached.plan does, and bootApp() wasn't      ║
+     ║            reading it). This briefly made undefined    ║
+     ║            plan compare as "has auto-tiffin" until a   ║
+     ║            fresh network call corrected it — matching  ║
+     ║            the "2-3 logout/login fixes it" symptom.    ║
+     ║            SessionCache.save() now persists `plan` at  ║
+     ║            every call site; login/checkSession/silent-  ║
+     ║            login fallbacks changed from `|| 'morning'` ║
+     ║            to `|| 'none'`; _hasAutoTiffin hardened to   ║
+     ║            require a truthy plan before comparing.     ║
+     ║            Added: auto-swiping carousel (Join Auto      ║
+     ║            Tiffin ⇄ Monthly Tiffin Plan), shown only    ║
+     ║            to subscriber-without-auto-tiffin users,     ║
+     ║            rotating every 3s with dot indicators.       ║
      ║  CHANGE  : v186 — Version sync; release sync only.   ║
      ║            v186 was an admin/rider-only release      ║
      ║            (Unpaid/Udhar payment workflow overhaul). ║
@@ -1106,6 +1124,14 @@ textarea{resize:vertical;min-height:80px}
 .monthly-plan-card:active{transform:scale(.98)}
 .monthly-plan-card::before{content:'';position:absolute;top:-40px;right:-30px;width:110px;height:110px;background:rgba(255,255,255,.12);border-radius:50%}
 .monthly-plan-card::after{content:'';position:absolute;bottom:-30px;right:40px;width:70px;height:70px;background:rgba(255,255,255,.08);border-radius:50%}
+/* ── v199: CTA carousel (Join Auto Tiffin ⇄ Monthly Plan) ── */
+.cta-carousel{margin-bottom:10px;overflow:hidden}
+.cta-carousel-track{display:flex;transition:transform 420ms cubic-bezier(.4,0,.2,1)}
+.cta-carousel-slide{flex:0 0 100%;min-width:0}
+.cta-carousel-slide .autotiffin-cta-card,.cta-carousel-slide .monthly-plan-card{margin-bottom:0}
+.cta-carousel-dots{display:flex;justify-content:center;gap:5px;margin-top:6px}
+.cta-dot{width:6px;height:6px;border-radius:50%;background:#d1d5db;transition:background 200ms,width 200ms}
+.cta-dot.active{background:#7c3aed;width:16px;border-radius:3px}
 /* ── First Tiffin FREE banner (guest mode only) ──
    Design v2: Deep Indigo — exclusive/gift psychology
    - Completely absent from Tiffo palette = unmistakably unique card
@@ -2435,28 +2461,41 @@ input[type=number]{-moz-appearance:textfield}
         <input type="checkbox" class="toggle-sw active" id="pause-toggle" onchange="onPauseToggle(this)" checked>
       </div>
 
-      <!-- Join Auto Tiffin card (subscribers on wallet-only plan — no auto-tiffin yet) -->
-      <div class="autotiffin-cta-card" id="join-autotiffin-card" onclick="requestAutoTiffinActivation()" style="display:none">
-        <div class="autotiffin-cta-icon"><i class="fa-solid fa-bowl-food"></i></div>
-        <div style="flex:1;min-width:0">
-          <div style="font-family:var(--ff);font-weight:700;font-size:14px">Join Auto Tiffin</div>
-          <div style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.85);margin-top:2px">Daily delivery, no manual ordering — tap to request</div>
-        </div>
-        <i class="fa-solid fa-chevron-right" style="font-size:13px;opacity:.85;flex-shrink:0"></i>
-      </div>
-
-
-      <!-- Monthly plan card (non-subscriber only) -->
-      <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
-        <div style="width:42px;height:42px;background:rgba(255,255,255,.2);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">&#x1F371;</div>
-        <div style="flex:1;position:relative;z-index:1">
-          <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
-          <div style="font-family:var(--fb);font-size:12px;opacity:.92;margin-top:4px;display:flex;align-items:center;gap:6px">
-            <span style="background:rgba(255,255,255,.28);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.2px">SAVE &#x20B9;1200</span>
-            <span style="opacity:.9;font-weight:600;font-size:11.5px">Free Home Delivery</span>
+      <!-- v199: Auto-swiping carousel — shown ONLY to subscriber-without-auto-tiffin users.
+           Rotates between "Join Auto Tiffin" and "Monthly Tiffin Plan" every few seconds,
+           like a banner carousel. Both cards keep their original click handlers/content;
+           only their container/visibility model changed (was 2 independently-toggled
+           divs, now 2 slides inside one swipeable track). -->
+      <div class="cta-carousel" id="cta-carousel" style="display:none">
+        <div class="cta-carousel-track" id="cta-carousel-track">
+          <div class="cta-carousel-slide">
+            <div class="autotiffin-cta-card" id="join-autotiffin-card" onclick="requestAutoTiffinActivation()">
+              <div class="autotiffin-cta-icon"><i class="fa-solid fa-bowl-food"></i></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--ff);font-weight:700;font-size:14px">Join Auto Tiffin</div>
+                <div style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.85);margin-top:2px">Daily delivery, no manual ordering — tap to request</div>
+              </div>
+              <i class="fa-solid fa-chevron-right" style="font-size:13px;opacity:.85;flex-shrink:0"></i>
+            </div>
+          </div>
+          <div class="cta-carousel-slide">
+            <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()">
+              <div style="width:42px;height:42px;background:rgba(255,255,255,.2);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">&#x1F371;</div>
+              <div style="flex:1;position:relative;z-index:1">
+                <div style="font-family:var(--ff);font-weight:800;font-size:15px;letter-spacing:-.2px">Monthly Tiffin Plan</div>
+                <div style="font-family:var(--fb);font-size:12px;opacity:.92;margin-top:4px;display:flex;align-items:center;gap:6px">
+                  <span style="background:rgba(255,255,255,.28);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.2px">SAVE &#x20B9;1200</span>
+                  <span style="opacity:.9;font-weight:600;font-size:11.5px">Free Home Delivery</span>
+                </div>
+              </div>
+              <div style="background:rgba(255,255,255,.25);border-radius:10px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:12px"></i></div>
+            </div>
           </div>
         </div>
-        <div style="background:rgba(255,255,255,.25);border-radius:10px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;z-index:1"><i class="fa-solid fa-chevron-right" style="font-size:12px"></i></div>
+        <div class="cta-carousel-dots" id="cta-carousel-dots">
+          <span class="cta-dot active" data-slide="0"></span>
+          <span class="cta-dot" data-slide="1"></span>
+        </div>
       </div>
 
       <!-- First Tiffin FREE — guest mode only, WhatsApp CTA -->
@@ -4752,7 +4791,10 @@ async function doLogin() {
     _walletBal = res.walletBalance || 0;
     _pauseMode = res.subscriber?.pause_delivery || 'none';
     updateWalletUI(_walletBal);
-    if (res.subscriber) { Auth.patch({ plan: res.subscriber.plan || 'morning' }); applyPauseState(_pauseMode); }
+    // v199: fallback is 'none' (wallet-only), not 'morning' — every subscribers row is
+    // guaranteed to have a real plan string now, so this only guards a malformed response.
+    // Defaulting to 'morning' would wrongly hide the Join Auto Tiffin card / show PRO badge.
+    if (res.subscriber) { Auth.patch({ plan: res.subscriber.plan || 'none' }); applyPauseState(_pauseMode); }
 
     // ── Show menu skeletons BEFORE the page transition so home never flashes empty ──
     showMenuSkeletons();
@@ -4765,10 +4807,10 @@ async function doLogin() {
     // ── loadMenu sets _khataEnabled via _fetchFreshMenu, then we persist session ──
     const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
     _initMenuP3.then(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, plan: _session?.plan || 'none',
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
     }).catch(() => {
-      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+      SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, plan: _session?.plan || 'none',
         walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
     });
     startPolling();
@@ -6922,7 +6964,7 @@ async function doSignup() {
     // Store order_allowed in session for UI to check
     _session.order_allowed = res.order_allowed !== false;
     SessionCache.save({
-      user: res.user, is_subscriber: !!res.subscriber, walletBalance: 0,
+      user: res.user, is_subscriber: !!res.subscriber, plan: _session?.plan || 'none', walletBalance: 0,
       pauseMode: _pauseMode, khataEnabled: false, deliveryCharge: _deliveryCharge, userToken: res.userToken || ''
     });
     showMenuSkeletons();
@@ -9271,6 +9313,7 @@ async function refreshAccountData() {
     SessionCache.save({
       user:          Auth.get(),
       is_subscriber: !!res.subscriber,
+      plan:          _session?.plan || 'none',
       walletBalance: _walletBal,
       pauseMode:     _pauseMode,
       khataEnabled:  _khataEnabled,
@@ -9977,6 +10020,7 @@ async function changePassword() {
     SessionCache.save({
       user:          Auth.get(),
       is_subscriber: !!_session?.is_subscriber,
+      plan:          _session?.plan || 'none',
       walletBalance: _walletBal,
       pauseMode:     _pauseMode,
       khataEnabled:  _khataEnabled,
@@ -10500,7 +10544,7 @@ function openAccountPanel() {
   document.getElementById('panel-name').textContent   = u.name || '—';
   document.getElementById('panel-phone').textContent  = u.phone || '—';
   const planBadge = document.getElementById('panel-plan-badge');
-  if (u.is_subscriber) planBadge.style.display = 'inline-block';
+  if (u.is_subscriber && u.plan && u.plan !== 'none') planBadge.style.display = 'inline-block';
   else planBadge.style.display = 'none';
   document.getElementById('account-panel').style.display = 'block';
   document.getElementById('account-panel').classList.add('open');
@@ -10691,6 +10735,7 @@ async function refreshSubscriberStatus(force = false) {
     SessionCache.save({
       user:          _session,
       is_subscriber: nowSubscriber,
+      plan:          _session?.plan || 'none',
       walletBalance: _walletBal,
       pauseMode:     _pauseMode,
       khataEnabled:  _khataEnabled,
@@ -10759,6 +10804,7 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
         SessionCache.save({
           user:          _session,
           is_subscriber: false,
+          plan:          'none',
           walletBalance: 0,
           pauseMode:     'none',
           khataEnabled:  _khataEnabled,
@@ -10786,6 +10832,7 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
         SessionCache.save({
           user:          _session,
           is_subscriber: true,
+          plan:          _session?.plan || 'none',
           walletBalance: _walletBal,
           pauseMode:     _pauseMode,
           khataEnabled:  _khataEnabled,
@@ -10810,7 +10857,14 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
     // _pauseMode === 'none' branch decision matches what the badge is showing.
     _pauseMode = res.pauseMode || 'none';
     // Sync plan to session (same as loadPauseState does)
-    if (res.plan) { Auth.patch({ plan: res.plan }); _applySubscriberUI(); }
+    if (res.plan && res.plan !== _session?.plan) {
+      Auth.patch({ plan: res.plan });
+      _applySubscriberUI();
+      // v199: persist plan into cache immediately — cold-boot restore reads
+      // cached.plan directly and must never see a stale/missing value.
+      const _sc199 = SessionCache.get();
+      if (_sc199) SessionCache.save({ ..._sc199, user: _session, plan: res.plan });
+    }
     _pauseFreshTs  = Date.now();
     _walletFreshTs = Date.now();
   } catch {
@@ -10934,22 +10988,60 @@ function _applySubscriberUI() {
   // and without (plan 'none' — wallet-only). Wallet features apply to both; only the
   // auto-tiffin daily-delivery feature differs.
   const _pauseRow = document.getElementById('pause-toggle-row');
-  const _planCard = document.getElementById('monthly-plan-card');
-  const _joinCard = document.getElementById('join-autotiffin-card');
+  const _carousel = document.getElementById('cta-carousel');
   const _freeBtn  = document.getElementById('first-tiffin-free-btn');
-  const _hasAutoTiffin = !!(u.is_subscriber && u.plan !== 'none');
+  // v199: require a real truthy plan string before comparing — treats a missing/undefined
+  // plan (e.g. a race before the first network refresh lands) as "no auto-tiffin" rather
+  // than accidentally matching the `!== 'none'` check and showing PRO/hiding the join card.
+  const _hasAutoTiffin = !!(u.is_subscriber && u.plan && u.plan !== 'none');
   // PRO badge = auto-tiffin subscribers ONLY. Wallet-only (plan:'none') subscribers
   // don't get PRO — that badge should signal an actual active plan, not just
   // "has a wallet row" (which is now true for every user post-signup).
   const proBadge = document.getElementById('home-pro-badge');
   if (proBadge) proBadge.classList.toggle('hidden', !_hasAutoTiffin);
   if (_pauseRow) _pauseRow.style.display = _hasAutoTiffin ? 'flex' : 'none';
-  if (_joinCard) _joinCard.style.display = (u.is_subscriber && !_hasAutoTiffin) ? 'flex' : 'none';
-  if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
+  // Carousel (Join Auto Tiffin ⇄ Monthly Tiffin Plan) shows ONLY to subscribers
+  // who don't yet have auto-tiffin — i.e. wallet-only ("subscriber without auto tiffin").
+  // Guests and auto-tiffin subscribers never see it.
+  const _showCarousel = !!(u.is_subscriber && !_hasAutoTiffin);
+  if (_carousel) {
+    const _wasShown = _carousel.style.display !== 'none';
+    _carousel.style.display = _showCarousel ? 'block' : 'none';
+    if (_showCarousel && !_wasShown) _startCtaCarousel();
+    else if (!_showCarousel) _stopCtaCarousel();
+  }
   if (_freeBtn)  _freeBtn.style.display  = 'none';  // never shown to logged-in users
   const _hdrFreeTag = document.getElementById('hdr-free-tag');
   if (_hdrFreeTag) _hdrFreeTag.style.display = 'none';
   // Sub plan banner removed — Auto Tiffin card / Join Auto Tiffin card is single source of truth
+}
+
+/* ── v199: CTA carousel auto-swipe (Join Auto Tiffin ⇄ Monthly Tiffin Plan) ──
+   Only runs while #cta-carousel is visible (subscriber-without-auto-tiffin).
+   Advances every 3s, wraps around, pauses if tab is hidden (visibilitychange
+   already stops all timers elsewhere in this app — mirrored here for consistency). */
+let _ctaCarouselTimer = null;
+let _ctaCarouselIdx   = 0;
+const _CTA_SLIDE_COUNT = 2;
+function _ctaCarouselRender() {
+  const track = document.getElementById('cta-carousel-track');
+  if (track) track.style.transform = `translateX(-${_ctaCarouselIdx * 100}%)`;
+  document.querySelectorAll('#cta-carousel-dots .cta-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === _ctaCarouselIdx);
+  });
+}
+function _startCtaCarousel() {
+  _stopCtaCarousel(); // clear any existing timer first — avoid duplicate intervals
+  _ctaCarouselIdx = 0;
+  _ctaCarouselRender();
+  _ctaCarouselTimer = setInterval(() => {
+    if (document.hidden) return; // don't advance while app is backgrounded
+    _ctaCarouselIdx = (_ctaCarouselIdx + 1) % _CTA_SLIDE_COUNT;
+    _ctaCarouselRender();
+  }, 3000);
+}
+function _stopCtaCarousel() {
+  if (_ctaCarouselTimer) { clearInterval(_ctaCarouselTimer); _ctaCarouselTimer = null; }
 }
 /* ── _wipeAndShowLogin ────────────────────────────────────────────
    Single source of truth for "something went wrong → clean slate".
@@ -11268,6 +11360,12 @@ async function bootApp() {
     _postLoginRefreshDone = false;
     Auth.set(cached.user);
     _session.is_subscriber = !!cached.is_subscriber;
+    // v199: cached.user (raw users-table row) never carries .plan — it lives only in
+    // cached.plan (top-level). Without this line, _session.plan stayed undefined until
+    // the first network refresh completed, and _hasAutoTiffin's `u.plan !== 'none'`
+    // check treated undefined as "has auto-tiffin", showing the wrong card/badge on
+    // cold boot for wallet-only subscribers until a fresh login corrected it.
+    _session.plan = cached.plan || 'none';
     _walletBal    = cached.walletBalance || 0;
     _pauseMode    = cached.pauseMode    || 'none';
     _khataEnabled = cached.khataEnabled || false;
@@ -11307,7 +11405,8 @@ async function bootApp() {
             Auth.set(res.user);
             _session.is_subscriber = !!res.subscriber;
             _walletBal = res.walletBalance || 0;
-            if (res.subscriber) Auth.patch({ plan: res.subscriber.plan || 'morning' });
+            // v199: fallback 'none' not 'morning' — see login-block note above.
+            if (res.subscriber) Auth.patch({ plan: res.subscriber.plan || 'none' });
             updateWalletUI(_walletBal);
             _applySubscriberUI();
             // Use loadPauseState for correct pendingTomorrow display instead of raw pause_delivery
@@ -11317,7 +11416,7 @@ async function bootApp() {
                 applyPauseState(_pauseMode);
               });
             }
-            SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+            SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, plan: _session?.plan || 'none',
               walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
           })
           .catch(e => {
@@ -11390,7 +11489,8 @@ async function bootApp() {
       // but this ensures the cached value is right even if that request fails.
       if (res.subscriber) {
         _pauseMode = res.subscriber.pause_delivery || 'none';
-        Auth.patch({ plan: res.subscriber.plan || 'morning' });
+        // v199: fallback 'none' not 'morning' — see login-block note above.
+        Auth.patch({ plan: res.subscriber.plan || 'none' });
         applyPauseState(_pauseMode);
       }
       updateWalletUI(_walletBal);
@@ -11404,10 +11504,10 @@ async function bootApp() {
       const _menuAge = _menuFreshTs > 0 ? Date.now() - _menuFreshTs : Infinity;
       const _p = _menuAge < 30_000 ? Promise.resolve() : loadMenu(true, true);
       _p.then(() => {
-        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, plan: _session?.plan || 'none',
           walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
       }).catch(() => {
-        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
+        SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber, plan: _session?.plan || 'none',
           walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
       });
       startPolling();
@@ -11515,12 +11615,11 @@ function _transitionToGuestHome() {
   // Hide subscriber-only elements
   document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
   const _pauseRow = document.getElementById('pause-toggle-row');
-  const _planCard = document.getElementById('monthly-plan-card');
-  const _joinCard = document.getElementById('join-autotiffin-card');
+  const _carousel = document.getElementById('cta-carousel');
   const _freeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_pauseRow) _pauseRow.style.display = 'none';
-  if (_joinCard) _joinCard.style.display = 'none';
-  if (_planCard) _planCard.style.display = 'none';   // hidden in guest — free btn takes its place
+  if (_carousel) _carousel.style.display = 'none';   // hidden in guest — free btn takes its place
+  _stopCtaCarousel();
   if (_freeBtn)  {
     _freeBtn.style.display  = 'flex';
     // ── Idle ring-shake: fires at 3s then every 5s while card is visible ──
@@ -12023,12 +12122,11 @@ function doLogout() {
   // Hide subscriber-only rows
   document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
   const _logoutPauseRow = document.getElementById('pause-toggle-row');
-  const _logoutPlanCard = document.getElementById('monthly-plan-card');
-  const _logoutJoinCard = document.getElementById('join-autotiffin-card');
+  const _logoutCarousel = document.getElementById('cta-carousel');
   const _logoutFreeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_logoutPauseRow) _logoutPauseRow.style.display = 'none';
-  if (_logoutJoinCard) _logoutJoinCard.style.display = 'none';
-  if (_logoutPlanCard) _logoutPlanCard.style.display = 'none';  // guest mode mein plan card nahi
+  if (_logoutCarousel) _logoutCarousel.style.display = 'none';  // guest mode mein carousel nahi
+  _stopCtaCarousel();
   if (_logoutFreeBtn)  _logoutFreeBtn.style.display  = 'flex';  // guest mein FREE btn dikhao
   const _logoutHdrTag = document.getElementById('hdr-free-tag');
   if (_logoutHdrTag) _logoutHdrTag.style.display = 'block';
