@@ -1061,6 +1061,9 @@ textarea{resize:vertical;min-height:80px}
 #ptr-spinner{display:none;width:20px;height:20px;border:2px solid #f0f0f0;border-top-color:var(--p);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
 /* Pause toggle */
 .pause-row{background:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:10px;border:2px solid transparent;transition:border-color 250ms,background 250ms}
+.autotiffin-cta-card{background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh);margin-bottom:10px;cursor:pointer;color:#fff;transition:transform 150ms}
+.autotiffin-cta-card:active{transform:scale(.98)}
+.autotiffin-cta-icon{width:38px;height:38px;background:rgba(255,255,255,.18);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .pause-row.paused{border-color:var(--pd);background:#fff8f8}
 .pause-status-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;font-family:var(--ff);border-radius:20px;padding:2px 8px;margin-top:3px}
 .pause-status-badge.active{background:var(--gl);color:var(--g)}
@@ -2432,6 +2435,16 @@ input[type=number]{-moz-appearance:textfield}
         <input type="checkbox" class="toggle-sw active" id="pause-toggle" onchange="onPauseToggle(this)" checked>
       </div>
 
+      <!-- Join Auto Tiffin card (subscribers on wallet-only plan — no auto-tiffin yet) -->
+      <div class="autotiffin-cta-card" id="join-autotiffin-card" onclick="requestAutoTiffinActivation()" style="display:none">
+        <div class="autotiffin-cta-icon"><i class="fa-solid fa-bowl-food"></i></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--ff);font-weight:700;font-size:14px">Join Auto Tiffin</div>
+          <div style="font-family:var(--fb);font-size:12px;color:rgba(255,255,255,.85);margin-top:2px">Daily delivery, no manual ordering — tap to request</div>
+        </div>
+        <i class="fa-solid fa-chevron-right" style="font-size:13px;opacity:.85;flex-shrink:0"></i>
+      </div>
+
 
       <!-- Monthly plan card (non-subscriber only) -->
       <div id="monthly-plan-card" class="monthly-plan-card" onclick="openWhatsAppPlan()" style="display:none">
@@ -2565,7 +2578,7 @@ input[type=number]{-moz-appearance:textfield}
           <div id="wallet-low-nudge" onclick="nav('pg-recharge')" role="button" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1.5px solid var(--g);border-radius:14px;padding:13px 14px;margin:10px 0 4px;cursor:pointer;box-shadow:0 2px 10px rgba(42,157,143,.10)">
             <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
               <span style="font-size:20px;flex-shrink:0">💰</span>
-              <span style="font-family:var(--fb);font-size:13px;color:var(--dk);line-height:1.4">Low wallet balance — ₹20 delivery charge added. <strong style="font-family:var(--ff);color:var(--g)">Recharge to get Free Delivery</strong></span>
+              <span style="font-family:var(--fb);font-size:13px;color:var(--dk);line-height:1.4">Low wallet balance — <span id="wallet-low-nudge-amt">₹20</span> delivery charge added. <strong style="font-family:var(--ff);color:var(--g)">Recharge to get Free Delivery</strong></span>
             </div>
             <div id="wr-cta" style="flex-shrink:0;background:var(--g);color:#fff;font-family:var(--ff);font-weight:700;font-size:11.5px;padding:7px 13px;border-radius:9px;white-space:nowrap">Recharge</div>
           </div>
@@ -3544,6 +3557,12 @@ let _session     = null;
 let _authState   = 'loading';
 let _fullMenu    = [];
 let _khataEnabled = false;
+// Admin-configurable delivery charge (v195). Default ₹20 matches backend
+// DEFAULT_DELIVERY_CHARGE fallback — kept in sync so a slow/failed first
+// fetch never shows ₹0 or blank. Real value always comes from getHomeData
+// (see _fetchFreshMenu) and refreshes automatically via the existing
+// version-poll mechanism whenever admin changes it — no client update needed.
+let _deliveryCharge = 20;
 let _pauseMode   = 'none';
 let _walletBal   = 0;
 let _activeCategory = 'All';
@@ -4461,6 +4480,20 @@ function openWhatsAppPlan() {
   window.open("https://wa.me/" + (CFG.WA || '919889760350') + "?text=" + msg, "_blank");
 }
 
+// Wallet-only subscriber requesting Auto-Tiffin (daily auto-delivery) activation
+function requestAutoTiffinActivation() {
+  const u = _session || {};
+  var msg = encodeURIComponent(
+    "🍱 *Tiffo — Auto Tiffin Activation Request*\n" + "━".repeat(32) +
+    "\nHi Tiffo Team! 👋\n\nI am currently a wallet subscriber and would like to activate *Auto Tiffin* (automatic daily delivery) on my account.\n\n" +
+    "  • 👤 Name: " + (u.name || '—') + "\n" +
+    "  • 📱 Phone: " + (u.phone || '—') + "\n\n" +
+    "Could you please enable Auto-Tiffin for me and confirm the plan (Morning / Evening / Both)?\n\n" +
+    "━".repeat(32) + "\nThank you! 🙏"
+  );
+  window.open("https://wa.me/" + (CFG.WA || '919889760350') + "?text=" + msg, "_blank");
+}
+
 /* ═══════════════════════════════════════════
    ROUTING
 ═══════════════════════════════════════════ */
@@ -4733,10 +4766,10 @@ async function doLogin() {
     const _initMenuP3 = loadMenu(true, false); // bypassCache=true — always hit DB on login, never stale cache
     _initMenuP3.then(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, userToken: res.userToken || '' });
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
     }).catch(() => {
       SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
+        walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
     });
     startPolling();
     startVersionPolling();
@@ -6877,15 +6910,20 @@ async function doSignup() {
     try { sessionStorage.removeItem('tiffo_ref'); } catch(_) {}
     Creds.save(phone, pw);
     Auth.set(res.user);
-    _session.is_subscriber = false;
+    // Every new signup is auto-enrolled as a wallet-only subscriber (plan:'none')
+    // by the server — gives wallet + free-delivery-when-covered features from day 1.
+    // Auto-tiffin stays off until admin sets a real plan (Join Auto Tiffin card shows).
+    _session.is_subscriber = !!res.subscriber;
+    Auth.patch({ plan: res.subscriber?.plan || 'none' });
     _walletBal = 0;
+    _pauseMode = res.subscriber?.pause_delivery || 'both';
     _khataEnabled = false;
     applyKhataVisibility();
     // Store order_allowed in session for UI to check
     _session.order_allowed = res.order_allowed !== false;
     SessionCache.save({
-      user: res.user, is_subscriber: false, walletBalance: 0,
-      pauseMode: 'none', khataEnabled: false, userToken: res.userToken || ''
+      user: res.user, is_subscriber: !!res.subscriber, walletBalance: 0,
+      pauseMode: _pauseMode, khataEnabled: false, deliveryCharge: _deliveryCharge, userToken: res.userToken || ''
     });
     showMenuSkeletons();
     _transitionToHome();
@@ -7129,10 +7167,14 @@ async function loadMenu(bypassCache = false, silent = false) {
           _lastSchedule = _swData.schedule || null;
           _lastCutoff   = _swData.config   || null;
           _khataEnabled = !!_swData.enabled;
+          if (Number.isFinite(_swData.deliveryCharge) && _swData.deliveryCharge >= 0) {
+            _deliveryCharge = _swData.deliveryCharge;
+          }
           filterAndRenderMenu();
           buildCategoryChips();
           updateCutoffBanner(_lastSchedule, currentISTHour(), _lastCutoff);
           applyKhataVisibility();
+          _refreshDeliveryChargeUI();
           _hideSlowHint(); // skeleton hide — user ko menu dikh gaya
         }
 
@@ -7173,7 +7215,13 @@ async function _fetchFreshMenu() {
   // Cache is written AFTER a successful response — if this throws, old cache is untouched.
   const homeRes = await api('getHomeData', _session?.phone ? { phone: _session.phone } : {});
   _khataEnabled = homeRes.enabled;
+  // Guard against a missing/invalid field (older cached SW response, etc.) —
+  // never let a bad value zero-out or blank the delivery charge shown to users.
+  if (Number.isFinite(homeRes.deliveryCharge) && homeRes.deliveryCharge >= 0) {
+    _deliveryCharge = homeRes.deliveryCharge;
+  }
   applyKhataVisibility();
+  _refreshDeliveryChargeUI();
   // Sync order_allowed into session (returned when phone+userToken sent)
   if (_session && homeRes.order_allowed !== undefined) {
     _session.order_allowed = homeRes.order_allowed;
@@ -7779,7 +7827,7 @@ function updateBillSummary() {
   const estimatedTotal = subtotal - discount; // without delivery, used for balance check
   const walletCoversOrder = isSubscriber && (_walletBal >= estimatedTotal);
   const isPro = isSubscriber && walletCoversOrder; // free delivery only if wallet covers
-  const deliveryCharge = isPro ? 0 : 20;
+  const deliveryCharge = isPro ? 0 : _deliveryCharge;
   const total = subtotal + deliveryCharge - discount;
   document.getElementById('bill-subtotal').textContent = '₹' + subtotal;
   document.getElementById('bill-total').textContent    = '₹' + total;
@@ -7796,10 +7844,10 @@ function updateBillSummary() {
       delEl.innerHTML = '<span style="color:var(--g)">FREE 🎉 PRO</span>';
     } else if (isSubscriber && !walletCoversOrder) {
       // Subscriber but wallet insufficient — UPI path applies delivery charge
-      delEl.innerHTML = '₹20 <span style="font-size:10px;color:#b45309">(UPI pay)</span>';
+      delEl.innerHTML = '₹' + _deliveryCharge + ' <span style="font-size:10px;color:#b45309">(UPI pay)</span>';
       delEl.style.color = 'var(--dk)';
     } else {
-      delEl.textContent = '₹20';
+      delEl.textContent = '₹' + _deliveryCharge;
       delEl.style.color = 'var(--dk)';
     }
   }
@@ -7810,6 +7858,20 @@ function updateBillSummary() {
   // Show/hide wallet-low nudge — only for subscribers with insufficient wallet (UPI path)
   const walletNudgeEl = document.getElementById('wallet-low-nudge');
   if (walletNudgeEl) walletNudgeEl.style.display = (isSubscriber && !walletCoversOrder) ? 'flex' : 'none';
+}
+
+// Refreshes every static/pre-rendered ₹ delivery-charge display the instant
+// _deliveryCharge changes (page load, SW cache hydrate, version-poll refresh).
+// updateBillSummary() already recomputes bill-delivery correctly on its own
+// render cycle — this only patches elements that don't go through it directly
+// (initial HTML placeholder + the low-wallet nudge sentence).
+function _refreshDeliveryChargeUI() {
+  const el1 = document.getElementById('bill-delivery');
+  if (el1 && !el1.querySelector('span')) el1.textContent = '₹' + _deliveryCharge;
+  const el2 = document.getElementById('wallet-low-nudge-amt');
+  if (el2) el2.textContent = '₹' + _deliveryCharge;
+  const el3 = document.getElementById('insuf-delivery-amt');
+  if (el3) el3.textContent = '₹' + _deliveryCharge;
 }
 
 async function applyCoupon() {
@@ -7944,12 +8006,12 @@ async function placeOrder() {
   const estimatedItemTotal = subtotal - discount;
   const walletCoversOrder = isSubscriber && (_walletBal >= estimatedItemTotal);
   const isPro = isSubscriber && walletCoversOrder;
-  const deliveryCharge = isPro ? 0 : 20;
+  const deliveryCharge = isPro ? 0 : _deliveryCharge;
   const total = subtotal + deliveryCharge - discount;
 
   if (isSubscriber && !walletCoversOrder) {
-    // Subscriber but wallet insufficient — must pay via UPI with ₹20 delivery
-    const insufDelivery = 20;
+    // Subscriber but wallet insufficient — must pay via UPI with delivery charge
+    const insufDelivery = _deliveryCharge;
     const insufTotal = subtotal + insufDelivery - discount;
     showInsufPopup(_walletBal, insufTotal, subtotal, discount, insufDelivery); return;
   }
@@ -8593,8 +8655,8 @@ function generateRechargeQR() {
 }
 
 function showInsufPopup(avail, need, subtotal, discount, delivery) {
-  // delivery defaults to 20 (UPI insuf path always charges delivery)
-  var _delivery = (delivery !== undefined && delivery !== null) ? delivery : 20;
+  // delivery defaults to current admin-configured charge (UPI insuf path always charges delivery)
+  var _delivery = (delivery !== undefined && delivery !== null) ? delivery : _deliveryCharge;
   var _subtotal = Math.round(subtotal || (need - _delivery));
   // Breakdown fields
   document.getElementById('insuf-subtotal').textContent = '₹' + _subtotal;
@@ -8681,7 +8743,7 @@ async function confirmInsufOrder() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = calcCouponDiscount(_appliedCoupon, subtotal);
   // upi_insuf orders always carry delivery charge (no wallet deduction on server)
-  const deliveryCharge = 20;
+  const deliveryCharge = _deliveryCharge;
   const total = subtotal + deliveryCharge - discount;
 
   if (_placingOrder) return;
@@ -9048,7 +9110,7 @@ function populateAccountPage() {
 
   if (u.is_subscriber) {
     document.querySelectorAll('.sub-only').forEach(el => el.style.display = '');
-    const planMap = { morning:'☀️ Morning Tiffin', evening:'🌙 Evening Tiffin', both:'☀️🌙 Both Tiffins' };
+    const planMap = { morning:'☀️ Morning Tiffin', evening:'🌙 Evening Tiffin', both:'☀️🌙 Both Tiffins', none:'💳 Wallet Only' };
     const planLabel = planMap[u.plan] || 'Tiffin Plan';
     const sinceStr  = u.plan_start ? ' · Since ' + fmtDate(u.plan_start) : '';
     document.getElementById('sub-dates').textContent = planLabel + sinceStr;
@@ -10414,7 +10476,7 @@ async function loadPauseState() {
   if (!_session?.is_subscriber) return;
   try {
     const res = await api('getSubscriberPauseStatus', { phone: _session.phone });
-    if (res.plan) Auth.patch({ plan: res.plan });
+    if (res.plan) { Auth.patch({ plan: res.plan }); _applySubscriberUI(); }
     const displayMode = _computeDisplayMode(res.pauseMode, res.pendingTomorrow);
     applyPauseState(displayMode);
     _lastPauseMode = displayMode;
@@ -10748,7 +10810,7 @@ async function refreshSubscriberStatusMerged(forceSubCheck = false) {
     // _pauseMode === 'none' branch decision matches what the badge is showing.
     _pauseMode = res.pauseMode || 'none';
     // Sync plan to session (same as loadPauseState does)
-    if (res.plan) Auth.patch({ plan: res.plan });
+    if (res.plan) { Auth.patch({ plan: res.plan }); _applySubscriberUI(); }
     _pauseFreshTs  = Date.now();
     _walletFreshTs = Date.now();
   } catch {
@@ -10863,22 +10925,31 @@ function _applySubscriberUI() {
   const initials = getInitials(u.name);
   const avatarEl = document.getElementById('home-avatar-initials');
   if (avatarEl) avatarEl.textContent = initials;
-  const proBadge = document.getElementById('home-pro-badge');
-  if (proBadge) proBadge.classList.toggle('hidden', !u.is_subscriber);
   // Sub-only rows
   document.querySelectorAll('.sub-only').forEach(el => {
     el.style.display = u.is_subscriber ? '' : 'none';
   });
-  // Pause card vs monthly plan card vs guest free btn
+  // Pause card vs Join Auto Tiffin card vs monthly plan card vs guest free btn.
+  // Subscribers are split into 2 categories: with auto-tiffin (plan morning/evening/both)
+  // and without (plan 'none' — wallet-only). Wallet features apply to both; only the
+  // auto-tiffin daily-delivery feature differs.
   const _pauseRow = document.getElementById('pause-toggle-row');
   const _planCard = document.getElementById('monthly-plan-card');
+  const _joinCard = document.getElementById('join-autotiffin-card');
   const _freeBtn  = document.getElementById('first-tiffin-free-btn');
-  if (_pauseRow) _pauseRow.style.display = u.is_subscriber ? 'flex' : 'none';
+  const _hasAutoTiffin = !!(u.is_subscriber && u.plan !== 'none');
+  // PRO badge = auto-tiffin subscribers ONLY. Wallet-only (plan:'none') subscribers
+  // don't get PRO — that badge should signal an actual active plan, not just
+  // "has a wallet row" (which is now true for every user post-signup).
+  const proBadge = document.getElementById('home-pro-badge');
+  if (proBadge) proBadge.classList.toggle('hidden', !_hasAutoTiffin);
+  if (_pauseRow) _pauseRow.style.display = _hasAutoTiffin ? 'flex' : 'none';
+  if (_joinCard) _joinCard.style.display = (u.is_subscriber && !_hasAutoTiffin) ? 'flex' : 'none';
   if (_planCard) _planCard.style.display = u.is_subscriber ? 'none' : 'flex';
   if (_freeBtn)  _freeBtn.style.display  = 'none';  // never shown to logged-in users
   const _hdrFreeTag = document.getElementById('hdr-free-tag');
   if (_hdrFreeTag) _hdrFreeTag.style.display = 'none';
-  // Sub plan banner removed — Auto Tiffin card is single source of truth
+  // Sub plan banner removed — Auto Tiffin card / Join Auto Tiffin card is single source of truth
 }
 /* ── _wipeAndShowLogin ────────────────────────────────────────────
    Single source of truth for "something went wrong → clean slate".
@@ -11200,10 +11271,14 @@ async function bootApp() {
     _walletBal    = cached.walletBalance || 0;
     _pauseMode    = cached.pauseMode    || 'none';
     _khataEnabled = cached.khataEnabled || false;
+    if (Number.isFinite(cached.deliveryCharge) && cached.deliveryCharge >= 0) {
+      _deliveryCharge = cached.deliveryCharge;
+    }
 
     updateWalletUI(_walletBal);
     applyPauseState(_pauseMode);
     applyKhataVisibility();
+    _refreshDeliveryChargeUI();
     _transitionToHome();
 
     // ── Restore active payment page if user was on QR/pay screen before reload ──
@@ -11243,7 +11318,7 @@ async function bootApp() {
               });
             }
             SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-              walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled , userToken: res.userToken || '' });
+              walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
           })
           .catch(e => {
             const isAuthError = e.message?.includes('Session invalid') ||
@@ -11330,10 +11405,10 @@ async function bootApp() {
       const _p = _menuAge < 30_000 ? Promise.resolve() : loadMenu(true, true);
       _p.then(() => {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, userToken: res.userToken || '' });
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: _khataEnabled, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
       }).catch(() => {
         SessionCache.save({ user: res.user, is_subscriber: !!res.subscriber,
-          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, userToken: res.userToken || '' });
+          walletBalance: _walletBal, pauseMode: _pauseMode, khataEnabled: false, deliveryCharge: _deliveryCharge, userToken: res.userToken || '' });
       });
       startPolling();
       startVersionPolling();
@@ -11441,8 +11516,10 @@ function _transitionToGuestHome() {
   document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
   const _pauseRow = document.getElementById('pause-toggle-row');
   const _planCard = document.getElementById('monthly-plan-card');
+  const _joinCard = document.getElementById('join-autotiffin-card');
   const _freeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_pauseRow) _pauseRow.style.display = 'none';
+  if (_joinCard) _joinCard.style.display = 'none';
   if (_planCard) _planCard.style.display = 'none';   // hidden in guest — free btn takes its place
   if (_freeBtn)  {
     _freeBtn.style.display  = 'flex';
@@ -11947,8 +12024,10 @@ function doLogout() {
   document.querySelectorAll('.sub-only').forEach(el => { el.style.display = 'none'; });
   const _logoutPauseRow = document.getElementById('pause-toggle-row');
   const _logoutPlanCard = document.getElementById('monthly-plan-card');
+  const _logoutJoinCard = document.getElementById('join-autotiffin-card');
   const _logoutFreeBtn  = document.getElementById('first-tiffin-free-btn');
   if (_logoutPauseRow) _logoutPauseRow.style.display = 'none';
+  if (_logoutJoinCard) _logoutJoinCard.style.display = 'none';
   if (_logoutPlanCard) _logoutPlanCard.style.display = 'none';  // guest mode mein plan card nahi
   if (_logoutFreeBtn)  _logoutFreeBtn.style.display  = 'flex';  // guest mein FREE btn dikhao
   const _logoutHdrTag = document.getElementById('hdr-free-tag');
