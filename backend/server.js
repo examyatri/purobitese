@@ -599,6 +599,8 @@ const _STAFF_ACTIONS = new Set([
   'assignRider',
   'bulkUpdateOrder',
   'rejectOrder',
+  'hideOrder',
+  'unhideOrder',
   'updateOrderStatus',
   'startCookingSession',
   'bulkGenerateOrders',
@@ -1824,28 +1826,58 @@ async function _createSingleOrder(
     throw new Error('Order save failed: ' + ordErr.message);
   }
 
-  // ── Free Tiffin Redemption Hook (v171, repositioned in v177) ─────────────
-  // Fire-and-forget: if a free_tiffin coupon was used, mark user as redeemed.
-  // Never blocks or delays the order response — errors are swallowed silently.
-  // v177 FIX: moved to AFTER the order INSERT succeeds (previously ran right
-  // after use_coupon_atomic, i.e. BEFORE the insert). That meant a customer
-  // could be marked free_tiffin_status='redeemed' even when the order itself
-  // then failed to save — permanently burning their one-time free tiffin with
-  // no food ever delivered. Now it only fires once we know the order exists.
-  // v171: uses coupon.coupon_type === 'free_tiffin' instead of TIFFO prefix —
-  //   admin can name FT codes anything now.
-  // .neq('redeemed') ensures both null→redeemed and wa_sent→redeemed advance
-  //   correctly; admin manual overrides are not overwritten.
+  // ── Free Tiffin Redemption Hook (v171, repositioned v177, made guaranteed v200) ──
+  // v200 FIX: this used to be a fire-and-forget (un-awaited) write with errors
+  // silently swallowed — in production it never fired/was never confirmed for
+  // ANY redeemer, and nobody found out until the admin dashboard was empty days
+  // later. Now: (1) AWAITED — the order response only returns once this write
+  // is confirmed, so it can never be lost to a process restart or a race; (2)
+  // RETRIED up to 3x with backoff on transient failure; (3) loudly logged on
+  // every outcome. This write is keyed ONLY by user.phone and the in-memory
+  // coupon_type captured at order time — it does not read the coupons table at
+  // all, so deleting/deactivating the coupon afterwards can NEVER affect it.
+  // Once free_tiffin_status='redeemed' for a phone, the .neq() guard below means
+  // it can only ever be set once per phone — no coupon, batch, or later order
+  // can change it back or overwrite it.
+  if (coupon?.code && coupon.coupon_type !== 'free_tiffin') {
+    console.log(`[FT-hook] SKIPPED — coupon=${coupon.code} had coupon_type='${coupon.coupon_type}' (not 'free_tiffin') for phone=${user.phone}`);
+  }
   if (coupon?.coupon_type === 'free_tiffin' && user.phone) {
-    (async () => {
+    let ftOk = false;
+    for (let attempt = 1; attempt <= 3 && !ftOk; attempt++) {
       try {
-        await supabase.from('users').update({
+        const { error: ftErr, data: ftData } = await supabase.from('users').update({
           free_tiffin_status:   'redeemed',
           free_tiffin_given_at: new Date().toISOString(),
           free_tiffin_coupon:   coupon.code
-        }).eq('phone', user.phone).neq('free_tiffin_status', 'redeemed');
-      } catch (_) {}
-    })();
+        }).eq('phone', user.phone).neq('free_tiffin_status', 'redeemed').select('phone');
+
+        if (ftErr) {
+          console.error(`[FT-hook] attempt ${attempt}/3 FAILED for phone=${user.phone} coupon=${coupon.code}:`, ftErr.message);
+        } else if (!ftData || ftData.length === 0) {
+          // 0 rows can legitimately mean "already redeemed" (guard did its job) —
+          // confirm which case this is so it's not mistaken for a bug in logs.
+          const { data: chk } = await supabase.from('users').select('free_tiffin_status').eq('phone', user.phone).single();
+          if (chk?.free_tiffin_status === 'redeemed') {
+            console.log(`[FT-hook] OK (already redeemed earlier) — phone=${user.phone} coupon=${coupon.code}`);
+          } else {
+            console.error(`[FT-hook] attempt ${attempt}/3 MATCHED 0 ROWS (not already-redeemed) for phone=${user.phone} coupon=${coupon.code} — possible phone mismatch`);
+          }
+          ftOk = true; // don't retry — either succeeded earlier or row genuinely doesn't match; retrying won't help
+        } else {
+          console.log(`[FT-hook] OK — redeemed set for phone=${user.phone} coupon=${coupon.code} (attempt ${attempt})`);
+          ftOk = true;
+        }
+      } catch (ftCatchErr) {
+        console.error(`[FT-hook] attempt ${attempt}/3 THREW for phone=${user.phone} coupon=${coupon.code}:`, ftCatchErr.message);
+      }
+      if (!ftOk && attempt < 3) await new Promise(r => setTimeout(r, attempt * 400)); // 400ms, 800ms backoff
+    }
+    if (!ftOk) {
+      // Last resort: log a clearly-greppable CRITICAL line so this is impossible
+      // to miss in Render logs even without the [FT-hook] prefix search.
+      console.error(`[FT-hook] CRITICAL — ALL 3 ATTEMPTS FAILED for phone=${user.phone} coupon=${coupon.code}. Order was still placed successfully; admin must manually set free_tiffin_status='redeemed' for this phone.`);
+    }
   }
   // ── End Free Tiffin Hook ──────────────────────────────────────────────────
 
@@ -2807,6 +2839,17 @@ app.post('/api', async (req, res) => {
 
       case 'adminGetOrders': {
         let query = supabase.from('orders').select('*');
+        // Hidden orders (duplicate/wrongly-placed, marked via hideOrder) never
+        // show in the normal Orders tab — same query, just one extra filter
+        // clause, so no added server/DB load. idx_orders_is_hidden keeps this
+        // cheap in both directions (is_hidden = false is a partial index; the
+        // is_hidden = true branch below scans a small table since hidden
+        // orders are expected to be rare).
+        // - data.onlyHidden   : return ONLY hidden orders (admin "View Hidden" toggle)
+        // - data.includeHidden: return everything, hidden + visible mixed (unused by UI today)
+        // - default           : exclude hidden orders (normal Orders tab)
+        if (data.onlyHidden) query = query.eq('is_hidden', true);
+        else if (!data.includeHidden) query = query.eq('is_hidden', false);
         if (data.date) query = query.eq('date', data.date);
         else if (data.fromDate) query = query.gte('date', data.fromDate);
         query = query.order('created_at', { ascending: false });
@@ -2991,6 +3034,41 @@ app.post('/api', async (req, res) => {
           zone_status:   zoneStatus,
           order_allowed: updates.order_allowed ?? userRow.order_allowed,
         });
+      }
+
+      case 'hideOrder': {
+        // Soft-hide a duplicate/wrongly-placed order from the admin Orders
+        // tab + Export PDF. Does NOT delete or touch order_status/payment —
+        // the order (and any khata/wallet entries tied to it) stay exactly
+        // as they are for records; it's just excluded from adminGetOrders'
+        // default query (see is_hidden filter there) and, by extension, the
+        // exported PDF, which is built from whatever rows are on screen.
+        //
+        // Single atomic UPDATE ... WHERE order_id = X — no extra SELECT
+        // first, no extra tables touched, so this adds no meaningful load.
+        if (!data.orderId) return res.json({ success: false, error: 'orderId required' });
+        const { data: hiddenRows, error: hideErr } = await supabase
+          .from('orders')
+          .update({ is_hidden: true })
+          .eq('order_id', data.orderId)
+          .select('order_id');
+        if (hideErr) return res.json({ success: false, error: 'Failed to hide order' });
+        if (!hiddenRows || !hiddenRows.length) return res.json({ success: false, error: 'Order not found' });
+        return res.json({ success: true });
+      }
+
+      case 'unhideOrder': {
+        // Reverse of hideOrder — restores an order back into the normal
+        // Orders list. Same shape: single atomic UPDATE, no extra load.
+        if (!data.orderId) return res.json({ success: false, error: 'orderId required' });
+        const { data: unhiddenRows, error: unhideErr } = await supabase
+          .from('orders')
+          .update({ is_hidden: false })
+          .eq('order_id', data.orderId)
+          .select('order_id');
+        if (unhideErr) return res.json({ success: false, error: 'Failed to unhide order' });
+        if (!unhiddenRows || !unhiddenRows.length) return res.json({ success: false, error: 'Order not found' });
+        return res.json({ success: true });
       }
 
       case 'rejectOrder': {
@@ -4326,15 +4404,15 @@ app.post('/api', async (req, res) => {
         const [
           r1, r2, r3, r4, r5, r6, r7, r8, r9
         ] = await Promise.all([
-          supabase.from('orders').select('*', { count: 'exact', head: true }).eq('date', today),
-          supabase.from('orders').select('final_amount').eq('date', today).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
-          supabase.from('orders').select('final_amount').gte('date', monthStart).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
-          supabase.from('orders').select('*', { count: 'exact', head: true }),
+          supabase.from('orders').select('*', { count: 'exact', head: true }).eq('date', today).eq('is_hidden', false),
+          supabase.from('orders').select('final_amount').eq('date', today).eq('is_hidden', false).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
+          supabase.from('orders').select('final_amount').gte('date', monthStart).eq('is_hidden', false).neq('order_status', 'rejected').neq('order_status', 'cancelled'),
+          supabase.from('orders').select('*', { count: 'exact', head: true }).eq('is_hidden', false),
           supabase.from('users').select('*', { count: 'exact', head: true }),
           supabase.from('subscribers').select('*', { count: 'exact', head: true }),
           supabase.from('khata_summary').select('balance'),
           supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
-          supabase.from('orders').select('order_id, name, phone, final_amount, order_status, date, time').order('created_at', { ascending: false }).limit(10)
+          supabase.from('orders').select('order_id, name, phone, final_amount, order_status, date, time').eq('is_hidden', false).order('created_at', { ascending: false }).limit(10)
         ]);
         const todayRevenue = (r2.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
         const monthRevenue = (r3.data || []).reduce((s, o) => s + (o.final_amount || 0), 0);
@@ -5439,6 +5517,7 @@ app.post('/api', async (req, res) => {
         let summaryQuery = supabase.from('orders').select('order_id,items,slot,order_status')
           .gte('date', fromDate)
           .lte('date', toDate)
+          .eq('is_hidden', false)
           .not('order_status', 'eq', 'cancelled');
         if (slot === 'morning') summaryQuery = summaryQuery.eq('slot', 'morning');
         else if (slot === 'evening') summaryQuery = summaryQuery.eq('slot', 'evening');
@@ -6265,7 +6344,12 @@ app.post('/api', async (req, res) => {
           flash_start:       flash_start || null,
           flash_end:         flash_end   || null,
           restriction_type:  'flash_window',  // will be overridden per mode
-          auto_delete:       true,
+          // v199 FIX: was auto_delete:true — this silently deleted FT coupon rows
+          // 7 days after they went inactive (used up), destroying the audit trail
+          // (coupon_type, code, restriction_type) needed to debug redemption
+          // issues later. FT coupons should persist forever like regular coupons;
+          // is_active:false already prevents reuse without needing deletion.
+          auto_delete:       false,
           is_active:         true,
           used_count:        0,
           usage_count:       0,
