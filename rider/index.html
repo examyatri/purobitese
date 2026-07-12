@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Rider App (rider.html)          ║
-     ║  Version : v186                                    ║
-     ║  Updated : 2026-07-04                               ║
+     ║  Version : v199                                    ║
+     ║  Updated : 2026-07-10                               ║
+     ║  v199: Release sync only. v199 was a customer-app-   ║
+     ║        only release (cold-boot plan restore fix +    ║
+     ║        Join Auto Tiffin/Monthly Plan carousel). No    ║
+     ║        rider panel logic changed.                     ║
      ║  v186: Unpaid/Udhar payment workflow overhaul.       ║
      ║        Payment tags fixed everywhere (home card,     ║
      ║        PDF export, delivery bar, route summary) to   ║
@@ -91,6 +95,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 html{background:#fff}
 :root{
@@ -215,6 +221,51 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 .route-addr-list{max-height:50vh;overflow-y:auto}
 .route-addr-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--lt)}
 .route-num{background:var(--p);color:white;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px}
+
+/* ═══ NEW ROUTE PANEL (v202) — upgraded route workflow, Phase 1 ═══
+   Fully separate ID/class namespace (nrp-*) from the old #map-modal
+   / #route-modal so nothing here can collide with existing styles. */
+#nrp-modal{
+  position:fixed;inset:0;z-index:2500;
+  background:#f8fafc;
+  display:flex;flex-direction:column;
+  transform:translateX(-50%) translateY(100%);
+  transition:transform 300ms cubic-bezier(.4,0,.2,1);
+  max-width:520px;left:50%;
+  width:100%;
+}
+#nrp-modal.open{transform:translateX(-50%) translateY(0)}
+#nrp-topbar{
+  background:linear-gradient(180deg,#1a2035 0%,#1e293b 100%);
+  color:#fff;
+  padding:14px 16px calc(10px + env(safe-area-inset-top,0px));
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+#nrp-title{font-family:var(--ff);font-size:16px;font-weight:800}
+#nrp-sub{font-size:11px;color:#94a3b8;margin-top:1px}
+#nrp-close-btn{background:rgba(255,255,255,.12);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0}
+#nrp-actionbar{display:flex;gap:6px;padding:10px 12px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;overflow-x:auto}
+.nrp-abtn{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;font-family:var(--ff);font-size:9.5px;font-weight:700;color:#334155;cursor:pointer;white-space:nowrap}
+.nrp-abtn .nrp-abtn-icon{font-size:16px}
+.nrp-abtn:disabled,.nrp-abtn.disabled{opacity:.4;cursor:not-allowed;background:#f8fafc}
+.nrp-abtn.active{border-color:#7c3aed;background:#f5f3ff;color:#5b21b6}
+.nrp-abtn.active.master{border-color:#e63946;background:#fef2f2;color:#b91c1c}
+#nrp-tabs{display:flex;gap:8px;padding:10px 12px 0;background:#fff;flex-shrink:0}
+.nrp-tab{flex:1;text-align:center;padding:9px 0;border-radius:10px 10px 0 0;font-family:var(--ff);font-size:13px;font-weight:700;color:#94a3b8;cursor:pointer;border-bottom:2.5px solid transparent}
+.nrp-tab.act{color:#0f172a;border-bottom-color:#0f172a}
+#nrp-list{flex:1;overflow-y:auto;padding:12px}
+.nrp-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.nrp-card.no-gps{border-color:#f59e0b}
+.nrp-card-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.nrp-oid{font-family:var(--ff);font-size:11px;color:#94a3b8;font-weight:700}
+.nrp-name{font-size:14.5px;font-weight:800;color:#0f172a;margin-bottom:4px}
+.nrp-row{font-size:12.5px;color:#475569;margin-bottom:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.nrp-addr{font-size:12px;color:#64748b;margin-top:6px;line-height:1.45;white-space:pre-line;border-top:1px dashed #e2e8f0;padding-top:6px}
+.nrp-gps-flag{font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;white-space:nowrap;flex-shrink:0}
+.nrp-gps-yes{background:#dcfce7;color:#166534}
+.nrp-gps-no{background:#fef3c7;color:#b45309}
 
 /* Empty state */
 .empty-state{text-align:center;padding:60px 20px}
@@ -716,6 +767,117 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 /* v186: bold-blinking UNPAID tag so rider never forgets to collect cash */
 .pay-tag-blink{animation:pay-blink 1s step-start infinite}
 @keyframes pay-blink{50%{opacity:.35}}
+
+/* ═══════════════════════════════════════════════════════
+   NRP SEE MAP — v202 Phase 4
+   Separate full-screen page (own namespace nrp-map-*), stacked
+   ABOVE #nrp-modal. Only reachable once sequence is locked.
+   ═══════════════════════════════════════════════════════ */
+#nrp-map-modal{
+  position:fixed;inset:0;z-index:2700;
+  background:#0f172a;
+  display:flex;flex-direction:column;
+  transform:translateX(-50%) translateY(100%);
+  transition:transform 300ms cubic-bezier(.4,0,.2,1);
+  max-width:520px;left:50%;width:100%;
+}
+#nrp-map-modal.open{transform:translateX(-50%) translateY(0)}
+#nrp-map-topbar{
+  background:linear-gradient(180deg,#1a2035 0%,#1e293b 100%);
+  padding:12px 14px calc(10px + env(safe-area-inset-top,0px));
+  display:flex;align-items:center;gap:10px;
+  flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+#nrp-map-back{
+  background:rgba(255,255,255,.12);border:none;color:#fff;
+  width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;
+}
+#nrp-map-counter{
+  font-family:var(--ff);font-size:12.5px;font-weight:700;color:#f1f5f9;
+  flex:1;line-height:1.3;
+}
+#nrp-map-counter .c-with{color:#4ade80}
+#nrp-map-counter .c-without{color:#fbbf24}
+#nrp-map-recenter{
+  background:rgba(255,255,255,.12);border:none;color:#fff;
+  width:34px;height:34px;border-radius:50%;font-size:15px;cursor:pointer;flex-shrink:0;
+}
+#nrp-map-canvas-wrap{flex:1;position:relative;overflow:hidden}
+#nrp-map-canvas{width:100%;height:100%;transition:transform 220ms linear}
+#nrp-map-rotor{width:100%;height:100%}
+
+/* Wrong-road warning banner */
+#nrp-wrongroad-banner{
+  position:absolute;top:10px;left:10px;right:10px;z-index:650;
+  display:none;align-items:center;gap:8px;
+  background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;
+  border-radius:12px;padding:10px 14px;
+  font-family:var(--ff);font-size:13px;font-weight:800;
+  box-shadow:0 4px 14px rgba(220,38,38,.4);
+  animation:nrp-wr-pulse 1.4s ease-in-out infinite;
+}
+#nrp-wrongroad-banner.show{display:flex}
+@keyframes nrp-wr-pulse{0%,100%{box-shadow:0 4px 14px rgba(220,38,38,.4)}50%{box-shadow:0 4px 22px rgba(220,38,38,.75)}}
+
+/* Turn-by-turn banner (own instance for See Map page) */
+#nrp-turn-banner{
+  position:absolute;top:10px;left:10px;right:10px;z-index:640;
+  display:none;align-items:center;gap:10px;
+  background:linear-gradient(135deg,#1a73e8,#1557b0);color:#fff;
+  border-radius:14px;padding:10px 12px;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);
+  font-family:var(--ff);
+}
+#nrp-turn-banner.show{display:flex}
+#nrp-turn-banner.pushed-down{top:64px}
+#nrp-turn-icon{font-size:26px;line-height:1;flex-shrink:0}
+#nrp-turn-mid{flex:1;min-width:0}
+#nrp-turn-dist{font-size:15px;font-weight:800;line-height:1.15}
+#nrp-turn-instr{font-size:11.5px;color:#dbeafe;line-height:1.2;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nrp-turn-eta-wrap{text-align:center;flex-shrink:0;padding:0 4px;border-left:1px solid rgba(255,255,255,.25)}
+#nrp-turn-eta{font-family:var(--ff);font-weight:800;font-size:13px;color:#fff;line-height:1.1;padding-left:8px}
+#nrp-turn-eta-label{font-family:var(--ff);font-size:8.5px;color:#bfdbfe;font-weight:700;padding-left:8px}
+#nrp-turn-mute{
+  background:rgba(255,255,255,.18);border:none;color:#fff;
+  width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;flex-shrink:0;
+}
+#nrp-turn-mute.muted{background:rgba(239,68,68,.35)}
+
+/* Pin popup card (bottom sheet, above the map) */
+#nrp-pin-popup-overlay{
+  position:fixed;inset:0;z-index:2800;background:rgba(0,0,0,.45);
+  display:none;align-items:flex-end;justify-content:center;
+}
+#nrp-pin-popup-overlay.show{display:flex}
+#nrp-pin-popup{
+  background:#fff;border-radius:20px 20px 0 0;
+  padding:18px 18px calc(20px + env(safe-area-inset-bottom,0px));
+  width:100%;max-width:520px;font-family:var(--ff,sans-serif);
+  transform:translateY(100%);transition:transform 300ms cubic-bezier(.4,0,.2,1);
+  max-height:78vh;overflow-y:auto;
+}
+#nrp-pin-popup-overlay.show #nrp-pin-popup{transform:translateY(0)}
+.nrp-pp-handle{width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 14px}
+.nrp-pp-seq{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:#7c3aed;color:#fff;border-radius:50%;width:26px;height:26px;
+  font-size:13px;font-weight:800;margin-right:8px;flex-shrink:0;
+}
+.nrp-pp-name{font-size:17px;font-weight:800;color:#0f172a;display:flex;align-items:center}
+.nrp-pp-row{font-size:13px;color:#475569;margin:8px 0 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.nrp-pp-addr{font-size:12.5px;color:#64748b;margin-top:10px;line-height:1.5;white-space:pre-line;border-top:1px dashed #e2e8f0;padding-top:10px}
+.nrp-pp-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.nrp-pp-btn{
+  flex:1;min-width:70px;border:none;border-radius:12px;padding:12px 6px;
+  font-family:var(--ff);font-weight:700;font-size:11.5px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.nrp-pp-btn:active{opacity:.75;transform:scale(.97)}
+.nrp-pp-call{background:#dcfce7;color:#166534}
+.nrp-pp-wa{background:#dcfce7;color:#075e26}
+.nrp-pp-nav{background:#dbeafe;color:#1e40af}
+.nrp-pp-edit{background:#fef3c7;color:#92400e}
+.nrp-pp-done{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
 </style>
 <script src="https://purobitese-api.onrender.com/config.js" defer></script>
 </head>
@@ -846,7 +1008,7 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
         🔍 Search
       </button>
       <button onclick="generateRiderPDF()" style="background:#1e293b;color:white;border:none;border-radius:10px;padding:9px 12px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">
-        📄 PDF
+        📤 Share PDF
       </button>
     </div>
 
@@ -965,9 +1127,126 @@ body{background:#fff;font-family:var(--fb);color:var(--tx);max-width:520px;margi
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     ROUTE VERSION CHOICE POPUP (v202)
+     Shown when rider taps a session's 🗺 Route button.
+     "Old Version"  → _openSessionRoute() — exact existing flow, untouched.
+     "New Version"  → openNewRoutePanel() — new upgraded flow (nrp-*).
+     ═══════════════════════════════════════════════════════ -->
+<div id="nrp-choice-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2400;align-items:flex-end;justify-content:center" onclick="_nrpCloseChoice()">
+  <div onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 18px"></div>
+    <p style="font-size:18px;font-weight:800;margin:0 0 4px;color:#0f172a;text-align:center">🗺 Choose Route View</p>
+    <p style="font-size:13px;color:#64748b;margin:0 0 18px;text-align:center">Purana wala use karein ya naya upgraded version try karein?</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="_nrpUseOld()" style="padding:15px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:14.5px;font-weight:700;cursor:pointer;color:#334155;text-align:left">
+        🗺 Old Version
+        <div style="font-size:11.5px;font-weight:500;color:#94a3b8;margin-top:2px">Existing route planner — no changes</div>
+      </button>
+      <button onclick="_nrpUseNew()" style="padding:15px;border-radius:13px;border:none;background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;text-align:left">
+        ✨ New Version
+        <div style="font-size:11.5px;font-weight:500;color:#cbd5e1;margin-top:2px">Upgraded delivery workflow (beta)</div>
+      </button>
+    </div>
+    <button onclick="_nrpCloseChoice()" style="width:100%;margin-top:14px;padding:12px;border-radius:13px;border:none;background:transparent;color:#94a3b8;font-size:13.5px;font-weight:600;cursor:pointer">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     NEW ROUTE PANEL (v202) — Phase 1: choice popup + card list
+     screen only. Fully separate from #map-modal / _openSessionRoute.
+     Optimize/Lock/Master Lock/PDF/Map logic arrives in later phases.
+     ═══════════════════════════════════════════════════════ -->
+<div id="nrp-modal">
+  <div id="nrp-topbar">
+    <div style="display:flex;flex-direction:column;min-width:0">
+      <div id="nrp-title">🚀 New Route</div>
+      <div id="nrp-sub">—</div>
+    </div>
+    <button id="nrp-close-btn" onclick="nrpRequestClose()">✕</button>
+  </div>
+
+  <div id="nrp-actionbar">
+    <button class="nrp-abtn" id="nrp-btn-optimize" onclick="nrpOptimizeRoute()">
+      <span class="nrp-abtn-icon">🧭</span><span>Optimize</span>
+    </button>
+    <button class="nrp-abtn" id="nrp-btn-lock" onclick="nrpToggleLock()">
+      <span class="nrp-abtn-icon">🔒</span><span id="nrp-btn-lock-label">Lock</span>
+    </button>
+    <button class="nrp-abtn" id="nrp-btn-masterlock" onclick="nrpToggleMasterLock()">
+      <span class="nrp-abtn-icon">🔐</span><span id="nrp-btn-masterlock-label">Master Lock</span>
+    </button>
+    <button class="nrp-abtn disabled" id="nrp-btn-pdf" disabled onclick="nrpDownloadPDF()">
+      <span class="nrp-abtn-icon">📄</span><span>ORSPDF</span>
+    </button>
+    <button class="nrp-abtn disabled" id="nrp-btn-map" disabled onclick="nrpSeeMap()">
+      <span class="nrp-abtn-icon">🗺</span><span>See Map</span>
+    </button>
+  </div>
+
+  <div id="nrp-tabs">
+    <div class="nrp-tab act" id="nrp-tab-pending" onclick="nrpSwitchTab('pending')">Pending</div>
+    <div class="nrp-tab" id="nrp-tab-delivered" onclick="nrpSwitchTab('delivered')">Delivered</div>
+  </div>
+
+  <div id="nrp-list"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SEE MAP — v202 Phase 4
+     Separate full-screen page, opened only once the sequence is
+     locked. Back navigation returns to #nrp-modal (order list),
+     and works even while Master Lock is active.
+     ═══════════════════════════════════════════════════════ -->
+<div id="nrp-map-modal">
+  <div id="nrp-map-topbar">
+    <button id="nrp-map-back" onclick="nrpCloseMap()">←</button>
+    <div id="nrp-map-counter">—</div>
+    <button id="nrp-map-recenter" onclick="_nrpMapRecenter()" title="Re-center">🎯</button>
+  </div>
+  <div id="nrp-map-canvas-wrap">
+    <div id="nrp-map-canvas">
+      <div id="nrp-map-rotor"></div>
+    </div>
+    <div id="nrp-wrongroad-banner">⚠️ Wrong road — you've left the planned route</div>
+    <div id="nrp-turn-banner">
+      <div id="nrp-turn-icon">⬆️</div>
+      <div id="nrp-turn-mid">
+        <div id="nrp-turn-dist">—</div>
+        <div id="nrp-turn-instr">Route ban rahi hai…</div>
+      </div>
+      <div id="nrp-turn-eta-wrap">
+        <div id="nrp-turn-eta">—</div>
+        <div id="nrp-turn-eta-label">ETA</div>
+      </div>
+      <button id="nrp-turn-mute" onclick="_nrpToggleVoiceNav()" title="Voice on/off">🔊</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pin popup: full order details + action buttons -->
+<div id="nrp-pin-popup-overlay" onclick="_nrpClosePinPopup()">
+  <div id="nrp-pin-popup" onclick="event.stopPropagation()">
+    <div class="nrp-pp-handle"></div>
+    <div class="nrp-pp-name" id="nrp-pp-name"><span class="nrp-pp-seq" id="nrp-pp-seq">•</span><span id="nrp-pp-namevalue">—</span></div>
+    <div class="nrp-pp-row">📞 <a id="nrp-pp-phone" href="#" style="color:#0369a1;text-decoration:none">—</a></div>
+    <div class="nrp-pp-row" id="nrp-pp-payrow"></div>
+    <div class="nrp-pp-row" id="nrp-pp-itemsrow"></div>
+    <div class="nrp-pp-addr" id="nrp-pp-addr">—</div>
+    <div class="nrp-pp-actions">
+      <button class="nrp-pp-btn nrp-pp-call" onclick="_nrpPpCall()">📞<span>Call</span></button>
+      <button class="nrp-pp-btn nrp-pp-wa" onclick="_nrpPpWhatsapp()">💬<span>WhatsApp</span></button>
+      <button class="nrp-pp-btn nrp-pp-nav" onclick="_nrpPpNavigate()">🗺<span>Navigate</span></button>
+      <button class="nrp-pp-btn nrp-pp-edit" onclick="_nrpPpEdit()">✏️<span>Edit</span></button>
+      <button class="nrp-pp-btn nrp-pp-done" id="nrp-pp-donebtn" onclick="_nrpPpMarkDelivered()">✅<span>Delivered</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      EDIT ADDRESS MODAL — rider can fix Room No, Delivery
      Area, and GPS coordinates for any customer
      ═══════════════════════════════════════════════════════ -->
+
 <div id="setloc-modal">
   <div id="setloc-topbar">
     <div id="setloc-title">✏️ Edit Customer Address</div>
@@ -2004,14 +2283,14 @@ function renderOrders() {
         ${showMorning ? `<div class="session-group">
           <div class="session-header session-morning">
             <span>☀️ Morning (${grp.morning.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();_openSessionRoute('${mKey}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();_nrpShowChoice('${mKey}')">🗺 Route</button>
           </div>
           ${grp.morning.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
         ${showEvening ? `<div class="session-group">
           <div class="session-header session-evening">
             <span>🌙 Evening (${grp.evening.length})</span>
-            <button class="session-route-btn" onclick="event.stopPropagation();_openSessionRoute('${eKey}')">🗺 Route</button>
+            <button class="session-route-btn" onclick="event.stopPropagation();_nrpShowChoice('${eKey}')">🗺 Route</button>
           </div>
           ${grp.evening.map(o => renderOrderCard(o)).join('')}
         </div>` : ''}
@@ -2094,8 +2373,7 @@ function generateRiderPDF() {
     </tr>`;
   }).join('');
 
-  const win = window.open('','_blank','width=1100,height=750');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Tiffo Rider — ${tabLabel} Orders</title>
   <style>
     body{font-family:'Segoe UI',sans-serif;padding:20px;color:#1e293b;background:#fff}
@@ -2110,7 +2388,6 @@ function generateRiderPDF() {
     td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
     .total-row td{background:#f0fdf4;font-weight:800;border-top:3px solid #16a34a;font-size:13px;color:#15803d}
     footer{margin-top:14px;font-size:11px;color:#94a3b8;text-align:right}
-    @media print{.summary-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}.total-row td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
   </style></head><body>
   <h1>🛵 Tiffo Rider — ${tabLabel} Orders</h1>
   <div class="meta">Rider: ${_esc(_rider?.name)||'—'} (${_rider?.rider_id||'—'}) &nbsp;|&nbsp; Filter: ${dateLabel} · ${slotLabel}${_appliedQuery?' · "'+_esc(_appliedQuery)+'"':''} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
@@ -2124,9 +2401,10 @@ function generateRiderPDF() {
     <tfoot><tr class="total-row"><td colspan="10" style="text-align:right;padding:10px">Total Orders: ${filtered.length}</td></tr></tfoot>
   </table>
   <footer>Tiffo Rider Panel © 2026</footer>
-  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200)}<\/script>
-  </body></html>`);
-  win.document.close();
+  </body></html>`;
+
+  const fname = `Tiffo_Rider_${tabLabel}_${new Date().toISOString().slice(0,10)}.pdf`;
+  _htmlToPDFShare(html, fname);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2973,7 +3251,8 @@ function _updateMapTitle(orders) {
 }
 
 // ── OPEN MAP ──────────────────────────────────────────────────
-function openRiderMap(ordersParam) {
+function openRiderMap(ordersParam, opts) {
+  opts = opts || {};
   // Resolve order list
   let orders;
   if (typeof ordersParam === 'string') {
@@ -3033,11 +3312,18 @@ function openRiderMap(ordersParam) {
     _placeMarkers();
     _updateMapTitle(orders);
     _renderStopList();
-    // Auto-sort route once first GPS fix arrives (1+ stop with coords)
+    // Auto-sort route once first GPS fix arrives (1+ stop with coords) —
+    // skipped when opened from a locked NRP sequence, since Sequence Lock
+    // must never be silently overridden by a fresh GPS-triggered sort.
     const _stopsWithCoords = _mapStops.filter(s => s.coords);
-    if (_stopsWithCoords.length >= 1) {
+    if (_stopsWithCoords.length >= 1 && !opts.suppressAutoOptimize) {
       _autoOptimizeOnGpsFix = true;
       rToast('📍 Getting GPS — route will auto-sort…');
+    } else if (opts.suppressAutoOptimize) {
+      // Stops already carry the locked NRP order (array order === locked
+      // seq); _placeMarkers()/_renderStopList() derive seqNum from that
+      // array order, so the map shows the correct numbers with no re-sort.
+      rToast('🔒 Showing locked route order');
     }
     // Build sector batches immediately (centroid fallback; refreshed on first GPS fix)
     _buildSectorBatches();
@@ -4418,6 +4704,1267 @@ function openInMaps()           { openInMapsFromModal(); }
 
 /* planAndGo removed — use per-session 🗺 Route buttons */
 
+/* ═══════════════════════════════════════════════════════
+   NEW ROUTE PANEL (v202) — Phase 1
+   A second, upgraded route/delivery workflow built alongside the
+   existing _openSessionRoute()/openRiderMap() flow above.
+   Nothing in this block touches, calls into, or reuses state from
+   that old flow — all new "nrp"-prefixed functions/variables below.
+   Optimize/Lock/Master Lock/PDF/Map are wired later phases; only
+   the popup + card-list screen are built in Phase 1.
+   ═══════════════════════════════════════════════════════ */
+let _nrpPendingKey = null;   // session key ('rmap_m_'/'rmap_e_' + date) rider tapped Route on
+let _nrpDate       = null;
+let _nrpSlot       = null;   // 'morning' | 'evening'
+let _nrpPending    = [];
+let _nrpDelivered  = [];
+let _nrpActiveTab  = 'pending';
+let _nrpSeqMap     = new Map();  // order_id -> {seq, distKm} — set by nrpOptimizeRoute()
+let _nrpOptimizing = false;      // guards against overlapping Optimize taps
+
+// ── Lock / Master Lock state (v202 Phase 3) ──────────────────────
+let _nrpLocked        = false;   // Sequence Lock: freezes card order, gates PDF/Map
+let _nrpMasterLocked  = false;   // Master Lock: persists across reloads, blocks home nav
+let _nrpHomeAttempts  = 0;       // consecutive back/home attempts while Master Lock is active
+const NRP_MASTERLOCK_KEY    = 'tf_rider_masterlock';
+const NRP_HOME_ATTEMPTS_MAX = 5;
+
+// Route button tapped → show Old/New choice popup instead of jumping
+// straight into the old flow. The old button's original destination
+// (_openSessionRoute) is only called from _nrpUseOld() below, unchanged.
+function _nrpShowChoice(key) {
+  _nrpPendingKey = key;
+  document.getElementById('nrp-choice-overlay').style.display = 'flex';
+}
+function _nrpCloseChoice() {
+  document.getElementById('nrp-choice-overlay').style.display = 'none';
+}
+function _nrpUseOld() {
+  const key = _nrpPendingKey;
+  _nrpCloseChoice();
+  _openSessionRoute(key); // exact existing workflow — zero changes
+}
+function _nrpUseNew() {
+  const key = _nrpPendingKey;
+  _nrpCloseChoice();
+  openNewRoutePanel(key);
+}
+
+// Builds this screen's order set: same date+session+area+search filters
+// currently applied on the home screen, but pulled from BOTH _pending and
+// _delivered (each already carries the home screen's correct status split
+// and ordering — e.g. delivered-newest-first) so this screen can offer its
+// own Pending/Delivered tabs independent of whichever tab is active at home.
+function openNewRoutePanel(key) {
+  const isMorning = key.startsWith('rmap_m_');
+  _nrpDate = key.replace(isMorning ? 'rmap_m_' : 'rmap_e_', '');
+  _nrpSlot = isMorning ? 'morning' : 'evening';
+
+  const matchesThisSession = o => {
+    if ((o.date || '') !== _nrpDate) return false;
+    if (!_isSlotMatch(o, _nrpSlot)) return false;
+    if (_appliedArea !== 'all') {
+      const oArea = (o._area || o.area || '').toLowerCase();
+      if (!oArea.includes(_appliedArea.toLowerCase())) return false;
+    }
+    if (_appliedQuery) {
+      const q = _appliedQuery;
+      if (!(o.name||'').toLowerCase().includes(q) &&
+          !(o.phone||'').includes(q) &&
+          !(o.address||'').toLowerCase().includes(q) &&
+          !(o.order_id||'').toLowerCase().includes(q) &&
+          !(o._area||o.area||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  };
+
+  _nrpPending   = _pending.filter(matchesThisSession);
+  _nrpDelivered = _delivered.filter(matchesThisSession);
+  _nrpActiveTab = 'pending';
+  _nrpSeqMap    = new Map();
+  _nrpLocked    = false;
+  _nrpHomeAttempts = 0;
+  nrpUpdateLockUI();
+
+  document.getElementById('nrp-tab-pending').classList.add('act');
+  document.getElementById('nrp-tab-delivered').classList.remove('act');
+  document.getElementById('nrp-sub').textContent =
+    (_nrpSlot === 'morning' ? '☀️ Morning' : '🌙 Evening') + ' · ' + _nrpDate;
+
+  nrpRenderList();
+  document.getElementById('nrp-modal').classList.add('open');
+  history.pushState({ nrpPanel: true }, '', location.href);
+}
+
+// Plain close — used once Master Lock's home-nav gate has already been
+// satisfied (5th consecutive attempt), or when there's nothing to guard.
+function closeNewRoutePanel() {
+  document.getElementById('nrp-modal').classList.remove('open');
+  _nrpHomeAttempts = 0;
+}
+
+// Close-button / any "go home" tap while the panel is open. If Master Lock
+// is active this is gated by the consecutive-attempt counter; otherwise
+// (or once the gate is satisfied) it closes straight away.
+function nrpRequestClose() {
+  if (_nrpMasterLocked) {
+    _nrpRegisterHomeAttempt();
+    return;
+  }
+  closeNewRoutePanel();
+}
+
+// Any OTHER action inside the panel (tabs, cards, map, pdf, optimize, lock
+// toggles, scrolling) breaks a consecutive home-attempt streak. Call this
+// from every non-home action while Master Lock is active.
+function _nrpResetHomeAttempts() {
+  if (_nrpHomeAttempts !== 0) _nrpHomeAttempts = 0;
+}
+
+// One consecutive "go home" attempt (back button or ✕/home tap) while
+// Master Lock is active. Only the 5th CONSECUTIVE attempt actually
+// navigates home — any other action in between resets the counter to 0.
+function _nrpRegisterHomeAttempt() {
+  _nrpHomeAttempts++;
+  if (_nrpHomeAttempts >= NRP_HOME_ATTEMPTS_MAX) {
+    _nrpHomeAttempts = 0;
+    closeNewRoutePanel();
+    return;
+  }
+  rToast(`🔐 Locked — ${NRP_HOME_ATTEMPTS_MAX - _nrpHomeAttempts} more times to go home`);
+  // Re-arm a history entry so the next back press fires popstate again
+  history.pushState({ nrpPanel: true }, '', location.href);
+}
+
+function nrpSwitchTab(tab) {
+  _nrpResetHomeAttempts();
+  _nrpActiveTab = tab;
+  document.getElementById('nrp-tab-pending').classList.toggle('act', tab === 'pending');
+  document.getElementById('nrp-tab-delivered').classList.toggle('act', tab === 'delivered');
+  nrpRenderList();
+}
+
+// Renders the active tab's cards. GPS-less orders always sort to the
+// bottom of the list (stable sort keeps everything else in place).
+function nrpRenderList() {
+  const el   = document.getElementById('nrp-list');
+  const list = _nrpActiveTab === 'pending' ? _nrpPending : _nrpDelivered;
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">${_nrpActiveTab==='pending'?'🎉':'📦'}</div><p>No orders match the current filter</p></div>`;
+    return;
+  }
+
+  const withGps = [], withoutGps = [];
+  list.forEach(o => {
+    const { lat, lng } = _parseAddrFields(o.address || '');
+    (lat != null && lng != null ? withGps : withoutGps).push(o);
+  });
+
+  // Once Optimize Route has run, show GPS stops in their assigned sequence
+  if (_nrpActiveTab === 'pending' && _nrpSeqMap.size) {
+    withGps.sort((a, b) => {
+      const sa = _nrpSeqMap.get(a.order_id)?.seq ?? 999999;
+      const sb = _nrpSeqMap.get(b.order_id)?.seq ?? 999999;
+      return sa - sb;
+    });
+  }
+
+  el.innerHTML = withGps.concat(withoutGps).map(o => nrpRenderCard(o)).join('');
+}
+
+function nrpRenderCard(o) {
+  const parsed  = _parseAddrFields(o.address || '');
+  const hasGps  = parsed.lat != null && parsed.lng != null;
+  const area    = o._area || o.area || parsed.area || '—';
+  const room    = parsed.room || '—';
+  const seqInfo = _nrpSeqMap.get(o.order_id);
+  const isDelivered = (o.order_status || '').toLowerCase() === 'delivered';
+
+  const seqBadge = seqInfo
+    ? `<span style="background:#7c3aed;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;margin-right:6px;flex-shrink:0">${seqInfo.seq}</span>`
+    : '';
+  const distBadge = seqInfo
+    ? `<span style="background:#f0fdf4;color:#166534;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap">~${seqInfo.distKm.toFixed(1)}km</span>`
+    : '';
+
+  return `
+  <div class="nrp-card ${hasGps ? '' : 'no-gps'}" id="nrp-card-${o.order_id}">
+    <div class="nrp-card-row">
+      <span class="nrp-oid" style="display:flex;align-items:center">${seqBadge}${o.order_id}</span>
+      <div style="display:flex;gap:5px;align-items:center">${distBadge}<span class="nrp-gps-flag ${hasGps ? 'nrp-gps-yes' : 'nrp-gps-no'}">${hasGps ? '📍 GPS' : '⚠ No GPS'}</span></div>
+    </div>
+    <div class="nrp-name">👤 ${_esc(o.name) || '—'}</div>
+    <div class="nrp-row">📞 <a href="tel:${o.phone||''}" style="color:#0369a1;text-decoration:none">${o.phone || '—'}</a></div>
+    <div class="nrp-row">🚪 Room ${_esc(room)} &nbsp;·&nbsp; 📌 ${_esc(area)}</div>
+    <div class="nrp-card-row" style="margin-top:2px;margin-bottom:0">
+      <span></span>
+      ${_payTagHtml(o)}
+    </div>
+    <div class="nrp-addr">${_esc(_shortAddr(o.address, true))}</div>
+    <div class="nrp-pp-actions" id="nrp-card-actions-${o.order_id}">
+      <button class="nrp-pp-btn nrp-pp-call" onclick="_nrpCallOrder('${o.order_id}')">📞<span>Call</span></button>
+      <button class="nrp-pp-btn nrp-pp-wa" onclick="_nrpWhatsappOrder('${o.order_id}')">💬<span>WhatsApp</span></button>
+      <button class="nrp-pp-btn nrp-pp-nav" onclick="_nrpNavigateOrder('${o.order_id}')">🗺<span>Navigate</span></button>
+      <button class="nrp-pp-btn nrp-pp-edit" onclick="_nrpEditOrder('${o.order_id}')">✏️<span>Edit</span></button>
+      <button class="nrp-pp-btn nrp-pp-done" id="nrp-card-donebtn-${o.order_id}" ${isDelivered ? 'disabled style="opacity:.5"' : ''} onclick="_nrpMarkOrderDelivered('${o.order_id}')">✅<span>${isDelivered ? 'Delivered ✓' : 'Delivered'}</span></button>
+    </div>
+  </div>`;
+}
+
+// ── One-shot GPS fix, promise-wrapped ──────────────────────────
+// Mirrors the same navigator.geolocation options already used elsewhere
+// in this file (_setlocUseMyGps etc.) for consistent accuracy/timeout
+// behavior, but kept fully separate — no shared state with the old
+// continuous _startGPS() watch, which only runs while #map-modal is open.
+function _nrpGetGps() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject({ code: 0, message: 'GPS not supported on this device' }); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+    );
+  });
+}
+
+// ── Micro-clustering ────────────────────────────────────────────
+// Groups stops within NRP_CLUSTER_RADIUS_KM of each other (same building/
+// wing/hostel block) so they're always visited back-to-back instead of
+// being treated as independent points the route could zig-zag between.
+// Centroid recomputed as each new member joins.
+const NRP_CLUSTER_RADIUS_KM = 0.07; // ~70m, midpoint of the requested 60-80m range
+function _nrpBuildClusters(stopsWithCoords) {
+  const clusters = [];
+  stopsWithCoords.forEach(s => {
+    let target = null;
+    for (const c of clusters) {
+      if (_haversine(c.lat, c.lng, s.coords.lat, s.coords.lng) <= NRP_CLUSTER_RADIUS_KM) { target = c; break; }
+    }
+    if (target) {
+      target.members.push(s);
+      target.lat = target.members.reduce((sum, m) => sum + m.coords.lat, 0) / target.members.length;
+      target.lng = target.members.reduce((sum, m) => sum + m.coords.lng, 0) / target.members.length;
+    } else {
+      clusters.push({ lat: s.coords.lat, lng: s.coords.lng, members: [s] });
+    }
+  });
+  return clusters;
+}
+
+// ── 2-opt improvement pass (open path, fixed start = rider's GPS) ──────
+// Reversing a segment [i,j] only changes the two boundary edges — the
+// segment's internal edges stay the same total length just traversed in
+// reverse — so each candidate swap is checked in O(1) via those two edges
+// instead of recomputing the whole route's length every time.
+function _nrp2optImprove(routeIn, originLat, originLng) {
+  const n = routeIn.length;
+  if (n < 3) return routeIn;
+  // Safety cap for older rider phones — beyond this, the clustered
+  // nearest-neighbor result alone is already a solid route.
+  if (n > 60) return routeIn;
+
+  const route = [...routeIn];
+  const d = (a, b) => _haversine(a.coords.lat, a.coords.lng, b.coords.lat, b.coords.lng);
+
+  let improved = true, guard = 0;
+  while (improved && guard < 300) {
+    improved = false; guard++;
+    for (let i = 0; i < n - 1 && !improved; i++) {
+      const before1 = i === 0
+        ? _haversine(originLat, originLng, route[0].coords.lat, route[0].coords.lng)
+        : d(route[i - 1], route[i]);
+      for (let j = i + 1; j < n; j++) {
+        const before2 = j === n - 1 ? 0 : d(route[j], route[j + 1]);
+        const after1  = i === 0
+          ? _haversine(originLat, originLng, route[j].coords.lat, route[j].coords.lng)
+          : d(route[i - 1], route[j]);
+        const after2  = j === n - 1 ? 0 : d(route[i], route[j + 1]);
+        if (after1 + after2 < before1 + before2 - 1e-6) {
+          let lo = i, hi = j;
+          while (lo < hi) { const t = route[lo]; route[lo] = route[hi]; route[hi] = t; lo++; hi--; }
+          improved = true;
+          break;
+        }
+      }
+    }
+  }
+  return route;
+}
+
+// ── Optimize Route — Phase 2 ────────────────────────────────────
+// 1. Fresh live GPS fix (retry/fallback messaging on failure)
+// 2. Filter to pending stops WITH coordinates (no-GPS stops excluded,
+//    stay pinned to the bottom of the list as already handled by
+//    nrpRenderList — untouched here)
+// 3. Micro-cluster very-close stops
+// 4. Nearest-neighbor across clusters, then within each cluster
+//    (reuses the existing _nearestNeighborSort — not reimplemented)
+// 5. 2-opt pass to remove crossings/backtracking
+// 6. Assign sequence numbers + per-leg distances, re-render
+async function nrpOptimizeRoute() {
+  _nrpResetHomeAttempts();
+  if (_nrpLocked) { rToast('🔒 Sequence is locked — unlock first to re-optimize'); return; }
+  if (_nrpOptimizing) return; // ignore taps while a run is already in flight
+  const btn = document.getElementById('nrp-btn-optimize');
+
+  const withCoords = _nrpPending
+    .map(o => {
+      const { lat, lng } = _parseAddrFields(o.address || '');
+      return (lat != null && lng != null) ? { order: o, coords: { lat, lng } } : null;
+    })
+    .filter(Boolean);
+
+  if (!withCoords.length) { rToast('No pending stops with GPS coordinates yet'); return; }
+
+  _nrpOptimizing = true;
+  const origLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="nrp-abtn-icon">⏳</span><span>Locating…</span>';
+
+  let gps;
+  try {
+    gps = await _nrpGetGps();
+  } catch (err) {
+    if (err && err.code === 1)      rToast('📵 Location permission denied — enable GPS access and try again');
+    else if (err && err.code === 2) rToast('📡 Weak GPS signal — move outdoors and tap Optimize again');
+    else if (err && err.code === 3) rToast('⏱ GPS timed out — move outdoors and tap Optimize again');
+    else                             rToast((err && err.message) || 'Could not get your location — try again');
+
+    // Fallback: reuse last known position (e.g. from the old map's watch,
+    // if it happened to be running) rather than fully failing the optimize.
+    if (!_gpsPos) {
+      btn.disabled = false; btn.innerHTML = origLabel; _nrpOptimizing = false;
+      return;
+    }
+    gps = _gpsPos;
+    rToast('📍 Using last known location instead');
+  }
+
+  btn.innerHTML = '<span class="nrp-abtn-icon">🧭</span><span>Optimizing…</span>';
+  await new Promise(r => setTimeout(r, 30)); // let the label repaint before the sync CPU work below
+
+  try {
+    const clusters      = _nrpBuildClusters(withCoords);
+    const clusterStops  = clusters.map(c => ({ coords: { lat: c.lat, lng: c.lng }, _cluster: c }));
+    const orderedClusters = _nearestNeighborSort(clusterStops, gps.lat, gps.lng);
+
+    let curLat = gps.lat, curLng = gps.lng;
+    let flat = [];
+    orderedClusters.forEach(cs => {
+      const orderedMembers = _nearestNeighborSort(cs._cluster.members, curLat, curLng);
+      orderedMembers.forEach(m => {
+        curLat = m.coords.lat; curLng = m.coords.lng;
+        flat.push(m);
+      });
+    });
+
+    flat = _nrp2optImprove(flat, gps.lat, gps.lng);
+
+    let prevLat = gps.lat, prevLng = gps.lng;
+    const seqMap = new Map();
+    flat.forEach((s, idx) => {
+      const legDist = _haversine(prevLat, prevLng, s.coords.lat, s.coords.lng);
+      seqMap.set(s.order.order_id, { seq: idx + 1, distKm: legDist });
+      prevLat = s.coords.lat; prevLng = s.coords.lng;
+    });
+    _nrpSeqMap = seqMap;
+
+    nrpRenderList();
+    const totalKm = [..._nrpSeqMap.values()].reduce((sum, v) => sum + (v.distKm || 0), 0);
+    rToast(`🧭 ${_nrpSeqMap.size} stop${_nrpSeqMap.size !== 1 ? 's' : ''} optimized · ~${totalKm.toFixed(1)} km total route`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origLabel;
+    _nrpOptimizing = false;
+  }
+}
+
+// ── Sequence Lock + Master Lock — v202 Phase 3 ──────────────────────────
+// Sequence Lock freezes the current card order (Optimize Route becomes
+// unusable, ORSPDF/See Map become usable). It never auto-reoptimizes —
+// unlocking is the only way back to Optimize, and unlocking is a manual,
+// confirmed action.
+function nrpUpdateLockUI() {
+  const lockBtn      = document.getElementById('nrp-btn-lock');
+  const lockLabel     = document.getElementById('nrp-btn-lock-label');
+  const masterBtn     = document.getElementById('nrp-btn-masterlock');
+  const masterLabel   = document.getElementById('nrp-btn-masterlock-label');
+  const optimizeBtn   = document.getElementById('nrp-btn-optimize');
+  const pdfBtn        = document.getElementById('nrp-btn-pdf');
+  const mapBtn        = document.getElementById('nrp-btn-map');
+
+  lockBtn.classList.toggle('active', _nrpLocked);
+  lockLabel.textContent = _nrpLocked ? 'Unlock' : 'Lock';
+
+  masterBtn.classList.toggle('active', _nrpMasterLocked);
+  masterBtn.classList.toggle('master', _nrpMasterLocked);
+  masterLabel.textContent = _nrpMasterLocked ? 'Unlock Master' : 'Master Lock';
+
+  // Optimize is disabled once the sequence is locked (manual unlock required)
+  optimizeBtn.disabled = _nrpLocked;
+  optimizeBtn.classList.toggle('disabled', _nrpLocked);
+
+  // ORSPDF / See Map only become usable once the sequence is locked
+  pdfBtn.disabled = !_nrpLocked;
+  pdfBtn.classList.toggle('disabled', !_nrpLocked);
+  mapBtn.disabled = !_nrpLocked;
+  mapBtn.classList.toggle('disabled', !_nrpLocked);
+}
+
+function nrpToggleLock() {
+  _nrpResetHomeAttempts();
+  if (!_nrpLocked) {
+    if (!_nrpSeqMap.size) { rToast('Run Optimize Route first, then lock the sequence'); return; }
+    _nrpLocked = true;
+    nrpUpdateLockUI();
+    if (_nrpMasterLocked) _nrpSaveMasterLockState();
+    rToast('🔒 Sequence locked — ORSPDF & See Map unlocked');
+  } else {
+    // Unlocking requires explicit confirmation
+    document.getElementById('nrp-unlock-overlay').style.display = 'flex';
+  }
+}
+function _nrpHideUnlockConfirm() {
+  document.getElementById('nrp-unlock-overlay').style.display = 'none';
+}
+function _nrpDoUnlock() {
+  _nrpHideUnlockConfirm();
+  _nrpLocked = false;
+  nrpUpdateLockUI();
+  if (_nrpMasterLocked) _nrpSaveMasterLockState();
+  rToast('🔓 Sequence unlocked — you can Optimize again');
+  // No auto-reoptimize — rider must tap Optimize manually.
+}
+
+// Master Lock persists across tab close / app switch / reopen: on reopen
+// the rider lands directly back on this route screen (see restore logic
+// in DOMContentLoaded below), not the home screen.
+function nrpToggleMasterLock() {
+  _nrpResetHomeAttempts();
+  if (!_nrpMasterLocked) {
+    _nrpMasterLocked = true;
+    _nrpHomeAttempts = 0;
+    nrpUpdateLockUI();
+    _nrpSaveMasterLockState();
+    rToast('🔐 Master Lock ON — home navigation is now blocked');
+  } else {
+    document.getElementById('nrp-masterunlock-overlay').style.display = 'flex';
+  }
+}
+function _nrpHideMasterUnlockConfirm() {
+  document.getElementById('nrp-masterunlock-overlay').style.display = 'none';
+}
+function _nrpDoMasterUnlock() {
+  _nrpHideMasterUnlockConfirm();
+  _nrpMasterLocked = false;
+  _nrpHomeAttempts = 0;
+  nrpUpdateLockUI();
+  _nrpClearMasterLockState();
+  rToast('🔐 Master Lock OFF');
+}
+
+// ── Persistence: survive tab close / app switch / reopen ────────────────
+function _nrpSaveMasterLockState() {
+  try {
+    localStorage.setItem(NRP_MASTERLOCK_KEY, JSON.stringify({
+      key: _nrpPendingKey, date: _nrpDate, slot: _nrpSlot,
+      locked: _nrpLocked, seq: [..._nrpSeqMap.entries()]
+    }));
+  } catch(_) {}
+}
+function _nrpClearMasterLockState() {
+  try { localStorage.removeItem(NRP_MASTERLOCK_KEY); } catch(_) {}
+}
+function _nrpLoadMasterLockState() {
+  try {
+    const raw = localStorage.getItem(NRP_MASTERLOCK_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(_) { return null; }
+}
+
+// Called once during app init (after loadOrders resolves) to restore the
+// rider directly onto the locked route screen instead of the home page.
+function _nrpRestoreMasterLockIfAny() {
+  const saved = _nrpLoadMasterLockState();
+  if (!saved || !saved.key) return;
+
+  openNewRoutePanel(saved.key);
+  _nrpSeqMap   = new Map(saved.seq || []);
+  _nrpLocked   = !!saved.locked;
+  _nrpMasterLocked = true;
+  _nrpHomeAttempts = 0;
+  nrpRenderList();
+  nrpUpdateLockUI();
+}
+
+// Any tap/scroll inside the panel that ISN'T the ✕/home button breaks a
+// consecutive home-attempt streak (capture phase so it always sees the
+// event first, and it deliberately ignores taps on #nrp-close-btn itself
+// since nrpRequestClose() owns that counter transition).
+(function _nrpWireInteractionReset() {
+  const modal = document.getElementById('nrp-modal');
+  if (!modal) return;
+  modal.addEventListener('click', e => {
+    if (e.target.closest('#nrp-close-btn')) return;
+    _nrpResetHomeAttempts();
+  }, true);
+  modal.addEventListener('scroll', () => _nrpResetHomeAttempts(), true);
+})();
+
+// ── PDF "Edit" deep link — Phase 6 ───────────────────────────────────────
+// The ORSPDF's Edit chip points back at this same page with ?editOrder=ID
+// (a PDF can't host a live form). Runs once after orders have loaded, opens
+// the existing edit-address modal for that order, then strips the param so
+// a later refresh/back doesn't reopen it.
+function _nrpCheckEditDeepLink() {
+  const params  = new URLSearchParams(location.search);
+  const orderId = params.get('editOrder');
+  if (!orderId) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  openEditFromCard(orderId);
+}
+
+function nrpDownloadPDF() {
+  _nrpResetHomeAttempts();
+  if (!_nrpLocked) { rToast('Lock the sequence first'); return; }
+  _nrpGeneratePDF();
+}
+function nrpSeeMap() {
+  _nrpResetHomeAttempts();
+  if (!_nrpLocked) { rToast('Lock the sequence first'); return; }
+  _nrpOpenLockedMap();
+}
+
+// ── ORSPDF export (Optimized Route Sequence PDF) — Phase 6 ──────────────
+// Locked sequence, reuses the existing PDF/share pipeline (_htmlToPDFShare,
+// pure client-side jsPDF+html2canvas — no server round trip, so this works
+// even on a weak connection) but built from the NRP panel's own locked
+// stop order instead of the home screen's filter state.
+//
+// Per stop: seq #, name, order ID, phone, area, room, full address, payment
+// status, and 4 action links — Call / WhatsApp (same message as the
+// in-app buttons) / Navigate (Maps directions to GPS coords) / Edit (a
+// link back into this same PWA with ?editOrder=<id>, since a static PDF
+// can't host a live edit form — see _nrpCheckEditDeepLink()).
+// No-GPS stops are listed last (already guaranteed by
+// _nrpLockedOrderedStops()) with no Navigate link — the Address column,
+// always shown, is what the rider reads manually for those.
+function _nrpGeneratePDF() {
+  const ordered = _nrpLockedOrderedStops();
+  if (!ordered.length) { rToast('No stops to export'); return; }
+
+  const slotLabel = _nrpSlot === 'morning' ? 'Morning Orders' : 'Evening Orders';
+  const editBaseUrl = location.origin + location.pathname;
+
+  // Small inline-styled anchor "chip" — mirrors the Call/WhatsApp/Navigate/
+  // Edit button styling already used on-screen (nrp-pp-btn), just built as
+  // plain inline CSS since this HTML gets rasterized into a PDF page.
+  const chip = (href, bg, color, label) => href
+    ? `<a href="${href}" style="display:inline-block;background:${bg};color:${color};text-decoration:none;border-radius:6px;padding:4px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;margin:2px 3px 2px 0">${label}</a>`
+    : '';
+
+  const rows = ordered.map((o, i) => {
+    const seqInfo   = _nrpSeqMap.get(o.order_id);
+    const parsed    = _parseAddrFields(o.address || '');
+    const area      = _esc(o._area || o.area || parsed.area || '—');
+    const room      = _esc(parsed.room || '—');
+    const fullAddr  = _esc(_shortAddr(o.address, true)) || '—';
+    const coords    = _extractCoordsFromAddress(o.address || '');
+    const seqNum    = seqInfo ? seqInfo.seq : (i + 1);
+
+    const callHref = o.phone ? `tel:${o.phone}` : null;
+    // '91' prefix — phones are stored as bare 10-digit numbers app-wide.
+    const waHref   = o.phone ? `https://wa.me/91${o.phone}?text=${encodeURIComponent(NRP_WA_MESSAGE)}` : null;
+    const navHref  = coords ? _gMapsNavUrl(coords, null) : null;
+    const editHref = `${editBaseUrl}?editOrder=${encodeURIComponent(o.order_id)}`;
+
+    const actionsCell = `
+      ${chip(callHref, '#dcfce7', '#166534', '📞 Call')}
+      ${chip(waHref, '#dcfce7', '#075e26', '💬 WA')}
+      ${coords
+        ? chip(navHref, '#dbeafe', '#1e40af', '🗺 Navigate')
+        : `<span style="display:block;font-size:9.5px;color:#94a3b8;margin-top:2px">🚫 No GPS — see address</span>`}
+      ${chip(editHref, '#fef3c7', '#92400e', '✏️ Edit')}`;
+
+    return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f9fafb'}">
+      <td style="font-weight:800;color:#5b21b6;text-align:center">${seqNum}</td>
+      <td><b>${_esc(o.name) || '—'}</b><br><span style="font-family:monospace;font-size:10px;color:#64748b">${o.order_id}</span></td>
+      <td style="font-size:11.5px">${o.phone || '—'}</td>
+      <td style="font-size:11.5px">${area}</td>
+      <td style="font-size:11.5px;text-align:center">${room}</td>
+      <td style="font-size:11px;color:#334155;white-space:pre-line;max-width:160px">${fullAddr}</td>
+      <td>${_payTagHtml(o)}</td>
+      <td style="min-width:150px">${actionsCell}</td>
+    </tr>`;
+  }).join('');
+
+  const withGpsCount = ordered.filter(o => _extractCoordsFromAddress(o.address || '')).length;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Tiffo Rider — ORSPDF (${slotLabel})</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;padding:20px;color:#1e293b;background:#fff}
+    h1{font-size:18px;font-weight:800;margin-bottom:3px}
+    .meta{font-size:12px;color:#64748b;margin-bottom:10px}
+    .summary-bar{display:flex;gap:16px;margin-bottom:14px;padding:12px 16px;background:#f5f3ff;border:2px solid #7c3aed;border-radius:10px;align-items:center}
+    .summary-bar .s-item{display:flex;flex-direction:column;align-items:center;min-width:90px}
+    .summary-bar .s-val{font-size:20px;font-weight:800;color:#5b21b6}
+    .summary-bar .s-lbl{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#1e293b;color:white;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+    td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+    .total-row td{background:#f5f3ff;font-weight:800;border-top:3px solid #7c3aed;font-size:13px;color:#5b21b6}
+    footer{margin-top:14px;font-size:11px;color:#94a3b8;text-align:right}
+  </style></head><body>
+  <h1>🔒 Tiffo Rider — ORSPDF · Optimized Route Sequence (${slotLabel})</h1>
+  <div class="meta">Rider: ${_esc(_rider?.name) || '—'} (${_rider?.rider_id || '—'}) &nbsp;|&nbsp; Date: ${_nrpDate} &nbsp;|&nbsp; Generated: ${new Date().toLocaleString('en-IN')}</div>
+  <div class="summary-bar">
+    <div class="s-item"><div class="s-val">${ordered.length}</div><div class="s-lbl">Total Stops</div></div>
+    <div class="s-item"><div class="s-val">${withGpsCount}</div><div class="s-lbl">With GPS</div></div>
+    <div class="s-item"><div class="s-val">${ordered.length - withGpsCount}</div><div class="s-lbl">No GPS</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Seq</th><th>Customer / Order ID</th><th>Phone</th><th>Area</th><th>Room</th><th>Address</th><th>Payment</th><th>Actions</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="total-row"><td colspan="8" style="text-align:right;padding:10px">Total Stops: ${ordered.length}</td></tr></tfoot>
+  </table>
+  <footer>Tiffo Rider Panel © 2026 — Locked Sequence · Edit links open this app to update GPS/room/area</footer>
+  </body></html>`;
+
+  const fname = `ORSPDF_${_nrpSlot}_${_nrpDate}.pdf`;
+  _htmlToPDFShare(html, fname);
+}
+
+// Pending stops (locked tab always shows Pending), ordered by the locked
+// sequence when available; GPS-less stops trail at the end unchanged.
+function _nrpLockedOrderedStops() {
+  const withGps = [], withoutGps = [];
+  _nrpPending.forEach(o => {
+    const { lat, lng } = _parseAddrFields(o.address || '');
+    (lat != null && lng != null ? withGps : withoutGps).push(o);
+  });
+  if (_nrpSeqMap.size) {
+    withGps.sort((a, b) => {
+      const sa = _nrpSeqMap.get(a.order_id)?.seq ?? 999999;
+      const sb = _nrpSeqMap.get(b.order_id)?.seq ?? 999999;
+      return sa - sb;
+    });
+  }
+  return withGps.concat(withoutGps);
+}
+
+// ── See Map — v202 Phase 4 ──────────────────────────────────────────────
+// Own, separate full-screen page (#nrp-map-modal). Only reachable once the
+// sequence is locked. Seeded from the locked NRP order — the locked
+// sequence numbers are what's shown on the pins, and nothing here ever
+// re-sorts that order; only rotation/guidance updates live as the rider
+// moves. Going back returns to #nrp-modal (order list), including while
+// Master Lock is active — see the popstate handler below.
+function _nrpOpenLockedMap() {
+  const ordered = _nrpLockedOrderedStops();
+  if (!ordered.length) { rToast('No stops to show on map'); return; }
+  nrpOpenMap(ordered);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NRP SEE MAP — full implementation (v202 Phase 4)
+   - Leaflet map, pins labeled with locked seq numbers, GPS-less
+     orders excluded from the map entirely (spec #3)
+   - Live rider GPS dot, continuously updating (spec #4)
+   - Heading-based rotation: whole map rotates so travel direction
+     points "up" (spec #5)
+   - Turn-by-turn banner, reusing/extending the existing maneuver
+     translation + voice engine from the old flow (spec #6)
+   - Deviation ("wrong road") detection vs planned route (spec #7)
+   - Pin popup: full order details + Call/WhatsApp/Navigate/Edit/
+     Mark Delivered (spec #8)
+   - Never re-optimizes/reorders while open — locked seq is final
+     until the rider manually unlocks from the list screen (spec #9)
+   ═══════════════════════════════════════════════════════════════ */
+let _nrpMap            = null;   // Leaflet map instance (separate from old _map)
+let _nrpMapStops        = [];    // [{order, coords, seq, marker}] — locked order, GPS-only subset for pins
+let _nrpMapAllCount     = 0;     // total stops (with + without GPS) for the counter line
+let _nrpMapWatchId      = null;
+let _nrpMapGpsPos       = null;  // {lat,lng}
+let _nrpMapGpsMarker    = null;
+let _nrpMapGpsCircle    = null;
+let _nrpMapHeading      = 0;     // degrees, smoothed
+let _nrpMapLastHeadingPos = null; // last position used to derive heading when compass unavailable
+let _nrpMapRoutePts     = [];    // [[lat,lng],...] planned road-route polyline points (deviation check)
+let _nrpMapRouteLayer   = null;
+let _nrpMapFallbackLine = null;  // straight dashed placeholder, shown while fetching + kept on OSRM failure
+let _nrpMapOsrmDown     = false; // true once OSRM has failed at least once this map session — gates the one-time toast
+let _nrpMapPlannedSteps = [];    // OSRM steps for turn-by-turn (reused engine, own array)
+let _nrpMapStepIdx      = 0;
+let _nrpMapEtaSeconds   = 0;
+let _nrpMapVoiceOn      = true;
+let _nrpMapLastSpokenKey = null;
+let _nrpMapWrongRoad    = false;
+let _nrpMapRedrawTimer  = null;
+let _nrpMapLastRedrawPos = null;
+let _nrpMapPinIdx       = null;  // index into _nrpMapStops for the open popup
+const NRP_MAP_DEVIATION_M   = 45;   // spec says 40-50m — midpoint
+const NRP_MAP_REDRAW_DIST_M = 30;
+
+function nrpOpenMap(orderedStops) {
+  // Build map-stop list: GPS-only subset (spec #3 — no-GPS orders never
+  // appear on the map), each carrying its LOCKED seq number as displayed
+  // in the list (index+1 among the ordered array, matching nrp-oid badges).
+  _nrpMapAllCount = orderedStops.length;
+  _nrpMapStops = orderedStops
+    .map((o, i) => {
+      const coords = _extractCoordsFromAddress(o.address || '');
+      return coords ? { order: o, coords, seq: i + 1, marker: null } : null;
+    })
+    .filter(Boolean);
+
+  if (!_nrpMapStops.length) { rToast('No stops with GPS coordinates to show'); return; }
+
+  _nrpResetHomeAttempts();
+  document.getElementById('nrp-map-modal').classList.add('open');
+  history.pushState({ nrpMap: true }, '', location.href);
+
+  _nrpUpdateMapCounter();
+
+  requestAnimationFrame(() => {
+    if (!_nrpMap) {
+      _nrpMap = L.map('nrp-map-rotor', { zoomControl: false, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_nrpMap);
+    } else {
+      _nrpMap.invalidateSize();
+    }
+    _nrpPlaceMapMarkers();
+    _nrpFitMapBounds();
+    _nrpStartMapGps();
+    _nrpDrawPlannedRoute();
+  });
+}
+
+// Plain close — simply hides the page; the order-list panel (#nrp-modal)
+// underneath is untouched and still reflects the exact same locked
+// sequence.
+function nrpCloseMap() {
+  document.getElementById('nrp-map-modal').classList.remove('open');
+  _nrpStopMapGps();
+  _nrpClosePinPopup();
+}
+
+// Back / ✕ tap on the See Map page. Per spec, this must ALWAYS return to
+// the order list — it is never gated by Master Lock (Master Lock only
+// gates leaving the route screen entirely, i.e. #nrp-modal → home).
+function nrpRequestCloseMap() {
+  nrpCloseMap();
+}
+
+function _nrpUpdateMapCounter() {
+  const withGps = _nrpMapStops.length;
+  const withoutGps = _nrpMapAllCount - withGps;
+  document.getElementById('nrp-map-counter').innerHTML =
+    `<span class="c-with">${withGps} with coordinates</span> · <span class="c-without">${withoutGps} without coordinates</span>`;
+}
+
+// ── Pins — numbered by locked sequence, click opens the popup card ──────
+function _nrpPlaceMapMarkers() {
+  _nrpMapStops.forEach(s => { if (s.marker) _nrpMap.removeLayer(s.marker); s.marker = null; });
+  _nrpMapStops.forEach((s, idx) => {
+    const marker = L.marker([s.coords.lat, s.coords.lng], {
+      icon: _numIcon(s.seq, '#7c3aed'),
+      zIndexOffset: 0
+    }).addTo(_nrpMap);
+    marker.on('click', () => _nrpOpenPinPopup(idx));
+    s.marker = marker;
+  });
+}
+
+function _nrpFitMapBounds() {
+  if (!_nrpMap) return;
+  const pts = _nrpMapStops.map(s => [s.coords.lat, s.coords.lng]);
+  if (_nrpMapGpsPos) pts.push([_nrpMapGpsPos.lat, _nrpMapGpsPos.lng]);
+  if (!pts.length) return;
+  if (pts.length === 1) { _nrpMap.setView(pts[0], 15); return; }
+  _nrpMap.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 17 });
+}
+
+function _nrpMapRecenter() {
+  if (!_nrpMap || !_nrpMapGpsPos) { rToast('Waiting for GPS…'); return; }
+  _nrpMap.setView([_nrpMapGpsPos.lat, _nrpMapGpsPos.lng], 17, { animate: true });
+}
+
+// ── Live GPS dot + heading-based rotation ────────────────────────────────
+// Uses device compass (deviceorientationabsolute / webkitCompassHeading)
+// where available; falls back to computing heading from consecutive GPS
+// fixes (bearing of travel) so rotation still works on devices/browsers
+// without a compass. The whole map canvas is rotated via CSS transform so
+// the rider's current direction of travel always points up the screen —
+// this NEVER changes the locked stop sequence, only the visual framing.
+function _nrpStartMapGps() {
+  if (!navigator.geolocation) { rToast('GPS not supported on this device'); return; }
+  _nrpMapWatchId = navigator.geolocation.watchPosition(
+    pos => _nrpHandleMapGpsFix(pos),
+    err => { if (err.code !== err.TIMEOUT) rToast('GPS unavailable — using last known position'); },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+  );
+
+  // Compass heading, where supported (iOS Safari + some Android browsers)
+  const startCompass = () => {
+    window.addEventListener('deviceorientationabsolute', _nrpOnDeviceOrientation, true);
+    window.addEventListener('deviceorientation', _nrpOnDeviceOrientation, true);
+  };
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ requires a user gesture to grant — Recenter tap doubles as that gesture.
+    DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') startCompass(); }).catch(() => {});
+  } else {
+    startCompass();
+  }
+}
+
+function _nrpOnDeviceOrientation(e) {
+  let heading = null;
+  if (typeof e.webkitCompassHeading === 'number') {
+    heading = e.webkitCompassHeading; // iOS: already true/magnetic north-relative, no inversion needed
+  } else if (e.absolute && typeof e.alpha === 'number') {
+    heading = 360 - e.alpha; // Android: alpha increases counter-clockwise
+  }
+  if (heading == null || isNaN(heading)) return;
+  _nrpApplyHeading(heading);
+}
+
+function _nrpApplyHeading(heading) {
+  // Shortest-angle smoothing so the rotation never spins the "long way round"
+  let delta = heading - _nrpMapHeading;
+  delta = ((delta + 180) % 360 + 360) % 360 - 180;
+  _nrpMapHeading = (_nrpMapHeading + delta * 0.35 + 360) % 360;
+  const canvas = document.getElementById('nrp-map-canvas');
+  if (canvas) canvas.style.transform = `rotate(${-_nrpMapHeading}deg) scale(1.6)`;
+}
+
+function _nrpHandleMapGpsFix(pos) {
+  const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  const acc = pos.coords.accuracy;
+
+  // Fallback heading: bearing of travel between consecutive fixes, only
+  // used when the device doesn't report a compass heading (most Android
+  // Chrome builds don't fire deviceorientationabsolute reliably).
+  if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && pos.coords.heading >= 0) {
+    _nrpApplyHeading(pos.coords.heading);
+  } else if (_nrpMapLastHeadingPos) {
+    const movedM = _haversine(_nrpMapLastHeadingPos.lat, _nrpMapLastHeadingPos.lng, newPos.lat, newPos.lng) * 1000;
+    if (movedM >= 5) { // ignore GPS jitter under 5m
+      _nrpApplyHeading(_nrpBearing(_nrpMapLastHeadingPos.lat, _nrpMapLastHeadingPos.lng, newPos.lat, newPos.lng));
+      _nrpMapLastHeadingPos = newPos;
+    }
+  } else {
+    _nrpMapLastHeadingPos = newPos;
+  }
+
+  _nrpMapGpsPos = newPos;
+
+  if (_nrpMap) {
+    if (!_nrpMapGpsMarker) {
+      _nrpMapGpsMarker = L.marker([newPos.lat, newPos.lng], { icon: _gpsIcon(), zIndexOffset: 1000 }).addTo(_nrpMap);
+      _nrpMapGpsCircle = L.circle([newPos.lat, newPos.lng], {
+        radius: acc, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: .08, weight: 1
+      }).addTo(_nrpMap);
+    } else {
+      _nrpMapGpsMarker.setLatLng([newPos.lat, newPos.lng]);
+      _nrpMapGpsCircle.setLatLng([newPos.lat, newPos.lng]).setRadius(acc);
+    }
+    // Keep the rider dot roughly centered as they move (nav-style follow)
+    _nrpMap.panTo([newPos.lat, newPos.lng], { animate: true, duration: 0.6 });
+  }
+
+  _nrpUpdateTurnBanner();
+  _nrpCheckDeviation();
+
+  // Redraw the planned route occasionally if the rider has moved a lot —
+  // this only refreshes the visual line/turn steps, it NEVER touches
+  // _nrpSeqMap or reorders _nrpMapStops (spec #9).
+  const movedSinceRedraw = _nrpMapLastRedrawPos
+    ? _haversine(_nrpMapLastRedrawPos.lat, _nrpMapLastRedrawPos.lng, newPos.lat, newPos.lng) * 1000
+    : Infinity;
+  if (movedSinceRedraw >= NRP_MAP_REDRAW_DIST_M) {
+    clearTimeout(_nrpMapRedrawTimer);
+    _nrpMapRedrawTimer = setTimeout(() => {
+      _nrpMapLastRedrawPos = { ...newPos };
+      _nrpDrawPlannedRoute();
+    }, 1500);
+  }
+}
+
+function _nrpBearing(lat1, lng1, lat2, lng2) {
+  const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+  const y = Math.sin(toRad(lng2 - lng1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lng2 - lng1));
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function _nrpStopMapGps() {
+  if (_nrpMapWatchId !== null) { navigator.geolocation.clearWatch(_nrpMapWatchId); _nrpMapWatchId = null; }
+  window.removeEventListener('deviceorientationabsolute', _nrpOnDeviceOrientation, true);
+  window.removeEventListener('deviceorientation', _nrpOnDeviceOrientation, true);
+  clearTimeout(_nrpMapRedrawTimer);
+  _nrpMapRedrawTimer = null;
+  _nrpMapLastRedrawPos = null;
+  _nrpMapLastHeadingPos = null;
+  _nrpResetTurnNav();
+  document.getElementById('nrp-wrongroad-banner').classList.remove('show');
+  _nrpMapWrongRoad = false;
+}
+
+// ── Planned route (road-following via OSRM) — GPS → locked stops in
+// their FIXED sequence order. Drawn once on open and refreshed as the
+// rider moves, but the stop ORDER itself is read-only here: it always
+// walks _nrpMapStops in its existing array order (spec #9). ──────────────
+function _nrpClearFallbackLine() {
+  if (_nrpMapFallbackLine) { _nrpMap.removeLayer(_nrpMapFallbackLine); _nrpMapFallbackLine = null; }
+}
+
+// Straight dashed placeholder — same visual language as the old flow's
+// _drawFallbackPolyline. Shown immediately (before OSRM even responds) so
+// the rider is never looking at a blank map, and left in place if OSRM
+// fails outright so there's always SOME line on screen to navigate by.
+function _nrpDrawFallbackLine(pts) {
+  _nrpClearFallbackLine();
+  if (pts.length < 2) return;
+  _nrpMapFallbackLine = L.polyline(pts, { color: '#7c3aed', weight: 3, opacity: .6, dashArray: '8,8' }).addTo(_nrpMap);
+}
+
+async function _nrpDrawPlannedRoute() {
+  if (!_nrpMap || !_nrpMapStops.length) return;
+  const pts = [];
+  if (_nrpMapGpsPos) pts.push({ lat: _nrpMapGpsPos.lat, lng: _nrpMapGpsPos.lng });
+  _nrpMapStops.forEach(s => pts.push({ lat: s.coords.lat, lng: s.coords.lng }));
+  if (pts.length < 2) return;
+
+  // Placeholder first — replaced by the road route on success, or left
+  // visible (spec: fall back rather than break the screen) on failure.
+  if (!_nrpMapRouteLayer) _nrpDrawFallbackLine(pts.map(p => [p.lat, p.lng]));
+
+  try {
+    const coords = pts.slice(0, 25).map(p => `${p.lng},${p.lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('OSRM ' + res.status);
+    const data = await res.json();
+    if (!data.routes?.[0]) throw new Error('No route');
+    const route = data.routes[0];
+
+    _nrpClearFallbackLine();
+    if (_nrpMapRouteLayer) { _nrpMap.removeLayer(_nrpMapRouteLayer); _nrpMapRouteLayer = null; }
+    _nrpMapRouteLayer = L.layerGroup([
+      L.geoJSON(route.geometry, { style: { color: '#ffffff', weight: 8, opacity: .55, lineJoin: 'round', lineCap: 'round' } }),
+      L.geoJSON(route.geometry, { style: { color: '#7c3aed', weight: 5, opacity: 1, lineJoin: 'round', lineCap: 'round' } }),
+      L.geoJSON(route.geometry, { style: { color: '#c4b5fd', weight: 2, opacity: .65, lineJoin: 'round' } })
+    ]).addTo(_nrpMap);
+
+    _nrpMapRoutePts = (route.geometry.coordinates || []).map(c => [c[1], c[0]]); // [lat,lng]
+
+    if (route.legs?.[0]) {
+      _nrpMapPlannedSteps = (route.legs[0].steps || []).filter(s => s.maneuver);
+      _nrpMapStepIdx = 0;
+      _nrpMapEtaSeconds = route.legs[0].duration || 0;
+      _nrpRenderTurnBanner();
+    }
+    _nrpMapOsrmDown = false; // recovered — allow the toast to fire again if it drops later
+  } catch (e) {
+    console.warn('NRP map: OSRM routing failed', e.message);
+    // Road route unavailable — dashed placeholder (drawn above, or the last
+    // successful _nrpMapRouteLayer if this was just a periodic redraw) stays
+    // on screen instead of leaving the rider with nothing. Toast once per
+    // outage, not on every redraw retry, so it doesn't spam while offline.
+    if (!_nrpMapRouteLayer && !_nrpMapOsrmDown) {
+      _nrpMapOsrmDown = true;
+      rToast('📡 Route line unavailable (offline) — showing straight-line path, will retry as you move');
+    }
+  }
+}
+
+// ── Turn-by-turn — extends the existing maneuver-translation engine
+// (_maneuverToHindi / _maneuverToEnglish / _speakHindi) with its own
+// banner + state, since the original functions are gated on the old
+// flow's _deliveryActive/_liveTrackingActive globals. ────────────────────
+function _nrpUpdateTurnBanner() {
+  if (!_nrpMapPlannedSteps.length || !_nrpMapGpsPos) return;
+  let activeIdx = _nrpMapStepIdx;
+  for (let i = _nrpMapStepIdx; i < _nrpMapPlannedSteps.length; i++) {
+    const loc = _nrpMapPlannedSteps[i].maneuver?.location;
+    if (!loc) continue;
+    const d = _haversine(_nrpMapGpsPos.lat, _nrpMapGpsPos.lng, loc[1], loc[0]) * 1000;
+    if (d > 20) { activeIdx = i; break; }
+    activeIdx = Math.min(i + 1, _nrpMapPlannedSteps.length - 1);
+  }
+  _nrpMapStepIdx = activeIdx;
+  _nrpRenderTurnBanner();
+}
+
+function _nrpRenderTurnBanner() {
+  const banner = document.getElementById('nrp-turn-banner');
+  if (!banner) return;
+  if (!_nrpMapPlannedSteps.length) { banner.classList.remove('show'); return; }
+  banner.classList.add('show');
+  banner.classList.toggle('pushed-down', _nrpMapWrongRoad);
+
+  const step = _nrpMapPlannedSteps[_nrpMapStepIdx];
+  const isLast = _nrpMapStepIdx >= _nrpMapPlannedSteps.length - 1;
+  const loc = step?.maneuver?.location;
+  let distM = null;
+  if (loc && _nrpMapGpsPos) distM = _haversine(_nrpMapGpsPos.lat, _nrpMapGpsPos.lng, loc[1], loc[0]) * 1000;
+
+  const hindi = _maneuverToHindi(step, isLast);
+  document.getElementById('nrp-turn-icon').textContent = hindi.icon;
+  document.getElementById('nrp-turn-instr').textContent = _maneuverToEnglish(step);
+  document.getElementById('nrp-turn-dist').textContent = distM != null
+    ? (distM >= 1000 ? `${(distM / 1000).toFixed(1)} km` : `${Math.round(distM / 10) * 10} m`)
+    : '—';
+
+  const eta = _fmtEta(_nrpMapEtaSeconds);
+  document.getElementById('nrp-turn-eta').textContent = eta.mins;
+  document.getElementById('nrp-turn-eta-label').textContent = eta.mins === '—' ? 'ETA' : `ETA ${eta.clock}`;
+
+  const stepKey = _nrpMapStepIdx + ':' + (isLast ? 'arrive' : 'turn');
+  if (distM != null && _nrpMapVoiceOn) {
+    if (distM <= 400 && distM > 150 && _nrpMapLastSpokenKey !== stepKey + ':far') {
+      _nrpMapLastSpokenKey = stepKey + ':far';
+      _speakHindi(`आगे ${Math.round(distM / 50) * 50} मीटर में ${hindi.text}`);
+    } else if (distM <= 150 && _nrpMapLastSpokenKey !== stepKey + ':near') {
+      _nrpMapLastSpokenKey = stepKey + ':near';
+      _speakHindi(hindi.text);
+    }
+  }
+}
+
+function _nrpResetTurnNav() {
+  _nrpMapPlannedSteps = [];
+  _nrpMapStepIdx = 0;
+  _nrpMapEtaSeconds = 0;
+  _nrpMapLastSpokenKey = null;
+  const banner = document.getElementById('nrp-turn-banner');
+  if (banner) banner.classList.remove('show');
+}
+
+function _nrpToggleVoiceNav() {
+  _nrpMapVoiceOn = !_nrpMapVoiceOn;
+  const btn = document.getElementById('nrp-turn-mute');
+  if (btn) {
+    btn.textContent = _nrpMapVoiceOn ? '🔊' : '🔇';
+    btn.classList.toggle('muted', !_nrpMapVoiceOn);
+  }
+  if (!_nrpMapVoiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+}
+
+// ── Deviation ("wrong road") detection ───────────────────────────────────
+// Compares live GPS against the planned route polyline; if the rider is
+// further than NRP_MAP_DEVIATION_M (40-50m) from the nearest point on that
+// line, shows the red warning banner until they're back within range.
+function _nrpCheckDeviation() {
+  const banner = document.getElementById('nrp-wrongroad-banner');
+  if (!banner) return;
+  if (!_nrpMapGpsPos || _nrpMapRoutePts.length < 2) { banner.classList.remove('show'); return; }
+
+  let minDistM = Infinity;
+  for (let i = 0; i < _nrpMapRoutePts.length - 1; i++) {
+    const d = _nrpDistToSegmentM(_nrpMapGpsPos, _nrpMapRoutePts[i], _nrpMapRoutePts[i + 1]);
+    if (d < minDistM) minDistM = d;
+    if (minDistM < NRP_MAP_DEVIATION_M) break; // early exit once clearly on-route
+  }
+
+  const offRoute = minDistM > NRP_MAP_DEVIATION_M;
+  if (offRoute !== _nrpMapWrongRoad) {
+    _nrpMapWrongRoad = offRoute;
+    banner.classList.toggle('show', offRoute);
+    document.getElementById('nrp-turn-banner').classList.toggle('pushed-down', offRoute);
+    if (offRoute) rToast('⚠️ Wrong road — off the planned route');
+  }
+}
+
+// Distance in meters from point p to segment [a,b], all {lat,lng}/[lat,lng].
+// Approximates locally in meters (fine at city scale) via an equirectangular
+// projection around p's latitude — avoids a full geodesic solve per segment.
+function _nrpDistToSegmentM(p, a, b) {
+  const R = 6371000;
+  const latRef = p.lat * Math.PI / 180;
+  const mPerDegLat = R * Math.PI / 180;
+  const mPerDegLng = R * Math.PI / 180 * Math.cos(latRef);
+
+  const px = p.lng * mPerDegLng, py = p.lat * mPerDegLat;
+  const ax = a[1] * mPerDegLng, ay = a[0] * mPerDegLat;
+  const bx = b[1] * mPerDegLng, by = b[0] * mPerDegLat;
+
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq > 0 ? ((px - ax) * dx + (py - ay) * dy) / lenSq : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+// ── Pin popup: full order details + action buttons ───────────────────────
+function _nrpOpenPinPopup(idx) {
+  const s = _nrpMapStops[idx];
+  if (!s) return;
+  _nrpMapPinIdx = idx;
+  const o = s.order;
+  const parsed = _parseAddrFields(o.address || '');
+  const area = o._area || o.area || parsed.area || '—';
+  const room = parsed.room || '—';
+  const items = (o.items || []).map(i => `${_esc(i.name)}${i.qty > 1 ? ' ×' + i.qty : ''}`).join(', ') || '—';
+
+  document.getElementById('nrp-pp-seq').textContent = s.seq;
+  document.getElementById('nrp-pp-namevalue').textContent = o.name || '—';
+  const phoneEl = document.getElementById('nrp-pp-phone');
+  phoneEl.textContent = o.phone || '—';
+  phoneEl.href = o.phone ? `tel:${o.phone}` : '#';
+  document.getElementById('nrp-pp-payrow').innerHTML = _payTagHtml(o);
+  document.getElementById('nrp-pp-itemsrow').textContent = `🍱 ${items}`;
+  document.getElementById('nrp-pp-addr').textContent =
+    `🚪 Room ${room} · 📌 ${area}\n${_shortAddr(o.address, true) || '—'}`;
+
+  const doneBtn = document.getElementById('nrp-pp-donebtn');
+  const alreadyDelivered = (o.order_status || '').toLowerCase() === 'delivered';
+  doneBtn.disabled = alreadyDelivered;
+  doneBtn.style.opacity = alreadyDelivered ? '.5' : '1';
+  doneBtn.querySelector('span').textContent = alreadyDelivered ? 'Delivered ✓' : 'Delivered';
+
+  document.getElementById('nrp-pin-popup-overlay').classList.add('show');
+  history.pushState({ nrpPin: true }, '', location.href);
+}
+
+function _nrpClosePinPopup() {
+  document.getElementById('nrp-pin-popup-overlay').classList.remove('show');
+  _nrpMapPinIdx = null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Phase 5 — Shared NRP action handlers (SINGLE SOURCE OF TRUTH)
+   ═══════════════════════════════════════════════════════════════
+   Call / WhatsApp / Navigate / Edit / Mark Delivered must behave
+   identically whether triggered from a list card (nrpRenderCard) or
+   a map pin popup (_nrpOpenPinPopup). Both surfaces call these same
+   five functions by order_id — no per-surface duplicate logic.
+   ═══════════════════════════════════════════════════════════════ */
+const NRP_WA_MESSAGE = 'Main aa raha hoon, aap niche ya bahar aa jaiye, 2 min me pahunch raha hoon. Apni location ka map link bhej dijiye.';
+
+// Resolves an order object by id from whichever NRP-scoped array
+// currently holds it. Note: _nrpMapStops[i].order is the SAME object
+// reference as its counterpart in _nrpPending/_nrpDelivered (built via
+// _nrpLockedOrderedStops() straight off _nrpPending), so looking it up
+// here also keeps any open map pin in sync automatically.
+function _nrpFindOrder(orderId) {
+  return _nrpPending.find(o => o.order_id === orderId)
+      || _nrpDelivered.find(o => o.order_id === orderId)
+      || null;
+}
+
+function _nrpCallOrder(orderId) {
+  const o = _nrpFindOrder(orderId);
+  if (!o?.phone) { rToast('No phone number on file'); return; }
+  window.location.href = `tel:${o.phone}`;
+}
+
+function _nrpWhatsappOrder(orderId) {
+  const o = _nrpFindOrder(orderId);
+  if (!o?.phone) { rToast('No phone number on file'); return; }
+  // '91' prefix — phones are stored as bare 10-digit numbers app-wide;
+  // matches the convention already used by orderWA()/stopWA().
+  openWA('91' + o.phone, NRP_WA_MESSAGE);
+}
+
+function _nrpNavigateOrder(orderId) {
+  const o = _nrpFindOrder(orderId);
+  if (!o) return;
+  const coords = _extractCoordsFromAddress(o.address || '');
+  if (!coords) { rToast('No address available for navigation'); return; }
+  // Prefer the live map GPS watch if the map's open; fall back to the
+  // one-time home-screen fix; omit origin entirely if neither is ready
+  // (Google Maps then just uses the device's current location).
+  const url = _gMapsNavUrl(coords, _nrpMapGpsPos || _gpsPos || null);
+  if (!url) { rToast('No address available for navigation'); return; }
+  _gMapsOpen(url);
+}
+
+// Reuses the existing "Edit from home card" Edit Address modal entry
+// point, which already works directly off an order_id (looked up in
+// _pending/_delivered) and saves via the existing riderUpdateUserAddress
+// backend action — no adapter/temp state needed.
+function _nrpEditOrder(orderId) {
+  _nrpClosePinPopup(); // no-op if called from a list card (popup not open)
+  openEditFromCard(orderId);
+}
+
+// Reuses the exact same markDelivered() pipeline as the rest of the app,
+// including the unpaid/"confirm cash collected" popup flow. Only once
+// that pipeline has actually completed (rider didn't back out of the
+// cash-collect confirm) do we move the order between the NRP-scoped
+// pending/delivered arrays and refresh the pin — so a declined confirm
+// correctly leaves the order right where it was, in both list and map.
+async function _nrpMarkOrderDelivered(orderId) {
+  _nrpClosePinPopup(); // no-op if called from a list card
+  await markDelivered(orderId);
+
+  if (_pending.some(o => o.order_id === orderId)) return; // rider chose "Not Now" — still pending, nothing to move
+
+  const pIdx = _nrpPending.findIndex(o => o.order_id === orderId);
+  if (pIdx !== -1) {
+    const [order] = _nrpPending.splice(pIdx, 1);
+    order.order_status = 'delivered';
+    if (!_nrpDelivered.some(x => x.order_id === orderId)) _nrpDelivered.unshift(order);
+  } else {
+    const already = _nrpDelivered.find(x => x.order_id === orderId);
+    if (already) already.order_status = 'delivered';
+  }
+
+  _nrpUpdateMapPinForOrder(orderId); // updates pin immediately if map is open
+  nrpRenderList();                   // updates list immediately (Pending → Delivered tab)
+}
+
+// Recolors a delivered stop's pin green + refreshes its popup's Delivered
+// button if that popup happens to be open right now. Safe no-op if the
+// map was never opened this session or the order has no GPS pin.
+function _nrpUpdateMapPinForOrder(orderId) {
+  const stop = _nrpMapStops.find(s => s.order.order_id === orderId);
+  if (!stop) return;
+  stop.order.order_status = 'delivered';
+  if (stop.marker) stop.marker.setIcon(_numIcon('✓', '#16a34a'));
+  if (_nrpMapPinIdx !== null && _nrpMapStops[_nrpMapPinIdx] === stop) {
+    const doneBtn = document.getElementById('nrp-pp-donebtn');
+    if (doneBtn) {
+      doneBtn.disabled = true;
+      doneBtn.style.opacity = '.5';
+      doneBtn.querySelector('span').textContent = 'Delivered ✓';
+    }
+  }
+}
+
+/* ── Map pin popup buttons — thin wrappers that resolve the order_id
+   for whichever pin is currently open, then delegate to the shared
+   handlers above (identical to what the list-card buttons call). ── */
+function _nrpPpCall() {
+  const s = _nrpMapStops[_nrpMapPinIdx];
+  if (s) _nrpCallOrder(s.order.order_id);
+}
+function _nrpPpWhatsapp() {
+  const s = _nrpMapStops[_nrpMapPinIdx];
+  if (s) _nrpWhatsappOrder(s.order.order_id);
+}
+function _nrpPpNavigate() {
+  const s = _nrpMapStops[_nrpMapPinIdx];
+  if (s) _nrpNavigateOrder(s.order.order_id);
+}
+function _nrpPpEdit() {
+  const s = _nrpMapStops[_nrpMapPinIdx];
+  if (s) _nrpEditOrder(s.order.order_id);
+}
+async function _nrpPpMarkDelivered() {
+  const s = _nrpMapStops[_nrpMapPinIdx];
+  if (s) await _nrpMarkOrderDelivered(s.order.order_id);
+}
+
+
 /* ─── HELPERS ────────────────────────────────────────── */
 function openWA(phone, msg) {
   const a = document.createElement('a');
@@ -4537,6 +6084,102 @@ function rToast(msg) {
   t._t = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
+// ── Generate a real PDF from an HTML string, then open native Share sheet
+//    (WhatsApp / Telegram / etc.) so the rider can share it directly.
+//    Falls back to a plain print-window if jsPDF/html2canvas didn't load,
+//    or to a direct file download if Web Share isn't supported (desktop).
+async function _htmlToPDFShare(html, filename) {
+  if (!window.jspdf || !window.html2canvas) {
+    const win = window.open('', '_blank');
+    if (!win) { rToast('⚠️ Allow pop-ups to export PDF'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+    return;
+  }
+
+  rToast('Generating PDF…');
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-99999px;top:0;width:1100px;height:800px;border:0;background:#fff';
+  document.body.appendChild(iframe);
+
+  try {
+    await new Promise(resolve => { iframe.onload = resolve; iframe.srcdoc = html; });
+    await new Promise(r => setTimeout(r, 150)); // let fonts/layout settle
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'pt', 'a4');
+    const body = iframe.contentDocument.body;
+
+    await new Promise((resolve, reject) => {
+      try {
+        doc.html(body, {
+          callback: () => resolve(),
+          x: 15, y: 15,
+          width: 812,
+          windowWidth: 1100,
+          html2canvas: { scale: 0.72, useCORS: true, backgroundColor: '#ffffff' }
+        });
+      } catch (e) { reject(e); }
+    });
+
+    const blob = doc.output('blob');
+
+    // NOTE: PDF generation (html2canvas) can take longer than the browser's
+    // "transient user activation" window (~5s in Chrome), so we can't just
+    // call navigator.share() here — it would silently fail with
+    // "Must be handling a user gesture". Instead we show a small bar with
+    // its own Share button; THAT click is a fresh gesture, so share() works
+    // reliably every time regardless of how long generation took.
+    _showPDFReadyBar(blob, filename);
+  } catch (e) {
+    if (e && e.name !== 'AbortError') rToast('⚠️ PDF banane me error — dobara try karein');
+  } finally {
+    iframe.remove();
+  }
+}
+
+// ── Small floating bar shown once a PDF blob is ready: "Share" re-fires
+//    navigator.share() from a direct click (fresh gesture, so it never
+//    hits the transient-activation timeout). "Save" always works.
+function _showPDFReadyBar(blob, filename) {
+  document.getElementById('_pdfReadyBar')?.remove();
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  const url = URL.createObjectURL(blob);
+
+  const bar = document.createElement('div');
+  bar.id = '_pdfReadyBar';
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;background:#0f172a;color:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:var(--ff,sans-serif);max-width:420px;margin:0 auto';
+  bar.innerHTML = `
+    <span style="font-size:18px;flex-shrink:0">📄</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${filename}</div>
+      <div style="font-size:11px;color:#94a3b8">PDF ready</div>
+    </div>
+    ${canShare ? `<button id="_pdfBarShareBtn" style="background:#16a34a;color:#fff;border:none;padding:8px 14px;border-radius:9px;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap">📤 Share</button>` : ''}
+    <a id="_pdfBarDownloadBtn" href="${url}" download="${filename}" style="background:#1e293b;color:#fff;border:1px solid #334155;padding:8px 12px;border-radius:9px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none;white-space:nowrap">${canShare ? '' : '⬇️ '}Save</a>
+    <button id="_pdfBarCloseBtn" style="background:transparent;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 4px;line-height:1">✕</button>
+  `;
+  document.body.appendChild(bar);
+
+  const cleanup = () => { bar.remove(); URL.revokeObjectURL(url); };
+  const autoCloseTimer = setTimeout(cleanup, 45000);
+
+  document.getElementById('_pdfBarCloseBtn').onclick = () => { clearTimeout(autoCloseTimer); cleanup(); };
+  document.getElementById('_pdfBarDownloadBtn').onclick = () => { clearTimeout(autoCloseTimer); setTimeout(cleanup, 800); };
+  if (canShare) {
+    document.getElementById('_pdfBarShareBtn').onclick = async () => {
+      try {
+        await navigator.share({ files: [file], title: filename.replace(/\.pdf$/i, '') });
+        clearTimeout(autoCloseTimer); cleanup();
+      } catch (e) {
+        if (e && e.name !== 'AbortError') rToast('⚠️ Share nahi hua — "Save" try karein');
+      }
+    };
+  }
+}
+
 function togglePw(id, btn) {
   const input = document.getElementById(id);
   input.type  = input.type === 'password' ? 'text' : 'password';
@@ -4613,7 +6256,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Same pattern as index.html: no "signing you in…" spinner
     _rider = RiderSession.get() || cachedRider; // pick up refreshed rider if token was just renewed
     showApp();
-    loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); _checkResumeDelivery(); });
+    loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); _checkResumeDelivery(); _nrpRestoreMasterLockIfAny(); _nrpCheckEditDeepLink(); });
     startPolling();
 
     // BACKGROUND VERIFY — at most once every 48 hours.
@@ -4654,7 +6297,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         _rider = { ...res.rider, sessionToken: res.sessionToken || '' };
         RiderSession.save(_rider);
         showApp();
-        loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); _checkResumeDelivery(); });
+        loadOrders().then(() => { updateFilterSummary(); _updateLastSearchBar(); _checkResumeDelivery(); _nrpRestoreMasterLockIfAny(); _nrpCheckEditDeepLink(); });
         startPolling();
       })
       .catch(() => { /* stay on login screen, creds already prefilled */ });
@@ -4700,11 +6343,34 @@ function _riderDoExit() {
 }
 
 window.addEventListener('popstate', () => {
+  // If the pin popup (See Map) is open, close just that first
+  if (document.getElementById('nrp-pin-popup-overlay')?.classList.contains('show')) {
+    _nrpClosePinPopup();
+    return;
+  }
+
   // If Set Location picker is open, close it first (without re-pushing state)
   if (document.getElementById('setloc-modal')?.classList.contains('open')) {
     document.getElementById('setloc-modal').classList.remove('open');
     _setlocIdx   = null;
     _setlocOrder = null;
+    return;
+  }
+
+  // If See Map (v202 Phase 4) is open, back ALWAYS returns to the order
+  // list underneath — this is intentionally NOT gated by Master Lock.
+  // Master Lock only guards leaving the route screen entirely (the
+  // #nrp-modal check below); the map is a sub-screen of that same
+  // locked route session, so back-to-list must always work per spec.
+  if (document.getElementById('nrp-map-modal')?.classList.contains('open')) {
+    nrpRequestCloseMap();
+    return;
+  }
+
+  // If the new route panel is open, back button acts like the ✕ button —
+  // and is subject to the same Master Lock consecutive-attempt gate.
+  if (document.getElementById('nrp-modal')?.classList.contains('open')) {
+    nrpRequestClose();
     return;
   }
 
@@ -4915,6 +6581,36 @@ if ('serviceWorker' in navigator) {
     <div style="display:flex;gap:10px">
       <button onclick="_riderHideExitConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-weight:700;cursor:pointer;color:#334155">Stay</button>
       <button onclick="_riderDoExit()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#0f172a;color:#fff;font-size:15px;font-weight:700;cursor:pointer">Exit App</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SEQUENCE LOCK — Unlock confirm (v202 Phase 3)
+     ═══════════════════════════════════════════════════════ -->
+<div id="nrp-unlock-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;align-items:flex-end;justify-content:center" onclick="_nrpHideUnlockConfirm()">
+  <div class="_nrp-unlock-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
+    <p style="font-size:18px;font-weight:800;margin:0 0 6px;color:#0f172a">🔓 Unlock Sequence?</p>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.5">Are you sure? Optimize Route will become available again after unlocking.</p>
+    <div style="display:flex;gap:10px">
+      <button onclick="_nrpHideUnlockConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-weight:700;cursor:pointer;color:#334155">Cancel</button>
+      <button onclick="_nrpDoUnlock()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#0f172a;color:#fff;font-size:15px;font-weight:700;cursor:pointer">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MASTER LOCK — Unlock confirm (v202 Phase 3)
+     ═══════════════════════════════════════════════════════ -->
+<div id="nrp-masterunlock-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;align-items:flex-end;justify-content:center" onclick="_nrpHideMasterUnlockConfirm()">
+  <div class="_nrp-unlock-card" onclick="event.stopPropagation()" style="background:#fff;border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:480px;font-family:var(--ff,sans-serif);transform:translateY(100%);transition:transform 320ms cubic-bezier(.4,0,.2,1)">
+    <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 20px"></div>
+    <p style="font-size:18px;font-weight:800;margin:0 0 6px;color:#0f172a">🔐 Unlock Master Lock?</p>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.5">Are you sure you want to unlock? Home navigation will no longer be blocked.</p>
+    <div style="display:flex;gap:10px">
+      <button onclick="_nrpHideMasterUnlockConfirm()" style="flex:1;padding:14px;border-radius:13px;border:1.5px solid #e2e8f0;background:#fff;font-size:15px;font-weight:700;cursor:pointer;color:#334155">Cancel</button>
+      <button onclick="_nrpDoMasterUnlock()" style="flex:1;padding:14px;border-radius:13px;border:none;background:#e63946;color:#fff;font-size:15px;font-weight:700;cursor:pointer">Unlock</button>
     </div>
   </div>
 </div>

@@ -1,6 +1,27 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Rider Service Worker (rider/sw.js)
-   Version : v12.5  |  Updated : 2026-07-04
+   Version : v12.8  |  Updated : 2026-07-12
+
+   CHANGES v12.8 (v206 — Phase 7):
+   - Cache bumped → tiffo-rider-v37 (v206 — NRP See Map: fixed silent
+     failure when OSRM is unreachable mid-route. Map now always shows a
+     dashed straight-line placeholder immediately and keeps it on screen
+     if the road route can't be fetched, plus a one-time toast, instead
+     of a blank map with no line and no warning. Force refresh so riders
+     get this today.)
+
+   CHANGES v12.7 (v201):
+   - Cache bumped → tiffo-rider-v36 (v201 — Orders "PDF" button
+     replaced with "Share PDF": now generates a real PDF via
+     jsPDF/html2canvas and opens the native Share sheet so the
+     rider can send it directly to WhatsApp/Telegram/etc. Falls
+     back to file download on desktop.)
+
+   CHANGES v12.6 (v199):
+   - Cache bumped → tiffo-rider-v35 (v199 — release sync only. v199
+     was a customer-app-only release: cold-boot plan restore fix +
+     Join Auto Tiffin/Monthly Plan carousel. No rider panel logic
+     changed; bump keeps all three portals' cache versions aligned.)
 
    CHANGES v12.5 (v187):
    - Cache bumped → tiffo-rider-v34 (v187 — Map/Optimize Route stop
@@ -100,7 +121,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-rider-v34'; // v187: map/route stop cards now show payment tag
+const CACHE      = 'tiffo-rider-v37'; // v206: NRP See Map OSRM-failure fallback fix
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 const TILE_CACHE = 'tiffo-osm-tiles-v2'; // v183: fresh bump
 
