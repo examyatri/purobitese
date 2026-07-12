@@ -1,6 +1,18 @@
 /* ─────────────────────────────────────────────────────────
    Tiffo — Admin Service Worker (admin/sw.js)
-   Version : v14.5  |  Updated : 2026-07-10
+   Version : v14.7  |  Updated : 2026-07-12
+
+   CHANGES v14.7 (v201):
+   - Cache bumped → tiffo-admin-v48 (v201 — "Export PDF" buttons
+     (Orders, Users, Earnings, Kitchen) replaced with "Share PDF":
+     now generates a real PDF via jsPDF/html2canvas and opens the
+     native Share sheet so admin can send it directly to WhatsApp/
+     Telegram/etc. Falls back to file download on desktop.)
+
+   CHANGES v14.6 (v200):
+   - Cache bumped → tiffo-admin-v47 (v200 — collapsible desktop sidebar
+     feature. Force refresh so admins get the new collapse-rail toggle
+     button and updated topbar hamburger immediately.)
 
    CHANGES v14.5 (v199):
    - Cache bumped → tiffo-admin-v46 (v199 — release sync only. v199
@@ -118,7 +130,7 @@
    - Manifest id fixed to absolute URL
    ───────────────────────────────────────────────────────── */
 
-const CACHE      = 'tiffo-admin-v46'; // v199: release sync only (no admin logic change)
+const CACHE      = 'tiffo-admin-v48'; // v201: Export PDF → Share PDF (native share sheet via jsPDF)
 const FONT_CACHE = 'tiffo-fonts-v3'; // v183: unified version across all three portals' sw.js
 
 /* Only admin assets */

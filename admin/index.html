@@ -1,8 +1,26 @@
 <!DOCTYPE html>
 <!-- ╔══════════════════════════════════════════════════════╗
      ║  Tiffo — Admin Panel (admin.html)                   ║
-     ║  Version : v199                                   ║
-     ║  Updated : 2026-07-10                               ║
+     ║  Version : v200                                   ║
+     ║  Updated : 2026-07-12                               ║
+     ║  Changes : v200 — Sidebar collapse feature: desktop  ║
+     ║            sidebar (>1024px) can now be collapsed to  ║
+     ║            a 72px icon-only rail via a toggle button   ║
+     ║            in the sidebar header (angles-left icon)    ║
+     ║            or the topbar hamburger, which is now       ║
+     ║            visible at all breakpoints instead of only   ║
+     ║            mobile/tablet. Collapsed state persists in   ║
+     ║            localStorage (tiffo-admin-sb-collapsed) and   ║
+     ║            restores on reload. Nav labels hide and icon- ║
+     ║            only rows show a hover tooltip (via data-     ║
+     ║            label attrs) so nothing is lost, just tucked   ║
+     ║            away — matches the Notion/Linear-style pattern. ║
+     ║            Existing mobile drawer behavior (<=1024px,      ║
+     ║            overlay + swipe) is untouched — toggleSidebar()  ║
+     ║            now branches by viewport width so one hamburger  ║
+     ║            button correctly drives both interaction modes.   ║
+     ║            A resize listener clears stale state if the       ║
+     ║            window crosses the 1024px breakpoint mid-session.  ║
      ║  Changes : v199 — Release sync only. v199 was a       ║
      ║            customer-app-only release (cold-boot plan  ║
      ║            restore fix + Join Auto Tiffin/Monthly Plan ║
@@ -162,15 +180,59 @@ html{background:#fff}
 body{display:flex;min-height:100vh;background:#fff;font-family:var(--fb);color:#1e293b}
 
 /* ── SIDEBAR ─────────────────────────────────────────────── */
+:root{--sb-w-collapsed:72px}
 #sidebar{
   width:var(--sb-w);background:var(--sb-bg);position:fixed;top:0;left:0;
-  height:100vh;overflow-y:auto;z-index:100;
-  transition:transform 280ms cubic-bezier(.4,0,.2,1),box-shadow 280ms ease;
+  height:100vh;overflow-y:auto;overflow-x:hidden;z-index:100;
+  transition:width 240ms cubic-bezier(.4,0,.2,1),transform 280ms cubic-bezier(.4,0,.2,1),box-shadow 280ms ease;
   display:flex;flex-direction:column;
-  will-change:transform;
+  will-change:transform,width;
 }
 #sidebar::-webkit-scrollbar{width:4px}
 #sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+
+/* ── Desktop collapsed (icon-rail) state ─────────────────────
+   Scoped to >1024px so this can never affect the mobile/tablet
+   overlay drawer even if the 'sb-collapsed' class is present on
+   <body> for a moment before JS/resize-listener clears it.      */
+@media(min-width:1025px){
+body.sb-collapsed #sidebar{width:var(--sb-w-collapsed)}
+body.sb-collapsed #main{margin-left:var(--sb-w-collapsed)}
+body.sb-collapsed .sb-logo{padding:22px 0;justify-content:center}
+body.sb-collapsed .sb-logo-text,
+body.sb-collapsed .sb-section-label,
+body.sb-collapsed .sb-nav a span.sb-label,
+body.sb-collapsed .sb-nav a .badge,
+body.sb-collapsed .sb-footer-brand-name,
+body.sb-collapsed .sb-footer-links,
+body.sb-collapsed .sb-footer-copy{display:none}
+body.sb-collapsed .sb-nav a{justify-content:center;padding:11px 0;gap:0}
+body.sb-collapsed .sb-nav a i{width:auto;font-size:16px}
+body.sb-collapsed .sb-footer{padding:14px 0;display:flex;justify-content:center}
+body.sb-collapsed .sb-footer-brand{margin-bottom:0}
+/* Tooltip on hover when collapsed, so labels aren't lost — just tucked away */
+body.sb-collapsed .sb-nav a{position:relative}
+body.sb-collapsed .sb-nav a:hover::after{
+  content:attr(data-label);position:absolute;left:calc(100% + 12px);top:50%;
+  transform:translateY(-50%);background:#0f172a;color:#fff;padding:6px 11px;
+  border-radius:7px;font-size:12.5px;font-weight:600;white-space:nowrap;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);pointer-events:none;z-index:200;
+  animation:sbTooltipIn 120ms ease;
+}
+body.sb-collapsed #sb-collapse-btn{transform:rotate(180deg)}
+body.sb-collapsed .sb-logo #sb-collapse-btn{
+  margin-left:0;position:absolute;right:-14px;top:20px;background:var(--sb-bg);
+  border:1px solid rgba(255,255,255,.1);width:24px;height:24px;
+}
+}
+@keyframes sbTooltipIn{from{opacity:0;transform:translateY(-50%) translateX(-4px)}to{opacity:1;transform:translateY(-50%) translateX(0)}}
+/* Desktop collapse-rail toggle button, sits in the sidebar's own logo row */
+#sb-collapse-btn{
+  background:rgba(255,255,255,.06);border:none;color:#94a3b8;width:28px;height:28px;
+  border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:12px;flex-shrink:0;transition:all 160ms;margin-left:auto;
+}
+#sb-collapse-btn:hover{background:rgba(255,255,255,.14);color:#fff}
 
 .sb-logo{
   padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.07);
@@ -243,7 +305,7 @@ body{display:flex;min-height:100vh;background:#fff;font-family:var(--fb);color:#
 }
 
 /* ── MAIN AREA ───────────────────────────────────────────── */
-#main{margin-left:var(--sb-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+#main{margin-left:var(--sb-w);flex:1;display:flex;flex-direction:column;min-height:100vh;transition:margin-left 240ms cubic-bezier(.4,0,.2,1)}
 
 
 /* ── TOP BAR ─────────────────────────────────────────────── */
@@ -481,7 +543,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .toggle-sw.oos-toggle input:checked+.toggle-sl{background:#f97316}
 
 /* ── HAM / OVERLAY ───────────────────────────────────────── */
-#ham-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;display:none;padding:4px;border-radius:6px}
+#ham-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;display:flex;align-items:center;justify-content:center;padding:4px;border-radius:6px}
 #ham-btn:hover{background:#f1f5f9}
 .sb-overlay{
   display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;
@@ -606,6 +668,17 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 .act-btn-status:hover{background:#dcfce7}
 .act-btn-reject{background:#fff1f2;color:#be123c}
 .act-btn-reject:hover{background:#ffe4e6}
+.act-btn-hide{background:#f8fafc;color:#64748b;border:1.5px solid #e2e8f0}
+.act-btn-hide:hover{background:#f1f5f9}
+/* ── Orders table responsive columns ──
+   .ord-col-extra (Source, Payment, Pay Mode, Status, Date) is hidden by
+   default for small-screen readability. "View All" toggles
+   #orders-main-table.show-extra-cols — pure CSS, no re-render, no request. */
+#orders-main-table .ord-col-extra{display:none}
+#orders-main-table.show-extra-cols .ord-col-extra{display:table-cell}
+#orders-main-table .ord-col-sno{width:1%;white-space:nowrap;text-align:center;color:#94a3b8;font-weight:700}
+#ord-viewall-btn.act{background:#0891b2;color:#fff;border-color:#0891b2}
+#ord-viewhidden-btn.act{background:#334155;color:#fff;border-color:#334155}
 .act-btn-update{background:#faf5ff;color:#7c3aed;border:1.5px solid #ddd6fe}
 .act-btn-update:hover{background:#ede9fe}
 .bulk-mo-label{font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
@@ -1121,6 +1194,8 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://purobitese-api.onrender.com/config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -1141,32 +1216,33 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
     <div class="sb-logo">
       <div class="sb-logo-icon">🍱</div>
       <div class="sb-logo-text">Tif<span>fo</span></div>
+      <button id="sb-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse sidebar"><i class="fa fa-angles-left"></i></button>
     </div>
     <div class="sb-section-label">Main</div>
     <nav class="sb-nav">
-      <a href="#" onclick="showPage('p-dash');return false" data-pg="p-dash"><i class="fa fa-chart-line"></i> Dashboard</a>
-      <a href="#" onclick="showPage('p-orders');return false" data-pg="p-orders"><i class="fa fa-bag-shopping"></i> Orders</a>
-      <a href="#" onclick="showPage('p-bulk');return false" data-pg="p-bulk"><i class="fa fa-boxes-stacked"></i> Bulk Orders</a>
-      <a href="#" onclick="showPage('p-kitchen');return false" data-pg="p-kitchen"><i class="fa fa-fire-burner"></i> Kitchen</a>
+      <a href="#" onclick="showPage('p-dash');return false" data-pg="p-dash" data-label="Dashboard"><i class="fa fa-chart-line"></i> <span class="sb-label">Dashboard</span></a>
+      <a href="#" onclick="showPage('p-orders');return false" data-pg="p-orders" data-label="Orders"><i class="fa fa-bag-shopping"></i> <span class="sb-label">Orders</span></a>
+      <a href="#" onclick="showPage('p-bulk');return false" data-pg="p-bulk" data-label="Bulk Orders"><i class="fa fa-boxes-stacked"></i> <span class="sb-label">Bulk Orders</span></a>
+      <a href="#" onclick="showPage('p-kitchen');return false" data-pg="p-kitchen" data-label="Kitchen"><i class="fa fa-fire-burner"></i> <span class="sb-label">Kitchen</span></a>
     </nav>
     <div class="sb-section-label">Catalogue</div>
     <nav class="sb-nav">
-      <a href="#" onclick="showPage('p-menu');return false" data-pg="p-menu"><i class="fa fa-utensils"></i> Menu</a>
-      <a href="#" onclick="showPage('p-coupons');return false" data-pg="p-coupons"><i class="fa fa-tags"></i> Coupons</a>
+      <a href="#" onclick="showPage('p-menu');return false" data-pg="p-menu" data-label="Menu"><i class="fa fa-utensils"></i> <span class="sb-label">Menu</span></a>
+      <a href="#" onclick="showPage('p-coupons');return false" data-pg="p-coupons" data-label="Coupons"><i class="fa fa-tags"></i> <span class="sb-label">Coupons</span></a>
     </nav>
     <div class="sb-section-label">People</div>
     <nav class="sb-nav">
-      <a href="#" onclick="showPage('p-subs');return false" data-pg="p-subs"><i class="fa fa-crown"></i> Subscribers</a>
-      <a href="#" onclick="showPage('p-users');return false" data-pg="p-users"><i class="fa fa-users"></i> All Users</a>
-      <a href="#" onclick="showPage('p-riders');return false" data-pg="p-riders"><i class="fa fa-motorcycle"></i> Riders</a>
+      <a href="#" onclick="showPage('p-subs');return false" data-pg="p-subs" data-label="Subscribers"><i class="fa fa-crown"></i> <span class="sb-label">Subscribers</span></a>
+      <a href="#" onclick="showPage('p-users');return false" data-pg="p-users" data-label="All Users"><i class="fa fa-users"></i> <span class="sb-label">All Users</span></a>
+      <a href="#" onclick="showPage('p-riders');return false" data-pg="p-riders" data-label="Riders"><i class="fa fa-motorcycle"></i> <span class="sb-label">Riders</span></a>
     </nav>
     <div class="sb-section-label">Admin</div>
     <nav class="sb-nav">
-      <a href="#" onclick="showPage('p-khata');return false" data-pg="p-khata"><i class="fa fa-wallet"></i> Khata / Wallet</a>
-      <a href="#" onclick="showPage('p-earnings');return false" data-pg="p-earnings" class="admin-only"><i class="fa fa-chart-bar"></i> Earnings</a>
-      <a href="#" onclick="showPage('p-staff');return false" data-pg="p-staff" class="admin-only"><i class="fa fa-id-badge"></i> Staff Members</a>
-      <a href="#" onclick="showPage('p-settings');return false" data-pg="p-settings" class="admin-only"><i class="fa fa-gear"></i> Settings</a>
-      <a href="#" onclick="showPage('p-notifs');return false" data-pg="p-notifs"><i class="fa fa-bell"></i> Notifications <span id="notif-badge" class="badge" style="display:none">0</span></a>
+      <a href="#" onclick="showPage('p-khata');return false" data-pg="p-khata" data-label="Khata / Wallet"><i class="fa fa-wallet"></i> <span class="sb-label">Khata / Wallet</span></a>
+      <a href="#" onclick="showPage('p-earnings');return false" data-pg="p-earnings" class="admin-only" data-label="Earnings"><i class="fa fa-chart-bar"></i> <span class="sb-label">Earnings</span></a>
+      <a href="#" onclick="showPage('p-staff');return false" data-pg="p-staff" class="admin-only" data-label="Staff Members"><i class="fa fa-id-badge"></i> <span class="sb-label">Staff Members</span></a>
+      <a href="#" onclick="showPage('p-settings');return false" data-pg="p-settings" class="admin-only" data-label="Settings"><i class="fa fa-gear"></i> <span class="sb-label">Settings</span></a>
+      <a href="#" onclick="showPage('p-notifs');return false" data-pg="p-notifs" data-label="Notifications"><i class="fa fa-bell"></i> <span class="sb-label">Notifications</span> <span id="notif-badge" class="badge" style="display:none">0</span></a>
     </nav>
     <div class="sb-footer">
       <div class="sb-footer-brand">
@@ -1253,7 +1329,13 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
               <i class="fa fa-bolt"></i> Batch Update
             </button>
             <button id="ord-pdf-btn" onclick="generateOrderPDF()" style="display:flex;align-items:center;gap:7px;padding:9px 16px;background:linear-gradient(135deg,#e63946,#c1121f);color:white;border:none;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 3px 12px rgba(230,57,70,.3);transition:all 180ms" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='translateY(0)'">
-              <i class="fa fa-file-pdf"></i> Export PDF
+              <i class="fa fa-share-nodes"></i> Share PDF
+            </button>
+            <button id="ord-viewall-btn" onclick="toggleOrdViewAll()" style="display:flex;align-items:center;gap:7px;padding:9px 14px;background:white;color:#0891b2;border:1.5px solid #a5f3fc;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;transition:all 180ms" onmouseover="this.style.background='#ecfeff'" onmouseout="this.style.background='white'">
+              <i class="fa fa-table-columns"></i> View All
+            </button>
+            <button id="ord-viewhidden-btn" onclick="toggleOrdViewHidden()" style="display:flex;align-items:center;gap:7px;padding:9px 14px;background:white;color:#64748b;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;transition:all 180ms" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+              <i class="fa fa-eye-slash"></i> View Hidden
             </button>
             <button onclick="loadOrders()" style="display:flex;align-items:center;gap:7px;padding:9px 14px;background:white;color:#64748b;border:1.5px solid #e2e8f0;border-radius:10px;font-family:var(--ff);font-size:13px;font-weight:600;cursor:pointer;transition:all 180ms" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
               <i class="fa fa-rotate-right"></i> Refresh
@@ -1327,15 +1409,16 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
             <table id="orders-main-table">
               <thead>
                 <tr>
+                  <th class="ord-col-sno" style="padding:13px 16px">#</th>
                   <th style="padding:13px 16px">Order ID</th>
                   <th style="padding:13px 16px">Customer</th>
                   <th style="padding:13px 16px">Items Detail</th>
                   <th style="padding:13px 16px">Pricing</th>
-                  <th style="padding:13px 16px">Source</th>
-                  <th style="padding:13px 16px">Payment</th>
-                  <th style="padding:13px 16px">Pay Mode</th>
-                  <th style="padding:13px 16px">Status</th>
-                  <th style="padding:13px 16px">Date</th>
+                  <th class="ord-col-extra" style="padding:13px 16px">Source</th>
+                  <th class="ord-col-extra" style="padding:13px 16px">Payment</th>
+                  <th class="ord-col-extra" style="padding:13px 16px">Pay Mode</th>
+                  <th class="ord-col-extra" style="padding:13px 16px">Status</th>
+                  <th class="ord-col-extra" style="padding:13px 16px">Date</th>
                   <th style="padding:13px 16px">Rider</th>
                   <th style="padding:13px 16px">Actions</th>
                 </tr>
@@ -1696,7 +1779,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <h2 style="font-family:var(--ff);font-weight:800;font-size:22px;color:#0f172a">All Users</h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-p" onclick="openAddUserModal()"><i class="fa fa-plus"></i> Add User</button>
-            <button class="btn" onclick="downloadUsersPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;padding:9px 16px;border-radius:9px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(239,68,68,.30)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><i class="fa fa-file-pdf"></i> PDF</button>
+            <button class="btn" onclick="downloadUsersPDF()" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;padding:9px 16px;border-radius:9px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(239,68,68,.30)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><i class="fa fa-share-nodes"></i> Share PDF</button>
             <button class="btn" onclick="openUserAnalytics()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;padding:9px 16px;border-radius:9px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(99,102,241,.35)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><i class="fa fa-chart-pie"></i> Analytics</button>
             <button class="btn" onclick="openUserMap()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;border:none;padding:9px 16px;border-radius:9px;font-family:var(--ff);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(14,165,233,.35)" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'"><i class="fa fa-map-location-dot"></i> Map</button>
           </div>
@@ -2147,7 +2230,7 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
           <div class="kitchen-hdr-btns" style="display:flex;gap:8px;flex-wrap:wrap">
             <button onclick="loadKitchen()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer"><i class="fa fa-rotate-right"></i> Refresh</button>
             <button onclick="kitchenSendWhatsApp()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(37,211,102,.3)"><i class="fab fa-whatsapp"></i> WhatsApp</button>
-            <button onclick="kitchenExportPDF()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(230,57,70,.25)"><i class="fa fa-file-pdf"></i> Export PDF</button>
+            <button onclick="kitchenExportPDF()" style="display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(230,57,70,.25)"><i class="fa fa-share-nodes"></i> Share PDF</button>
           </div>
         </div>
 
@@ -2556,6 +2639,18 @@ input:checked+.toggle-sl:before{transform:translateX(22px)}
                   <option value="revenue_desc">Highest Revenue After</option>
                   <option value="az">Name A–Z</option>
                 </select>
+              </div>
+
+              <!-- Redeemed-on-specific-date filter — e.g. "10/7/26 ko kisko mila" ── -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+                <label style="font-size:10px;font-weight:700;color:#7c2d12;white-space:nowrap">
+                  <i class="fa fa-calendar-day" style="margin-right:3px"></i>Redeemed on date:
+                </label>
+                <input id="ft-date-filter" type="date" onchange="renderFTUserList()"
+                  style="padding:6px 10px;border:1.5px solid #fed7aa;border-radius:9px;font-size:12px;font-family:var(--ff);background:#fffbeb;color:#7c2d12">
+                <button onclick="document.getElementById('ft-date-filter').value='';renderFTUserList()"
+                  style="padding:6px 10px;border:1.5px solid #fed7aa;border-radius:9px;background:transparent;color:#7c2d12;font-size:11px;font-weight:700;cursor:pointer">Clear</button>
+                <span id="ft-date-count" style="font-size:11px;color:#7c2d12;font-weight:700"></span>
               </div>
 
               <!-- Eligibility filter — completely separate from Welcome coupon system -->
@@ -3194,6 +3289,104 @@ function aToast(msg, duration = 3000) {
   t._t = setTimeout(() => t.classList.remove('show'), duration);
 }
 
+// ── Generate a real PDF from an HTML string, then open native Share sheet
+//    (WhatsApp / Telegram / etc.) so admin can share it directly.
+//    Falls back to a plain print-window if jsPDF/html2canvas didn't load,
+//    or to a direct file download if Web Share isn't supported (desktop).
+async function _htmlToPDFShare(html, filename) {
+  if (!window.jspdf || !window.html2canvas) {
+    const win = window.open('', '_blank');
+    if (!win) { aToast('⚠️ Allow pop-ups to export PDF'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+    return;
+  }
+
+  aToast('Generating PDF…', 60000);
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-99999px;top:0;width:1000px;height:800px;border:0;background:#fff';
+  document.body.appendChild(iframe);
+
+  try {
+    await new Promise(resolve => { iframe.onload = resolve; iframe.srcdoc = html; });
+    await new Promise(r => setTimeout(r, 150)); // let fonts/layout settle
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const body = iframe.contentDocument.body;
+
+    await new Promise((resolve, reject) => {
+      try {
+        doc.html(body, {
+          callback: () => resolve(),
+          x: 20, y: 20,
+          width: 555,
+          windowWidth: 1000,
+          html2canvas: { scale: 0.72, useCORS: true, backgroundColor: '#ffffff' }
+        });
+      } catch (e) { reject(e); }
+    });
+
+    const blob = doc.output('blob');
+    aToast('', 1);
+
+    // NOTE: PDF generation (html2canvas) can take longer than the browser's
+    // "transient user activation" window (~5s in Chrome), so we can't just
+    // call navigator.share() here — it would silently fail with
+    // "Must be handling a user gesture". Instead we show a small bar with
+    // its own Share button; THAT click is a fresh gesture, so share() works
+    // reliably every time regardless of how long generation took.
+    _showPDFReadyBar(blob, filename);
+  } catch (e) {
+    if (e && e.name !== 'AbortError') aToast('⚠️ PDF banane me error — dobara try karein');
+    else aToast('', 1);
+  } finally {
+    iframe.remove();
+  }
+}
+
+// ── Small floating bar shown once a PDF blob is ready: "Share" re-fires
+//    navigator.share() from a direct click (fresh gesture, so it never
+//    hits the transient-activation timeout). "Download" always works.
+function _showPDFReadyBar(blob, filename) {
+  document.getElementById('_pdfReadyBar')?.remove();
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  const url = URL.createObjectURL(blob);
+
+  const bar = document.createElement('div');
+  bar.id = '_pdfReadyBar';
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;background:#0f172a;color:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:var(--ff,sans-serif);max-width:420px;margin:0 auto';
+  bar.innerHTML = `
+    <i class="fa fa-file-pdf" style="color:#ef4444;font-size:18px;flex-shrink:0"></i>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${filename}</div>
+      <div style="font-size:11px;color:#94a3b8">PDF ready</div>
+    </div>
+    ${canShare ? `<button id="_pdfBarShareBtn" style="background:#16a34a;color:#fff;border:none;padding:8px 14px;border-radius:9px;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap"><i class="fa fa-share-nodes"></i> Share</button>` : ''}
+    <a id="_pdfBarDownloadBtn" href="${url}" download="${filename}" style="background:#1e293b;color:#fff;border:1px solid #334155;padding:8px 12px;border-radius:9px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none;white-space:nowrap">${canShare ? '' : '<i class="fa fa-download"></i> '}Save</a>
+    <button id="_pdfBarCloseBtn" style="background:transparent;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:2px 4px;line-height:1">✕</button>
+  `;
+  document.body.appendChild(bar);
+
+  const cleanup = () => { bar.remove(); URL.revokeObjectURL(url); };
+  const autoCloseTimer = setTimeout(cleanup, 45000);
+
+  document.getElementById('_pdfBarCloseBtn').onclick = () => { clearTimeout(autoCloseTimer); cleanup(); };
+  document.getElementById('_pdfBarDownloadBtn').onclick = () => { clearTimeout(autoCloseTimer); setTimeout(cleanup, 800); };
+  if (canShare) {
+    document.getElementById('_pdfBarShareBtn').onclick = async () => {
+      try {
+        await navigator.share({ files: [file], title: filename.replace(/\.pdf$/i, '') });
+        clearTimeout(autoCloseTimer); cleanup();
+      } catch (e) {
+        if (e && e.name !== 'AbortError') aToast('⚠️ Share nahi hua — "Save" try karein');
+      }
+    };
+  }
+}
+
 function openMo(html) {
   // Beep is NOT stopped here — opening a modal doesn't mean admin has read/acknowledged
   // a new order notification. Only markNotifRead() stops the beep.
@@ -3365,7 +3558,16 @@ function _moAttachSwipe(box, bg) {
   box.addEventListener('touchend',   onEnd,   {passive:true});
 }
 
+// Sidebar has two independent behaviors depending on viewport:
+//  - Desktop (>1024px): hamburger + in-rail button both COLLAPSE the sidebar
+//    to a slim icon-only rail (persisted in localStorage).
+//  - Mobile/Tablet (<=1024px): hamburger OPENS/CLOSES an overlay drawer
+//    (existing behavior, unchanged).
+const SB_COLLAPSE_KEY = 'tiffo-admin-sb-collapsed';
+function _isDesktopSidebar() { return window.innerWidth > 1024; }
+
 function toggleSidebar() {
+  if (_isDesktopSidebar()) { toggleSidebarCollapse(); return; }
   const sb = document.getElementById('sidebar');
   const ov = document.getElementById('sb-overlay');
   const isOpen = sb.classList.toggle('open');
@@ -3376,6 +3578,30 @@ function closeSidebar() {
   const ov = document.getElementById('sb-overlay');
   if (ov) ov.classList.remove('active');
 }
+function toggleSidebarCollapse(force) {
+  const collapsed = typeof force === 'boolean' ? force : !document.body.classList.contains('sb-collapsed');
+  document.body.classList.toggle('sb-collapsed', collapsed);
+  try { localStorage.setItem(SB_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch(e) {}
+  const btn = document.getElementById('sb-collapse-btn');
+  if (btn) btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+}
+(function _restoreSidebarCollapse() {
+  try {
+    if (localStorage.getItem(SB_COLLAPSE_KEY) === '1' && _isDesktopSidebar()) {
+      document.body.classList.add('sb-collapsed');
+    }
+  } catch(e) {}
+})();
+// If the window is resized across the desktop/mobile breakpoint, make sure
+// leftover state doesn't strand the layout (e.g. collapsed-rail class stuck
+// on while a mobile drawer is open, or drawer 'open' class stuck on desktop).
+window.addEventListener('resize', () => {
+  if (_isDesktopSidebar()) {
+    closeSidebar(); // drop any mobile drawer-open state
+  } else {
+    document.body.classList.remove('sb-collapsed'); // rail collapse is desktop-only
+  }
+});
 
 let _confirmCb = null;
 function confirmAction(msg, onConfirm) {
@@ -3708,6 +3934,16 @@ let _ordDay = 'today', _ordCat = 'all', _ordStatus = 'all'; // 2-layer filters: 
 let _ridersCacheTime = 0, _settingsCacheTime = 0;
 const _RIDERS_SETTINGS_TTL = 10 * 60 * 1000; // 10 minutes
 
+// ── View toggles (both 100% client-side, no extra polling) ──
+// View All: purely CSS — toggles .show-extra-cols on the table, no re-render.
+// View Hidden: swaps the dataset renderOrdersTable reads from. Hidden orders
+// are fetched once on first toggle-on (they're deliberately excluded from
+// the normal adminGetOrders call) and cached in _hiddenOrders; toggling
+// back and forth after that never re-fetches.
+let _ordViewHidden = false;
+let _hiddenOrders = [];
+let _hiddenOrdersLoaded = false;
+
 // ─── ADMIN SETTINGS CACHE ─────────────────────────────────
 // All settings panels (Cutoff, Schedule, Khata, AutoCutoff, DeliveryZone, Areas, Referral)
 // share ONE promise. When admin opens the settings page and taps multiple panels quickly,
@@ -3794,6 +4030,56 @@ function setOrdStatus(status, btn) {
 // Legacy compat (called from setOrderFilter if needed)
 function setOrderFilter(filter, btn) { setOrdStatus(filter, btn); }
 
+// ── View All: pure CSS column toggle, no re-render, no request ──
+function toggleOrdViewAll() {
+  const table = document.getElementById('orders-main-table');
+  const btn   = document.getElementById('ord-viewall-btn');
+  if (!table) return;
+  const showing = table.classList.toggle('show-extra-cols');
+  if (btn) btn.classList.toggle('act', showing);
+}
+
+// ── View Hidden: swap the Orders tab to show only hidden orders ──
+// First activation fetches hidden orders (excluded from the normal
+// adminGetOrders call) and caches them; every toggle after that — on or
+// off — is instant, reusing the cache. All existing filters (day, session,
+// status, search, sort) keep working unchanged because renderOrdersTable
+// itself picks the right source array based on _ordViewHidden.
+async function toggleOrdViewHidden() {
+  const btn = document.getElementById('ord-viewhidden-btn');
+  _ordViewHidden = !_ordViewHidden;
+  if (btn) {
+    btn.classList.toggle('act', _ordViewHidden);
+    btn.innerHTML = _ordViewHidden
+      ? '<i class="fa fa-eye"></i> View Normal'
+      : '<i class="fa fa-eye-slash"></i> View Hidden';
+  }
+
+  if (_ordViewHidden && !_hiddenOrdersLoaded) {
+    try {
+      npStart();
+      const res = await api('adminGetOrders', { onlyHidden: true, fromDate: '2000-01-01' });
+      // fromDate far in the past: hidden orders can be from any day, and
+      // this fetch only ever happens once (cached after), so there's no
+      // repeated load from asking for the full hidden history.
+      _hiddenOrders = res.orders || [];
+      _hiddenOrdersLoaded = true;
+      npDone();
+    } catch(e) {
+      npDone();
+      _ordViewHidden = false; // revert toggle on failure
+      if (btn) {
+        btn.classList.remove('act');
+        btn.innerHTML = '<i class="fa fa-eye-slash"></i> View Hidden';
+      }
+      aToast('Could not load hidden orders — tap to retry');
+      return;
+    }
+  }
+
+  renderOrdersTable(_allOrders); // arg ignored when _ordViewHidden is true — see renderOrdersTable
+}
+
 // ── Load orders (last 2 days only for minimal API load) ──
 async function loadOrders(forceRender = false) {
   const owner = _acquireLoad('orders');
@@ -3835,7 +4121,12 @@ function renderOrdersTable(orders) {
   const search = (document.getElementById('order-search')?.value||'').toLowerCase().trim();
   const sort   = document.getElementById('order-sort')?.value||'newest';
 
-  let filtered = [...orders];
+  // "View Hidden" swaps the source dataset here so every existing caller
+  // (renderOrdersTable(_allOrders)) keeps working unchanged, and every
+  // existing filter — day/session/status/search/sort — runs identically
+  // against hidden orders as it does against normal ones.
+  const sourceOrders = _ordViewHidden ? _hiddenOrders : orders;
+  let filtered = [...sourceOrders];
 
   // Layer 1: Day filter
   const istNow = new Date(Date.now() + 5.5 * 3600000);
@@ -3871,7 +4162,8 @@ function renderOrdersTable(orders) {
   if (sub) {
     const dayLabel = {today:"Today",yesterday:"Yesterday",all:"All"}[_ordDay]||'Orders';
     const sessLabel = {all:'',morning:' · Morning',evening:' · Evening'}[_ordCat]||'';
-    sub.textContent = `${dayLabel}${sessLabel} orders • ${filtered.length} result${filtered.length!==1?'s':''}`;
+    const hiddenLabel = _ordViewHidden ? ' · Hidden' : '';
+    sub.textContent = `${dayLabel}${sessLabel}${hiddenLabel} orders • ${filtered.length} result${filtered.length!==1?'s':''}`;
   }
   const cntBadge = document.getElementById('ord-count-badge');
   if (cntBadge) cntBadge.textContent = `${filtered.length} order${filtered.length!==1?'s':''}`;
@@ -3882,15 +4174,16 @@ function renderOrdersTable(orders) {
   if (!tbody) return;
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:56px 20px">
+    const emptyMsg = _ordViewHidden ? 'No hidden orders' : 'No orders found';
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:56px 20px">
       <div style="font-size:40px;margin-bottom:12px">📭</div>
-      <div style="font-family:var(--ff);font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px">No orders found</div>
+      <div style="font-family:var(--ff);font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px">${emptyMsg}</div>
       <div style="font-size:13px;color:#94a3b8">Try a different filter or search term</div>
     </td></tr>`;
     return;
   }
 
-  tbody.innerHTML = filtered.map(o => {
+  tbody.innerHTML = filtered.map((o, idx) => {
     // ── Items detail ──
     const items = o.items||[];
     const itemsHtml = items.length
@@ -3946,6 +4239,7 @@ function renderOrdersTable(orders) {
     const slotIcon = isMorn ? '☀️' : isEve ? '🌙' : '';
 
     return `<tr>
+      <td class="ord-col-sno">${idx+1}</td>
       <td>
         <div style="display:flex;flex-direction:column;gap:3px">
           <code style="font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:5px;font-family:monospace">${o.order_id}</code>
@@ -3958,11 +4252,11 @@ function renderOrdersTable(orders) {
       </td>
       <td style="max-width:160px">${itemsHtml}</td>
       <td style="min-width:140px">${priceHtml}</td>
-      <td>${srcHtml}</td>
-      <td>${payHtml}</td>
-      <td>${payModeHtml}</td>
-      <td>${statusBadge(o.order_status)}</td>
-      <td>
+      <td class="ord-col-extra">${srcHtml}</td>
+      <td class="ord-col-extra">${payHtml}</td>
+      <td class="ord-col-extra">${payModeHtml}</td>
+      <td class="ord-col-extra">${statusBadge(o.order_status)}</td>
+      <td class="ord-col-extra">
         <div style="font-size:12.5px;font-weight:600;color:#334155">${dt}</div>
         ${tm}
       </td>
@@ -3976,6 +4270,9 @@ function renderOrdersTable(orders) {
           <div style="display:flex;gap:5px;flex-wrap:wrap">
             <button class="act-btn act-btn-update" onclick="openUpdateModal('${o.order_id}','${o.rider_id||''}','${o.order_status||'pending'}','${o.payment_status||'pending'}','${_escAttr(o.area||'')}')"><i class="fa fa-pen-to-square"></i> Update</button>
             <button class="act-btn act-btn-reject" onclick="openRejectModal('${o.order_id}','${_escAttr(o.name)}')"><i class="fa fa-ban"></i> Reject</button>
+            ${_ordViewHidden
+              ? `<button class="act-btn act-btn-hide" style="background:#f0fdf4;color:#15803d" onclick="doUnhideOrder('${o.order_id}')"><i class="fa fa-eye"></i> Unhide</button>`
+              : `<button class="act-btn act-btn-hide" onclick="openHideOrderModal('${o.order_id}','${_escAttr(o.name)}')"><i class="fa fa-eye-slash"></i> Hide</button>`}
           </div>
         </div>
       </td>
@@ -4041,6 +4338,48 @@ async function doRejectOrder(orderId, refundType) {
       return;
     }
     aToast(e.message);
+  }
+}
+
+// ── Hide Order Modal ──
+// For duplicate / wrongly-placed orders — hides from Orders list + Export
+// PDF without deleting anything. Order stays in the DB for records.
+function openHideOrderModal(orderId, customerName) {
+  openMo(`<div class="mo-title"><i class="fa fa-eye-slash" style="color:#64748b"></i> Hide Order</div>
+    <p style="color:#64748b;font-size:13px;margin-bottom:18px">Hide order <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:5px">${orderId}</code>${customerName?` for <b>${_esc(customerName)}</b>`:''}? Use this for duplicate or wrongly-placed orders.</p>
+    <p style="font-size:12px;color:#94a3b8;margin-bottom:18px">It won't be deleted — just hidden from the Orders list and Export PDF. This does not refund or change the order's status.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeMo()">Cancel</button>
+      <button class="btn" style="flex:1;background:#334155;color:#fff" onclick="doHideOrder('${orderId}');closeMo()"><i class="fa fa-eye-slash"></i> Hide Order</button>
+    </div>`);
+}
+
+async function doHideOrder(orderId) {
+  try {
+    await api('hideOrder', { orderId });
+    aToast('Order hidden ✓');
+    _ordersStr = ''; // force re-render since orders list content changed
+    _hiddenOrdersLoaded = false; // invalidate hidden-orders cache so View Hidden re-fetches and includes this one
+    loadOrders(true);
+  } catch(e) {
+    aToast(e.message || 'Failed to hide order');
+  }
+}
+
+async function doUnhideOrder(orderId) {
+  try {
+    await api('unhideOrder', { orderId });
+    aToast('Order restored ✓');
+    // Instant feedback in the hidden list the admin is currently viewing:
+    _hiddenOrders = _hiddenOrders.filter(o => o.order_id !== orderId);
+    renderOrdersTable(_allOrders);
+    // Refresh the normal-view cache in the background so the restored
+    // order shows up immediately when the admin toggles back to it,
+    // instead of waiting for the next poll/manual refresh.
+    _ordersStr = '';
+    loadOrders(true);
+  } catch(e) {
+    aToast(e.message || 'Failed to restore order');
   }
 }
 
@@ -4355,8 +4694,10 @@ function generateOrderPDF() {
   if (!rows.length || rows[0].querySelector('td[colspan]')) { aToast('No orders to export'); return; }
   const thead = document.querySelector('#orders-main-table thead').innerHTML;
   const tbody = document.getElementById('orders-tbody').innerHTML;
-  const printWin = window.open('','_blank','width=1000,height=700');
-  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tiffo — ${catLabel}</title>
+  // Mirror the on-screen column visibility: if "View All" is toggled on,
+  // export the extra columns too; otherwise keep the same compact view.
+  const showExtraCols = document.getElementById('orders-main-table')?.classList.contains('show-extra-cols');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tiffo — ${catLabel}</title>
   <style>
     body{font-family:'Segoe UI',sans-serif;color:#1e293b;padding:24px;background:white}
     h1{font-size:20px;font-weight:800;margin-bottom:4px;color:#0f172a}
@@ -4364,6 +4705,8 @@ function generateOrderPDF() {
     table{width:100%;border-collapse:collapse;font-size:12px}
     th{background:#f8fafc;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;padding:9px 12px;text-align:left;border-bottom:2px solid #e2e8f0}
     td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+    .ord-col-extra{${showExtraCols ? '' : 'display:none;'}}
+    .ord-col-sno{width:1%;white-space:nowrap;text-align:center;color:#94a3b8;font-weight:700}
     .badge-status{border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700}
     .s-pending{background:#fef9c3;color:#854d0e}.s-preparing{background:#ede9fe;color:#6d28d9}
     .s-out-for-delivery,.s-out{background:#e0f2fe;color:#0369a1}.s-delivered{background:#dcfce7;color:#15803d}
@@ -4376,16 +4719,16 @@ function generateOrderPDF() {
     .price-coupon{color:#16a34a}
     .src-badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700}
     .src-bulk{background:#ede9fe;color:#5b21b6}.src-user{background:#dbeafe;color:#1e40af}
-    .act-btn,.act-btn-assign,.act-btn-reject,.act-btn-status,.act-btn-wa,.act-btn-update,.status-inline-select{display:none!important}
+    .act-btn,.act-btn-assign,.act-btn-reject,.act-btn-hide,.act-btn-status,.act-btn-wa,.act-btn-update,.status-inline-select{display:none!important}
     footer{margin-top:18px;font-size:11px;color:#94a3b8;text-align:right}
   </style></head><body>
   <h1>🍱 Tiffo Admin — ${catLabel}${statusLabel}</h1>
   <div class="sub">Generated: ${new Date().toLocaleString('en-IN')}</div>
   <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
   <footer>Tiffo Admin Panel © 2026</footer>
-  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1200)}<\/script>
-  </body></html>`);
-  printWin.document.close();
+  </body></html>`;
+  const fname = `Tiffo_Orders_${catLabel.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+  _htmlToPDFShare(html, fname);
 }
 
 // ─── BULK ORDERS ─────────────────────────────────────────
@@ -5531,6 +5874,44 @@ function _ftUpdateToggleBadge() {
 }
 
 // ── Today's active TIFFO coupons from _coupons cache ────────────────────────
+// ── Show everyone who used a specific FT coupon code ─────────────────────────
+// v200: sourced ENTIRELY from _ftUsers (users.free_tiffin_coupon), never from
+// the coupons table's used_by array. This means it works forever, even after
+// the coupon row itself is deleted (manually or by auto-cleanup) — the record
+// of who redeemed it lives permanently on each user's own row.
+function ftShowCouponUsers(code) {
+  const matches = (_ftUsers || []).filter(u => u.free_tiffin_coupon === code);
+  const rows = matches.length
+    ? matches.map(u => {
+        const redeemedOn = u.free_tiffin_given_at
+          ? new Date(u.free_tiffin_given_at).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+          : '—';
+        return `<div style="padding:9px 10px;border-bottom:1px solid #f1f5f9">
+          <div style="font-family:var(--ff);font-weight:700;font-size:13px;color:#0f172a">${u.name || '—'}</div>
+          <div style="font-size:11px;color:#64748b">${u.phone} · Redeemed ${redeemedOn}</div>
+        </div>`;
+      }).join('')
+    : `<div style="padding:14px;text-align:center;color:#94a3b8;font-size:12px">No one has redeemed this code yet.</div>`;
+
+  const modalHtml = `
+    <div id="ft-coupon-users-modal" onclick="if(event.target===this) this.remove()"
+      style="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center">
+      <div style="background:white;border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:75vh;display:flex;flex-direction:column">
+        <div style="padding:14px 16px;border-bottom:1.5px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-family:var(--ff);font-weight:800;font-size:14px;color:#0f172a">Code: ${code}</div>
+            <div style="font-size:11px;color:#64748b">${matches.length} user(s) redeemed</div>
+          </div>
+          <button onclick="document.getElementById('ft-coupon-users-modal').remove()"
+            style="border:none;background:#f1f5f9;color:#64748b;width:28px;height:28px;border-radius:8px;font-size:14px;cursor:pointer">✕</button>
+        </div>
+        <div style="overflow-y:auto;flex:1">${rows}</div>
+      </div>
+    </div>`;
+  document.getElementById('ft-coupon-users-modal')?.remove();
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
 function _ftRenderTodayCoupon() {
   const today = (() => {
     const d = new Date();
@@ -5554,7 +5935,7 @@ function _ftRenderTodayCoupon() {
     const rtype = c.restriction_type === 'specific_phone' ? 'Personal' : 'FCFS';
     return `<div style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-family:var(--ff);font-weight:700;font-size:12px;color:#7c2d12">${c.code}</span>
+        <span style="font-family:var(--ff);font-weight:700;font-size:12px;color:#7c2d12;cursor:pointer;text-decoration:underline dotted" onclick="ftShowCouponUsers('${c.code}')" title="Tap to see everyone who used this code">${c.code}</span>
         <span style="font-size:10px;color:#fb923c">${rtype} · ${used}/${max} claimed</span>
       </div>
       <div style="background:#fed7aa;border-radius:20px;height:6px;overflow:hidden">
@@ -5626,6 +6007,18 @@ function renderFTUserList() {
     const countEl = document.getElementById('ft-elig-count');
     if (countEl) countEl.textContent = '';
   }
+  // ── Redeemed-on-specific-date filter (takes priority over the dropdown's
+  //    'today' option so admin can look up ANY past day, e.g. 10/7/26) ──────
+  const _ftPickedDate = document.getElementById('ft-date-filter')?.value || '';
+  if (_ftPickedDate) {
+    list = list.filter(u => u.free_tiffin_status === 'redeemed' && _ftISTDateStr(u.free_tiffin_given_at) === _ftPickedDate);
+    const dcEl = document.getElementById('ft-date-count');
+    if (dcEl) dcEl.textContent = `${list.length} user(s) got free tiffin on this date`;
+  } else {
+    const dcEl = document.getElementById('ft-date-count');
+    if (dcEl) dcEl.textContent = '';
+  }
+
   if (filter === 'wa_sent')   list = list.filter(u => u.free_tiffin_status === 'wa_sent');
   else if (filter === 'redeemed')  list = list.filter(u => u.free_tiffin_status === 'redeemed');
   else if (filter === 'today') {
@@ -5760,7 +6153,7 @@ function renderFTUserList() {
         <div style="text-align:right;flex-shrink:0;display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end">${statusBadge}${blockedBadge}${suspectBadge}</div>
       </div>
       ${u.ft_loc_suspect && (u.nearby_suspects||[]).length ? `<div style="font-size:10px;color:#92400e;background:#fef3c7;border-radius:7px;padding:5px 8px;margin-bottom:6px;cursor:pointer" onclick="ftShowSuspectDetail('${u.phone}')"><i class="fa fa-triangle-exclamation" style="margin-right:4px"></i>GPS match: ${u.nearby_suspects.map(n=>`${(n.name||n.phone).split(' ')[0]} <b>${Math.round(n.distance_m)}m</b>`).join(', ')} — tap for details</div>` : ''}
-      ${u.free_tiffin_coupon ? `<div style="font-size:10px;color:#fb923c;font-family:monospace;margin-bottom:4px">Code: ${u.free_tiffin_coupon}${redeemedOn ? ' · Redeemed '+redeemedOn : ''}${conversionStr}</div>` : ''}
+      ${u.free_tiffin_coupon ? `<div style="font-size:10px;color:#fb923c;font-family:monospace;margin-bottom:4px;cursor:pointer;text-decoration:underline dotted" onclick="ftShowCouponUsers('${u.free_tiffin_coupon}')" title="Tap to see everyone who used this code">Code: ${u.free_tiffin_coupon}${redeemedOn ? ' · Redeemed '+redeemedOn : ''}${conversionStr}</div>` : ''}
       ${conversionBlock}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
         ${waBtn}${resendBtn}${blockBtn}
@@ -7047,11 +7440,8 @@ function downloadUsersPDF() {
   </table>
   </body></html>`;
 
-  const win = window.open('', '_blank');
-  if (!win) { aToast('Allow popups to generate PDF'); return; }
-  win.document.write(html);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
+  const fname = `Tiffo_Users_${filterLabel.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+  _htmlToPDFShare(html, fname);
 }
 
 // ── Delete User from All Users Tab ───────────────────────
@@ -10590,6 +10980,13 @@ async function gotoOrderById(searchTerm) {
     b.classList.toggle('act', b.dataset.cat === 'all'));
   document.querySelectorAll('#ord-status-chips .ord-chip').forEach(b =>
     b.classList.toggle('act', b.dataset.status === 'all'));
+  // Jumping here should always show this customer's normal orders, not
+  // whatever hidden-view state was left on from browsing the Orders tab.
+  if (_ordViewHidden) {
+    _ordViewHidden = false;
+    const vhBtn = document.getElementById('ord-viewhidden-btn');
+    if (vhBtn) { vhBtn.classList.remove('act'); vhBtn.innerHTML = '<i class="fa fa-eye-slash"></i> View Hidden'; }
+  }
 
   // Load fresh data then search
   try { await loadOrders(); } catch (_) {}
@@ -11905,14 +12302,10 @@ tr:last-child td{border-bottom:none}
 </div>
 ${dayRowsHtml}
 <div class="footer">Tiffo Admin · ${new Date().toLocaleString('en-IN')} · Only admin-marked-paid orders counted in earnings</div>
-<div class="print-btn"><button onclick="window.print()" style="padding:10px 28px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Save as PDF / Print</button></div>
 </body></html>`;
 
-  const blob = new Blob([html], { type: 'text/html' });
-  const url  = URL.createObjectURL(blob);
-  const win  = window.open(url, '_blank');
-  if (!win) aToast('Popup blocked karein allow — try again');
-  else { win.onload = () => URL.revokeObjectURL(url); aToast('PDF ready — "Save as PDF" click karein'); }
+  const fname = `Tiffo_Earnings_${res.fromDate}_to_${res.toDate}.pdf`;
+  _htmlToPDFShare(html, fname);
 }
 
 function _renderEarnings(res) {
@@ -12059,7 +12452,7 @@ function _renderEarnings(res) {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
         <div style="font-size:13px;font-weight:700;color:#64748b">${filteredRes.fromDate === filteredRes.toDate ? filteredRes.fromDate : filteredRes.fromDate + ' → ' + filteredRes.toDate} · ${filteredRes.totalOrders} orders${sessBadge}</div>
         <button onclick="if(_earnLastRes)_earnExportPDF(_earnLastRes);else aToast('No data to export');" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-family:var(--ff);font-weight:700;font-size:13px;cursor:pointer">
-          <i class="fa fa-file-pdf" style="color:#ef4444"></i> Export PDF
+          <i class="fa fa-share-nodes" style="color:#ef4444"></i> Share PDF
         </button>
       </div>
 
@@ -12854,11 +13247,8 @@ function kitchenExportPDF() {
     <div class="footer">Tiffo Kitchen Dashboard — Printed ${now}</div>
   </body></html>`;
 
-  const win = window.open('', '_blank');
-  if (!win) { aToast('⚠️ Please allow pop-ups to export PDF'); return; }
-  win.document.write(html);
-  win.document.close();
-  setTimeout(() => { win.focus(); win.print(); }, 500);
+  const fname = `Tiffo_Kitchen_${_kitchenSlot||'all'}_${range.replace(/[^\d\-]/g,'_')}.pdf`;
+  _htmlToPDFShare(html, fname);
 }
 // ─── END KITCHEN DASHBOARD ────────────────────────────────────────────────────
 
